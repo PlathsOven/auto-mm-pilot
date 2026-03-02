@@ -1,0 +1,44 @@
+# Auto-MM-Pilot — Cascade Operating Directives
+# This file dictates fundamental agent behavior in this workspace.
+# It follows Boris Cherny's "Claude Code" philosophy for compounding knowledge.
+# Update this file continuously as new conventions and corrections arise.
+
+## DEFAULT BEHAVIOR — AUTO-PLANNING (CRITICAL)
+
+Whenever I assign you a new task, feature, or directory, you MUST automatically
+enter "Plan Mode". You are strictly forbidden from writing or modifying any code
+initially. You must first output a step-by-step implementation plan and end your
+response by pausing to ask for my explicit approval.
+
+## Continuous Learning
+
+Anytime a mistake is made or I correct you on a codebase convention, you MUST
+immediately update this `.windsurfrules` file so the mistake is never repeated.
+
+## Model Selection
+
+Always use the highest-reasoning model available.
+
+## PARALLEL EXECUTION GUARDRAILS
+
+### Strict Scoping
+
+You are operating in a shared workspace with other active AI agents. Before
+starting execution, confirm your assigned "lane" (specific files/directories).
+NEVER modify files outside your approved scope.
+
+### Surgical Commits
+
+When committing work, you must ONLY stage and commit the exact file paths you
+specifically modified. Never use `git add .` or commit all tracked files.
+
+Whenever asked to commit and push, you must blindly execute:
+
+    .cascade/commands/commit-push-pr.sh "<message>" <file1> <file2> ...
+
+You are forbidden from running raw `git commit -a` or `git add .`.
+
+### State Awareness
+
+If a file you are editing changes unexpectedly, assume another agent modified it.
+Stop and ask me for conflict resolution.
