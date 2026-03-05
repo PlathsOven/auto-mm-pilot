@@ -12,10 +12,29 @@ auto-mm-pilot/
 │   ├── adapter/             ← Data translators: take raw client data (from their
 │   │                          databases) and clean it into a standard format
 │   └── ui/                  ← The desktop app the trader actually sees (Electron + React)
+│       ├── electron/        ← Electron main process + preload
+│       ├── src/
+│       │   ├── components/  ← React panel components (Sidebar, ContextBar, Grid, Feed, Chat, Wrap, PanelWindow)
+│       │   ├── providers/   ← WebSocket state, mock data, chat state, layout/panel state
+│       │   ├── utils.ts     ← Shared utility functions (colors, formatting)
+│       │   ├── types.ts     ← Shared TypeScript interfaces for WS payloads
+│       │   ├── App.tsx      ← Root layout — modular dashboard (react-grid-layout)
+│       │   └── main.tsx     ← React entry point
+│       └── UI_SPEC.md       ← UI design specification
 │
 ├── server/                  ← Everything that runs on OUR cloud server
 │   ├── api/                 ← The "post office": receives data from the client,
-│   │                          hands it to the Brain, sends results back
+│   │   │                      hands it to the Brain, sends results back
+│   │   ├── config.py        ← OpenRouter env config (API key, model IDs)
+│   │   ├── llm/             ← LLM integration layer (OpenRouter)
+│   │   │   ├── client.py    ← Async HTTP client (complete + stream)
+│   │   │   ├── service.py   ← Orchestration: investigation chat & justification
+│   │   │   ├── context_db.py ← Stream context metadata database
+│   │   │   └── prompts/     ← System prompt definitions
+│   │   │       ├── investigation.py  ← Zone E: read state + issue engine commands
+│   │   │       └── justification.py  ← Zone D: update card narration
+│   │   ├── requirements.txt ← Python dependencies for server/api
+│   │   └── .env.example     ← Template for API keys
 │   └── core/                ← THE BRAIN: our secret math (you write this manually)
 │
 ├── .windsurfrules           ← Rules that AI agents follow automatically
