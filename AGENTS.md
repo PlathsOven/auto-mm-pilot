@@ -4,8 +4,9 @@
 Advisory trading terminal for crypto options market-making desks. "Pilot" = navigational engine, not a trial. Vendor product: client gets the terminal + adapters, we retain the math IP.
 
 ## Tech Stack
-- **Local Client:** Electron, React, WebSockets
+- **Local Client:** Electron, React 19, Vite, TailwindCSS, TypeScript, WebSockets, react-grid-layout
 - **Remote Server:** Python, FastAPI, WebSockets
+- **LLM Provider:** OpenRouter (httpx async client)
 
 ## Architecture: Client/Server Visibility Barrier
 The system is physically split to protect proprietary IP.
@@ -33,6 +34,7 @@ The system is physically split to protect proprietary IP.
 | `client/adapter/` | LLM | Data standardization scripts, universal adapter |
 | `client/ui/` | LLM | Electron + React dashboard |
 | `server/api/` | LLM | FastAPI routing, WebSocket transport |
+| `server/api/llm/` | LLM | OpenRouter client, LLM service, system prompts |
 | `server/core/` | **HUMAN ONLY** | Proprietary math (the "Brain") |
 
 ## Division of Labor
@@ -49,3 +51,19 @@ The system is physically split to protect proprietary IP.
 | `AGENTS.md` | This file — project architecture & context (auto-loaded) |
 | `README.md` | Human workflow guide |
 | `.cascade/commands/commit-push-pr.sh` | Surgical commit script |
+| `client/ui/src/App.tsx` | Root layout — modular dashboard (react-grid-layout) |
+| `client/ui/src/providers/LayoutProvider.tsx` | Panel state manager — open/close/duplicate panels, localStorage persistence |
+| `client/ui/src/components/PanelWindow.tsx` | Draggable/resizable panel wrapper with title bar |
+| `client/ui/src/types.ts` | Shared TypeScript interfaces for WS payloads |
+| `client/ui/src/providers/WebSocketProvider.tsx` | Central WS state manager with mock fallback |
+| `client/ui/src/providers/MockDataProvider.ts` | Mock data generator (positions, users, cell notes, daily wrap) |
+| `client/ui/src/providers/ChatProvider.tsx` | Team chat + @APT LLM routing context |
+| `client/ui/src/components/DailyWrap.tsx` | Zone F — automated daily trading wrap summary |
+| `client/ui/src/components/LlmChat.tsx` | Team Chat panel — messages, note threads, investigation context |
+| `client/ui/UI_SPEC.md` | UI design specification |
+| `server/api/config.py` | OpenRouter env config (API key, model IDs, generation params) |
+| `server/api/llm/client.py` | Async OpenRouter HTTP client (complete + stream) |
+| `server/api/llm/service.py` | LLM orchestration — investigation chat & justification narrator |
+| `server/api/llm/context_db.py` | Stream context database — metadata about each data stream (mock-initialized) |
+| `server/api/llm/prompts/investigation.py` | System prompt for Zone E (read state + issue engine commands) |
+| `server/api/llm/prompts/justification.py` | System prompt for Zone D update card narration |
