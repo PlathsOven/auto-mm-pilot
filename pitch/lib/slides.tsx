@@ -8,6 +8,7 @@ import { IntellectualPropertySlide } from "@/components/slides/IntellectualPrope
 import { DataSecuritySlide } from "@/components/slides/DataSecuritySlide";
 import { CostRisksSlide } from "@/components/slides/CostRisksSlide";
 import { BenefitsSlide } from "@/components/slides/BenefitsSlide";
+import { ValuationPricingSlide } from "@/components/slides/ValuationPricingSlide";
 import { TimelineSlide } from "@/components/slides/TimelineSlide";
 import { IntroSlide } from "@/components/slides/IntroSlide";
 import {
@@ -18,6 +19,7 @@ import {
   Shield,
   Scale,
   Trophy,
+  Receipt,
   Calendar,
   Monitor,
 } from "lucide-react";
@@ -77,6 +79,12 @@ export const slides: Slide[] = [
     title: "Benefits",
     icon: <Trophy className="h-4 w-4" />,
     content: <BenefitsSlide />,
+  },
+  {
+    id: "valuation-pricing",
+    title: "Valuation & Pricing",
+    icon: <Receipt className="h-4 w-4" />,
+    content: <ValuationPricingSlide />,
   },
   {
     id: "timeline",

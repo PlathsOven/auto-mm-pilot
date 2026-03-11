@@ -17,7 +17,7 @@ const C = {
   firm: "#22c55e",
   vendor: "#a78bfa",
   vpc: "#3b82f6",
-  egress: "#ef4444",
+  egress: "#94a3b8",
   docker: "#0ea5e9",
 };
 
@@ -34,27 +34,6 @@ function FirmCard({ title }: { title: string }) {
       <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: C.firm }}>
         {title}
       </span>
-    </div>
-  );
-}
-
-function VendorGate({ label }: { label: string }) {
-  return (
-    <div className="flex flex-col items-center gap-0 py-0.5">
-      <div className="h-3 w-px" style={{ backgroundColor: `${C.vendor}30` }} />
-      <div
-        className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg border-2"
-        style={{ borderColor: `${C.vendor}50` }}
-      >
-        <svg className="h-3 w-3" style={{ color: C.vendor }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-        </svg>
-        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: C.vendor }}>
-          {label}
-        </span>
-      </div>
-      <div className="h-3 w-px" style={{ backgroundColor: `${C.vendor}30` }} />
     </div>
   );
 }
@@ -99,7 +78,7 @@ export function DataSecuritySlide() {
         but <strong className="text-foreground">fully auditable</strong> by the firm&apos;s engineering team.
       </p>
 
-      {/* ── Main layout: VPC with egress anchored to Trader/APT ── */}
+      {/* ── Main layout: VPC with egress anchored to APT ── */}
       <div className="w-full pr-56">
         <div
           className="rounded-2xl border-2 border-dashed p-4 pt-6 flex flex-col items-center gap-0 relative overflow-visible"
@@ -123,10 +102,7 @@ export function DataSecuritySlide() {
           {/* 1 · Data Streams — firm-owned, visible → firm colour, no fill */}
           <FirmCard title="Data Streams" />
 
-          {/* Anonymity Gate — vendor-owned, visible → vendor colour, no fill */}
-          <VendorGate label="Anonymity Gate" />
-
-          {/* 2 · Trader / APT — vendor-owned, PROTECTED → vendor colour, DARK fill */}
+          {/* 2 · APT — vendor-owned, PROTECTED → vendor colour, DARK fill */}
           {/* Egress arrow is absolutely positioned from this wrapper */}
           <div className="flex flex-col items-center gap-0 py-0.5 w-full relative">
             <div className="h-3 w-px" style={{ backgroundColor: `${C.vendor}30` }} />
@@ -155,12 +131,12 @@ export function DataSecuritySlide() {
                 className="text-[10px] font-semibold uppercase tracking-wider"
                 style={{ color: C.vendor }}
               >
-                Trader / APT
+                APT
               </span>
             </div>
             <div className="h-3 w-px" style={{ backgroundColor: `${C.vendor}30` }} />
 
-            {/* ── Egress arrow originating from Trader/APT ── */}
+            {/* ── Egress arrow originating from APT ── */}
             <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full flex items-center gap-0 pl-0">
               {/* Line out */}
               <div className="h-px w-4" style={{ backgroundColor: `${C.egress}40` }} />
@@ -211,9 +187,6 @@ export function DataSecuritySlide() {
               </div>
             </div>
           </div>
-
-          {/* Deanonymisation Gate — vendor-owned, visible → vendor colour, no fill */}
-          <VendorGate label="Deanonymisation Gate" />
 
           {/* Hard Risk Fuses — firm-owned, visible → firm colour, no fill */}
           <FirmGate label="Hard Risk Fuses" />

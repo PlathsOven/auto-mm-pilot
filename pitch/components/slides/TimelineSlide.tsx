@@ -35,7 +35,7 @@ const MILESTONES: Milestone[] = [
   },
   {
     label: "Trust earned",
-    items: ["Parameter change integration", "Licensing fee transfer"],
+    items: ["Parameter change integration", "Licensing fees begin"],
     icon: <Handshake className="h-4 w-4" />,
     accent: "#22c55e",
   },
