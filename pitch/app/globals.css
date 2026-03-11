@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #09090b;
+  --foreground: #fafafa;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #18181b;
+  --accent-foreground: #fafafa;
+  --bid-green: #22c55e;
+  --ask-red: #ef4444;
+  --brand: #a78bfa;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(167, 139, 250, 0.3);
+}
+
+/* === Terminal demo styles === */
+@layer base {
+  .demo-terminal * {
+    border-radius: 0 !important;
+  }
+
+  .demo-terminal ::-webkit-scrollbar {
+    width: 6px;
+  }
+  .demo-terminal ::-webkit-scrollbar-track {
+    background: #0d1117;
+  }
+  .demo-terminal ::-webkit-scrollbar-thumb {
+    background: #30363d;
+  }
+  .demo-terminal ::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+  }
+}
+
+@layer components {
+  .zone-header {
+    @apply text-xs font-semibold uppercase tracking-wide text-mm-accent;
+  }
+
+  @keyframes fade-highlight {
+    0% {
+      background-color: rgba(88, 166, 255, 0.15);
+    }
+    100% {
+      background-color: #161B22;
+    }
+  }
+  .row-highlight {
+    animation: fade-highlight 2s ease-out forwards;
+  }
+}
+
+/* react-grid-layout theme overrides */
+.react-grid-layout {
+  min-height: 100% !important;
+}
+.react-grid-placeholder {
+  background: #58A6FF !important;
+  opacity: 0.08 !important;
+  border: 1px solid #58A6FF !important;
+}
+.react-resizable-handle {
+  z-index: 10;
+}
+.react-resizable-handle::after {
+  border-color: #30363D !important;
+}
+.react-grid-item > .react-resizable-handle::after {
+  width: 7px !important;
+  height: 7px !important;
+}

@@ -37,6 +37,11 @@ auto-mm-pilot/
 │   │   └── .env.example     ← Template for API keys
 │   └── core/                ← THE BRAIN: our secret math (you write this manually)
 │
+├── pitch/                   ← Presentation deck (Next.js slide app)
+│   ├── app/                 ← App Router pages + layout
+│   ├── components/          ← SlideDeck, SlideNav, slide templates
+│   └── lib/                 ← Slide data definitions
+│
 ├── .windsurfrules           ← Rules that AI agents follow automatically
 ├── AGENTS.md                ← Technical architecture reference for AI agents
 ├── README.md                ← This file — your guide as the human developer
@@ -58,6 +63,7 @@ auto-mm-pilot/
 | Change how client data gets cleaned/translated | `client/adapter/` |
 | Change how data moves between client and server | `server/api/` |
 | Change the proprietary trading math | `server/core/` (this is yours — AI won't touch it) |
+| Edit the pitch/architecture slides | `pitch/` |
 | Change how AI agents behave | `.windsurfrules` |
 | Change the build process or workflows | `.windsurf/workflows/` |
 | Update project architecture docs | `AGENTS.md` + this file |

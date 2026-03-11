@@ -2,10 +2,60 @@
 
 import { useState, useMemo, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  arcPath, arcLabelPos, formatDollars, parseNum,
-  CX, CY, INNER_R1, OUTER_R1, INNER_R2, OUTER_R2, GAP,
-} from "@/lib/chart-utils";
+
+// ============================================================
+// Helpers (shared with TradingPnlSlide)
+// ============================================================
+
+function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function arcPath(
+  cx: number, cy: number,
+  innerR: number, outerR: number,
+  startAngle: number, endAngle: number,
+): string {
+  const sweep = Math.abs(endAngle - startAngle);
+  if (sweep < 0.1) return "";
+  const largeArc = sweep > 180 ? 1 : 0;
+  const os = polarToCartesian(cx, cy, outerR, startAngle);
+  const oe = polarToCartesian(cx, cy, outerR, endAngle);
+  const is_ = polarToCartesian(cx, cy, innerR, startAngle);
+  const ie = polarToCartesian(cx, cy, innerR, endAngle);
+  return [
+    `M ${os.x} ${os.y}`,
+    `A ${outerR} ${outerR} 0 ${largeArc} 1 ${oe.x} ${oe.y}`,
+    `L ${ie.x} ${ie.y}`,
+    `A ${innerR} ${innerR} 0 ${largeArc} 0 ${is_.x} ${is_.y}`,
+    "Z",
+  ].join(" ");
+}
+
+function arcLabelPos(
+  cx: number, cy: number,
+  innerR: number, outerR: number,
+  startAngle: number, endAngle: number,
+) {
+  const midAngle = (startAngle + endAngle) / 2;
+  return polarToCartesian(cx, cy, (innerR + outerR) / 2, midAngle);
+}
+
+function formatDollars(value: number): string {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "−" : "";
+  if (abs >= 1_000_000_000) return `${sign}$${(abs / 1_000_000_000).toFixed(1)}B`;
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(0)}K`;
+  return `${sign}$${abs.toFixed(0)}`;
+}
+
+function parseNum(s: string): number {
+  if (s === "" || s === "-" || s === "−") return 0;
+  const v = parseFloat(s);
+  return isNaN(v) ? 0 : v;
+}
 
 // ============================================================
 // Types
@@ -32,6 +82,14 @@ interface ArcSegment {
 // ============================================================
 // Constants
 // ============================================================
+
+const CX = 200;
+const CY = 200;
+const INNER_R1 = 70;
+const OUTER_R1 = 130;
+const INNER_R2 = 135;
+const OUTER_R2 = 185;
+const GAP = 1.2;
 
 const COLORS = {
   edgeCaptured: "#a78bfa",
@@ -351,9 +409,9 @@ export function PnlMethodologySlide() {
 
   return (
     <div className="flex flex-col gap-8">
-      <p className="text-muted-foreground text-sm leading-relaxed max-w-3xl">
+      <p className="text-muted-foreground text-sm leading-relaxed max-w-3xl mx-auto text-center">
         Every trading firm&apos;s PnL can be decomposed into three multiplicative factors.
-        Understanding this framework is the key to identifying where value is created — and where it leaks.
+        This framework identifies where PnL is created and where it leaks.
       </p>
 
       {/* Chart centered */}

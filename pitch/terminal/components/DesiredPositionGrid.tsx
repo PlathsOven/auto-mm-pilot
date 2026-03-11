@@ -1,3 +1,5 @@
+"use client";
+
 import { useMemo, useState, useRef, useCallback, useEffect } from "react";
 import { useWebSocket } from "../providers/WebSocketProvider";
 import { useChat } from "../providers/ChatProvider";
@@ -86,6 +88,7 @@ export function DesiredPositionGrid() {
       map.set(n.cellKey, (map.get(n.cellKey) ?? 0) + 1);
     }
     return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [positions]);
 
   const handleNoteBadgeClick = useCallback((e: React.MouseEvent, cellKey: string) => {

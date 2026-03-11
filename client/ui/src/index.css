@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    border-radius: 0 !important;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0d1117;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #30363d;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+  }
+}
+
+@layer components {
+  .zone-header {
+    @apply text-xs font-semibold uppercase tracking-wide text-mm-accent;
+  }
+
+  @keyframes fade-highlight {
+    0% {
+      background-color: rgba(88, 166, 255, 0.15);
+    }
+    100% {
+      background-color: #161B22; /* must match mm-surface in tailwind.config.ts */
+    }
+  }
+  .row-highlight {
+    animation: fade-highlight 2s ease-out forwards;
+  }
+}
+
+/* react-grid-layout theme overrides */
+.react-grid-layout {
+  min-height: 100% !important;
+}
+.react-grid-placeholder {
+  background: #58A6FF !important;
+  opacity: 0.08 !important;
+  border: 1px solid #58A6FF !important;
+}
+.react-resizable-handle {
+  z-index: 10;
+}
+.react-resizable-handle::after {
+  border-color: #30363D !important;
+}
+.react-grid-item > .react-resizable-handle::after {
+  width: 7px !important;
+  height: 7px !important;
+}

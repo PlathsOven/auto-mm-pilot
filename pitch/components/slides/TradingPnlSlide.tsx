@@ -2,10 +2,60 @@
 
 import { useState, useMemo, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  arcPath, arcLabelPos, formatDollars, parseNum,
-  CX, CY, INNER_R1, OUTER_R1, INNER_R2, OUTER_R2, GAP,
-} from "@/lib/chart-utils";
+
+// ============================================================
+// Helpers
+// ============================================================
+
+function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function arcPath(
+  cx: number, cy: number,
+  innerR: number, outerR: number,
+  startAngle: number, endAngle: number,
+): string {
+  const sweep = Math.abs(endAngle - startAngle);
+  if (sweep < 0.1) return "";
+  const largeArc = sweep > 180 ? 1 : 0;
+  const os = polarToCartesian(cx, cy, outerR, startAngle);
+  const oe = polarToCartesian(cx, cy, outerR, endAngle);
+  const is_ = polarToCartesian(cx, cy, innerR, startAngle);
+  const ie = polarToCartesian(cx, cy, innerR, endAngle);
+  return [
+    `M ${os.x} ${os.y}`,
+    `A ${outerR} ${outerR} 0 ${largeArc} 1 ${oe.x} ${oe.y}`,
+    `L ${ie.x} ${ie.y}`,
+    `A ${innerR} ${innerR} 0 ${largeArc} 0 ${is_.x} ${is_.y}`,
+    "Z",
+  ].join(" ");
+}
+
+function arcLabelPos(
+  cx: number, cy: number,
+  innerR: number, outerR: number,
+  startAngle: number, endAngle: number,
+) {
+  const midAngle = (startAngle + endAngle) / 2;
+  return polarToCartesian(cx, cy, (innerR + outerR) / 2, midAngle);
+}
+
+function formatDollars(value: number): string {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "−" : "";
+  if (abs >= 1_000_000_000) return `${sign}$${(abs / 1_000_000_000).toFixed(1)}B`;
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(0)}K`;
+  return `${sign}$${abs.toFixed(0)}`;
+}
+
+function parseNum(s: string): number {
+  if (s === "" || s === "-" || s === "−") return 0;
+  const v = parseFloat(s);
+  return isNaN(v) ? 0 : v;
+}
 
 // ============================================================
 // Types
@@ -55,6 +105,14 @@ interface ArcSegment {
 // Constants
 // ============================================================
 
+const CX = 200;
+const CY = 200;
+const INNER_R1 = 70;
+const OUTER_R1 = 130;
+const INNER_R2 = 135;
+const OUTER_R2 = 185;
+const GAP = 1.2;
+
 const COLORS = {
   edgeDay: "#a78bfa",
   edgeNight: "#6366f1",
@@ -65,7 +123,7 @@ const COLORS = {
   negative: "#ef4444",
 };
 
-const STATUS_QUO_DEFAULTS: ParamStrings = {
+const CURRENT_DEFAULTS: ParamStrings = {
   marketEdge: "50000000",
   edgeShareDay: "10",
   edgeShareNight: "0",
@@ -411,7 +469,7 @@ function Cell({ value, onChange, prefix, suffix, step = 1, allowNeg = false, spa
   prefix?: string; suffix?: string; step?: number; allowNeg?: boolean; span?: boolean;
 }) {
   return (
-    <td className="px-2 py-1" colSpan={span ? 2 : 1}>
+    <td className={span ? "px-2 py-1" : "px-2 py-1"} colSpan={span ? 2 : 1}>
       <div className="flex items-center gap-0.5">
         {prefix && <span className="text-[10px] text-muted-foreground font-mono shrink-0">{prefix}</span>}
         <input type="number" value={value} onChange={(e) => onChange(e.target.value)} step={step}
@@ -429,43 +487,43 @@ function Cell({ value, onChange, prefix, suffix, step = 1, allowNeg = false, spa
 // ============================================================
 
 export function TradingPnlSlide() {
-  const [sqStrings, setSqStrings] = useState<ParamStrings>(STATUS_QUO_DEFAULTS);
+  const [curStrings, setCurStrings] = useState<ParamStrings>(CURRENT_DEFAULTS);
   const [aptStrings, setAptStrings] = useState<ParamStrings>(WITH_APT_DEFAULTS);
 
-  const sqSet = useCallback((key: keyof ParamStrings, val: string) => {
-    setSqStrings((prev) => ({ ...prev, [key]: val }));
+  const curSet = useCallback((key: keyof ParamStrings, val: string) => {
+    setCurStrings((prev) => ({ ...prev, [key]: val }));
   }, []);
   const aptSet = useCallback((key: keyof ParamStrings, val: string) => {
     setAptStrings((prev) => ({ ...prev, [key]: val }));
   }, []);
 
-  const sqP = useMemo(() => parseParams(sqStrings), [sqStrings]);
+  const curP = useMemo(() => parseParams(curStrings), [curStrings]);
   const aptP = useMemo(() => parseParams(aptStrings), [aptStrings]);
 
-  const sqC = useMemo(() => computeValues(sqP), [sqP]);
+  const curC = useMemo(() => computeValues(curP), [curP]);
   const aptC = useMemo(() => computeValues(aptP), [aptP]);
 
-  const sqArcs = useMemo(() => buildArcs(sqP, sqC), [sqP, sqC]);
+  const curArcs = useMemo(() => buildArcs(curP, curC), [curP, curC]);
   const aptArcs = useMemo(() => buildArcs(aptP, aptC), [aptP, aptC]);
 
-  const delta = aptC.annualPnl - sqC.annualPnl;
-  const deltaPct = sqC.annualPnl !== 0 ? (delta / Math.abs(sqC.annualPnl)) * 100 : 0;
+  const delta = aptC.annualPnl - curC.annualPnl;
+  const deltaPct = curC.annualPnl !== 0 ? (delta / Math.abs(curC.annualPnl)) * 100 : 0;
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-muted-foreground text-sm leading-relaxed max-w-3xl">
-        Side-by-side comparison of PnL under current operations vs. with APT advisory.
-        Adjust each scenario&apos;s parameters independently.
+      <p className="text-muted-foreground text-sm leading-relaxed max-w-3xl mx-auto text-center">
+        Insufficient coverage, poor unmonitored positional performance, and limited trader time reduces firm PnL.
+        APT solves each of these problems to unlock potential PnL for Gravity Team.
       </p>
 
       {/* Two-column comparison */}
       <div className="grid grid-cols-2 gap-6 items-start">
         <ScenarioColumn
-          title="Status Quo"
-          arcs={sqArcs}
-          computed={sqC}
-          marketEdge={sqP.marketEdge}
-          hatchId="hatch-sq"
+          title="Current"
+          arcs={curArcs}
+          computed={curC}
+          marketEdge={curP.marketEdge}
+          hatchId="hatch-cur"
         />
         <ScenarioColumn
           title="APT"
@@ -480,10 +538,10 @@ export function TradingPnlSlide() {
       <div className="rounded-xl border border-muted bg-accent/30 p-4 flex items-center justify-between gap-6">
         <div className="flex flex-col gap-0.5">
           <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
-            Status Quo PnL
+            Current PnL
           </span>
-          <span className="font-mono text-lg font-bold" style={{ color: sqC.annualPnl >= 0 ? COLORS.retainedShortTerm : COLORS.negative }}>
-            {formatDollars(sqC.annualPnl)}
+          <span className="font-mono text-lg font-bold" style={{ color: curC.annualPnl >= 0 ? COLORS.retainedShortTerm : COLORS.negative }}>
+            {formatDollars(curC.annualPnl)}
           </span>
         </div>
 
@@ -511,9 +569,9 @@ export function TradingPnlSlide() {
 
       {/* Shared collapsible parameters */}
       <ParamComparisonTable
-        sqStrings={sqStrings}
+        curStrings={curStrings}
         aptStrings={aptStrings}
-        onSqChange={sqSet}
+        onCurChange={curSet}
         onAptChange={aptSet}
       />
 
@@ -553,20 +611,20 @@ export function TradingPnlSlide() {
 // ============================================================
 
 function ParamComparisonTable({
-  sqStrings,
+  curStrings,
   aptStrings,
-  onSqChange,
+  onCurChange,
   onAptChange,
 }: {
-  sqStrings: ParamStrings;
+  curStrings: ParamStrings;
   aptStrings: ParamStrings;
-  onSqChange: (key: keyof ParamStrings, val: string) => void;
+  onCurChange: (key: keyof ParamStrings, val: string) => void;
   onAptChange: (key: keyof ParamStrings, val: string) => void;
 }) {
   const [open, setOpen] = useState(false);
 
   const sharedSet = (key: keyof ParamStrings, val: string) => {
-    onSqChange(key, val);
+    onCurChange(key, val);
     onAptChange(key, val);
   };
 
@@ -614,7 +672,7 @@ function ParamComparisonTable({
             <thead>
               <tr className="border-b border-muted/40">
                 <th className={TH} style={{ width: "32%" }} />
-                <th className={`${TH} text-center`} style={{ width: "26%" }}>Status Quo</th>
+                <th className={`${TH} text-center`} style={{ width: "26%" }}>Current</th>
                 <th className={`${TH} text-center`} style={{ width: "26%" }}>APT</th>
                 <th className={`${TH} text-center`} style={{ width: "16%" }}>Diff</th>
               </tr>
@@ -626,9 +684,9 @@ function ParamComparisonTable({
                     <tr key={`s-${i}`}><td colSpan={4} className={SECTION}>{row.section}</td></tr>
                   );
                 }
-                const sqVal = parseNum(sqStrings[row.key]);
+                const curVal = parseNum(curStrings[row.key]);
                 const aptVal = parseNum(aptStrings[row.key]);
-                const diff = aptVal - sqVal;
+                const diff = aptVal - curVal;
                 const diffColor = row.shared ? "text-muted-foreground/50" : diff > 0 ? "text-emerald-400" : diff < 0 ? "text-red-400" : "text-muted-foreground/50";
                 const diffStr = row.shared ? "—" : row.prefix === "$" ? formatDollars(diff) : `${diff >= 0 ? "+" : ""}${diff}`;
                 return (
@@ -636,7 +694,7 @@ function ParamComparisonTable({
                     <td className={LABEL}>{row.label}</td>
                     {row.shared ? (
                       <Cell
-                        value={sqStrings[row.key]}
+                        value={curStrings[row.key]}
                         onChange={(v) => sharedSet(row.key, v)}
                         prefix={row.prefix} suffix={row.suffix}
                         step={row.step} allowNeg={row.allowNeg} span
@@ -644,8 +702,8 @@ function ParamComparisonTable({
                     ) : (
                       <>
                         <Cell
-                          value={sqStrings[row.key]}
-                          onChange={(v) => onSqChange(row.key, v)}
+                          value={curStrings[row.key]}
+                          onChange={(v) => onCurChange(row.key, v)}
                           prefix={row.prefix} suffix={row.suffix}
                           step={row.step} allowNeg={row.allowNeg}
                         />
