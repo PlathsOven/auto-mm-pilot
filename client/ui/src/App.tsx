@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Responsive, useContainerWidth, verticalCompactor } from "react-grid-layout";
 import type { Layout, LayoutItem } from "react-grid-layout";
 import { IngestionSidebar } from "./components/IngestionSidebar";
@@ -21,11 +21,31 @@ const PANEL_COMPONENT: Record<PanelType, React.FC> = {
   wrap: DailyWrap,
 };
 
-const ROW_HEIGHT = 60;
+const FALLBACK_ROW_HEIGHT = 60;
+const MARGIN_Y = 1;
 
 export default function App() {
   const { panels, layout, removePanel, onLayoutChange } = useLayout();
   const { width, containerRef, mounted } = useContainerWidth();
+  const [containerHeight, setContainerHeight] = useState(0);
+  const heightRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const node = heightRef.current;
+    if (!node) return;
+    const ro = new ResizeObserver(([entry]) => setContainerHeight(entry.contentRect.height));
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, [mounted]);
+
+  const maxRow = useMemo(
+    () => layout.reduce((max, item) => Math.max(max, item.y + item.h), 0) || 1,
+    [layout],
+  );
+
+  const rowHeight = containerHeight > 0
+    ? (containerHeight - (maxRow - 1) * MARGIN_Y) / maxRow
+    : FALLBACK_ROW_HEIGHT;
 
   const layouts = useMemo(() => ({ lg: layout as unknown as Layout }), [layout]);
 
@@ -35,7 +55,13 @@ export default function App() {
         <GlobalContextBar />
       </header>
 
-      <div ref={containerRef} className="min-h-0 flex-1 overflow-auto">
+      <div
+        ref={(node) => {
+          (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+          heightRef.current = node;
+        }}
+        className="min-h-0 flex-1 overflow-hidden"
+      >
         {mounted && (
           <Responsive
             className="layout"
@@ -43,7 +69,7 @@ export default function App() {
             layouts={layouts}
             breakpoints={{ lg: 0 }}
             cols={{ lg: 12 }}
-            rowHeight={ROW_HEIGHT}
+            rowHeight={rowHeight}
             dragConfig={{ handle: ".panel-drag-handle" }}
             compactor={verticalCompactor}
             onLayoutChange={(current: Layout) => onLayoutChange([...current] as LayoutItem[])}

@@ -35,10 +35,10 @@ const DEFAULT_PANELS: PanelInstance[] = [
 ];
 
 const DEFAULT_LAYOUT: LayoutItem[] = [
-  { i: "streams-0", x: 0, y: 0, w: 3, h: 6, minW: 2, minH: 3 },
+  { i: "streams-0", x: 0, y: 0, w: 3, h: 10, minW: 2, minH: 3 },
   { i: "positions-0", x: 3, y: 0, w: 6, h: 6, minW: 4, minH: 3 },
   { i: "updates-0", x: 9, y: 0, w: 3, h: 4, minW: 2, minH: 3 },
-  { i: "chat-0", x: 9, y: 4, w: 3, h: 5, minW: 2, minH: 3 },
+  { i: "chat-0", x: 9, y: 4, w: 3, h: 6, minW: 2, minH: 3 },
   { i: "wrap-0", x: 3, y: 6, w: 6, h: 4, minW: 3, minH: 3 },
 ] as LayoutItem[];
 
