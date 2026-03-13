@@ -28,35 +28,32 @@ body {
 
 /* === Terminal demo styles === */
 @layer base {
-  .demo-terminal * {
-    border-radius: 0 !important;
-  }
-
   .demo-terminal ::-webkit-scrollbar {
     width: 6px;
   }
   .demo-terminal ::-webkit-scrollbar-track {
-    background: #0d1117;
+    background: #09090b;
   }
   .demo-terminal ::-webkit-scrollbar-thumb {
-    background: #30363d;
+    background: #27272a;
+    border-radius: 9999px;
   }
   .demo-terminal ::-webkit-scrollbar-thumb:hover {
-    background: #484f58;
+    background: #3f3f46;
   }
 }
 
 @layer components {
   .zone-header {
-    @apply text-xs font-semibold uppercase tracking-wide text-mm-accent;
+    @apply text-xs font-semibold tracking-normal text-mm-accent;
   }
 
   @keyframes fade-highlight {
     0% {
-      background-color: rgba(88, 166, 255, 0.15);
+      background-color: rgba(129, 140, 248, 0.15);
     }
     100% {
-      background-color: #161B22;
+      background-color: #18181b;
     }
   }
   .row-highlight {
@@ -69,15 +66,16 @@ body {
   min-height: 100% !important;
 }
 .react-grid-placeholder {
-  background: #58A6FF !important;
+  background: #818cf8 !important;
   opacity: 0.08 !important;
-  border: 1px solid #58A6FF !important;
+  border: 1px solid #818cf8 !important;
+  border-radius: 12px !important;
 }
 .react-resizable-handle {
   z-index: 10;
 }
 .react-resizable-handle::after {
-  border-color: #30363D !important;
+  border-color: #27272a !important;
 }
 .react-grid-item > .react-resizable-handle::after {
   width: 7px !important;

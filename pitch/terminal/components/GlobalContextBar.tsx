@@ -37,7 +37,7 @@ export function GlobalContextBar() {
   }, [menuOpen]);
 
   return (
-    <div className="flex h-[60px] items-center justify-between border-b border-mm-border bg-mm-surface px-6">
+    <div className="flex h-[60px] items-center justify-between border-b border-mm-border/40 bg-mm-surface/80 px-6 backdrop-blur-sm">
       {/* Logo + App Name */}
       <div className="flex items-center gap-3">
         <span className="text-base font-bold tracking-wide text-mm-accent">
@@ -58,7 +58,7 @@ export function GlobalContextBar() {
           <select
             value={space}
             onChange={(e) => setSpace(e.target.value)}
-            className="border border-mm-border bg-mm-bg px-2 py-1 text-xs text-mm-text outline-none focus:border-mm-accent"
+            className="rounded-lg border border-mm-border/60 bg-mm-bg px-3 py-1.5 text-xs text-mm-text outline-none transition-colors focus:border-mm-accent/60 focus:ring-1 focus:ring-mm-accent/20"
           >
             {SPACE_OPTIONS.map((opt) => (
               <option key={opt} value={opt}>
@@ -69,30 +69,30 @@ export function GlobalContextBar() {
         </div>
 
         {/* Windows dropdown */}
-        <div ref={menuRef} className="relative border-l border-mm-border pl-4">
+        <div ref={menuRef} className="relative pl-4">
           <button
             onClick={() => setMenuOpen((v) => !v)}
-            className="flex items-center gap-1 text-xs text-mm-text-dim hover:text-mm-text"
+            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
           >
             <span>Windows</span>
             <span className="text-[8px]">{menuOpen ? "▲" : "▼"}</span>
           </button>
           {menuOpen && (
-            <div className="absolute left-0 top-full z-50 mt-1 min-w-[180px] border border-mm-border bg-mm-surface py-1 shadow-lg">
+            <div className="absolute left-0 top-full z-50 mt-2 min-w-[180px] overflow-hidden rounded-xl border border-mm-border/60 bg-mm-surface py-1 shadow-xl shadow-black/30">
               {PANEL_TYPES.map((type) => (
                 <button
                   key={type}
                   onClick={() => { addPanel(type); setMenuOpen(false); }}
-                  className="flex w-full items-center px-3 py-1.5 text-left text-xs text-mm-text hover:bg-mm-accent/10"
+                  className="flex w-full items-center px-3 py-2 text-left text-xs text-mm-text transition-colors hover:bg-mm-accent/10"
                 >
                   <span className="mr-2 text-[10px] text-mm-accent">+</span>
                   {PANEL_LABELS[type]}
                 </button>
               ))}
-              <div className="my-1 border-t border-mm-border" />
+              <div className="my-1 border-t border-mm-border/40" />
               <button
                 onClick={() => { resetLayout(); setMenuOpen(false); }}
-                className="flex w-full items-center px-3 py-1.5 text-left text-xs text-mm-text-dim hover:bg-mm-accent/10 hover:text-mm-text"
+                className="flex w-full items-center px-3 py-2 text-left text-xs text-mm-text-dim transition-colors hover:bg-mm-accent/10 hover:text-mm-text"
               >
                 Reset Layout
               </button>
@@ -101,7 +101,7 @@ export function GlobalContextBar() {
         </div>
 
         {/* APT Parameter Control Toggle */}
-        <div className="flex items-center gap-2 border-l border-mm-border pl-4">
+        <div className="flex items-center gap-2 pl-4">
           <span className="text-[10px] text-mm-text-dim">APT Control:</span>
           <button
             onClick={() => setAptEnabled((v) => !v)}
@@ -132,8 +132,8 @@ export function GlobalContextBar() {
         </div>
 
         {/* Logged-in User */}
-        <div className="flex items-center gap-2 border-l border-mm-border pl-4">
-          <span className="flex h-6 w-6 items-center justify-center bg-mm-accent/20 text-[10px] font-bold text-mm-accent">
+        <div className="flex items-center gap-2 pl-4">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-mm-accent/20 text-[10px] font-bold text-mm-accent">
             {CURRENT_USER.initials}
           </span>
           <div className="flex flex-col">

@@ -183,7 +183,7 @@ export function DesiredPositionGrid() {
 
   return (
     <div className="flex h-full flex-col p-4">
-      <div className="mb-3 flex items-center justify-between border-b border-mm-border pb-2">
+      <div className="mb-3 flex items-center justify-between border-b border-mm-border/40 pb-2">
         <div className="flex items-baseline gap-2">
           <h2 className="zone-header">Desired Positions</h2>
           {meta.unit && (
@@ -199,8 +199,8 @@ export function DesiredPositionGrid() {
                   onClick={() => setTimeframe(tf.label)}
                   className={`px-2 py-0.5 text-[10px] transition-colors ${
                     timeframe === tf.label
-                      ? "bg-mm-accent/20 text-mm-accent"
-                      : "text-mm-text-dim hover:text-mm-text"
+                      ? "rounded-md bg-mm-accent/20 text-mm-accent"
+                      : "rounded-md text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
                   }`}
                 >
                   {tf.label}
@@ -211,7 +211,7 @@ export function DesiredPositionGrid() {
           <select
             value={viewMode}
             onChange={(e) => setViewMode(e.target.value as ViewMode)}
-            className="border border-mm-border bg-mm-bg px-2 py-1 text-[10px] text-mm-text outline-none focus:border-mm-accent"
+            className="rounded-lg border border-mm-border/60 bg-mm-bg px-2 py-1 text-[10px] text-mm-text outline-none transition-colors focus:border-mm-accent/60 focus:ring-1 focus:ring-mm-accent/20"
           >
             {Object.entries(VIEW_MODE_META).map(([key, m]) => (
               <option key={key} value={key}>
@@ -230,7 +230,7 @@ export function DesiredPositionGrid() {
         ) : (
           <table className="w-full border-collapse text-[11px]">
             <thead>
-              <tr className="border-b border-mm-border text-[10px] text-mm-text-dim">
+              <tr className="border-b border-mm-border/40 text-[10px] text-mm-text-dim">
                 <th className="px-2 py-1.5 text-left font-medium" />
                 {expiries.map((exp) => (
                   <th
@@ -247,7 +247,7 @@ export function DesiredPositionGrid() {
               {assets.map((asset) => (
                 <tr
                   key={asset}
-                  className="border-b border-mm-border/40"
+                  className="border-b border-mm-border/20"
                 >
                   <td className="px-2 py-1.5 text-[11px] font-semibold text-mm-text">
                     {asset}
@@ -268,7 +268,7 @@ export function DesiredPositionGrid() {
                         key={exp}
                         onClick={() => investigate({ type: "position", asset, expiry: exp, position: cell.pos })}
                         onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClick(key, asset, exp, cell.pos); }}
-                        className={`relative cursor-pointer px-2 py-1.5 text-center text-[11px] tabular-nums transition-colors hover:ring-1 hover:ring-mm-accent/40 ${valColor(val)} ${isRecent ? "row-highlight" : ""}`}
+                        className={`relative cursor-pointer rounded px-2 py-1.5 text-center text-[11px] tabular-nums transition-colors hover:ring-1 hover:ring-mm-accent/30 ${valColor(val)} ${isRecent ? "row-highlight" : ""}`}
                         style={{ backgroundColor: cellBg(val) }}
                       >
                         {isEditing ? (
@@ -282,7 +282,7 @@ export function DesiredPositionGrid() {
                               if (e.key === "Escape") cancelEdit();
                             }}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-full bg-mm-bg border border-mm-accent px-1 py-0.5 text-center text-[11px] text-mm-text outline-none tabular-nums"
+                            className="w-full rounded-md bg-mm-bg border border-mm-accent/60 px-1 py-0.5 text-center text-[11px] text-mm-text outline-none tabular-nums focus:ring-1 focus:ring-mm-accent/30"
                           />
                         ) : (
                           <>
@@ -297,7 +297,7 @@ export function DesiredPositionGrid() {
                         {hasOverride && !isEditing && (
                           <button
                             onClick={(e) => { e.stopPropagation(); removeOverride(key); }}
-                            className="absolute left-0.5 top-0.5 flex h-4 w-4 items-center justify-center bg-amber-500/30 text-[8px] font-bold text-amber-400 hover:bg-amber-500/50 transition-colors cursor-pointer"
+                            className="absolute left-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-amber-500/30 text-[8px] font-bold text-amber-400 hover:bg-amber-500/50 transition-colors cursor-pointer"
                             title="Undo override"
                           >
                             ✕
@@ -306,7 +306,7 @@ export function DesiredPositionGrid() {
                         {noteCount > 0 && (
                           <button
                             onClick={(e) => handleNoteBadgeClick(e, key)}
-                            className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center bg-mm-accent/30 text-[7px] font-bold text-mm-accent hover:bg-mm-accent/50 transition-colors cursor-pointer"
+                            className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-mm-accent/30 text-[7px] font-bold text-mm-accent hover:bg-mm-accent/50 transition-colors cursor-pointer"
                             title={`${noteCount} note${noteCount > 1 ? "s" : ""} — click to view`}
                           >
                             {noteCount}
@@ -333,7 +333,7 @@ export function DesiredPositionGrid() {
                   })()}
                 </tr>
               ))}
-              <tr className="border-t border-mm-border">
+              <tr className="border-t border-mm-border/40">
                 <td className="px-2 py-1.5 text-[11px] font-semibold text-mm-text-dim">Total</td>
                 {expiries.map((exp) => {
                   const colTotal = assets.reduce((sum, a) => {
@@ -376,7 +376,7 @@ export function DesiredPositionGrid() {
       </div>
 
       {pendingEdit && (
-        <div className="mt-2 flex items-center justify-between border-t border-mm-border bg-mm-bg-alt px-3 py-2">
+        <div className="mt-2 flex items-center justify-between rounded-lg border-t border-mm-border/40 bg-mm-bg/80 px-3 py-2">
           <span className="text-[10px] text-mm-text">
             Override <span className="font-semibold">{pendingEdit.asset} {pendingEdit.expiry}</span>:
             <span className="ml-1 text-mm-text-dim">{pendingEdit.aptValue > 0 ? "+" : ""}{pendingEdit.aptValue.toFixed(meta.decimals)}</span>
@@ -384,8 +384,8 @@ export function DesiredPositionGrid() {
             <span className="font-semibold text-amber-400">{isNaN(parseFloat(pendingEdit.value)) ? "—" : (parseFloat(pendingEdit.value) > 0 ? "+" : "") + parseFloat(pendingEdit.value).toFixed(meta.decimals)}</span>
           </span>
           <div className="flex gap-2">
-            <button onClick={cancelEdit} className="px-2 py-0.5 text-[10px] text-mm-text-dim hover:text-mm-text transition-colors">Cancel</button>
-            <button onClick={confirmOverride} className="px-2 py-0.5 text-[10px] bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors font-medium">Confirm</button>
+            <button onClick={cancelEdit} className="rounded-md px-2 py-0.5 text-[10px] text-mm-text-dim hover:text-mm-text transition-colors">Cancel</button>
+            <button onClick={confirmOverride} className="rounded-md px-2 py-0.5 text-[10px] bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors font-medium">Confirm</button>
           </div>
         </div>
       )}

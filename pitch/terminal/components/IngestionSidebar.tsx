@@ -29,7 +29,7 @@ export function IngestionSidebar() {
 
   return (
     <div className="flex h-full flex-col p-4">
-      <h2 className="zone-header mb-3 border-b border-mm-border pb-2">Data Streams</h2>
+      <h2 className="zone-header mb-3 border-b border-mm-border/40 pb-2">Data Streams</h2>
 
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
         {streams.length === 0 && (
@@ -41,10 +41,10 @@ export function IngestionSidebar() {
         {streams.map((stream) => (
           <div
             key={stream.id}
-            className="flex items-center gap-3 border border-mm-border bg-mm-surface p-3"
+            className="flex items-center gap-3 rounded-lg border border-mm-border/40 bg-mm-bg/50 p-3 transition-colors hover:bg-mm-bg/80"
           >
             <span
-              className={`inline-block h-2 w-2 shrink-0 ${STATUS_COLORS[stream.status]}`}
+              className={`inline-block h-2 w-2 shrink-0 rounded-full ${STATUS_COLORS[stream.status]}`}
             />
 
             <div className="flex min-w-0 flex-1 flex-col gap-1">

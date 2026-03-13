@@ -51,7 +51,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-mm-bg-deep">
-      <header className="shrink-0">
+      <header className="relative z-50 shrink-0">
         <GlobalContextBar />
       </header>
 

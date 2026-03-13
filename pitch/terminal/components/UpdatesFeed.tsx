@@ -22,7 +22,7 @@ export function UpdatesFeed() {
 
   return (
     <div className="flex h-full flex-col p-4">
-      <div className="mb-3 flex items-center justify-between border-b border-mm-border pb-2">
+      <div className="mb-3 flex items-center justify-between border-b border-mm-border/40 pb-2">
         <h2 className="zone-header">Updates</h2>
         <span className="text-[10px] tabular-nums text-mm-text-dim">
           {lastUpdate > 0 ? `Last update: +${elapsed}ms` : "—"}
@@ -42,7 +42,7 @@ export function UpdatesFeed() {
             <div
               key={card.id}
               onClick={() => investigate({ type: "update", card })}
-              className={`cursor-pointer border border-mm-border bg-mm-surface p-3 hover:ring-1 hover:ring-mm-accent/40 ${isRecent ? "row-highlight" : ""}`}
+              className={`cursor-pointer rounded-lg border border-mm-border/40 bg-mm-bg/50 p-3 transition-colors hover:bg-mm-bg/80 hover:ring-1 hover:ring-mm-accent/30 ${isRecent ? "row-highlight" : ""}`}
             >
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-mm-text">

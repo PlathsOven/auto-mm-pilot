@@ -7,8 +7,8 @@ export function valColor(val: number): string {
 
 /** Returns an rgba background color tinted by sign. */
 export function cellBg(val: number): string {
-  if (val > 0) return "rgba(88, 166, 255, 0.12)";
-  if (val < 0) return "rgba(248, 81, 73, 0.12)";
+  if (val > 0) return "rgba(129, 140, 248, 0.10)";
+  if (val < 0) return "rgba(248, 113, 113, 0.10)";
   return "transparent";
 }
 

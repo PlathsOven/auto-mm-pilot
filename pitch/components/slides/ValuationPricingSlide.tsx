@@ -26,7 +26,7 @@ const ROWS: DerivationRow[] = [
   { step: 7, logic: "Cognitive Bandwidth", multiplier: "\u00d7 2.0 (Parallelism / Speed / Accuracy / Perfect Memory)", annual: "$3,857,000", highlight: true },
   { step: 8, logic: "Scale Adjustment", multiplier: "\u00d7 30% (Gravity vs. Citadel Margin)", annual: "$1,157,100", highlight: true },
   { step: 9, logic: "Required ROI", multiplier: "\u00f7 2.5 (40% Wage-to-Revenue Ratio)", annual: "$462,840", bold: true },
-  { step: 10, logic: "Pilot Partnership Rate", multiplier: "~50% Discount", annual: "$240,000", bold: true },
+  { step: 10, logic: "Pilot Partnership Rate", multiplier: "~50% Discount", annual: "$234,000", bold: true },
 ];
 
 // ============================================================
@@ -144,7 +144,7 @@ export function ValuationPricingSlide() {
           </div>
           <div className="px-3 py-3 border-l border-muted" />
           <div className="px-3 py-3 text-sm font-bold text-[var(--brand)] border-l border-muted text-right tabular-nums">
-            $20,000
+            $19,500
           </div>
         </div>
       </div>

@@ -5,7 +5,7 @@ import type { WrapPositionEntry, WrapScenario } from "../types";
 
 function EntryRow({ entry }: { entry: WrapPositionEntry }) {
   return (
-    <div className="border-b border-mm-border/30 px-3 py-2">
+    <div className="border-b border-mm-border/20 px-3 py-2">
       <div className="mb-0.5 flex items-center justify-between">
         <span className="text-[10px] font-semibold text-mm-text">
           {entry.asset} — {entry.expiry}
@@ -24,7 +24,7 @@ function ScenarioRow({ scenario, accent }: { scenario: WrapScenario; accent: "bl
   const borderColor = accent === "blue" ? "border-mm-accent/40" : "border-mm-error/40";
   const descColor = accent === "blue" ? "text-mm-accent" : "text-mm-error";
   return (
-    <div className={`border-l-2 ${borderColor} px-3 py-2`}>
+    <div className={`rounded-lg border-l-2 ${borderColor} bg-mm-bg/30 px-3 py-2`}>
       <p className={`text-[10px] font-medium ${descColor}`}>{scenario.description}</p>
       <p className="mt-0.5 text-[9px] text-mm-text-dim">
         <span className="font-medium text-mm-text-dim">Trigger:</span> {scenario.trigger}
@@ -38,7 +38,7 @@ export function DailyWrap() {
 
   return (
     <div className="flex h-full flex-col p-4">
-      <div className="mb-3 flex items-center justify-between border-b border-mm-border pb-2">
+      <div className="mb-3 flex items-center justify-between border-b border-mm-border/40 pb-2">
         <h2 className="zone-header">Daily Trading Wrap</h2>
         <span className="text-[10px] tabular-nums text-mm-text-dim">
           Generated {formatUtcTime(wrap.generatedAt)} UTC
@@ -50,10 +50,10 @@ export function DailyWrap() {
         <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
           {/* Largest Position Changes */}
           <section>
-            <h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-mm-text-dim">
+            <h3 className="mb-1 text-[10px] font-semibold tracking-normal text-mm-text-dim">
               Largest Position Changes
             </h3>
-            <div className="border border-mm-border bg-mm-surface">
+            <div className="overflow-hidden rounded-lg border border-mm-border/40 bg-mm-bg/30">
               {wrap.largestPositionChanges.map((e, i) => (
                 <EntryRow key={`pos-${i}`} entry={e} />
               ))}
@@ -62,10 +62,10 @@ export function DailyWrap() {
 
           {/* Largest Desired Changes */}
           <section>
-            <h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-mm-text-dim">
+            <h3 className="mb-1 text-[10px] font-semibold tracking-normal text-mm-text-dim">
               Largest Desired Position Changes
             </h3>
-            <div className="border border-mm-border bg-mm-surface">
+            <div className="overflow-hidden rounded-lg border border-mm-border/40 bg-mm-bg/30">
               {wrap.largestDesiredChanges.map((e, i) => (
                 <EntryRow key={`des-${i}`} entry={e} />
               ))}
@@ -74,14 +74,14 @@ export function DailyWrap() {
 
           {/* Current Risks */}
           <section>
-            <h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-mm-text-dim">
+            <h3 className="mb-1 text-[10px] font-semibold tracking-normal text-mm-text-dim">
               Current Risks
             </h3>
             <div className="flex flex-col gap-1">
               {wrap.currentRisks.map((risk, i) => (
                 <div
                   key={`risk-${i}`}
-                  className="border-l-2 border-mm-warn/40 bg-mm-surface px-3 py-2 text-[10px] leading-relaxed text-mm-text-dim"
+                  className="rounded-lg border-l-2 border-mm-warn/40 bg-mm-bg/30 px-3 py-2 text-[10px] leading-relaxed text-mm-text-dim"
                 >
                   {risk}
                 </div>
@@ -94,7 +94,7 @@ export function DailyWrap() {
         <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
           {/* Best Case */}
           <section>
-            <h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-mm-accent">
+            <h3 className="mb-1 text-[10px] font-semibold tracking-normal text-mm-accent">
               Best Case Scenarios
             </h3>
             <div className="flex flex-col gap-1">
@@ -106,7 +106,7 @@ export function DailyWrap() {
 
           {/* Worst Case */}
           <section>
-            <h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-mm-error">
+            <h3 className="mb-1 text-[10px] font-semibold tracking-normal text-mm-error">
               Worst Case Scenarios
             </h3>
             <div className="flex flex-col gap-1">

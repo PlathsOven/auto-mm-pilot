@@ -1,16 +1,17 @@
 # UI Frontend Specification: APT — Automated Positional Trader
 
 ## 1. Visual Identity & Brand Philosophy
-* **Persona:** Clean, professional trading terminal. Precise, minimalist, and authoritative.
+* **Persona:** Modern, sleek trading terminal. Precise, minimal, and refined.
 * **Color Palette:**
-    * **Background:** Deep Charcoal (`#0D1117`) or Slate Black (`#0B0E14`).
-    * **Surface/Cards:** Darker Slate (`#161B22`) with subtle 1px borders (`#30363D`).
-    * **Accents:** Cyber Blue (`#58A6FF`) for data highlights; Neutral White (`#C9D1D9`) for text.
-    * **Alerts:** Amber (`#D29922`) for warnings; Muted Red (`#F85149`) for errors. Avoid bright "Retail Green."
+    * **Background:** Zinc Black (`#0f0f12`) or Deep Zinc (`#09090b`).
+    * **Surface/Cards:** Zinc 900 (`#18181b`) with soft borders (`#27272a` at 40-60% opacity), rounded corners (`rounded-xl` panels, `rounded-lg` cards/inputs).
+    * **Accents:** Indigo (`#818cf8`) for data highlights; Clean White (`#fafafa`) for text.
+    * **Alerts:** Amber (`#fbbf24`) for warnings; Soft Red (`#f87171`) for errors. Avoid bright "Retail Green."
+* **Surfaces:** Subtle shadows (`shadow-lg shadow-black/20`) replace hard borders. Backdrop blur on context bar. Transition animations on interactive elements.
 * **Typography:**
     * **All text** (including numbers, timestamps, and data values) uses clean sans-serif (`Inter`). No monospaced fonts anywhere. Use `tabular-nums` for numeric alignment.
     * Use proper casing for headers and labels (e.g., "Desired Positions", not `DESIRED_POS`).
-* **Sign-based coloring:** All numeric values are colored by sign — positive = Cyber Blue, negative = Muted Red, zero = dim neutral.
+* **Sign-based coloring:** All numeric values are colored by sign — positive = Indigo (`#818cf8`), negative = Soft Red (`#f87171`), zero = dim neutral (`#a1a1aa`).
 
 ## 2. Layout Structure
 The UI is a fixed-height, single-page application (SPA) divided into four primary zones using CSS Grid.

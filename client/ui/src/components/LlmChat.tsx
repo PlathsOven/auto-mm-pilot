@@ -47,7 +47,7 @@ export function LlmChat() {
 
   return (
     <div className="flex h-full flex-col p-4">
-      <div className="mb-3 flex items-center justify-between border-b border-mm-border pb-2">
+      <div className="mb-3 flex items-center justify-between border-b border-mm-border/40 pb-2">
         <div className="flex items-baseline gap-2">
           <h2 className="zone-header">Team Chat</h2>
           <span className="text-[9px] text-mm-text-dim">Tag @APT to query the engine</span>
@@ -69,22 +69,22 @@ export function LlmChat() {
           return (
             <div
               key={msg.id}
-              className={`px-3 py-2 text-xs leading-relaxed ${
+              className={`rounded-lg px-3 py-2 text-xs leading-relaxed ${
                 isApt
-                  ? "border-l-2 border-mm-accent/50 bg-mm-surface"
+                  ? "border-l-2 border-mm-accent/50 bg-mm-accent/5"
                   : isCurrentUser
-                    ? "bg-mm-surface"
-                    : "bg-mm-bg"
+                    ? "bg-mm-bg/60"
+                    : "bg-mm-bg/30"
               }`}
             >
               <div className="mb-1 flex items-center gap-1.5">
                 <span
                   className={`flex h-4 w-4 items-center justify-center text-[7px] font-bold ${
                     isApt
-                      ? "bg-mm-accent/30 text-mm-accent"
+                      ? "rounded-full bg-mm-accent/30 text-mm-accent"
                       : isCurrentUser
-                        ? "bg-mm-accent/20 text-mm-accent"
-                        : "bg-mm-text-dim/20 text-mm-text-dim"
+                        ? "rounded-full bg-mm-accent/20 text-mm-accent"
+                        : "rounded-full bg-mm-text-dim/20 text-mm-text-dim"
                   }`}
                 >
                   {isApt ? "AI" : senderInitials(msg.sender)}
@@ -112,8 +112,8 @@ export function LlmChat() {
 
       {/* Note thread section */}
       {noteThread && (
-        <div className="mt-2 border border-mm-border bg-mm-bg">
-          <div className="flex items-center justify-between border-b border-mm-border px-3 py-1.5">
+        <div className="mt-2 overflow-hidden rounded-lg border border-mm-border/40 bg-mm-bg">
+          <div className="flex items-center justify-between border-b border-mm-border/40 px-3 py-1.5">
             <span className="text-[10px] font-semibold text-mm-accent">
               {noteThread.cellKey.replace("-", " — ")} Notes
             </span>
@@ -124,10 +124,10 @@ export function LlmChat() {
               <p className="px-3 py-2 text-center text-[10px] text-mm-text-dim">No notes yet.</p>
             )}
             {noteThread.notes.map((note) => (
-              <div key={note.id} className="border-b border-mm-border/30 px-3 py-1.5">
+              <div key={note.id} className="border-b border-mm-border/20 px-3 py-1.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
-                    <span className="flex h-3.5 w-3.5 items-center justify-center bg-mm-accent/20 text-[7px] font-bold text-mm-accent">{note.authorInitials}</span>
+                    <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-mm-accent/20 text-[7px] font-bold text-mm-accent">{note.authorInitials}</span>
                     <span className="text-[10px] font-medium text-mm-text">{note.author}</span>
                   </div>
                   <span className="text-[9px] text-mm-text-dim">{formatUtcTime(note.timestamp)}</span>
@@ -136,22 +136,22 @@ export function LlmChat() {
               </div>
             ))}
           </div>
-          <form onSubmit={handleNoteSubmit} className="flex gap-1 border-t border-mm-border p-1.5">
+          <form onSubmit={handleNoteSubmit} className="flex gap-1 border-t border-mm-border/40 p-1.5">
             <input
               type="text"
               value={noteInput}
               onChange={(e) => setNoteInput(e.target.value)}
               placeholder="Add a note..."
-              className="flex-1 border border-mm-border bg-mm-surface px-2 py-1 text-[10px] text-mm-text outline-none placeholder:text-mm-text-dim focus:border-mm-accent"
+              className="flex-1 rounded-md border border-mm-border/40 bg-mm-surface px-2 py-1 text-[10px] text-mm-text outline-none placeholder:text-mm-text-dim transition-colors focus:border-mm-accent/60 focus:ring-1 focus:ring-mm-accent/20"
             />
-            <button type="submit" className="border border-mm-border bg-mm-surface px-2 py-1 text-[10px] text-mm-accent hover:bg-mm-accent/10">Post</button>
+            <button type="submit" className="rounded-md border border-mm-border/40 bg-mm-surface px-2 py-1 text-[10px] text-mm-accent transition-colors hover:bg-mm-accent/10">Post</button>
           </form>
         </div>
       )}
 
       {/* Investigation context pill */}
       {investigation && (
-        <div className="mt-2 flex items-center gap-2 border-l-2 border-mm-accent bg-mm-accent/5 px-3 py-1.5">
+        <div className="mt-2 flex items-center gap-2 rounded-lg border-l-2 border-mm-accent bg-mm-accent/5 px-3 py-1.5">
           <span className="flex-1 text-[10px] leading-relaxed text-mm-accent">
             {investigationLabel(investigation)}
           </span>
@@ -165,11 +165,11 @@ export function LlmChat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={investigation ? "Ask about this context..." : "Message team or type @APT to ask the engine..."}
-          className="flex-1 border border-mm-border bg-mm-bg px-3 py-2 text-xs text-mm-text outline-none placeholder:text-mm-text-dim focus:border-mm-accent"
+          className="flex-1 rounded-lg border border-mm-border/40 bg-mm-bg px-3 py-2 text-xs text-mm-text outline-none placeholder:text-mm-text-dim transition-colors focus:border-mm-accent/60 focus:ring-1 focus:ring-mm-accent/20"
         />
         <button
           type="submit"
-          className="border border-mm-border bg-mm-surface px-4 py-2 text-xs text-mm-accent hover:bg-mm-accent/10"
+          className="rounded-lg border border-mm-border/40 bg-mm-surface px-4 py-2 text-xs text-mm-accent transition-colors hover:bg-mm-accent/10"
         >
           Send
         </button>
