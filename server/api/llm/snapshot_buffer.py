@@ -46,7 +46,7 @@ class SnapshotBufferConfig:
     lookback_offsets_seconds:
         Ordered list of lookback offsets (in seconds from *now*) used to
         sample keyframes.  E.g. ``[3600, 21600, 86400]`` means the prompt
-        will include snapshots closest to T-1h, T-6h, and T-24h.
+        will include snapshots closest to 1h, 6h, and 24h ago.
     """
 
     max_snapshots: int = SNAPSHOT_BUFFER_MAX_DEFAULT
@@ -188,26 +188,18 @@ def _extract_stream_contributions(
     return streams
 
 
-def _fmt_offset(delta: timedelta) -> str:
-    """Format a timedelta as a human-friendly lookback label (e.g. 'T-6h')."""
-    total_seconds = int(abs(delta.total_seconds()))
-    if total_seconds < 120:
-        return f"T-{total_seconds}s"
-    minutes = total_seconds // 60
-    if minutes < 120:
-        return f"T-{minutes}m"
-    hours = minutes // 60
-    remaining_min = minutes % 60
-    if remaining_min == 0:
-        return f"T-{hours}h"
-    return f"T-{hours}h{remaining_min}m"
-
-
 def _fmt_label(snap: TimestampedSnapshot, latest: TimestampedSnapshot) -> str:
-    """Label for a keyframe: 'now' for the latest, else a lookback offset."""
+    """Label for a keyframe: 'now' for the latest, else an actual timestamp.
+
+    Uses 'HH:MM UTC' for same-day snapshots, 'YYYY-MM-DD HH:MM UTC' for
+    older ones.  This prevents the LLM from echoing relative T-x notation.
+    """
     if snap is latest:
         return "now"
-    return _fmt_offset(latest.timestamp - snap.timestamp)
+    ts = snap.timestamp
+    if ts.date() == latest.timestamp.date():
+        return ts.strftime("%H:%M UTC")
+    return ts.strftime("%Y-%m-%d %H:%M UTC")
 
 
 # ---------------------------------------------------------------------------
@@ -281,8 +273,8 @@ def _build_aggregated_table(keyframes: list[TimestampedSnapshot]) -> str:
         ("var", ("current_agg", "var")),
         ("total_fair", ("current_agg", "total_fair")),
         ("total_mkt_fair", ("current_agg", "total_market_fair")),
-        ("raw_position", ("current_position", "raw_desired_position")),
-        ("smooth_position", ("current_position", "smoothed_desired_position")),
+        ("ideal_desired_position", ("current_position", "raw_desired_position")),
+        ("executable_desired_position", ("current_position", "smoothed_desired_position")),
     ]
 
     # Header

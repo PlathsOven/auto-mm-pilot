@@ -8,14 +8,17 @@ Supports both single-shot and streaming responses.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, AsyncIterator
 
 import httpx
 
 from server.api.config import OpenRouterConfig
 
+log = logging.getLogger(__name__)
+
 _APP_REFERER = "https://auto-mm-pilot.app"
-_APP_TITLE = "Auto-MM-Pilot"
+_APP_TITLE = "APT"
 
 
 class OpenRouterClient:
@@ -94,3 +97,59 @@ class OpenRouterClient:
                     )
                     if delta:
                         yield delta
+
+    # ------------------------------------------------------------------
+    # Fallback wrappers — try models in priority order
+    # ------------------------------------------------------------------
+
+    async def complete_with_fallback(
+        self,
+        *,
+        models: tuple[str, ...],
+        messages: list[dict[str, str]],
+        max_tokens: int = 1024,
+        temperature: float = 0.4,
+    ) -> dict[str, Any]:
+        """Try each model in *models* until one succeeds. Raises the last error if all fail."""
+        last_exc: Exception | None = None
+        for model in models:
+            try:
+                return await self.complete(
+                    model=model,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                )
+            except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+                log.warning("Model %s failed: %s — falling back", model, exc)
+                last_exc = exc
+        raise RuntimeError(
+            f"All models exhausted ({', '.join(models)}). Last error: {last_exc}"
+        ) from last_exc
+
+    async def stream_with_fallback(
+        self,
+        *,
+        models: tuple[str, ...],
+        messages: list[dict[str, str]],
+        max_tokens: int = 1024,
+        temperature: float = 0.4,
+    ) -> AsyncIterator[str]:
+        """Try each model in *models* for streaming until one succeeds."""
+        last_exc: Exception | None = None
+        for model in models:
+            try:
+                async for delta in self.stream(
+                    model=model,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                ):
+                    yield delta
+                return  # stream completed successfully
+            except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+                log.warning("Model %s stream failed: %s — falling back", model, exc)
+                last_exc = exc
+        raise RuntimeError(
+            f"All models exhausted ({', '.join(models)}). Last error: {last_exc}"
+        ) from last_exc
