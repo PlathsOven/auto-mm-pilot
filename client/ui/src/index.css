@@ -36,6 +36,57 @@
   }
 }
 
+/* Markdown prose inside APT chat messages */
+.prose-apt {
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.prose-apt p {
+  margin: 0.25em 0;
+}
+.prose-apt ul,
+.prose-apt ol {
+  margin: 0.25em 0;
+  padding-left: 1.25em;
+}
+.prose-apt li {
+  margin: 0.1em 0;
+}
+.prose-apt strong {
+  color: #818cf8; /* mm-accent */
+  font-weight: 600;
+}
+.prose-apt code {
+  font-size: 0.7rem;
+  background: rgba(39, 39, 42, 0.6);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+.prose-apt pre {
+  background: rgba(9, 9, 11, 0.8);
+  border: 1px solid rgba(39, 39, 42, 0.6);
+  border-radius: 8px;
+  padding: 0.5em 0.75em;
+  margin: 0.5em 0;
+  overflow-x: auto;
+}
+.prose-apt pre code {
+  background: none;
+  padding: 0;
+}
+.prose-apt h1, .prose-apt h2, .prose-apt h3 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #818cf8;
+  margin: 0.5em 0 0.25em;
+}
+.prose-apt blockquote {
+  border-left: 2px solid rgba(129, 140, 248, 0.4);
+  padding-left: 0.75em;
+  margin: 0.25em 0;
+  color: rgba(161, 161, 170, 1);
+}
+
 /* react-grid-layout theme overrides */
 .react-grid-layout {
   min-height: 100% !important;

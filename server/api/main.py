@@ -12,6 +12,7 @@ Run:
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -117,7 +118,7 @@ async def investigate(req: InvestigateRequest) -> StreamingResponse:
                 snapshot_buffer=snapshot_buffer,
                 now=now,
             ):
-                yield f"data: {delta}\n\n"
+                yield f"data: {json.dumps(delta)}\n\n"
             yield "data: [DONE]\n\n"
         except Exception as exc:
             log.exception("Investigation stream failed")

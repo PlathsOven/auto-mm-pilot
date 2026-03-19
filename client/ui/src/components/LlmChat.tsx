@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import Markdown from "react-markdown";
 import { useChat } from "../providers/ChatProvider";
 import { formatUtcTime } from "../utils";
 
@@ -101,9 +102,15 @@ export function LlmChat() {
                   <span className="text-[8px] text-mm-text-dim">• team</span>
                 )}
               </div>
-              <span className={isApt ? "text-mm-text" : "text-mm-text-dim"}>
-                {msg.content}
-              </span>
+              {isApt ? (
+                <div className="prose-apt text-mm-text">
+                  <Markdown>{msg.content}</Markdown>
+                </div>
+              ) : (
+                <span className="text-mm-text-dim">
+                  {msg.content}
+                </span>
+              )}
             </div>
           );
         })}

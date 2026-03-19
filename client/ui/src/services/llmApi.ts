@@ -95,7 +95,11 @@ export function streamInvestigation(
             return;
           }
 
-          callbacks.onDelta(data);
+          try {
+            callbacks.onDelta(JSON.parse(data));
+          } catch {
+            callbacks.onDelta(data);
+          }
         }
       }
       callbacks.onDone();
