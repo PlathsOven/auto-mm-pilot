@@ -24,28 +24,6 @@ const CHANGE_PROBABILITY = 0.10;
 /** Minimum |cumulative delta| in $vega before an update card is emitted for a given position */
 const UPDATE_THRESHOLD_VEGA = 400;
 
-/**
- * Justification reasons aligned with investigation.py §5 Reasoning Protocol
- * and §6 Language Rules — long/short for direction, more/less for magnitude.
- */
-const REASONS = [
-  "Realized vol up. Fair value up, market implied hasn't moved as much. Edge more positive — more long.",
-  "Realized vol down over last 12h. Fair value down, market implied down less. Edge less positive — less long.",
-  "FOMC event passed. Fair value down as vol bump decays. Market implied getting offered but slower. Edge less positive — less long.",
-  "CPI release approaching. Fair value up on event bump. Market implied getting bid but not as fast. Edge more positive — more long.",
-  "Implied vol getting bid into earnings. Fair value also up, but market implied got bid higher. Edge less positive — less long.",
-  "Implied vol getting offered near expiry. Fair value also down, but market implied dropped more. Edge more positive — more long.",
-  "Historical IV at 10th percentile. Fair value above market implied. Edge positive — long.",
-  "Historical IV at 90th percentile. Fair value below market implied. Edge negative — short.",
-  "More long BTC; less long ETH to keep net correlated exposure the same.",
-  "Less long ETH; more long BTC near-dated to rebalance correlation.",
-  "Correlation between BTC and ETH increasing; adjusting to stay flat.",
-  "Scheduled event vol bump added for protocol upgrade. Fair value up, market implied flat. Edge more positive — more long.",
-  "Near-dated realized vol diverging from far-dated. Fair value up near-dated, market implied flat. More long near-dated, less long far-dated.",
-  "New expiry listed, vol getting bid. Fair value up more than market implied. Edge positive — long.",
-  "Uncertainty increasing — conflicting signals from realized vol and vol flow streams. Variance up — less long.",
-  "Realized vol stream stable. Fair value unchanged, market implied unchanged. No edge change — position unchanged.",
-];
 const STREAM_NAMES = [
   "KDB_CLIENT_PROD",
   "SQL_LOCAL_BTC",
@@ -229,7 +207,7 @@ function generateOffsetUpdate(): {
         oldPos: emittedPos,
         newPos,
         delta: round(newPos - emittedPos, 2),
-        reason: pickRandom(REASONS),
+        reason: "",
         timestamp: now,
       });
       lastEmittedPos.set(key, newPos);
