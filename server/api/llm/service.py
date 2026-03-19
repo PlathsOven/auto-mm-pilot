@@ -125,7 +125,11 @@ class LlmService:
             max_tokens=self._config.max_tokens_justification,
             temperature=self._config.temperature_justification,
         )
-        content = resp["choices"][0]["message"].get("content")
+        choice = resp["choices"][0]
+        content = choice["message"].get("content")
         if not content:
             return "Unable to generate justification."
-        return content.strip()
+        text = content.strip()
+        if choice.get("finish_reason") == "length":
+            text += " …"
+        return text

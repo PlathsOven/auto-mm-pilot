@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Markdown from "react-markdown";
 import { useWebSocket } from "../providers/WebSocketProvider";
 import { useChat } from "../providers/ChatProvider";
 import { valColor, formatUtcTime } from "../utils";
@@ -68,9 +69,9 @@ export function UpdatesFeed() {
                 <span className="text-[10px] text-mm-text-dim">$vega</span>
               </div>
 
-              <p className="text-[10px] leading-relaxed text-mm-text-dim">
-                {card.reason}
-              </p>
+              <div className="prose-apt text-mm-text-dim">
+                <Markdown>{card.reason}</Markdown>
+              </div>
             </div>
           );
         })}
