@@ -19,7 +19,7 @@ function investigationLabel(ctx: NonNullable<ReturnType<typeof useChat>["investi
 }
 
 export function LlmChat() {
-  const { messages, investigation, noteThread, sendMessage, clearInvestigation, closeNoteThread, addNote } = useChat();
+  const { messages, investigation, noteThread, isStreaming, sendMessage, clearInvestigation, closeNoteThread, addNote, cancelStream } = useChat();
   const [input, setInput] = useState("");
   const [noteInput, setNoteInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -166,13 +166,24 @@ export function LlmChat() {
           onChange={(e) => setInput(e.target.value)}
           placeholder={investigation ? "Ask about this context..." : "Message team or type @APT to ask the engine..."}
           className="flex-1 rounded-lg border border-mm-border/40 bg-mm-bg px-3 py-2 text-xs text-mm-text outline-none placeholder:text-mm-text-dim transition-colors focus:border-mm-accent/60 focus:ring-1 focus:ring-mm-accent/20"
+          disabled={isStreaming}
         />
-        <button
-          type="submit"
-          className="rounded-lg border border-mm-border/40 bg-mm-surface px-4 py-2 text-xs text-mm-accent transition-colors hover:bg-mm-accent/10"
-        >
-          Send
-        </button>
+        {isStreaming ? (
+          <button
+            type="button"
+            onClick={cancelStream}
+            className="rounded-lg border border-mm-warn/40 bg-mm-surface px-4 py-2 text-xs text-mm-warn transition-colors hover:bg-mm-warn/10"
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            type="submit"
+            className="rounded-lg border border-mm-border/40 bg-mm-surface px-4 py-2 text-xs text-mm-accent transition-colors hover:bg-mm-accent/10"
+          >
+            Send
+          </button>
+        )}
       </form>
     </div>
   );

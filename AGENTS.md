@@ -63,12 +63,19 @@ The system is physically split to protect proprietary IP.
 | `client/ui/src/components/DailyWrap.tsx` | Zone F — automated daily trading wrap summary |
 | `client/ui/src/components/LlmChat.tsx` | Team Chat panel — messages, note threads, investigation context |
 | `client/ui/UI_SPEC.md` | UI design specification |
-| `server/api/config.py` | OpenRouter env config (API key, model IDs, generation params) |
-| `server/api/llm/client.py` | Async OpenRouter HTTP client (complete + stream) |
+| `server/api/config.py` | OpenRouter env config (API key, model fallback lists, generation params, snapshot buffer settings) |
+| `server/api/llm/client.py` | Async OpenRouter HTTP client (complete + stream + fallback wrappers) |
 | `server/api/llm/service.py` | LLM orchestration — investigation chat & justification narrator |
+| `server/api/llm/snapshot_buffer.py` | Pipeline snapshot ring buffer — stores time-series history, builds condensed delta tables for LLM context |
 | `server/api/llm/context_db.py` | Stream context database — metadata about each data stream (mock-initialized) |
+| `server/api/llm/prompts/preamble.py` | Shared prompt preamble (IP protection, language rules, epistemology) |
 | `server/api/llm/prompts/investigation.py` | System prompt for Zone E (read state + issue engine commands) |
 | `server/api/llm/prompts/justification.py` | System prompt for Zone D update card narration |
+| `server/api/llm/test_investigation.py` | Interactive CLI for testing Zone E investigation LLM with mock pipeline data |
+| `server/api/main.py` | FastAPI app — `/api/investigate` (SSE stream) + `/api/justify` (JSON) + `/api/health` |
+| `server/api/engine_state.py` | Mock engine state singleton (pipeline snapshot, snapshot buffer) — replace with real `server/core/` output |
+| `client/ui/src/services/llmApi.ts` | HTTP client for LLM server endpoints (SSE streaming + JSON fetch) |
+| `STACK_STATUS.md` | Component registry — tracks PROD/MOCK/STUB/OFF status and connection map |
 
 ## Known Divergence: `pitch/terminal/` ↔ `client/ui/src/`
 `pitch/terminal/` is a fork of `client/ui/src/` adapted for Next.js SSR (adds `"use client"` directives, mock-only WebSocket provider). The two copies share identical types, utils, mock data, and near-identical components/providers. **Bug fixes or feature changes in either copy must be manually propagated to the other.** A shared package may be warranted if divergence becomes costly.

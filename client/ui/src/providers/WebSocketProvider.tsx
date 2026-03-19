@@ -9,10 +9,12 @@ import {
 import type { ReactNode } from "react";
 import type { ServerPayload, UpdateCard } from "../types";
 import { generateMockPayload } from "./MockDataProvider";
+import { fetchJustification } from "../services/llmApi";
+import { WS_URL } from "../config";
 
-const WS_URL = "ws://localhost:8000/ws";
 const MOCK_INTERVAL_MS = 2000;
 const RECONNECT_DELAY_MS = 3000;
+const JUSTIFICATION_PLACEHOLDER = "Generating justification…";
 
 type ConnectionStatus = "CONNECTED" | "CONNECTING" | "DISCONNECTED" | "MOCK";
 
@@ -41,13 +43,57 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const mockTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const applyPayload = useCallback((data: ServerPayload) => {
-    setPayload(data);
-    setUpdateHistory((prev) => {
-      const merged = [...data.updates, ...prev];
-      return merged.slice(0, 100);
-    });
+  /** Replace an update card's reason by its ID. */
+  const patchCardReason = useCallback((cardId: string, reason: string) => {
+    setUpdateHistory((prev) =>
+      prev.map((c) => (c.id === cardId ? { ...c, reason } : c)),
+    );
   }, []);
+
+  /** Fire-and-forget: enrich each new card with a real LLM justification. */
+  const enrichCards = useCallback(
+    (cards: UpdateCard[]) => {
+      for (const card of cards) {
+        fetchJustification({
+          asset: card.asset,
+          expiry: card.expiry,
+          old_pos: card.oldPos,
+          new_pos: card.newPos,
+          delta: card.delta,
+        })
+          .then((justification) => patchCardReason(card.id, justification))
+          .catch((err) =>
+            patchCardReason(
+              card.id,
+              `⚠ ${err instanceof Error ? err.message : String(err)}`,
+            ),
+          );
+      }
+    },
+    [patchCardReason],
+  );
+
+  const applyPayload = useCallback(
+    (data: ServerPayload) => {
+      setPayload(data);
+
+      // Insert cards with placeholder reason, then enrich asynchronously
+      const pendingCards = data.updates.map((c) => ({
+        ...c,
+        reason: JUSTIFICATION_PLACEHOLDER,
+      }));
+
+      setUpdateHistory((prev) => {
+        const merged = [...pendingCards, ...prev];
+        return merged.slice(0, 100);
+      });
+
+      if (pendingCards.length > 0) {
+        enrichCards(pendingCards);
+      }
+    },
+    [enrichCards],
+  );
 
   const startMockMode = useCallback(() => {
     setConnectionStatus("MOCK");

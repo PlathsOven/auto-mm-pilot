@@ -1,7 +1,8 @@
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { ChatMessage, InvestigationContext, CellNote } from "../types";
 import { CURRENT_USER, MOCK_USERS, getCellNotes, addCellNote } from "./MockDataProvider";
+import { streamInvestigation } from "../services/llmApi";
 
 interface NoteThread {
   cellKey: string;
@@ -12,24 +13,28 @@ interface ChatState {
   messages: ChatMessage[];
   investigation: InvestigationContext | null;
   noteThread: NoteThread | null;
+  isStreaming: boolean;
   sendMessage: (content: string) => void;
   investigate: (ctx: InvestigationContext) => void;
   clearInvestigation: () => void;
   openNoteThread: (cellKey: string) => void;
   closeNoteThread: () => void;
   addNote: (content: string) => void;
+  cancelStream: () => void;
 }
 
 const ChatContext = createContext<ChatState>({
   messages: [],
   investigation: null,
   noteThread: null,
+  isStreaming: false,
   sendMessage: () => {},
   investigate: () => {},
   clearInvestigation: () => {},
   openNoteThread: () => {},
   closeNoteThread: () => {},
   addNote: () => {},
+  cancelStream: () => {},
 });
 
 export function useChat() {
@@ -53,34 +58,29 @@ const TEAM_CHATTER = [
   { sender: "Sarah Lin", content: "Reminder: EOD P&L snapshot due in 45 min." },
 ];
 
-/** Mock APT responses — uses investigation.py §5/§6 compliant language */
-const APT_RESPONSES = [
-  "Realized vol stream is up over the last 6 hours. Fair value for BTC 27MAR increased. Market implied hasn't moved as much. Edge more positive — more long.",
-  "Correlation between BTC and ETH is increasing. More long BTC near-dated, so less long ETH near-dated to keep net correlated exposure the same.",
-  "FOMC event has passed. Fair value for expiries spanning that date is decreasing as the vol bump decays. Market implied getting offered but not as fast. Edge less positive — less long.",
-  "Historical IV for ETH 25APR is at the 12th percentile. Fair value is above market implied. Edge positive — long. Back-month confidence is high given stable realized vol stream.",
-  "Realized vol increased, but market implied got bid even higher. Edge actually less positive despite higher fair value. Less long BTC near-dated.",
-];
-
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [investigation, setInvestigation] =
     useState<InvestigationContext | null>(null);
   const [noteThread, setNoteThread] = useState<NoteThread | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const pushMessage = useCallback(
-    (role: ChatMessage["role"], content: string, sender: string) => {
-      const msg: ChatMessage = {
-        id: nextId(),
-        role,
-        sender,
-        content,
-        timestamp: Date.now(),
-      };
+    (role: ChatMessage["role"], content: string, sender: string): string => {
+      const id = nextId();
+      const msg: ChatMessage = { id, role, sender, content, timestamp: Date.now() };
       setMessages((prev) => [...prev, msg]);
+      return id;
     },
     [],
   );
+
+  const updateMessage = useCallback((id: string, content: string) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, content } : m)),
+    );
+  }, []);
 
   const sendMessage = useCallback(
     (content: string) => {
@@ -90,13 +90,48 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const isAptQuery = /@APT\b/i.test(content);
 
       if (isAptQuery) {
-        const stripped = content.replace(/@APT\s*/i, "").trim();
-        setTimeout(() => {
-          const response = stripped.length > 0
-            ? APT_RESPONSES[Math.floor(Math.random() * APT_RESPONSES.length)]
-            : "I'm ready to help. Click any cell or update card for context, or ask me directly about positions, edges, or uncertainty factors.";
-          pushMessage("assistant", response, "APT");
-        }, 800 + Math.random() * 1200);
+        // Build conversation history for the LLM (last 20 user+assistant messages)
+        const recentMessages = [...messages, { id: "", role: "user" as const, sender: CURRENT_USER.name, content, timestamp: Date.now() }];
+        const conversation = recentMessages
+          .filter((m) => m.role === "user" || m.role === "assistant")
+          .slice(-20)
+          .map((m) => ({
+            role: m.role === "assistant" ? "assistant" : "user",
+            content: m.content,
+          }));
+
+        // Create a placeholder assistant message for streaming
+        const assistantId = pushMessage("assistant", "", "APT");
+        setIsStreaming(true);
+        let accumulated = "";
+
+        const controller = streamInvestigation(
+          { conversation },
+          {
+            onDelta: (text) => {
+              accumulated += text;
+              updateMessage(assistantId, accumulated);
+            },
+            onDone: () => {
+              setIsStreaming(false);
+              abortRef.current = null;
+              if (!accumulated) {
+                updateMessage(assistantId, "No response received from the engine.");
+              }
+            },
+            onError: (error) => {
+              setIsStreaming(false);
+              abortRef.current = null;
+              updateMessage(
+                assistantId,
+                accumulated
+                  ? `${accumulated}\n\n⚠ Stream interrupted: ${error}`
+                  : `⚠ ${error}`,
+              );
+            },
+          },
+        );
+        abortRef.current = controller;
       } else {
         if (Math.random() < 0.5) {
           const others = MOCK_USERS.filter((u) => u.id !== CURRENT_USER.id);
@@ -108,8 +143,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [pushMessage],
+    [pushMessage, updateMessage, messages],
   );
+
+  const cancelStream = useCallback(() => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+      setIsStreaming(false);
+    }
+  }, []);
 
   const investigate = useCallback(
     (ctx: InvestigationContext) => {
@@ -139,7 +182,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   return (
     <ChatContext.Provider
-      value={{ messages, investigation, noteThread, sendMessage, investigate, clearInvestigation, openNoteThread, closeNoteThread, addNote: addNoteToThread }}
+      value={{ messages, investigation, noteThread, isStreaming, sendMessage, investigate, clearInvestigation, openNoteThread, closeNoteThread, addNote: addNoteToThread, cancelStream }}
     >
       {children}
     </ChatContext.Provider>
