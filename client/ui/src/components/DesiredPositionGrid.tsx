@@ -6,18 +6,18 @@ import { valColor, cellBg } from "../utils";
 import { getCellNotes } from "../providers/MockDataProvider";
 import type { DesiredPosition } from "../types";
 
-type ViewMode = "position" | "change" | "edge" | "uncertainty" | "currentPos" | "desiredDiff" | "marketIV" | "fairIV" | "edgeVP";
+type ViewMode = "position" | "rawPosition" | "change" | "edge" | "smoothedEdge" | "variance" | "smoothedVar" | "totalFair" | "totalMarketFair";
 
 const VIEW_MODE_META: Record<ViewMode, { label: string; unit: string; decimals: number }> = {
   position: { label: "Desired Position", unit: "$vega", decimals: 2 },
-  currentPos: { label: "Current Position", unit: "$vega", decimals: 2 },
-  desiredDiff: { label: "Desired Difference", unit: "$vega", decimals: 2 },
+  rawPosition: { label: "Raw Desired Position", unit: "$vega", decimals: 2 },
   change: { label: "Change", unit: "$vega", decimals: 2 },
-  marketIV: { label: "Market Implied Vol", unit: "vp", decimals: 2 },
-  fairIV: { label: "Fair Implied Vol", unit: "vp", decimals: 2 },
-  edgeVP: { label: "Edge (Fair − Market)", unit: "vp", decimals: 2 },
-  edge: { label: "Edge (signal)", unit: "vp", decimals: 4 },
-  uncertainty: { label: "Uncertainty Factor", unit: "", decimals: 4 },
+  edge: { label: "Edge", unit: "", decimals: 6 },
+  smoothedEdge: { label: "Smoothed Edge", unit: "", decimals: 6 },
+  variance: { label: "Variance", unit: "", decimals: 6 },
+  smoothedVar: { label: "Smoothed Variance", unit: "", decimals: 6 },
+  totalFair: { label: "Total Fair", unit: "", decimals: 6 },
+  totalMarketFair: { label: "Total Market Fair", unit: "", decimals: 6 },
 };
 
 const TIMEFRAME_OPTIONS = [
@@ -38,14 +38,14 @@ interface HistoryEntry {
 function getCellValue(p: DesiredPosition, mode: ViewMode, change: number): number {
   switch (mode) {
     case "position": return p.desiredPos;
-    case "currentPos": return p.currentPos;
-    case "desiredDiff": return +(p.desiredPos - p.currentPos).toFixed(2);
+    case "rawPosition": return p.rawDesiredPos;
     case "change": return change;
-    case "marketIV": return p.marketIV;
-    case "fairIV": return p.fairIV;
-    case "edgeVP": return +(p.fairIV - p.marketIV).toFixed(2);
     case "edge": return p.edge;
-    case "uncertainty": return p.uncertaintyFactor;
+    case "smoothedEdge": return p.smoothedEdge;
+    case "variance": return p.variance;
+    case "smoothedVar": return p.smoothedVar;
+    case "totalFair": return p.totalFair;
+    case "totalMarketFair": return p.totalMarketFair;
   }
 }
 

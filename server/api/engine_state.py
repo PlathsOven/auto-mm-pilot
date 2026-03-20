@@ -4,15 +4,17 @@ Engine State Provider.
 Singleton that exposes the current engine state, pipeline snapshot, and
 snapshot buffer to the LLM service layer.
 
-STATUS: PIPELINE — runs the real core pipeline from ``server.core`` using
-mock scenario data.  When live data feeds replace the mock scenario, swap
-out the stream configs and market pricing in ``_init()``.
+Supports two modes:
+  1. **Mock init** — runs the pipeline once at startup with mock scenario data
+     (default, for development).
+  2. **Live ingestion** — ``rerun_pipeline()`` rebuilds state from the
+     stream registry + client-supplied market pricing & bankroll.
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import polars as pl
@@ -34,7 +36,15 @@ from server.core.serializers import engine_state_from_pipeline, snapshot_from_pi
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Singleton state
+# Server-side config (not client-settable)
+# ---------------------------------------------------------------------------
+
+RISK_DIMENSION_COLS: list[str] = list(MOCK_RISK_DIMENSION_COLS)
+SMOOTHING_HL_SECS: int = MOCK_SMOOTHING_HL_SECS
+TIME_GRID_INTERVAL: str = MOCK_TIME_GRID_INTERVAL
+
+# ---------------------------------------------------------------------------
+# Mutable state
 # ---------------------------------------------------------------------------
 
 _snapshot_buffer: SnapshotRingBuffer | None = None
@@ -43,13 +53,20 @@ _engine_state: dict[str, Any] | None = None
 _pipeline_results: dict[str, pl.DataFrame] | None = None
 _mock_now: datetime = datetime(2026, 1, 1, 17, 0, 0)
 
+# Client-settable parameters (initialised from mock defaults)
+_bankroll: float = MOCK_BANKROLL
+_market_pricing: dict[str, float] = dict(MOCK_MARKET_PRICING)
+
+# Tracks whether a live rerun has ever been performed
+_live_mode: bool = False
+
 
 # ---------------------------------------------------------------------------
-# Initialization
+# Mock initialization (development fallback)
 # ---------------------------------------------------------------------------
 
-def _init() -> None:
-    """Run the real pipeline and initialize singleton state."""
+def _init_mock() -> None:
+    """Run the pipeline once with mock scenario data."""
     global _snapshot_buffer, _pipeline_snapshot, _engine_state, _pipeline_results
 
     log.info("Running core pipeline with mock scenario data…")
@@ -89,17 +106,133 @@ def _init() -> None:
     _snapshot_buffer = SnapshotRingBuffer(buf_config)
     _snapshot_buffer.push(_mock_now, _pipeline_snapshot)
 
-    log.info("Engine state initialized from pipeline.")
+    log.info("Engine state initialized from mock pipeline.")
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# Live pipeline re-execution
+# ---------------------------------------------------------------------------
+
+def rerun_pipeline(
+    streams: list[Any],
+    market_pricing: dict[str, float] | None = None,
+    bankroll: float | None = None,
+) -> dict[str, pl.DataFrame]:
+    """Re-run the full pipeline with the given streams and update all state.
+
+    Parameters
+    ----------
+    streams : list[StreamConfig]
+        Built from the stream registry (``registry.build_stream_configs()``).
+    market_pricing : dict[str, float] | None
+        If provided, replaces the stored market pricing.
+    bankroll : float | None
+        If provided, replaces the stored bankroll.
+
+    Returns
+    -------
+    dict[str, pl.DataFrame]
+        The raw pipeline results.
+
+    Raises
+    ------
+    ValueError
+        If ``streams`` is empty or the pipeline fails.
+    """
+    global _snapshot_buffer, _pipeline_snapshot, _engine_state, _pipeline_results, _bankroll, _market_pricing, _live_mode
+
+    if not streams:
+        raise ValueError("Cannot rerun pipeline with zero streams")
+
+    if market_pricing is not None:
+        _market_pricing = dict(market_pricing)
+    if bankroll is not None:
+        _bankroll = bankroll
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    log.info(
+        "Re-running pipeline: %d streams, %d market prices, bankroll=%.2f, now=%s",
+        len(streams), len(_market_pricing), _bankroll, now,
+    )
+
+    _pipeline_results = run_pipeline(
+        streams=streams,
+        market_pricing=_market_pricing,
+        risk_dimension_cols=RISK_DIMENSION_COLS,
+        now=now,
+        bankroll=_bankroll,
+        smoothing_hl_secs=SMOOTHING_HL_SECS,
+        time_grid_interval=TIME_GRID_INTERVAL,
+    )
+
+    _pipeline_snapshot = snapshot_from_pipeline(
+        results=_pipeline_results,
+        timestamp=now,
+        risk_dimension_cols=RISK_DIMENSION_COLS,
+        bankroll=_bankroll,
+        smoothing_hl_secs=SMOOTHING_HL_SECS,
+        now=now,
+    )
+
+    _engine_state = engine_state_from_pipeline(
+        results=_pipeline_results,
+        timestamp=now,
+        risk_dimension_cols=RISK_DIMENSION_COLS,
+    )
+
+    # Push to snapshot buffer (create if first live run)
+    if _snapshot_buffer is None:
+        config = OpenRouterConfig()
+        buf_config = SnapshotBufferConfig(
+            max_snapshots=config.snapshot_buffer_max,
+            lookback_offsets_seconds=config.snapshot_lookback_offsets,
+        )
+        _snapshot_buffer = SnapshotRingBuffer(buf_config)
+
+    _snapshot_buffer.push(now, _pipeline_snapshot)
+    _live_mode = True
+
+    log.info("Pipeline re-run complete at T=%s", now)
+    return _pipeline_results
+
+
+# ---------------------------------------------------------------------------
+# Bankroll & market pricing accessors
+# ---------------------------------------------------------------------------
+
+def get_bankroll() -> float:
+    """Return the current bankroll."""
+    return _bankroll
+
+
+def set_bankroll(value: float) -> None:
+    """Update the bankroll (does NOT trigger a pipeline re-run)."""
+    global _bankroll
+    _bankroll = value
+    log.info("Bankroll updated to %.2f", value)
+
+
+def get_market_pricing() -> dict[str, float]:
+    """Return the current market pricing dict."""
+    return dict(_market_pricing)
+
+
+def set_market_pricing(pricing: dict[str, float]) -> None:
+    """Replace market pricing (does NOT trigger a pipeline re-run)."""
+    global _market_pricing
+    _market_pricing = dict(pricing)
+    log.info("Market pricing updated: %d spaces", len(pricing))
+
+
+# ---------------------------------------------------------------------------
+# Public API (unchanged signatures for existing consumers)
 # ---------------------------------------------------------------------------
 
 def get_engine_state() -> dict[str, Any]:
     """Return the current engine state dict."""
     if _engine_state is None:
-        _init()
+        _init_mock()
     assert _engine_state is not None
     return _engine_state
 
@@ -107,21 +240,21 @@ def get_engine_state() -> dict[str, Any]:
 def get_pipeline_snapshot() -> dict[str, Any] | None:
     """Return the current pipeline snapshot."""
     if _pipeline_snapshot is None:
-        _init()
+        _init_mock()
     return _pipeline_snapshot
 
 
 def get_pipeline_results() -> dict[str, pl.DataFrame] | None:
     """Return the raw pipeline DataFrames (for WS/UI consumption)."""
     if _pipeline_results is None:
-        _init()
+        _init_mock()
     return _pipeline_results
 
 
 def get_snapshot_buffer() -> SnapshotRingBuffer | None:
     """Return the snapshot ring buffer."""
     if _snapshot_buffer is None:
-        _init()
+        _init_mock()
     return _snapshot_buffer
 
 

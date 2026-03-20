@@ -9,6 +9,32 @@ export interface DataStream {
   lastHeartbeat: number;
 }
 
+/** Status of a registered stream in the server registry */
+export type RegisteredStreamStatus = "PENDING" | "READY";
+
+/** Block config as returned by the server API */
+export interface BlockConfigPayload {
+  annualized: boolean;
+  size_type: "fixed" | "relative";
+  aggregation_logic: "average" | "offset";
+  temporal_position: "static" | "shifting";
+  decay_end_size_mult: number;
+  decay_rate_prop_per_min: number;
+  decay_profile: "linear";
+  var_fair_ratio: number;
+}
+
+/** A stream registered via the stream management API */
+export interface RegisteredStream {
+  stream_name: string;
+  key_cols: string[];
+  status: RegisteredStreamStatus;
+  scale: number | null;
+  offset: number | null;
+  exponent: number | null;
+  block: BlockConfigPayload | null;
+}
+
 /** Engine operating mode */
 export type EngineState =
   | "INITIALIZING"
@@ -23,16 +49,19 @@ export interface GlobalContext {
   lastUpdateTimestamp: number;
 }
 
-/** A single row in the desired-position table */
+/** A single row in the desired-position table (mirrors pipeline output) */
 export interface DesiredPosition {
   asset: string;
   expiry: string;
   edge: number;
-  uncertaintyFactor: number;
+  smoothedEdge: number;
+  variance: number;
+  smoothedVar: number;
   desiredPos: number;
+  rawDesiredPos: number;
   currentPos: number;
-  marketIV: number;
-  fairIV: number;
+  totalFair: number;
+  totalMarketFair: number;
   changeMagnitude: number;
   updatedAt: number;
 }

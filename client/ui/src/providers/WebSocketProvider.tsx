@@ -8,15 +8,13 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import type { ServerPayload, UpdateCard } from "../types";
-import { generateMockPayload } from "./MockDataProvider";
 import { fetchJustification } from "../services/llmApi";
 import { WS_URL } from "../config";
 
-const MOCK_INTERVAL_MS = 2000;
 const RECONNECT_DELAY_MS = 3000;
 const JUSTIFICATION_PLACEHOLDER = "Generating justification…";
 
-type ConnectionStatus = "CONNECTED" | "CONNECTING" | "DISCONNECTED" | "MOCK";
+type ConnectionStatus = "CONNECTED" | "CONNECTING" | "DISCONNECTED";
 
 interface WebSocketState {
   payload: ServerPayload | null;
@@ -40,7 +38,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("CONNECTING");
   const wsRef = useRef<WebSocket | null>(null);
-  const mockTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** Replace an update card's reason by its ID. */
@@ -95,23 +92,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     [enrichCards],
   );
 
-  const startMockMode = useCallback(() => {
-    setConnectionStatus("MOCK");
-    applyPayload(generateMockPayload());
-    mockTimerRef.current = setInterval(() => {
-      applyPayload(generateMockPayload());
-    }, MOCK_INTERVAL_MS);
-  }, [applyPayload]);
-
-  const stopMock = useCallback(() => {
-    if (mockTimerRef.current) {
-      clearInterval(mockTimerRef.current);
-      mockTimerRef.current = null;
-    }
-  }, []);
-
   const connect = useCallback(() => {
-    stopMock();
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     setConnectionStatus("CONNECTING");
 
     try {
@@ -124,8 +109,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
       ws.onmessage = (event) => {
         try {
-          const data: ServerPayload = JSON.parse(event.data);
-          applyPayload(data);
+          const data = JSON.parse(event.data);
+          if (data && Array.isArray(data.positions)) {
+            applyPayload(data as ServerPayload);
+          }
         } catch {
           /* ignore malformed messages */
         }
@@ -134,7 +121,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       ws.onclose = () => {
         setConnectionStatus("DISCONNECTED");
         reconnectTimerRef.current = setTimeout(() => {
-          startMockMode();
+          connect();
         }, RECONNECT_DELAY_MS);
       };
 
@@ -142,19 +129,21 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         ws.close();
       };
     } catch {
-      startMockMode();
+      setConnectionStatus("DISCONNECTED");
+      reconnectTimerRef.current = setTimeout(() => {
+        connect();
+      }, RECONNECT_DELAY_MS);
     }
-  }, [applyPayload, startMockMode, stopMock]);
+  }, [applyPayload]);
 
   useEffect(() => {
     connect();
 
     return () => {
-      stopMock();
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (wsRef.current) wsRef.current.close();
     };
-  }, [connect, stopMock]);
+  }, [connect]);
 
   return (
     <WebSocketContext.Provider

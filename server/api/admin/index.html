@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APT Admin</title>
+  <style>
+    :root {
+      --bg-deep: #09090b;
+      --bg: #18181b;
+      --border: #27272a;
+      --text: #fafafa;
+      --text-dim: #a1a1aa;
+      --accent: #818cf8;
+      --warn: #fbbf24;
+      --error: #f87171;
+      --success: #34d399;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+    }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 24px; }
+    h2 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+    .section { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .stream-card { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+    .stream-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .stream-name { font-size: 14px; font-weight: 600; }
+    .badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; }
+    .badge-pending { background: rgba(251,191,36,0.15); color: var(--warn); }
+    .badge-ready { background: rgba(52,211,153,0.15); color: var(--success); }
+    .key-cols { font-size: 11px; color: var(--text-dim); margin-bottom: 12px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-group.full { grid-column: 1 / -1; }
+    label { font-size: 11px; color: var(--text-dim); font-weight: 500; }
+    input, select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: var(--text);
+      outline: none;
+      font-family: inherit;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    button {
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-danger { background: var(--error); color: #fff; }
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      padding: 10px 20px; border-radius: 8px; font-size: 12px;
+      opacity: 0; transition: opacity 0.3s;
+      z-index: 1000;
+    }
+    .toast.show { opacity: 1; }
+    .toast.success { background: rgba(52,211,153,0.2); color: var(--success); border: 1px solid var(--success); }
+    .toast.error { background: rgba(248,113,113,0.2); color: var(--error); border: 1px solid var(--error); }
+    .empty { font-size: 12px; color: var(--text-dim); padding: 12px 0; }
+    .inline-row { display: flex; gap: 8px; align-items: end; }
+    .inline-row .form-group { flex: 1; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+    .header-row { display: flex; align-items: center; justify-content: space-between; }
+  </style>
+</head>
+<body>
+
+<h1>APT Admin Dashboard</h1>
+
+<!-- Streams Section -->
+<div class="section">
+  <div class="header-row">
+    <h2>Data Streams</h2>
+    <button class="btn-secondary" onclick="loadStreams()">Refresh</button>
+  </div>
+  <div id="streams-list"></div>
+</div>
+
+<!-- Market Pricing Section -->
+<div class="section">
+  <h2>Market Pricing</h2>
+  <div id="pricing-editor">
+    <div id="pricing-rows"></div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="addPricingRow()">+ Add Space</button>
+      <button class="btn-primary" onclick="savePricing()">Save Pricing</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bankroll Section -->
+<div class="section">
+  <h2>Bankroll</h2>
+  <div class="inline-row">
+    <div class="form-group">
+      <label>Portfolio Bankroll</label>
+      <input type="number" id="bankroll-input" step="any" min="0" placeholder="e.g. 100000">
+    </div>
+    <button class="btn-primary" onclick="saveBankroll()" style="margin-bottom: 0;">Save</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script>
+const API = window.location.origin;
+
+// ---------------------------------------------------------------------------
+// Toast
+// ---------------------------------------------------------------------------
+
+function showToast(message, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = message;
+  el.className = `toast ${type} show`;
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ---------------------------------------------------------------------------
+// API helpers
+// ---------------------------------------------------------------------------
+
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(`${API}${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => 'Unknown error');
+    throw new Error(`${res.status}: ${body}`);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Streams
+// ---------------------------------------------------------------------------
+
+let streamsData = [];
+
+async function loadStreams() {
+  try {
+    const data = await apiFetch('/api/streams');
+    streamsData = data.streams || [];
+    renderStreams();
+  } catch (err) {
+    showToast(`Failed to load streams: ${err.message}`, 'error');
+  }
+}
+
+function renderStreams() {
+  const container = document.getElementById('streams-list');
+  if (streamsData.length === 0) {
+    container.innerHTML = '<p class="empty">No streams registered. Streams are created by the client.</p>';
+    return;
+  }
+
+  container.innerHTML = streamsData.map((s, i) => `
+    <div class="stream-card" id="stream-${i}">
+      <div class="stream-header">
+        <span class="stream-name">${esc(s.stream_name)}</span>
+        <span class="badge ${s.status === 'PENDING' ? 'badge-pending' : 'badge-ready'}">${s.status}</span>
+      </div>
+      <div class="key-cols">Key columns: ${esc(s.key_cols.join(', '))}</div>
+      ${renderConfigForm(s, i)}
+    </div>
+  `).join('');
+}
+
+function renderConfigForm(stream, index) {
+  const s = stream.scale ?? 1;
+  const o = stream.offset ?? 0;
+  const e = stream.exponent ?? 1;
+  const b = stream.block || {};
+  const isPending = stream.status === 'PENDING';
+  const label = isPending ? 'Configure' : 'Update';
+
+  return `
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Scale</label>
+        <input type="number" step="any" id="scale-${index}" value="${s}">
+      </div>
+      <div class="form-group">
+        <label>Offset</label>
+        <input type="number" step="any" id="offset-${index}" value="${o}">
+      </div>
+      <div class="form-group">
+        <label>Exponent</label>
+        <input type="number" step="any" id="exponent-${index}" value="${e}">
+      </div>
+      <div class="form-group">
+        <label>Annualized</label>
+        <select id="annualized-${index}">
+          <option value="true" ${b.annualized !== false ? 'selected' : ''}>Yes</option>
+          <option value="false" ${b.annualized === false ? 'selected' : ''}>No</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Size Type</label>
+        <select id="size_type-${index}">
+          <option value="fixed" ${b.size_type !== 'relative' ? 'selected' : ''}>fixed</option>
+          <option value="relative" ${b.size_type === 'relative' ? 'selected' : ''}>relative</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Aggregation Logic</label>
+        <select id="aggregation_logic-${index}">
+          <option value="average" ${b.aggregation_logic !== 'offset' ? 'selected' : ''}>average</option>
+          <option value="offset" ${b.aggregation_logic === 'offset' ? 'selected' : ''}>offset</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Temporal Position</label>
+        <select id="temporal_position-${index}">
+          <option value="shifting" ${b.temporal_position !== 'static' ? 'selected' : ''}>shifting</option>
+          <option value="static" ${b.temporal_position === 'static' ? 'selected' : ''}>static</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Var/Fair Ratio</label>
+        <input type="number" step="any" id="var_fair_ratio-${index}" value="${b.var_fair_ratio ?? 1}">
+      </div>
+      <div class="form-group">
+        <label>Decay End Size Mult</label>
+        <input type="number" step="any" id="decay_end_size_mult-${index}" value="${b.decay_end_size_mult ?? 1}">
+      </div>
+      <div class="form-group">
+        <label>Decay Rate Prop/Min</label>
+        <input type="number" step="any" id="decay_rate_prop_per_min-${index}" value="${b.decay_rate_prop_per_min ?? 0}">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="configureStream(${index})">${label}</button>
+      <button class="btn-danger" onclick="removeStream(${index})">Delete</button>
+    </div>
+  `;
+}
+
+async function configureStream(index) {
+  const stream = streamsData[index];
+  if (!stream) return;
+
+  const val = (id) => document.getElementById(id)?.value;
+  const payload = {
+    scale: parseFloat(val(`scale-${index}`)),
+    offset: parseFloat(val(`offset-${index}`)),
+    exponent: parseFloat(val(`exponent-${index}`)),
+    block: {
+      annualized: val(`annualized-${index}`) === 'true',
+      size_type: val(`size_type-${index}`),
+      aggregation_logic: val(`aggregation_logic-${index}`),
+      temporal_position: val(`temporal_position-${index}`),
+      decay_end_size_mult: parseFloat(val(`decay_end_size_mult-${index}`)),
+      decay_rate_prop_per_min: parseFloat(val(`decay_rate_prop_per_min-${index}`)),
+      decay_profile: 'linear',
+      var_fair_ratio: parseFloat(val(`var_fair_ratio-${index}`)),
+    },
+  };
+
+  try {
+    await apiFetch(`/api/streams/${encodeURIComponent(stream.stream_name)}/configure`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    showToast(`Stream "${stream.stream_name}" configured successfully`);
+    loadStreams();
+  } catch (err) {
+    showToast(`Failed: ${err.message}`, 'error');
+  }
+}
+
+async function removeStream(index) {
+  const stream = streamsData[index];
+  if (!stream) return;
+  if (!confirm(`Delete stream "${stream.stream_name}"?`)) return;
+
+  try {
+    await apiFetch(`/api/streams/${encodeURIComponent(stream.stream_name)}`, {
+      method: 'DELETE',
+    });
+    showToast(`Stream "${stream.stream_name}" deleted`);
+    loadStreams();
+  } catch (err) {
+    showToast(`Failed: ${err.message}`, 'error');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Market Pricing
+// ---------------------------------------------------------------------------
+
+let pricingData = {};
+
+function renderPricingRows() {
+  const container = document.getElementById('pricing-rows');
+  const entries = Object.entries(pricingData);
+  if (entries.length === 0) {
+    container.innerHTML = '<p class="empty">No market pricing set.</p>';
+    return;
+  }
+  container.innerHTML = entries.map(([key, val], i) => `
+    <div class="inline-row" style="margin-bottom: 8px;">
+      <div class="form-group">
+        <label>Space ID</label>
+        <input type="text" class="pricing-key" data-index="${i}" value="${esc(key)}">
+      </div>
+      <div class="form-group">
+        <label>Price</label>
+        <input type="number" step="any" class="pricing-val" data-index="${i}" value="${val}">
+      </div>
+      <button class="btn-danger" onclick="removePricingRow(${i})" style="margin-bottom: 0;">x</button>
+    </div>
+  `).join('');
+}
+
+function addPricingRow() {
+  pricingData[`space_${Object.keys(pricingData).length}`] = 0;
+  renderPricingRows();
+}
+
+function removePricingRow(index) {
+  const keys = Object.keys(pricingData);
+  if (keys[index]) {
+    delete pricingData[keys[index]];
+    renderPricingRows();
+  }
+}
+
+function collectPricingFromDOM() {
+  const result = {};
+  const keys = document.querySelectorAll('.pricing-key');
+  const vals = document.querySelectorAll('.pricing-val');
+  keys.forEach((keyEl, i) => {
+    const k = keyEl.value.trim();
+    const v = parseFloat(vals[i]?.value || '0');
+    if (k) result[k] = v;
+  });
+  return result;
+}
+
+async function savePricing() {
+  const pricing = collectPricingFromDOM();
+  try {
+    await apiFetch('/api/market-pricing', {
+      method: 'POST',
+      body: JSON.stringify({ pricing }),
+    });
+    pricingData = pricing;
+    showToast(`Market pricing saved (${Object.keys(pricing).length} spaces)`);
+  } catch (err) {
+    showToast(`Failed: ${err.message}`, 'error');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Bankroll
+// ---------------------------------------------------------------------------
+
+async function saveBankroll() {
+  const val = parseFloat(document.getElementById('bankroll-input').value);
+  if (isNaN(val) || val <= 0) {
+    showToast('Bankroll must be a positive number', 'error');
+    return;
+  }
+  try {
+    await apiFetch('/api/config/bankroll', {
+      method: 'PATCH',
+      body: JSON.stringify({ bankroll: val }),
+    });
+    showToast(`Bankroll set to ${val}`);
+  } catch (err) {
+    showToast(`Failed: ${err.message}`, 'error');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+
+loadStreams();
+renderPricingRows();
+</script>
+
+</body>
+</html>

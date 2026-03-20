@@ -57,8 +57,8 @@ The system is physically split to protect proprietary IP.
 | `client/ui/src/providers/LayoutProvider.tsx` | Panel state manager — open/close/duplicate panels, localStorage persistence |
 | `client/ui/src/components/PanelWindow.tsx` | Draggable/resizable panel wrapper with title bar |
 | `client/ui/src/types.ts` | Shared TypeScript interfaces for WS payloads |
-| `client/ui/src/providers/WebSocketProvider.tsx` | Central WS state manager with mock fallback |
-| `client/ui/src/providers/MockDataProvider.ts` | Mock data generator (positions, users, cell notes, daily wrap) |
+| `client/ui/src/providers/WebSocketProvider.tsx` | Central WS state manager — connects to server `/ws`, auto-reconnects |
+| `client/ui/src/providers/MockDataProvider.ts` | Static seed data (users, cell notes, daily wrap) |
 | `client/ui/src/providers/ChatProvider.tsx` | Team chat + @APT LLM routing context |
 | `client/ui/src/components/DailyWrap.tsx` | Zone F — automated daily trading wrap summary |
 | `client/ui/src/components/LlmChat.tsx` | Team Chat panel — messages, note threads, investigation context |
@@ -72,8 +72,12 @@ The system is physically split to protect proprietary IP.
 | `server/api/llm/prompts/investigation.py` | System prompt for Zone E (read state + issue engine commands) |
 | `server/api/llm/prompts/justification.py` | System prompt for Zone D update card narration |
 | `server/api/llm/test_investigation.py` | Interactive CLI for testing Zone E investigation LLM with mock pipeline data |
-| `server/api/main.py` | FastAPI app — `/api/investigate` (SSE stream) + `/api/justify` (JSON) + `/api/health` |
-| `server/api/engine_state.py` | Engine state singleton — runs `server/core` pipeline, serializes snapshots for LLM layer |
+| `server/api/admin/index.html` | Server-side admin dashboard — configure PENDING streams, market pricing, bankroll |
+| `server/api/models.py` | Pydantic request/response models for stream, snapshot, market-pricing, and bankroll endpoints |
+| `server/api/stream_registry.py` | In-memory stream registry — CRUD, snapshot storage, validation, `StreamConfig` builder |
+| `server/api/ws.py` | WebSocket endpoint — singleton ticker broadcasts pipeline ticks; `restart_ticker()` on re-run |
+| `server/api/main.py` | FastAPI app — WS, LLM, stream CRUD, snapshot ingestion, market-pricing, bankroll endpoints |
+| `server/api/engine_state.py` | Engine state singleton — mock init + live `rerun_pipeline()`, mutable bankroll/market pricing |
 | `server/core/__init__.py` | Core pipeline package — re-exports public API |
 | `server/core/config.py` | `BlockConfig`, `StreamConfig` dataclasses, `SECONDS_PER_YEAR` |
 | `server/core/helpers.py` | `annualize`, `deannualize`, `raw_to_target_expr` |
@@ -81,6 +85,7 @@ The system is physically split to protect proprietary IP.
 | `server/core/mock_scenario.py` | Mock stream configs, scenario params, market pricing |
 | `server/core/serializers.py` | DataFrame→dict bridge for LLM prompt injection |
 | `client/ui/src/services/llmApi.ts` | HTTP client for LLM server endpoints (SSE streaming + JSON fetch) |
+| `client/ui/src/services/streamApi.ts` | HTTP client for stream CRUD, snapshot ingestion, market-pricing, bankroll endpoints |
 | `STACK_STATUS.md` | Component registry — tracks PROD/MOCK/STUB/OFF status and connection map |
 
 ## Known Divergence: `pitch/terminal/` ↔ `client/ui/src/`

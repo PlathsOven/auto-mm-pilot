@@ -19,7 +19,8 @@
 
 | Component | File(s) | Status | Depends On | Notes |
 |-----------|---------|--------|------------|-------|
-| **FastAPI App** | `server/api/main.py` | `PROD` | Engine State Provider, LLM Service | CORS enabled, SSE streaming |
+| **FastAPI App** | `server/api/main.py` | `PROD` | Engine State Provider, LLM Service, WS Ticker | CORS enabled, SSE streaming, WS |
+| **WS Ticker** | `server/api/ws.py` | `PROD` | Engine State Provider | Singleton background ticker broadcasts pipeline ticks to WS clients |
 | **OpenRouter Client** | `server/api/llm/client.py` | `PROD` | `OPENROUTER_API_KEY` env var | Async httpx, fallback model chain |
 | **LLM Service** | `server/api/llm/service.py` | `PROD` | OpenRouter Client, Prompts, Engine State | Investigation (stream) + Justification |
 | **Investigation Prompt** | `server/api/llm/prompts/investigation.py` | `PROD` | — | System prompt for Zone E |
@@ -38,8 +39,8 @@
 | **Electron Shell** | `client/ui/electron/` | `PROD` | — | Vite + Electron |
 | **React App** | `client/ui/src/App.tsx` | `PROD` | All providers | react-grid-layout dashboard |
 | **Layout Provider** | `client/ui/src/providers/LayoutProvider.tsx` | `PROD` | — | Panel state, localStorage persistence |
-| **WebSocket Provider** | `client/ui/src/providers/WebSocketProvider.tsx` | `MOCK` | Server WS endpoint (not yet built) | Falls back to mock data generator; **needs real WS server** |
-| **Mock Data Generator** | `client/ui/src/providers/MockDataProvider.ts` | `MOCK` | — | Positions, updates, users, notes, daily wrap |
+| **WebSocket Provider** | `client/ui/src/providers/WebSocketProvider.tsx` | `PROD` | Server WS `/ws` endpoint | Connects to real pipeline WS, auto-reconnects |
+| **Mock Data Generator** | `client/ui/src/providers/MockDataProvider.ts` | `MOCK` | — | Users, cell notes, daily wrap (position generation removed) |
 | **Chat Provider** | `client/ui/src/providers/ChatProvider.tsx` | `PROD` | LLM API Client | Routes @APT to server `/api/investigate` (SSE stream) |
 | **LLM API Client** | `client/ui/src/services/llmApi.ts` | `PROD` | FastAPI App | HTTP client for `/api/investigate` + `/api/justify` |
 | **Desired Position Grid** | `client/ui/src/components/DesiredPositionGrid.tsx` | `PROD` | WebSocket Provider, Chat Provider | Zone C — clickable cells push context |
@@ -74,7 +75,11 @@
 │  │ (investigate)│    │ (justify)    │    │ (investigate) │   │
 │  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘   │
 │         │                   │                   │           │
-│ ════════╪═══════════════════╪═══════════════════╪══════ HTTP│
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │           WebSocketProvider (ws://server/ws)         │   │
+│  └──────────────────────────┬──────────────────────────-┘   │
+│         │                   │                   │           │
+│ ════════╪═══════════════════╪═══════════════════╪══════WS+HTTP│
 └─────────┼───────────────────┼───────────────────┼───────────┘
           │                   │                   │
           ▼                   ▼                   ▼
@@ -82,7 +87,8 @@
 │  SERVER (FastAPI)                                           │
 │                                                             │
 │  ┌──────────────────────────────────────────────────────┐   │
-│  │ POST /api/investigate (SSE)  │ POST /api/justify     │   │
+│  │ WS /ws (pipeline)  │ POST /api/investigate (SSE)     │   │
+│  │                    │ POST /api/justify                │   │
 │  └──────────────┬───────────────┴──────────┬────────────┘   │
 │                 ▼                          ▼                │
 │  ┌──────────────────────────────────────────────────────┐   │
@@ -109,7 +115,7 @@
 |---|------|---------|-----------|------------|
 | 1 | **Engine State Provider** | ~~Mock snapshot~~ → Reads from `server/core/` pipeline | Swap mock scenario for live data feeds | Data Adapters built |
 | 2 | **Stream Context DB** | Hardcoded 5 streams | Client-contributed via API | Adapter + API endpoint |
-| 3 | **WebSocket Provider** | Mock data generator | Connects to real `ws://server:8000/ws` | Server WS broadcast endpoint |
+| 3 | ~~**WebSocket Provider**~~ | ~~Mock data generator~~ | ~~Connects to real `ws://server:8000/ws`~~ | ✅ Done — singleton ticker in `ws.py` |
 | 4 | **Daily Wrap** | Static mock data | LLM-generated from engine state snapshot | Engine State Provider goes PROD |
 | 5 | **Ingestion Sidebar** | Mock stream list | Real adapter status | Universal Adapter built |
 | 6 | **Data Adapters** | Not built | Exchange-specific adapters | Adapter framework designed |
