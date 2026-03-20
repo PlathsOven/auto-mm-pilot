@@ -104,7 +104,7 @@ Each individually a "**Party**" and collectively the "**Parties**."
 - (a) **Advisory Mode:** Available to Licensee from the Deployment Date at no recurring Licensing Fee during the Advisory Period. In Advisory Mode, the Software generates position recommendations and parameter suggestions for manual review and implementation by Licensee personnel. The Software shall not autonomously modify any trading parameters or execute any trading actions while in Advisory Mode.
 - (b) **Autonomous Mode:** Available to Licensee **only after the Fee Commencement Date**. In Autonomous Mode, the Software may autonomously adjust trading parameters and execute trading actions within the bounds, limits, and risk constraints configured by Licensee. Licensee may configure the scope and boundaries of Autonomous Mode actions at any time through the Software's interface.
 
-**2.4 Autonomous Mode Lock.** Prior to the Fee Commencement Date, the Autonomous Mode functionality shall be technically disabled within the Software. Licensee acknowledges that it may not access, use, or attempt to enable Autonomous Mode during the Advisory Period unless Licensee elects early Fee Commencement under Section 4.2(d).
+**2.4 Autonomous Mode Lock.** Prior to the Fee Commencement Date, the Autonomous Mode functionality shall be technically disabled within the Software. Vendor may, at Licensee's request and at Vendor's sole discretion, enable Autonomous Mode during the Advisory Period. Licensee acknowledges that any use of Autonomous Mode constitutes Parameter Change Integration and shall immediately trigger Fee Commencement under Section 4.2(c).
 
 **2.5 Restrictions.** Licensee shall not:
 - (a) Copy, modify, adapt, translate, reverse engineer, decompile, disassemble, or create derivative works of the Software or any portion thereof;
@@ -141,13 +141,12 @@ Each individually a "**Party**" and collectively the "**Parties**."
 
 - (a) **Hard Cap:** The date that is [2] months after the Deployment Date, irrespective of whether Parameter Change Integration has occurred or the Performance Metric has been achieved;
 - (b) **Performance Trigger:** The date on which the Performance Metric (as defined in Schedule A) is first achieved, as confirmed through the audit process described in Section 4.4;
-- (c) **Integration Trigger:** The date on which Parameter Change Integration first occurs;
-- (d) **Early Opt-In:** The date on which Licensee elects, by written notice to Vendor, to voluntarily commence Licensing Fee payments prior to the occurrence of any other trigger, including for the purpose of gaining access to Autonomous Mode.
+- (c) **Integration Trigger:** The date on which Parameter Change Integration first occurs.
 
 **4.3 Performance Metric.** The Performance Metric shall be calculated using the same formula and methodology as the Performance Basis defined in Section 5.2(a) and Schedule D, except that it shall be applied to performance results derived from a backtest methodology mutually agreed upon by the Parties in writing and documented in Schedule A prior to the Deployment Date (the "**Agreed Backtest Methodology**"). For the avoidance of doubt, the Performance Metric (fee trigger) and the Performance Basis (fee calculation) differ only in their data source: the Performance Metric uses backtest results under the Agreed Backtest Methodology, while the Performance Basis uses actual or simulated production performance. The Performance Metric shall be:
 - (a) Objectively measurable using data available to both Parties;
 - (b) Calculated using the Agreed Backtest Methodology, documented in sufficient detail to permit independent verification;
-- (c) Assessed over a continuous rolling period of [15] trading days.
+- (c) Assessed over a continuous rolling period of [14] trading days.
 
 **4.4 Audit Rights on Performance Metric.** Vendor shall have the right, at its own expense, to audit the calculation of the Performance Metric at any time and with reasonable frequency. Such audit rights include:
 - (a) Access to the raw data inputs used to calculate the Performance Metric;
@@ -158,12 +157,7 @@ Each individually a "**Party**" and collectively the "**Parties**."
 
 **4.5 Dispute on Performance Metric.** If the Parties disagree on whether the Performance Metric has been achieved, the matter shall be referred to an independent third-party auditor mutually agreed upon by both Parties, whose determination shall be final and binding. The cost of such determination shall be borne by the Party whose position is not upheld.
 
-**4.6 Early Opt-In and Autonomous Mode.** Licensee may, at any time during the Advisory Period, elect to commence Licensing Fee payments early by providing written notice to Vendor. Upon such election:
-- (a) The Fee Commencement Date shall be set to the date specified in Licensee's notice (which shall be no earlier than five (5) days after the notice date);
-- (b) Autonomous Mode shall be unlocked and made available to Licensee on the Fee Commencement Date;
-- (c) All terms of this Agreement applicable to the post-Advisory Period shall take effect from the Fee Commencement Date, including the commencement of the Initial Term under Section 14.1.
-
-**4.7 Performance-Based Fee Calculation During Advisory Period.** Beginning on the Deployment Date, Vendor shall calculate the Performance-Based Fee on a monthly basis using the methodology set out in Section 5.2 and Schedule D, applied to the Software's actual or simulated (backtest) performance:
+**4.6 Performance-Based Fee Calculation During Advisory Period.** Beginning on the Deployment Date, Vendor shall calculate the Performance-Based Fee on a monthly basis using the methodology set out in Section 5.2 and Schedule D, applied to the Software's actual or simulated (backtest) performance:
 - (a) The calculation shall use the same Performance Basis, percentage, and methodology that would apply after Fee Commencement;
 - (b) The performance may be based on the Software's simulated or backtest outputs even if such outputs were not used to execute actual trades or generate actual profits;
 - (c) No Licensing Fees shall be payable for any month falling within the Advisory Period, regardless of the calculated Performance-Based Fee amount;

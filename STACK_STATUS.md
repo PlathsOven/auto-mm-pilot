@@ -27,9 +27,9 @@
 | **Shared Preamble** | `server/api/llm/prompts/preamble.py` | `PROD` | — | IP protection, language rules |
 | **Snapshot Buffer** | `server/api/llm/snapshot_buffer.py` | `PROD` | — | Ring buffer + delta table builder |
 | **Stream Context DB** | `server/api/llm/context_db.py` | `MOCK` | — | Hardcoded stream metadata; will be client-contributed via API |
-| **Engine State Provider** | `server/api/engine_state.py` | `MOCK` | — | Mock pipeline snapshot + engine state; **replace with real `server/core/` output** |
+| **Engine State Provider** | `server/api/engine_state.py` | `PROD` | Core Pipeline | Runs `server/core` pipeline, serializes snapshots for LLM layer |
 | **Config** | `server/api/config.py` | `PROD` | `.env` | Model lists, generation params, buffer config |
-| **Core Pipeline** | `server/core/` | `STUB` | — | Human writes all math (steps 4–6) |
+| **Core Pipeline** | `server/core/` | `PROD` | Polars | Steps 4–6: config, helpers, pipeline, serializers. Running on mock scenario data. |
 
 ## Client (`client/ui/`)
 
@@ -93,12 +93,12 @@
 │     ┌───────▼────────┐     ┌──────────▼─────────┐          │
 │     │ Engine State   │     │ OpenRouter Client   │          │
 │     │ Provider       │     │ (httpx → OpenRouter)│          │
-│     │ ⚠ MOCK         │     │ ✓ PROD              │          │
+│     │ ✓ PROD         │     │ ✓ PROD              │          │
 │     └───────┬────────┘     └────────────────────┘          │
-│             │ (future: reads from server/core/ pipeline)    │
+│             │ (runs pipeline with mock scenario data)       │
 │     ┌───────▼────────┐                                     │
 │     │ server/core/   │                                     │
-│     │ ⚠ STUB         │                                     │
+│     │ ✓ PROD         │                                     │
 │     └────────────────┘                                     │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -107,7 +107,7 @@
 
 | # | What | Current | To Become | Blocked By |
 |---|------|---------|-----------|------------|
-| 1 | **Engine State Provider** | Mock snapshot from `test_investigation.py` | Reads live from `server/core/` pipeline output | Human builds core pipeline |
+| 1 | **Engine State Provider** | ~~Mock snapshot~~ → Reads from `server/core/` pipeline | Swap mock scenario for live data feeds | Data Adapters built |
 | 2 | **Stream Context DB** | Hardcoded 5 streams | Client-contributed via API | Adapter + API endpoint |
 | 3 | **WebSocket Provider** | Mock data generator | Connects to real `ws://server:8000/ws` | Server WS broadcast endpoint |
 | 4 | **Daily Wrap** | Static mock data | LLM-generated from engine state snapshot | Engine State Provider goes PROD |

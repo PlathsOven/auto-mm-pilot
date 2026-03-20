@@ -5,7 +5,7 @@ Advisory trading terminal for crypto options market-making desks. "Pilot" = navi
 
 ## Tech Stack
 - **Local Client:** Electron, React 19, Vite, TailwindCSS, TypeScript, WebSockets, react-grid-layout
-- **Remote Server:** Python, FastAPI, WebSockets
+- **Remote Server:** Python, FastAPI, WebSockets, Polars
 - **LLM Provider:** OpenRouter (httpx async client)
 
 ## Architecture: Client/Server Visibility Barrier
@@ -73,7 +73,13 @@ The system is physically split to protect proprietary IP.
 | `server/api/llm/prompts/justification.py` | System prompt for Zone D update card narration |
 | `server/api/llm/test_investigation.py` | Interactive CLI for testing Zone E investigation LLM with mock pipeline data |
 | `server/api/main.py` | FastAPI app — `/api/investigate` (SSE stream) + `/api/justify` (JSON) + `/api/health` |
-| `server/api/engine_state.py` | Mock engine state singleton (pipeline snapshot, snapshot buffer) — replace with real `server/core/` output |
+| `server/api/engine_state.py` | Engine state singleton — runs `server/core` pipeline, serializes snapshots for LLM layer |
+| `server/core/__init__.py` | Core pipeline package — re-exports public API |
+| `server/core/config.py` | `BlockConfig`, `StreamConfig` dataclasses, `SECONDS_PER_YEAR` |
+| `server/core/helpers.py` | `annualize`, `deannualize`, `raw_to_target_expr` |
+| `server/core/pipeline.py` | All pipeline step functions + `run_pipeline()` orchestrator |
+| `server/core/mock_scenario.py` | Mock stream configs, scenario params, market pricing |
+| `server/core/serializers.py` | DataFrame→dict bridge for LLM prompt injection |
 | `client/ui/src/services/llmApi.ts` | HTTP client for LLM server endpoints (SSE streaming + JSON fetch) |
 | `STACK_STATUS.md` | Component registry — tracks PROD/MOCK/STUB/OFF status and connection map |
 
