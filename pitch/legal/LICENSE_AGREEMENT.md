@@ -1,6 +1,6 @@
 # SOFTWARE LICENSE AND SERVICES AGREEMENT
 
-**APT — Advisory Position Terminal**
+**APT — Automated Positional Trader**
 
 ---
 
@@ -73,7 +73,7 @@ Each individually a "**Party**" and collectively the "**Parties**."
 
 **1.14** "**Parameter Change Integration**" means the milestone at which Licensee integrates APT's recommended trading parameter adjustments into its live trading operations.
 
-**1.15** "**Performance Metric**" means the mutually agreed quantitative benchmark(s) defined in Schedule A, used to determine whether the Software has demonstrated sufficient value to trigger Fee Commencement under Section 4.2(b).
+**1.15** "**Performance Metric**" means the quantitative benchmark defined in Schedule A, calculated using the same formula and methodology as the Performance Basis (Section 5.2(a)) but applied to performance results derived from an agreed backtest methodology rather than live production data, used to determine whether the Software has demonstrated sufficient value to trigger Fee Commencement under Section 4.2(b).
 
 **1.16** "**Shared Data**" means data generated through Licensee's use of the Software that both Parties may access and use, including but not limited to: Adaptive Parameters (trading parameter configurations created, modified, or refined by Licensee personnel or by the Software in Autonomous Mode) and Team Chat and Notes content (communications, annotations, and notes created by Licensee personnel within the Software). Shared Data is owned by Licensee but subject to the access and viewing rights granted to Vendor in Section 7.3.
 
@@ -144,9 +144,9 @@ Each individually a "**Party**" and collectively the "**Parties**."
 - (c) **Integration Trigger:** The date on which Parameter Change Integration first occurs;
 - (d) **Early Opt-In:** The date on which Licensee elects, by written notice to Vendor, to voluntarily commence Licensing Fee payments prior to the occurrence of any other trigger, including for the purpose of gaining access to Autonomous Mode.
 
-**4.3 Performance Metric.** The specific Performance Metric(s) and their calculation methodology shall be mutually agreed upon in writing by both Parties and documented in Schedule A prior to the Deployment Date. The Performance Metric shall be:
+**4.3 Performance Metric.** The Performance Metric shall be calculated using the same formula and methodology as the Performance Basis defined in Section 5.2(a) and Schedule D, except that it shall be applied to performance results derived from a backtest methodology mutually agreed upon by the Parties in writing and documented in Schedule A prior to the Deployment Date (the "**Agreed Backtest Methodology**"). For the avoidance of doubt, the Performance Metric (fee trigger) and the Performance Basis (fee calculation) differ only in their data source: the Performance Metric uses backtest results under the Agreed Backtest Methodology, while the Performance Basis uses actual or simulated production performance. The Performance Metric shall be:
 - (a) Objectively measurable using data available to both Parties;
-- (b) Calculated using a methodology documented in sufficient detail to permit independent verification;
+- (b) Calculated using the Agreed Backtest Methodology, documented in sufficient detail to permit independent verification;
 - (c) Assessed over a continuous rolling period of [15] trading days.
 
 **4.4 Audit Rights on Performance Metric.** Vendor shall have the right, at its own expense, to audit the calculation of the Performance Metric at any time and with reasonable frequency. Such audit rights include:
@@ -312,7 +312,7 @@ Vendor's access to Shared Data shall not be construed as a transfer of ownership
 
 **9.4 Logo Usage Guidelines.** Vendor shall use Licensee's logo(s) in accordance with any brand guidelines provided by Licensee. Vendor shall not modify, distort, or alter the logo(s) except for proportional resizing.
 
-**9.5 Duration.** The marketing rights granted under this Section 9 shall survive termination or expiration of this Agreement for a period of [___] years, unless Licensee provides written notice revoking such rights, in which case Vendor shall cease all use within thirty (30) days of receiving such notice.
+**9.5 Duration.** The marketing rights granted under this Section 9 shall survive termination or expiration of this Agreement indefinitely, unless Licensee provides written notice revoking such rights, in which case Vendor shall cease all use within thirty (30) days of receiving such notice.
 
 **9.6 Reciprocal Right.** Vendor grants Licensee a non-exclusive, royalty-free license to identify Vendor and the Software by name in Licensee's internal and external communications, including for recruitment, investor relations, and industry communications.
 
@@ -423,13 +423,13 @@ Vendor's access to Shared Data shall not be construed as a transfer of ownership
 
 ## 15. DISPUTE RESOLUTION
 
-**15.1 Governing Law.** This Agreement shall be governed by and construed in accordance with the laws of the Republic of Singapore, without regard to its conflict of laws principles.
+**15.1 Governing Law.** This Agreement shall be governed by and construed in accordance with the laws of the Commonwealth of Australia, without regard to its conflict of laws principles.
 
 **15.2 Negotiation.** The Parties shall attempt in good faith to resolve any dispute arising out of or relating to this Agreement through direct negotiation between senior executives within thirty (30) days of written notice of the dispute.
 
-**15.3 Mediation.** If the dispute is not resolved through negotiation, the Parties shall submit the dispute to mediation administered by the Singapore International Mediation Centre (SIMC) in accordance with its mediation rules. The mediation shall take place in Singapore.
+**15.3 Mediation.** If the dispute is not resolved through negotiation, the Parties shall submit the dispute to mediation administered by the Australian Disputes Centre (ADC) in accordance with its mediation rules. The mediation shall take place in Sydney, Australia.
 
-**15.4 Arbitration.** If the dispute is not resolved through mediation within sixty (60) days, the dispute shall be finally resolved by binding arbitration administered by the Singapore International Arbitration Centre (SIAC) in accordance with the SIAC Rules of Arbitration in force at the time of filing. The arbitration shall be conducted by a single arbitrator in Singapore. The language of the arbitration shall be English. The arbitrator's decision shall be final and binding and may be entered as a judgment in any court of competent jurisdiction.
+**15.4 Arbitration.** If the dispute is not resolved through mediation within sixty (60) days, the dispute shall be finally resolved by binding arbitration administered by the Australian Centre for International Commercial Arbitration (ACICA) in accordance with the ACICA Arbitration Rules in force at the time of filing. The arbitration shall be conducted by a single arbitrator in Sydney, Australia. The language of the arbitration shall be English. The arbitrator's decision shall be final and binding and may be entered as a judgment in any court of competent jurisdiction.
 
 **15.5 Interim Relief.** Notwithstanding the foregoing, either Party may seek injunctive or other equitable relief from a court of competent jurisdiction to prevent irreparable harm pending the outcome of arbitration, particularly in relation to breaches of Sections 2.5, 7, or 10.
 
