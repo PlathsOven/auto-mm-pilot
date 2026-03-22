@@ -1,5 +1,5 @@
 {
-  "buildCommand": "VITE_WEB=true npm run build",
+  "buildCommand": "VITE_WEB=true npx vite build",
   "outputDirectory": "dist",
   "framework": null,
   "rewrites": [

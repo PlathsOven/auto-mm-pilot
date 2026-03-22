@@ -77,7 +77,7 @@ Vercel serves the React SPA as a static site.
 
    **Build & Output Settings:**
    - Vercel should auto-detect from `vercel.json`. If not, set manually:
-   - **Build Command:** `VITE_WEB=true npm run build`
+   - **Build Command:** `VITE_WEB=true npx vite build`
    - **Output Directory:** `dist`
    - **Install Command:** `npm install`
 
