@@ -14,7 +14,9 @@ export function IntroSlide() {
       </p>
 
       <a
-        href="/demo"
+        href="https://auto-mm-pilot-afgd.vercel.app/"
+        target="_blank"
+        rel="noopener noreferrer"
         className="inline-flex items-center gap-2.5 rounded-xl border border-[var(--brand)] bg-[var(--brand)]/10 px-6 py-3.5 text-sm font-semibold text-[var(--brand)] transition-colors hover:bg-[var(--brand)]/20"
       >
         <Monitor className="h-4 w-4" />

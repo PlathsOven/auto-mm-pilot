@@ -5,7 +5,6 @@ const config: Config = {
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
     "./lib/**/*.{ts,tsx}",
-    "./terminal/**/*.{ts,tsx}",
   ],
   darkMode: "class",
   theme: {

@@ -36,8 +36,7 @@ The system is physically split to protect proprietary IP.
 | `server/api/` | LLM | FastAPI routing, WebSocket transport |
 | `server/api/llm/` | LLM | OpenRouter client, LLM service, system prompts |
 | `server/core/` | **HUMAN ONLY** | Proprietary math (the "Brain") |
-| `pitch/` | LLM | Next.js presentation deck (architecture slides) |
-| `pitch/terminal/` | LLM | Demo terminal embedded in pitch (fork of `client/ui/src/`) |
+| `pitch/` | LLM | Next.js presentation deck (architecture slides, links to deployed client for demo) |
 
 ## Division of Labor
 **LLM builds:** Electron app, React UI, data adapters, FastAPI routing, WebSocket plumbing, error handling, reconnection logic.
@@ -94,5 +93,3 @@ The system is physically split to protect proprietary IP.
 | `requirements.txt` | Root-level Python deps for Railway (mirrors `server/api/requirements.txt`) |
 | `client/ui/vercel.json` | Vercel build/routing config for SPA deployment |
 
-## Known Divergence: `pitch/terminal/` ↔ `client/ui/src/`
-`pitch/terminal/` is a fork of `client/ui/src/` adapted for Next.js SSR (adds `"use client"` directives, mock-only WebSocket provider). The two copies share identical types, utils, mock data, and near-identical components/providers. **Bug fixes or feature changes in either copy must be manually propagated to the other.** A shared package may be warranted if divergence becomes costly.
