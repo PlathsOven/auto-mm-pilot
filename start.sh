@@ -7,7 +7,8 @@
 #   2. Vite dev server   (client/ui)   → http://localhost:5173
 #
 # Usage:
-#   ./start.sh          Start all services
+#   ./start.sh          Start all services (mock pipeline data)
+#   ./start.sh --prod   Start all services (prod mode — waits for API data)
 #   ./start.sh --stop   Kill any running APT services on known ports
 # ──────────────────────────────────────────────────────────────────
 set -euo pipefail
@@ -23,6 +24,13 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
+
+# ── Mode selection ────────────────────────────────────────────
+APT_MODE="mock"
+if [[ "${1:-}" == "--prod" ]]; then
+  APT_MODE="prod"
+  shift
+fi
 
 PIDS=()
 
@@ -82,7 +90,7 @@ echo ""
 
 # FastAPI backend
 echo -e "  ${GREEN}▶${NC} FastAPI backend  → http://localhost:8000"
-PYTHONPATH="$ROOT_DIR" "$VENV_DIR/bin/uvicorn" server.api.main:app \
+APT_MODE="$APT_MODE" PYTHONPATH="$ROOT_DIR" "$VENV_DIR/bin/uvicorn" server.api.main:app \
   --host 0.0.0.0 --port 8000 --reload \
   > "$LOG_DIR/server.log" 2>&1 &
 PIDS+=($!)
@@ -97,7 +105,7 @@ PIDS+=($!)
 sleep 2
 echo ""
 echo -e "${GREEN}══════════════════════════════════════════════${NC}"
-echo -e "${GREEN}  APT is running${NC}"
+echo -e "${GREEN}  APT is running  (mode: ${APT_MODE})${NC}"
 echo -e "${GREEN}══════════════════════════════════════════════${NC}"
 echo -e "  Backend:  ${CYAN}http://localhost:8000${NC}"
 echo -e "  Client:   ${CYAN}http://localhost:5173${NC}"

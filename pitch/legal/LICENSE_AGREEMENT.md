@@ -21,7 +21,23 @@ Each individually a "**Party**" and collectively the "**Parties**."
 
 ---
 
+## RECITALS
+
+**A.** Vendor has invested significant expertise, effort, and capital in the research, development, and refinement of proprietary trading technology, including the Software and the APT Logic embedded therein.
+
+**B.** Licensee operates a cryptocurrency options market-making business and has expressed interest in a commercial arrangement in which fees are initially tied to demonstrated performance, allowing Licensee to evaluate the Software's efficacy and build confidence in its outputs before committing to a fixed licensing fee.
+
+**C.** The Advisory Period and performance-based fee structure reflect Vendor's confidence in the Software's capabilities and Vendor's willingness to bear upfront development, integration, and support costs in advance of receiving recurring compensation, on the understanding that the fee mechanism will fairly compensate Vendor for value delivered.
+
+**D.** The Parties wish to set out the terms on which Vendor will license the Software to Licensee, including the conditions for fee commencement, the methodology for calculating performance-based fees, and the respective rights and obligations of the Parties.
+
+**NOW, THEREFORE**, in consideration of the mutual covenants and agreements set forth herein, and for other good and valuable consideration, the receipt and sufficiency of which are hereby acknowledged, the Parties agree as follows:
+
+---
+
 ## TABLE OF CONTENTS
+
+- [Recitals](#recitals)
 
 1. [Definitions](#1-definitions)
 2. [Grant of License](#2-grant-of-license)
@@ -40,6 +56,12 @@ Each individually a "**Party**" and collectively the "**Parties**."
 15. [Dispute Resolution](#15-dispute-resolution)
 16. [General Provisions](#16-general-provisions)
 17. [Signatures](#17-signatures)
+
+**Schedules:**
+- [Schedule A — Performance Metric](#schedule-a--performance-metric)
+- [Schedule B — Data Egress Specification](#schedule-b--data-egress-specification)
+- [Schedule C — Marketing Materials Approval Process](#schedule-c--marketing-materials-approval-process)
+- [Schedule D — Ramp-Up Fee Calculation](#schedule-d--ramp-up-fee-calculation)
 
 ---
 
@@ -63,7 +85,7 @@ Each individually a "**Party**" and collectively the "**Parties**."
 
 **1.9** "**Data Egress**" means the outbound transmission of data from the Licensee's VPC to Vendor systems, limited exclusively to: (a) Encrypted Logic Logs; (b) Masked Linguistic Telemetry; and (c) Performance Metadata, each as further defined in Section 8.
 
-**1.10** "**Deployment Date**" means the date on which the Software is first successfully deployed and operational within Licensee's VPC.
+**1.10** "**Deployment Date**" means the first date on which the Software has begun performance evaluation, marked by the commencement of Book B and Book C transfers under the Agreed Backtest Methodology (Schedule A).
 
 **1.11** "**Fee Commencement Date**" means the date on which recurring Licensing Fees become payable, determined in accordance with Section 4.
 
@@ -71,7 +93,9 @@ Each individually a "**Party**" and collectively the "**Parties**."
 
 **1.13** "**Licensing Fee**" means the monthly fee payable by Licensee to Vendor as set out in Section 5, as may be adjusted in accordance with Section 6.
 
-**1.14** "**Parameter Change Integration**" means the milestone at which Licensee integrates APT's recommended trading parameter adjustments into its live trading operations.
+**1.14** "**Parameter Change Integration**" means the milestone at which Licensee integrates APT's recommended trading parameter adjustments into its live trading operations, including without limitation the commencement of internal transfers between Book B and any Market-Facing Book (including but not limited to Book A).
+
+**1.14A** "**Market-Facing Book**" means any trading book on which a live trading algorithm is dependent, or which otherwise carries or transmits exposure to external markets. For the avoidance of doubt, Book C is not a Market-Facing Book.
 
 **1.15** "**Performance Metric**" means the quantitative benchmark defined in Schedule A, calculated using the same formula and methodology as the Performance Basis (Section 5.2(a)) but applied to performance results derived from an agreed backtest methodology rather than live production data, used to determine whether the Software has demonstrated sufficient value to trigger Fee Commencement under Section 4.2(b).
 
@@ -86,6 +110,14 @@ Each individually a "**Party**" and collectively the "**Parties**."
 **1.20** "**Fee Lock-In**" means the event, described in Section 5.3, upon which the Performance-Based Fee first equals or exceeds the Full Licensing Fee in a given month (whether during the Advisory Period or thereafter), after which the Licensing Fee permanently locks in at the Full Licensing Fee for the remainder of the Term. Fee Lock-In may occur based on simulated or backtest performance during the Advisory Period even though no fees are payable during that period.
 
 **1.21** "**VPC**" means the Licensee's Virtual Private Cloud or equivalent infrastructure environment within which the Software is deployed and operated, or such other deployment environment as may be agreed by the Parties.
+
+**1.22** "**Book A**" means Licensee's primary trading book used for its existing market-making operations, which operates independently of the Software.
+
+**1.23** "**Book B**" means the separate trading book established by Licensee exclusively for the purpose of executing positions recommended or directed by the Software. In the context of the Performance Basis (Section 5.2(a) and Schedule D), Book B transacts with Book A using live market data. In the context of the Performance Metric backtest (Section 4.3 and Schedule A), Book B transacts with Book C using the same transfer rules but on a non-market-facing, internal-only basis.
+
+**1.24** "**Book C**" means the internal-only counterparty book used exclusively for the Performance Metric backtest described in Schedule A. Book C serves the same role as Book A in the backtest context — it is the source and destination of all internal transfers with Book B — but is non-market-facing and carries no live trading exposure.
+
+**1.25** "**Allocated Capital**" means the notional capital allocated to Book B for the purposes of the Performance Metric backtest, as mutually agreed upon by the Parties and documented in Schedule A. The Allocated Capital need not be a fixed amount — it may be adjusted from time to time by mutual written agreement of the Parties, and Schedule A shall be updated accordingly.
 
 ---
 
@@ -113,7 +145,8 @@ Each individually a "**Party**" and collectively the "**Parties**."
 - (d) Remove, alter, or obscure any proprietary notices, labels, or marks on the Software;
 - (e) Use the Software for the benefit of any third party or operate it as a service bureau;
 - (f) Circumvent, disable, or interfere with the Data Egress mechanisms, Entity Masking processes, or any other security features of the Software;
-- (g) Deploy the Software outside of Licensee's VPC without prior written consent from Vendor.
+- (g) Deploy the Software outside of Licensee's VPC without prior written consent from Vendor;
+- (h) Use the Software's outputs (including position recommendations, parameter suggestions, and advisory signals) to inform, direct, or benefit any trading book other than Book B (or Book C in the backtest context). If Licensee wishes to act on the Software's outputs in any book other than Book B, Licensee must ensure that Book B first reflects the full set of the Software's position recommendations in accordance with Schedule D, Section D.2A. Any use of the Software's outputs on a non-measured book without corresponding execution on Book B shall, if not remedied within five (5) business days of written notice from Vendor, constitute a material breach of this Agreement.
 
 **2.6 Reservation of Rights.** All rights not expressly granted herein are reserved by Vendor. No implied licenses are granted by this Agreement.
 
@@ -125,11 +158,13 @@ Each individually a "**Party**" and collectively the "**Parties**."
 
 **3.2 Deployment Environment.** The Parties shall mutually agree on an appropriate deployment environment for the Software, which may include Licensee's VPC, a Vendor-managed cloud environment, a hybrid arrangement, or any other configuration that satisfies both Parties' operational and security requirements. The specific deployment architecture shall be documented in a deployment plan agreed upon prior to the Deployment Date.
 
+**3.2A Advisory Period Infrastructure.** Notwithstanding Section 3.2, during the Advisory Period Vendor may operate the Software (in whole or in part) on Vendor's own infrastructure rather than within Licensee's deployment environment, in order to maximize development speed and iteration. Vendor shall ensure that all data handling during such period complies with the confidentiality and security obligations of this Agreement. Upon the conclusion of the Advisory Period, the Software shall be transitioned to the deployment environment agreed under Section 3.2 unless the Parties agree otherwise in writing.
+
 **3.3 Security.** Vendor shall implement commercially reasonable security measures appropriate to the nature of the Software and the data it processes. Such measures may include, without limitation, encryption, access controls, entity masking, and network isolation. Vendor shall make available to Licensee reasonable documentation describing the security architecture upon request, and shall cooperate in good faith with Licensee's security review processes.
 
 **3.4 Hard Risk Fuses.** Licensee shall retain exclusive ownership and control over all Hard Risk Fuses. The Software shall not override, bypass, or interfere with any Hard Risk Fuse configured by Licensee.
 
-**3.5 Updates & Maintenance.** Vendor shall provide Software updates, bug fixes, and security patches during the Term at no additional charge. Licensee shall have the right to test updates in a staging environment before deploying to production.
+**3.5 Updates & Maintenance.** Vendor shall provide Software updates, bug fixes, and security patches during the Term at no additional charge. Vendor shall use commercially reasonable efforts to respond to Licensee-reported issues within two (2) business days and to resolve critical issues (those materially affecting the Software's core functionality) as promptly as practicable. Licensee shall have the right to test updates in a staging environment before deploying to production.
 
 ---
 
@@ -139,11 +174,14 @@ Each individually a "**Party**" and collectively the "**Parties**."
 
 **4.2 Fee Commencement Triggers.** The Fee Commencement Date shall be the **earliest** of:
 
-- (a) **Hard Cap:** The date that is [2] months after the Deployment Date, irrespective of whether Parameter Change Integration has occurred or the Performance Metric has been achieved;
+- (a) **Hard Cap:** The date that is [6] months after the Deployment Date, irrespective of whether Parameter Change Integration has occurred or the Performance Metric has been achieved;
 - (b) **Performance Trigger:** The date on which the Performance Metric (as defined in Schedule A) is first achieved, as confirmed through the audit process described in Section 4.4;
-- (c) **Integration Trigger:** The date on which Parameter Change Integration first occurs.
+- (c) **Integration Trigger:** The date on which Parameter Change Integration first occurs;
+- (d) **Mutual Extension:** If, at the time the Hard Cap under Section 4.2(a) would otherwise expire, the Agreed Backtest Methodology under Schedule A has not yet produced a full 14-day rolling window of results due to delays in data integration or deployment that are not attributable to Licensee's lack of good faith effort, the Parties may, by mutual written agreement executed prior to the original Hard Cap expiry date, extend the Hard Cap by a further two (2) months. Such extension may be exercised only once. If the Parties do not agree to an extension, the original Hard Cap date shall apply.
 
-**4.3 Performance Metric.** The Performance Metric shall be calculated using the same formula and methodology as the Performance Basis defined in Section 5.2(a) and Schedule D, except that it shall be applied to performance results derived from a backtest methodology mutually agreed upon by the Parties in writing and documented in Schedule A prior to the Deployment Date (the "**Agreed Backtest Methodology**"). For the avoidance of doubt, the Performance Metric (fee trigger) and the Performance Basis (fee calculation) differ only in their data source: the Performance Metric uses backtest results under the Agreed Backtest Methodology, while the Performance Basis uses actual or simulated production performance. The Performance Metric shall be:
+**4.2A Licensee Notification of Parameter Change Integration.** Licensee shall notify Vendor in writing within two (2) business days of any event that constitutes or may constitute Parameter Change Integration, including without limitation the commencement of internal transfers between Book B and any Market-Facing Book. The notice shall specify the date on which the integration event first occurred and the nature of the activity. If Licensee fails to provide timely notification, Vendor may provide its own written notice to Licensee identifying the integration event and the date on which it occurred, by reference to the real-time monitoring data available to Vendor under Section 4.5A. The Fee Commencement Date shall then be deemed to be the date identified in Vendor's notice, unless Licensee disputes the date or the characterization of the event within five (5) business days of receiving Vendor's notice, in which case the dispute shall be resolved in accordance with the procedure set out in Section 4.5 (applied mutatis mutandis). Pending resolution of any such dispute, Licensee shall continue to comply with all other obligations under this Agreement. Late notification shall not relieve Licensee of any fee obligation that is ultimately determined to be due.
+
+**4.3 Performance Metric.** The Performance Metric shall be calculated using the backtest methodology documented in Schedule A (the "**Agreed Backtest Methodology**"). The backtest uses the same two-book structure and transfer rules as the Performance Basis (Schedule D), except that Book B transacts with Book C (an internal-only, non-market-facing counterparty book) rather than Book A, and the capital in Book B is notional (the Allocated Capital). The Performance Metric is achieved when the annualized return on Allocated Capital over a rolling 14-day window reaches the threshold specified in Schedule A. The Performance Metric shall be:
 - (a) Objectively measurable using data available to both Parties;
 - (b) Calculated using the Agreed Backtest Methodology, documented in sufficient detail to permit independent verification;
 - (c) Assessed over a continuous rolling period of [14] trading days.
@@ -156,6 +194,14 @@ Each individually a "**Party**" and collectively the "**Parties**."
 - (e) If an audit reveals a material discrepancy (greater than [5]%) in the Performance Metric calculation, Licensee shall promptly correct the calculation and, if the corrected calculation shows the Performance Metric was achieved at an earlier date, the Fee Commencement Date shall be retroactively adjusted accordingly, and any fees owed shall become immediately payable.
 
 **4.5 Dispute on Performance Metric.** If the Parties disagree on whether the Performance Metric has been achieved, the matter shall be referred to an independent third-party auditor mutually agreed upon by both Parties, whose determination shall be final and binding. The cost of such determination shall be borne by the Party whose position is not upheld.
+
+**4.5A Vendor Real-Time Monitoring Access.** Licensee shall provide Vendor with continuous, real-time read-only access to the following data for Book B and Book C (and, after Fee Commencement, Book B and Book A to the extent relevant to transfers with Book B):
+- (a) All current positions (including instrument, quantity, and direction);
+- (b) Current mark-to-market NAV (calculated on the same basis as Section D.4 of Schedule D);
+- (c) A complete log of all internal transfers (including timestamp, instrument, quantity, direction, and transfer price);
+- (d) Current cash balances.
+
+Such access shall be provided via a real-time data feed, dashboard, or API, in a format mutually agreed upon by the Parties. Vendor's monitoring access is in addition to (and does not limit) Vendor's audit rights under Sections 4.4 and 5.2(f). Licensee shall ensure that the monitoring system is operational and accessible to Vendor at all times during the Term, subject to reasonable scheduled maintenance.
 
 **4.6 Performance-Based Fee Calculation During Advisory Period.** Beginning on the Deployment Date, Vendor shall calculate the Performance-Based Fee on a monthly basis using the methodology set out in Section 5.2 and Schedule D, applied to the Software's actual or simulated (backtest) performance:
 - (a) The calculation shall use the same Performance Basis, percentage, and methodology that would apply after Fee Commencement;
@@ -172,12 +218,13 @@ Each individually a "**Party**" and collectively the "**Parties**."
 **5.1 Full Licensing Fee.** The Full Licensing Fee shall be **USD $[38570]** ([38570] United States dollars) per month, unless adjusted in accordance with Section 6.
 
 **5.2 Ramp-Up Period.** The Performance-Based Fee shall be calculated monthly beginning on the Deployment Date, using the Software's actual or simulated (backtest) performance:
-- (a) The monthly Performance-Based Fee shall equal **[100]%** of [24-hour option quality net (OQ peak) option quality] (the "**Performance Basis**") for the applicable measurement period, as further detailed in Schedule D;
+- (a) The monthly Performance-Based Fee shall equal **[20]%** of the net profit and loss of Book B (the "**Performance Basis**") for the applicable measurement period, calculated in accordance with the methodology set out in Schedule D;
 - (b) The Performance-Based Fee shall not exceed the Full Licensing Fee in any given month;
 - (c) **During the Advisory Period:** The Performance-Based Fee shall be calculated and reported but no Licensing Fees shall be payable. The calculation serves to track progress toward Fee Lock-In;
-- (d) **After the Fee Commencement Date (if Fee Lock-In has not yet occurred):** The monthly Licensing Fee shall equal the Performance-Based Fee, subject to a floor of **USD $[1000]** (the "**Minimum Monthly Fee**");
+- (d) **After the Fee Commencement Date (if Fee Lock-In has not yet occurred):** The monthly Licensing Fee shall equal the Performance-Based Fee (floored at zero per Section 5.2(g));
 - (e) Licensee shall provide Vendor with a written calculation of the Performance-Based Fee within [5] business days after the end of each calendar month;
-- (f) Vendor shall have the right to audit the Performance-Based Fee calculation using the same audit rights and procedures set out in Section 4.4, mutatis mutandis.
+- (f) Vendor shall have the right to audit the Performance-Based Fee calculation using the same audit rights and procedures set out in Section 4.4, mutatis mutandis;
+- (g) **Month-to-Month Independence / No Clawback.** Each month's Performance-Based Fee shall be calculated independently based solely on that month's Performance Basis. If the Performance Basis for a given month is negative, the Performance-Based Fee for that month shall be zero — but no negative performance shall be carried forward, offset against, or used to reduce the Performance-Based Fee payable in any subsequent month. For the avoidance of doubt, if Vendor earns a Performance-Based Fee in one month, Licensee incurs losses in the following month (even losses exceeding prior cumulative gains), and Vendor subsequently earns a positive Performance Basis in a later month, the full Performance-Based Fee shall be payable for that later month. There shall be no clawback, retrospective withholding, high-water mark, or loss carry-forward mechanism of any kind.
 
 **5.3 Fee Lock-In.** Upon the first month in which the Performance-Based Fee equals or exceeds the Full Licensing Fee (whether during the Advisory Period or thereafter):
 - (a) The Ramp-Up Period shall immediately and permanently end;
@@ -196,11 +243,16 @@ Each individually a "**Party**" and collectively the "**Parties**."
 
 **5.8 No Refunds.** Licensing Fees paid are non-refundable, except as expressly provided in Section 14.
 
+**5.9 Good Faith and Fair Dealing.** Each Party shall act in good faith and deal fairly in all matters relating to the fee mechanism set out in this Section 5 and Schedules A and D, including without limitation the calculation of the Performance Basis, the determination of Book B NAV, the recording and pricing of internal transfers, and the reporting of Performance-Based Fee calculations. Neither Party shall take any action, or fail to take any action, with the purpose or effect of artificially inflating, deflating, or otherwise manipulating the Performance Basis or any component thereof.
+
 ---
 
 ## 6. PRICE ADJUSTMENT & CANCELLATION
 
-**6.1 Vendor's Discretionary Price Adjustment.** Vendor reserves the right to increase the Full Licensing Fee, the Minimum Monthly Fee, and/or the Performance-Based Fee percentage at any time during the Term. Vendor shall provide Licensee with no fewer than thirty (30) days' prior written notice of any price increase, specifying the new fee amounts and the effective date of the increase.
+**6.1 Vendor's Discretionary Price Adjustment.** Vendor may increase the Full Licensing Fee and/or the Performance-Based Fee percentage during the Term, subject to the following limitations:
+- (a) Vendor may exercise this right no more than **twice** in any twelve (12) month period;
+- (b) No single discretionary increase shall exceed **10%** of the then-current amount of the applicable fee or percentage being adjusted;
+- (c) Vendor shall provide Licensee with no fewer than thirty (30) days' prior written notice of any price increase, specifying the new fee amounts and the effective date of the increase.
 
 **6.2 CPI Adjustment.** In addition to Vendor's discretionary right under Section 6.1, the Full Licensing Fee shall be automatically adjusted on each anniversary of the Fee Commencement Date to reflect changes in the Consumer Price Index. The adjustment shall be calculated as follows:
 - (a) The adjusted Full Licensing Fee = prior Full Licensing Fee × (CPI for the most recently published twelve-month period / CPI for the twelve-month period immediately preceding the prior adjustment date);
@@ -210,7 +262,7 @@ Each individually a "**Party**" and collectively the "**Parties**."
 - (e) If Fee Lock-In has not yet occurred at the time of a CPI adjustment, the new Full Licensing Fee shall also serve as the updated ceiling for the Performance-Based Fee under Section 5.2(b).
 
 **6.3 Licensee's Right to Cancel.** Licensee may cancel its Licensing Fee obligation, for any reason or no reason, subject to the following:
-- (a) **Mid-Term Cancellation:** Licensee may cancel at any time during the Initial Term or any Renewal Period by providing Vendor with thirty (30) days' prior written notice ("**Cancellation Notice**"). If Licensee cancels before the end of the then-current term (whether Initial Term or Renewal Period), Licensee shall pay an early termination fee equal to **[___]%** of the remaining Full Licensing Fee payments that would have been due through the end of the then-current term (the "**Early Termination Fee**"). The Early Termination Fee shall be due and payable within thirty (30) days of the cancellation effective date.
+- (a) **Mid-Term Cancellation:** Licensee may cancel at any time during the Initial Term or any Renewal Period by providing Vendor with thirty (30) days' prior written notice ("**Cancellation Notice**"). If Licensee cancels before the end of the then-current term (whether Initial Term or Renewal Period), Licensee shall pay an early termination fee equal to **50%** of the remaining Full Licensing Fee payments that would have been due through the end of the then-current term (the "**Early Termination Fee**"). The Early Termination Fee shall be due and payable within thirty (30) days of the cancellation effective date. The Parties acknowledge and agree that the Early Termination Fee represents a genuine pre-estimate of Vendor's loss arising from early termination, taking into account Vendor's upfront development costs that are not separately reflected in the fee schedule and the development and support costs incurred by Vendor during the fee-free Advisory Period, and is not intended as a penalty.
 - (b) **End-of-Term Non-Renewal:** Licensee may elect not to renew by providing at least sixty (60) days' written notice prior to the end of the then-current term. No Early Termination Fee shall apply for non-renewal.
 - (c) Upon the effective date of any cancellation:
   - (i) No further Licensing Fees shall accrue;
@@ -218,9 +270,9 @@ Each individually a "**Party**" and collectively the "**Parties**."
   - (iii) The license granted under Section 2.1 shall terminate;
   - (iv) Licensee shall comply with the wind-down obligations in Section 14.4.
 
-**6.4 Price Increase and Cancellation Interaction.** For the avoidance of doubt, if Vendor issues a discretionary price increase notice under Section 6.1, Licensee may exercise its cancellation right under Section 6.3 at any time, including during the notice period. If Licensee issues a Cancellation Notice during a price increase notice period, Licensee shall pay the existing (pre-increase) Licensing Fee through the cancellation effective date. CPI adjustments under Section 6.2 shall not independently trigger any special cancellation rights.
+**6.4 Price Increase and Cancellation Interaction.** If Vendor issues a discretionary price increase notice under Section 6.1, Licensee may terminate this Agreement by providing written notice to Vendor at any time during the thirty (30) day notice period specified in Section 6.1(c), with the termination to take effect on the date the price increase would otherwise become effective. If Licensee terminates under this Section 6.4, **no Early Termination Fee shall be payable** — Licensee shall only be liable for the existing (pre-increase) Licensing Fee through the termination effective date. If Licensee does not exercise this termination right during the notice period, the price increase shall take effect as stated in Vendor's notice and Licensee's subsequent cancellation rights shall be governed by Section 6.3 (including the Early Termination Fee). CPI adjustments under Section 6.2 shall not independently trigger the termination right under this Section 6.4.
 
-**6.5 Reinstatement.** If Licensee cancels and subsequently wishes to reinstate the license, reinstatement shall be at Vendor's sole discretion, at the then-current Licensing Fee, and subject to a new Initial Term of twelve (12) months.
+**6.5 Reinstatement.** If Licensee cancels and subsequently wishes to reinstate the license, reinstatement shall be subject to Vendor's approval (which Vendor shall consider in good faith), at the then-current Licensing Fee, and subject to a new Initial Term of twelve (12) months.
 
 ---
 
@@ -246,6 +298,10 @@ Vendor's access to Shared Data shall not be construed as a transfer of ownership
 **7.4 Data Portability.** Upon termination or expiration of this Agreement, Vendor shall provide Licensee with a complete export of all Corporate IP and Shared Data in a machine-readable format within thirty (30) days of the termination effective date, at no additional charge.
 
 **7.5 No Contamination.** Vendor shall implement reasonable technical and organizational measures to ensure that Licensee's Corporate IP is not commingled with data from any other Vendor client or used to train, improve, or benefit the Software as deployed for any other client, except in anonymized and aggregated form that cannot be attributed to Licensee. This restriction does not apply to Shared Data, which Vendor may use in anonymized form across its product improvement efforts.
+
+**7.6 Custom Indicators and Tools.** Any custom indicators, analytical tools, models, or other deliverables developed by Vendor for Licensee during the Term (whether at Licensee's request or on Vendor's initiative) shall be and remain the sole intellectual property of Vendor. Licensee is granted a non-exclusive, non-transferable, royalty-free license to use such custom indicators and tools for its internal business operations for the duration of the Term. Vendor retains the right to use, modify, sublicense, and provide such custom indicators and tools to any other client or third party, provided that Vendor does not disclose Licensee's Confidential Information in connection with such use.
+
+**7.7 Improvements and Derivative Works.** All improvements, enhancements, modifications, updates, and derivative works of the Software or the APT Logic — regardless of whether they were prompted by, inspired by, or developed in response to Licensee's usage patterns, feedback, feature requests, bug reports, or any other input from Licensee — are and shall remain the sole and exclusive intellectual property of Vendor. To the extent that Licensee's feedback or input gives rise to any intellectual property rights in improvements or derivative works, Licensee hereby assigns such rights to Vendor, to the extent permitted by applicable law. For the avoidance of doubt, no suggestion, feedback, or feature request from Licensee shall create a joint work, joint ownership, or any intellectual property claim by Licensee in the Software or the APT Logic. Where Vendor develops a material new feature or capability that was substantially prompted by Licensee's specific written feature request, Vendor shall use commercially reasonable efforts to make such feature available to Licensee under this license at no additional charge during the Term.
 
 ---
 
@@ -279,7 +335,7 @@ Vendor's access to Shared Data shall not be construed as a transfer of ownership
 
 **8.5 Data Retention.** Vendor shall have the right to retain Egress Data **indefinitely**, both during and after the Term of this Agreement. Vendor's right to retain and use Egress Data in accordance with Sections 8.3 and 8.4 shall survive termination or expiration of this Agreement without limitation. For the avoidance of doubt, Vendor's indefinite retention right applies only to Egress Data (which has already been entity-masked) and does not extend to Corporate IP or identifiable Shared Data.
 
-**8.6 Licensee's Right to Suspend Egress.** Licensee may, at any time and for any reason, suspend or restrict Data Egress by modifying the network configuration of its deployment environment. Vendor acknowledges that such suspension may degrade the Software's functionality and Vendor's ability to provide support, and Vendor shall not be liable for any resulting degradation in service quality.
+**8.6 Ownership of Entity-Masked Egress Data.** Licensee acknowledges and agrees that once Egress Data has passed through the Entity Masking process described in Section 8.2, the resulting entity-masked data shall be the sole and exclusive property of Vendor. Vendor shall hold an irrevocable, perpetual, worldwide, royalty-free right to use, store, reproduce, modify, create derivative works from, distribute, commercialize, and otherwise exploit such entity-masked Egress Data for any purpose permitted under this Agreement. This ownership right survives termination or expiration of this Agreement. For the avoidance of doubt, Vendor's use of entity-masked Egress Data remains subject to the restrictions in Section 8.4 (including the prohibition on re-identification).
 
 ---
 
@@ -299,8 +355,8 @@ Vendor's access to Shared Data shall not be construed as a transfer of ownership
 - (e) Communications with prospective clients and partners.
 
 **9.3 Limitations on Performance Statistics.** Vendor's use of Licensee's performance statistics is subject to the following:
-- (a) Statistics must be presented at a **high level only** (e.g., "improved Sharpe ratio by X%", "achieved Y% uptime") and shall not disclose specific trading strategies, position sizes, PnL figures, or any other granular financial data;
-- (b) Vendor shall submit any proposed marketing material referencing Licensee's performance statistics to Licensee for **prior written approval**, which shall not be unreasonably withheld or delayed. Licensee shall respond within ten (10) business days; failure to respond shall be deemed approval;
+- (a) Statistics must be presented at a **high level only** (e.g., "improved Sharpe ratio by X%", "achieved Y% return on capital") and shall not disclose specific trading strategies, position sizes, PnL figures, or any other granular financial data;
+- (b) Vendor shall submit any proposed marketing material referencing Licensee's performance statistics to Licensee for **prior written approval**, which shall not be unreasonably withheld or delayed. Licensee shall respond within fifteen (15) business days; failure to respond shall be deemed approval;
 - (c) All statistics used must be accurate and not misleading;
 - (d) Vendor shall include appropriate disclaimers (e.g., "past performance does not guarantee future results") in any materials referencing performance statistics.
 
@@ -343,7 +399,7 @@ Vendor's access to Shared Data shall not be construed as a transfer of ownership
 - (b) The Software does not, to Vendor's knowledge, infringe upon the intellectual property rights of any third party;
 - (c) The Software shall be free from malware, viruses, trojans, backdoors, or any other malicious code at the time of delivery;
 - (d) The Software shall perform substantially in accordance with its documentation during the Term;
-- (e) Vendor shall provide commercially reasonable efforts to maintain Software availability of at least [___]% uptime, measured on a monthly basis, excluding scheduled maintenance windows communicated to Licensee with at least 48 hours' prior notice;
+- (e) Vendor shall provide commercially reasonable efforts to maintain Software availability of at least 90% uptime, measured on a monthly basis, excluding scheduled maintenance windows communicated to Licensee with at least 48 hours' prior notice;
 - (f) Vendor shall comply with all applicable laws and regulations in the performance of its obligations under this Agreement.
 
 **11.2 Licensee Representations.** Licensee represents and warrants that:
@@ -410,8 +466,12 @@ Vendor's access to Shared Data shall not be construed as a transfer of ownership
 - (b) Licensee shall delete or destroy all copies of the Software (including any container images, installation packages, or other deliverables) within fourteen (14) days and provide written certification of such deletion;
 - (c) Vendor shall export and deliver all Corporate IP and Shared Data to Licensee in accordance with Section 7.4;
 - (d) All accrued payment obligations shall survive termination;
-- (e) Sections 7, 8.5, 9.5, 10, 11.3, 11.4, 12, 13, 15, and 16 shall survive termination;
+- (e) Sections 7, 8.5, 8.6, 9.5, 10, 11.3, 11.4, 12, 13, 14.5, 14.6, 15, and 16 shall survive termination;
 - (f) If termination occurs before the end of the then-current term (whether Initial Term or Renewal Period), the Early Termination Fee provisions of Section 6.3(a) shall apply.
+
+**14.5 Post-Termination Non-Compete.** The Parties acknowledge that during the Term, Licensee will have had substantial exposure to the APT Logic's outputs, methodologies, and behavioral patterns. To protect Vendor's proprietary investment, for a period of twelve (12) months following the effective date of termination or expiration of this Agreement (the "**Restricted Period**"), Licensee shall not, directly or indirectly, deploy, develop, commission, license, or use any software, system, algorithm, or methodology that replicates, is substantially similar to, or was derived from or inspired by the APT Logic, the Software's architecture, or the Software's outputs. The intent of this restriction is to prevent the direct cloning or reverse-engineering of the APT Logic — it is not intended to restrict Licensee's ordinary business operations or use of generally available commercial software and independently developed tools that were not influenced by the Software or the APT Logic.
+
+**14.6 Non-Solicitation.** During the Term and for a period of twelve (12) months following the effective date of termination or expiration of this Agreement, Licensee shall not, directly or indirectly, solicit, recruit, hire, engage, or contract with any employee, contractor, or consultant of Vendor who was involved in the development, deployment, or support of the Software, without Vendor's prior written consent. This restriction does not apply to general, untargeted recruitment advertisements or to individuals who approach Licensee without solicitation.
 
 ---
 
@@ -461,6 +521,8 @@ Vendor's access to Shared Data shall not be construed as a transfer of ownership
 
 **16.10 Counterparts.** This Agreement may be executed in counterparts, each of which shall be deemed an original, and all of which together shall constitute one and the same instrument. Electronic signatures shall be deemed valid and binding.
 
+**16.11 Regulatory Change.** If a change in applicable law, regulation, or regulatory guidance materially prevents or restricts either Party's ability to perform its obligations under this Agreement, the affected Party shall promptly notify the other Party in writing, specifying the nature of the regulatory change and its impact. The Parties shall negotiate in good faith for a period of sixty (60) days to agree upon modifications to the affected terms that preserve the commercial intent of this Agreement to the greatest extent possible. If no agreement is reached within the sixty (60) day negotiation period, either Party may terminate this Agreement upon thirty (30) days' written notice without incurring any Early Termination Fee. All Licensing Fees accrued prior to the termination effective date shall remain due and payable.
+
 ---
 
 ## 17. SIGNATURES
@@ -482,15 +544,49 @@ IN WITNESS WHEREOF, the Parties have executed this Agreement as of the Effective
 
 *To be mutually agreed upon and documented prior to the Deployment Date.*
 
+### A.1 Metric Parameters
+
 | Item | Detail |
 |---|---|
-| **Metric Name** | [___] |
-| **Calculation Methodology** | [___] |
-| **Data Sources** | [___] |
-| **Measurement Period** | Rolling [___] trading days |
-| **Threshold for Achievement** | [___] |
-| **Reporting Frequency** | [___] |
-| **Responsible Party for Calculation** | [___] |
+| **Metric Name** | Annualized Return on Allocated Capital |
+| **Measurement Period** | Rolling 14 trading days |
+| **Threshold for Achievement** | 10% annualized return on Allocated Capital |
+| **Allocated Capital** | As mutually agreed by the Parties (notional; may be adjusted by mutual written agreement per Section 1.25) |
+| **Data Sources** | Book B and Book C internal transfer records; midprice data from the applicable venue |
+| **Reporting Frequency** | Daily (rolling window updated each trading day) |
+| **Responsible Party for Calculation** | Licensee, subject to Vendor audit rights (Section 4.4) |
+
+### A.2 Backtest Book Structure
+
+Licensee shall maintain Book B and Book C as two internal-only, non-market-facing books for the purposes of this backtest. Neither book carries live trading exposure or interacts with any external venue or counterparty.
+
+- **Book B** holds the positions recommended or directed by the Software, funded with the Allocated Capital.
+- **Book C** serves as the internal counterparty to Book B — the source and destination of all transfers — analogous to the role of Book A in the live Performance Basis calculation.
+
+### A.3 Transfer Rules
+
+All transfers between Book B and Book C shall follow the same rules as Section D.3 of Schedule D:
+
+- (a) **Option Transfers** shall be priced at the **prevailing midprice** of the relevant option at the time of transfer.
+- (b) **Delta-Hedging Transfers** shall accompany each option transfer to render the combined transfer delta-neutral, priced at the **prevailing futures midprice**.
+- (c) **Gamma Hedging** transfers of futures between Book B and Book C shall be priced at the **prevailing futures midprice**.
+- (d) Book B shall not transact with any party other than Book C.
+
+### A.4 Return Calculation
+
+The return on Allocated Capital for a given rolling 14-day window is calculated as follows:
+
+> **14-Day Return = (Book B NAV at Window End − Book B NAV at Window Start) / Allocated Capital**
+
+Where Book B NAV is calculated on the same basis as Section D.4 of Schedule D (mark-to-market value of open positions plus cash balance).
+
+The annualized return is:
+
+> **Annualized Return = 14-Day Return × (365.25 / 14)**
+
+### A.5 Trigger Condition
+
+The Performance Metric is achieved on the first trading day on which the Annualized Return (calculated per Section A.4) equals or exceeds **10%**. Upon achievement, the Fee Commencement Date is triggered per Section 4.2(b), subject to the audit and dispute provisions of Sections 4.4 and 4.5.
 
 ---
 
@@ -509,7 +605,7 @@ IN WITNESS WHEREOF, the Parties have executed this Agreement as of the Effective
 | Step | Action | Timeline |
 |---|---|---|
 | 1 | Vendor submits draft marketing material to Licensee contact | — |
-| 2 | Licensee reviews and provides approval, conditional approval, or rejection | 10 business days |
+| 2 | Licensee reviews and provides approval, conditional approval, or rejection | 15 business days |
 | 3 | If conditional, Vendor revises and resubmits | 5 business days |
 | 4 | Licensee provides final approval | 5 business days |
 | 5 | Failure to respond within the stated timelines is deemed approval | — |
@@ -522,24 +618,71 @@ IN WITNESS WHEREOF, the Parties have executed this Agreement as of the Effective
 
 ## SCHEDULE D — RAMP-UP FEE CALCULATION
 
-*Defines the Performance-Based Fee calculation used during the Ramp-Up Period (Section 5.2). Calculation begins on the Deployment Date (including during the Advisory Period, per Section 4.7). Once Fee Lock-In occurs (Section 5.3), this Schedule ceases to apply and the Full Licensing Fee is charged permanently.*
+*Defines the Performance-Based Fee calculation used during the Ramp-Up Period (Section 5.2). Calculation begins on the Deployment Date (including during the Advisory Period, per Section 4.6). Once Fee Lock-In occurs (Section 5.3), this Schedule ceases to apply and the Full Licensing Fee is charged permanently.*
+
+### D.1 Fee Parameters
 
 | Item | Detail |
 |---|---|
-| **Full Licensing Fee** | USD $[___] per month |
-| **Minimum Monthly Fee** | USD $[___] per month (floor; applies only after Fee Commencement if Lock-In has not occurred) |
-| **Performance Basis** | [___] (e.g., net PnL attributable to APT, Sharpe improvement, edge capture, or other metric) |
-| **Performance-Based Fee Percentage** | [___]% of Performance Basis |
-| **Calculation Methodology** | [___] |
-| **Data Sources** | [___] |
+| **Full Licensing Fee** | USD $[38570] per month |
+| **Minimum Monthly Fee** | USD $0 per month (no minimum; fee is floored at zero per Section 5.2(g)) |
+| **Performance-Based Fee Percentage** | 20% of the Performance Basis |
 | **Performance Type During Advisory Period** | Actual or simulated (backtest) performance of the Software's outputs |
-| **Measurement Period** | [___] (e.g., trailing calendar month) |
+| **Measurement Period** | Trailing calendar month |
 | **Calculation Start Date** | Deployment Date |
-| **Reporting Deadline** | [___] business days after end of each measurement period |
-| **Responsible Party for Calculation** | [___] |
-| **Audit Mechanism** | Per Section 4.4 (applied mutatis mutandis per Sections 4.7(e) and 5.2(f)) |
+| **Reporting Deadline** | [5] business days after end of each measurement period |
+| **Responsible Party for Calculation** | Licensee, subject to Vendor audit rights |
+| **Audit Mechanism** | Per Section 4.4 (applied mutatis mutandis per Sections 4.6(e) and 5.2(f)) |
 
-**Fee Lock-In Trigger:** The Ramp-Up Period ends permanently when the Performance-Based Fee for any single month equals or exceeds the Full Licensing Fee — including months during the Advisory Period based on simulated or backtest performance. From that point forward, the monthly Licensing Fee is the Full Licensing Fee regardless of subsequent performance. No fees are payable for Advisory Period months even if Fee Lock-In occurs during that period (Section 5.3(e)).
+### D.2 Two-Book Structure
+
+Licensee shall establish and maintain Book B as a separate trading book, distinct from Book A (Licensee's primary market-making book). Book B shall be used exclusively to execute the positions recommended or directed by the Software. The net profit and loss of Book B over each measurement period constitutes the **Performance Basis**.
+
+### D.2A Completeness of Book B Positions
+
+Book B must at all times reflect the **complete set** of position recommendations generated by the Software — Licensee may not selectively execute a subset of the Software's recommendations in Book B while disregarding others. If the Software recommends a position in a given instrument, Book B must execute the corresponding transfer with Book A in accordance with Section D.3.
+
+In **Advisory Mode**, Licensee retains the right to override or decline individual position recommendations for its own trading operations outside of Book B. However, for the purposes of calculating the Performance Basis, the positions in Book B shall reflect what the Software recommended, not what Licensee chose to execute elsewhere. If Licensee overrides a recommendation and does not execute the corresponding transfer in Book B, the Performance Basis shall nonetheless be calculated as if Book B had executed the recommendation at the prevailing midprice at the time the recommendation was generated, using a notional shadow record maintained by Vendor via the monitoring access described in Section 4.5A.
+
+In **Autonomous Mode**, the Software shall directly control Book B's position transfers, and the completeness requirement is automatically satisfied.
+
+Failure to maintain Book B in accordance with this Section D.2A, or any manipulation of Book B's positions to artificially reduce the Performance Basis, shall — if not remedied within five (5) business days of written notice from Vendor — constitute a material breach of this Agreement.
+
+### D.3 Transfer and Hedging Rules
+
+All transfers between Book A and Book B, and all hedging activity within Book B, shall be conducted in accordance with the following rules:
+
+- (a) **Option Transfers.** Book B shall acquire or dispose of option positions by way of internal transfer with Book A. Each option transfer shall be priced at the **prevailing midprice** of the relevant option at the time of transfer (i.e., the arithmetic mean of the best bid and best ask on the applicable venue).
+
+- (b) **Delta-Hedging Transfers.** Each option transfer under paragraph (a) shall be accompanied by a corresponding futures transfer to render the combined transfer delta-neutral. The futures component of each such transfer shall also be priced at the **prevailing futures midprice** at the time of transfer.
+
+- (c) **Gamma Hedging.** Book B may independently execute gamma-hedging trades by transferring futures positions with Book A. All such gamma-hedging futures transfers shall be priced at the **prevailing futures midprice** at the time of transfer.
+
+- (d) **No Other Transfers.** Book B shall not transact with any counterparty other than Book A, and shall not execute trades on any external venue. All position changes in Book B shall occur exclusively through internal transfers with Book A in accordance with paragraphs (a) through (c).
+
+### D.4 Performance Basis Calculation
+
+The **Performance Basis** for a given measurement period is the net profit and loss of Book B, calculated as follows:
+
+> **Performance Basis = Book B Ending NAV − Book B Beginning NAV**
+
+Where:
+- **Book B Ending NAV** is the total net asset value of Book B at the close of the measurement period, comprising: (i) the mark-to-market value of all open positions, plus (ii) the cash balance, including all realized proceeds from option exercises, expirations, and settlements during the period;
+- **Book B Beginning NAV** is the total net asset value of Book B at the start of the measurement period, calculated on the same basis.
+
+For the avoidance of doubt, the cost of all internal transfers with Book A (priced at the midprices specified in Section D.3) is reflected in Book B's cash balance at the time of transfer and therefore already captured within the NAV calculation.
+
+All open positions shall be marked to market using the midprice of each instrument on the applicable venue at the relevant valuation time. For the avoidance of doubt, the PnL from options that expire or are settled during the measurement period is fully captured through the cash balance component of NAV.
+
+### D.5 Monthly Fee Calculation
+
+> **Monthly Performance-Based Fee = max(20% × Performance Basis, 0)**
+
+If the Performance Basis for a given month is negative, the Performance-Based Fee for that month is zero. The Performance-Based Fee shall not exceed the Full Licensing Fee in any given month. Each month's fee is calculated independently — no negative performance is carried forward or offset against future months' fees. There is no clawback, high-water mark, or loss carry-forward mechanism of any kind (see Section 5.2(g)). During the Advisory Period, the Performance-Based Fee is calculated and reported but no fees are payable (per Section 5.2(c)).
+
+### D.6 Fee Lock-In Trigger
+
+The Ramp-Up Period ends permanently when the Performance-Based Fee for any single month equals or exceeds the Full Licensing Fee — including months during the Advisory Period based on simulated or backtest performance. From that point forward, the monthly Licensing Fee is the Full Licensing Fee regardless of subsequent performance. No fees are payable for Advisory Period months even if Fee Lock-In occurs during that period (Section 5.3(e)).
 
 ---
 

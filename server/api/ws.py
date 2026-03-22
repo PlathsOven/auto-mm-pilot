@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -23,6 +24,8 @@ from fastapi import WebSocket, WebSocketDisconnect
 from server.api.engine_state import get_pipeline_results
 
 log = logging.getLogger(__name__)
+
+_APT_MODE: str = os.environ.get("APT_MODE", "mock").lower()
 
 # How often (in real seconds) we push a new tick to clients
 TICK_INTERVAL_SECS: float = 2.0
@@ -123,8 +126,9 @@ def _context_at_tick(timestamp: datetime) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Singleton ticker — advances through the time grid once, broadcasts to all
-# connected clients.
+# Singleton ticker — two modes:
+#   mock:  steps through the pipeline time grid at artificial intervals
+#   prod:  broadcasts positions matching real wall-clock time
 # ---------------------------------------------------------------------------
 
 _clients: set[WebSocket] = set()
@@ -132,13 +136,8 @@ _latest_payload: str | None = None
 _ticker_task: asyncio.Task | None = None
 
 
-async def _run_ticker() -> None:
-    """Background task: step through the pipeline time grid and broadcast."""
-    results = get_pipeline_results()
-    if results is None:
-        log.error("Pipeline not initialized — ticker cannot start")
-        return
-
+def _extract_timeline(results: dict) -> tuple[pl.DataFrame, pl.DataFrame, list[datetime]] | None:
+    """Shared setup: extract DataFrames and sorted timestamps from pipeline results."""
     desired_pos_df = results["desired_pos_df"]
     blocks_df = results["blocks_df"]
 
@@ -151,11 +150,33 @@ async def _run_ticker() -> None:
 
     if not timestamps:
         log.error("No timestamps in pipeline output")
-        return
+        return None
 
-    log.info("Ticker started: %d pipeline ticks at %.1fs interval", len(timestamps), TICK_INTERVAL_SECS)
+    return desired_pos_df, blocks_df, timestamps
 
+
+async def _broadcast(payload: str) -> None:
+    """Send payload to all connected WS clients, pruning dead connections."""
+    disconnected: list[WebSocket] = []
+    for ws in _clients:
+        try:
+            await ws.send_text(payload)
+        except Exception:
+            disconnected.append(ws)
+    for ws in disconnected:
+        _clients.discard(ws)
+
+
+async def _run_ticker_mock(
+    desired_pos_df: pl.DataFrame,
+    blocks_df: pl.DataFrame,
+    timestamps: list[datetime],
+) -> None:
+    """Mock mode: step through pipeline time grid at artificial intervals."""
     global _latest_payload
+
+    log.info("Mock ticker started: %d pipeline ticks at %.1fs interval", len(timestamps), TICK_INTERVAL_SECS)
+
     prev_positions: dict[str, float] = {}
     streams = _streams_from_blocks(blocks_df, timestamps[0])
 
@@ -171,29 +192,101 @@ async def _run_ticker() -> None:
         }
         _latest_payload = json.dumps(payload_dict)
 
-        # Update prev_positions for next tick
         for pos in positions:
             key = f"{pos['asset']}-{pos['expiry']}"
             prev_positions[key] = pos["desiredPos"]
 
-        # Update stream heartbeats
         ts_ms = int(ts.timestamp() * 1000)
         for s in streams:
             s["lastHeartbeat"] = ts_ms
 
-        # Broadcast to all connected clients
-        disconnected: list[WebSocket] = []
-        for ws in _clients:
-            try:
-                await ws.send_text(_latest_payload)
-            except Exception:
-                disconnected.append(ws)
-        for ws in disconnected:
-            _clients.discard(ws)
-
+        await _broadcast(_latest_payload)
         await asyncio.sleep(TICK_INTERVAL_SECS)
 
-    log.info("All pipeline ticks sent. Ticker idle.")
+    log.info("All pipeline ticks sent. Mock ticker idle.")
+
+
+async def _run_ticker_prod(
+    desired_pos_df: pl.DataFrame,
+    blocks_df: pl.DataFrame,
+    timestamps: list[datetime],
+) -> None:
+    """Prod mode: broadcast positions matching real wall-clock time.
+
+    On each tick, finds the latest pipeline timestamp <= now and broadcasts
+    that snapshot.  Runs continuously until cancelled by ``restart_ticker()``.
+    """
+    global _latest_payload
+
+    log.info("Prod ticker started: %d pipeline timestamps, %.1fs heartbeat", len(timestamps), TICK_INTERVAL_SECS)
+
+    prev_positions: dict[str, float] = {}
+    streams = _streams_from_blocks(blocks_df, timestamps[0])
+    last_ts_idx: int = -1
+    tick_count: int = 0
+
+    while True:
+        real_now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        # Find the latest timestamp <= real_now
+        ts_idx = last_ts_idx
+        for i, ts in enumerate(timestamps):
+            if ts <= real_now:
+                ts_idx = i
+            else:
+                break
+
+        # If real_now is before the first timestamp, use the first one
+        if ts_idx < 0:
+            ts_idx = 0
+
+        ts = timestamps[ts_idx]
+        positions = _positions_at_tick(desired_pos_df, ts, prev_positions)
+
+        # Only emit update cards when the active timestamp advances
+        updates = []
+        if ts_idx != last_ts_idx:
+            updates = _updates_from_diff(positions, prev_positions, tick_count)
+            for pos in positions:
+                key = f"{pos['asset']}-{pos['expiry']}"
+                prev_positions[key] = pos["desiredPos"]
+            last_ts_idx = ts_idx
+
+        ts_ms = int(real_now.timestamp() * 1000)
+        for s in streams:
+            s["lastHeartbeat"] = ts_ms
+
+        payload_dict = {
+            "streams": streams,
+            "context": _context_at_tick(ts),
+            "positions": positions,
+            "updates": updates,
+        }
+        _latest_payload = json.dumps(payload_dict)
+
+        await _broadcast(_latest_payload)
+
+        tick_count += 1
+        await asyncio.sleep(TICK_INTERVAL_SECS)
+
+
+async def _run_ticker() -> None:
+    """Background task: dispatch to mock or prod ticker."""
+    results = get_pipeline_results()
+    if results is None:
+        log.error("Pipeline not initialized — ticker cannot start")
+        return
+
+    timeline = _extract_timeline(results)
+    if timeline is None:
+        return
+
+    desired_pos_df, blocks_df, timestamps = timeline
+
+    if _APT_MODE == "prod":
+        await _run_ticker_prod(desired_pos_df, blocks_df, timestamps)
+    else:
+        await _run_ticker_mock(desired_pos_df, blocks_df, timestamps)
 
 
 def _ensure_ticker() -> None:

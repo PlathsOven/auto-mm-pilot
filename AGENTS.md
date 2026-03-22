@@ -86,7 +86,13 @@ The system is physically split to protect proprietary IP.
 | `server/core/serializers.py` | DataFrame→dict bridge for LLM prompt injection |
 | `client/ui/src/services/llmApi.ts` | HTTP client for LLM server endpoints (SSE streaming + JSON fetch) |
 | `client/ui/src/services/streamApi.ts` | HTTP client for stream CRUD, snapshot ingestion, market-pricing, bankroll endpoints |
+| `prototyping/test_api.ipynb` | API integration test notebook — exercises full prod-mode pipeline via HTTP |
 | `STACK_STATUS.md` | Component registry — tracks PROD/MOCK/STUB/OFF status and connection map |
+| `DEPLOY.md` | Step-by-step deployment guide (Vercel for client, Railway for server) |
+| `Procfile` | Railway start command for FastAPI server |
+| `runtime.txt` | Python version pin for Railway |
+| `requirements.txt` | Root-level Python deps for Railway (mirrors `server/api/requirements.txt`) |
+| `client/ui/vercel.json` | Vercel build/routing config for SPA deployment |
 
 ## Known Divergence: `pitch/terminal/` ↔ `client/ui/src/`
 `pitch/terminal/` is a fork of `client/ui/src/` adapted for Next.js SSR (adds `"use client"` directives, mock-only WebSocket provider). The two copies share identical types, utils, mock data, and near-identical components/providers. **Bug fixes or feature changes in either copy must be manually propagated to the other.** A shared package may be warranted if divergence becomes costly.

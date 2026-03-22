@@ -1,35 +1,44 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import electron from "vite-plugin-electron";
-import electronRenderer from "vite-plugin-electron-renderer";
 
-export default defineConfig({
-  plugins: [
-    react(),
-    electron([
-      {
-        entry: "electron/main.ts",
-        vite: {
-          build: {
-            outDir: "dist-electron",
+const isWeb = process.env.VITE_WEB === "true";
+
+export default defineConfig(async () => {
+  const plugins = [react()];
+
+  if (!isWeb) {
+    const electron = (await import("vite-plugin-electron")).default;
+    const electronRenderer = (await import("vite-plugin-electron-renderer")).default;
+    plugins.push(
+      electron([
+        {
+          entry: "electron/main.ts",
+          vite: {
+            build: {
+              outDir: "dist-electron",
+            },
           },
         },
-      },
-      {
-        entry: "electron/preload.ts",
-        onstart(args) {
-          args.reload();
-        },
-        vite: {
-          build: {
-            outDir: "dist-electron",
+        {
+          entry: "electron/preload.ts",
+          onstart(args) {
+            args.reload();
+          },
+          vite: {
+            build: {
+              outDir: "dist-electron",
+            },
           },
         },
-      },
-    ]),
-    electronRenderer(),
-  ],
-  build: {
-    outDir: "dist",
-  },
+      ]),
+      electronRenderer(),
+    );
+  }
+
+  return {
+    plugins,
+    build: {
+      outDir: "dist",
+    },
+  };
 });

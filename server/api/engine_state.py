@@ -14,6 +14,7 @@ Supports two modes:
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -59,6 +60,10 @@ _market_pricing: dict[str, float] = dict(MOCK_MARKET_PRICING)
 
 # Tracks whether a live rerun has ever been performed
 _live_mode: bool = False
+
+# Mode: "mock" (default) runs pipeline with mock data on first access;
+# "prod" starts empty and waits for API-driven snapshots.
+_APT_MODE: str = os.environ.get("APT_MODE", "mock").lower()
 
 
 # ---------------------------------------------------------------------------
@@ -229,32 +234,35 @@ def set_market_pricing(pricing: dict[str, float]) -> None:
 # Public API (unchanged signatures for existing consumers)
 # ---------------------------------------------------------------------------
 
+def _maybe_init() -> None:
+    """Trigger mock init if in mock mode and state is uninitialized."""
+    if _APT_MODE == "mock" and _pipeline_results is None:
+        _init_mock()
+
+
 def get_engine_state() -> dict[str, Any]:
     """Return the current engine state dict."""
+    _maybe_init()
     if _engine_state is None:
-        _init_mock()
-    assert _engine_state is not None
+        return {}
     return _engine_state
 
 
 def get_pipeline_snapshot() -> dict[str, Any] | None:
     """Return the current pipeline snapshot."""
-    if _pipeline_snapshot is None:
-        _init_mock()
+    _maybe_init()
     return _pipeline_snapshot
 
 
 def get_pipeline_results() -> dict[str, pl.DataFrame] | None:
     """Return the raw pipeline DataFrames (for WS/UI consumption)."""
-    if _pipeline_results is None:
-        _init_mock()
+    _maybe_init()
     return _pipeline_results
 
 
 def get_snapshot_buffer() -> SnapshotRingBuffer | None:
     """Return the snapshot ring buffer."""
-    if _snapshot_buffer is None:
-        _init_mock()
+    _maybe_init()
     return _snapshot_buffer
 
 
