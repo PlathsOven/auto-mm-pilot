@@ -4,12 +4,13 @@ import { formatUtcTime } from "../utils";
 import { CURRENT_USER } from "../providers/MockDataProvider";
 import { useLayout, PANEL_LABELS } from "../providers/LayoutProvider";
 import type { PanelType } from "../providers/LayoutProvider";
+import type { AppPage } from "../App";
 
 const SPACE_OPTIONS = ["D50 VOLATILITY"];
 
 const PANEL_TYPES: PanelType[] = ["streams", "positions", "wrap", "updates", "chat"];
 
-export function GlobalContextBar() {
+export function GlobalContextBar({ page, setPage }: { page: AppPage; setPage: (p: AppPage) => void }) {
   const { connectionStatus } = useWebSocket();
   const { addPanel, resetLayout } = useLayout();
   const [now, setNow] = useState(Date.now());
@@ -97,6 +98,18 @@ export function GlobalContextBar() {
             </div>
           )}
         </div>
+
+        {/* API Docs link */}
+        <button
+          onClick={() => setPage(page === "apidocs" ? "dashboard" : "apidocs")}
+          className={`rounded-lg px-2.5 py-1.5 text-xs transition-colors ${
+            page === "apidocs"
+              ? "bg-mm-accent/15 font-medium text-mm-accent"
+              : "text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+          }`}
+        >
+          {page === "apidocs" ? "← Dashboard" : "API Docs"}
+        </button>
 
         {/* APT Parameter Control Toggle */}
         <div className="flex items-center gap-2 pl-4">

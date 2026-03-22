@@ -61,6 +61,7 @@ The system is physically split to protect proprietary IP.
 | `client/ui/src/providers/ChatProvider.tsx` | Team chat + @APT LLM routing context |
 | `client/ui/src/components/DailyWrap.tsx` | Zone F — automated daily trading wrap summary |
 | `client/ui/src/components/LlmChat.tsx` | Team Chat panel — messages, note threads, investigation context |
+| `client/ui/src/components/ApiDocs.tsx` | Client-facing API documentation panel — endpoints, WebSocket stream, integration workflow |
 | `client/ui/UI_SPEC.md` | UI design specification |
 | `server/api/config.py` | OpenRouter env config (API key, model fallback lists, generation params, snapshot buffer settings) |
 | `server/api/llm/client.py` | Async OpenRouter HTTP client (complete + stream + fallback wrappers) |
