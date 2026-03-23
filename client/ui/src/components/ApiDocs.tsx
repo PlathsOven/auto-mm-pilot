@@ -92,8 +92,10 @@ function Endpoint({
 
 const NAV = [
   { id: "overview", label: "Overview" },
+  { id: "quickstart", label: "Quickstart" },
   { id: "workflow", label: "Integration Workflow" },
   { id: "websocket", label: "WebSocket Stream" },
+  { id: "client-ws", label: "Client WebSocket" },
   { id: "health", label: "Health" },
   { id: "streams", label: "Stream Management" },
   { id: "snapshots", label: "Snapshot Ingestion" },
@@ -145,6 +147,109 @@ export function ApiDocs() {
             All request and response bodies use <strong>JSON</strong>.
             Include <code>Content-Type: application/json</code> on every request.
           </p>
+        </Section>
+
+        {/* ── Quickstart ───────────────────────────────── */}
+        <Section id="quickstart" title="Quickstart — Test Send & Receive">
+          <p>
+            This walkthrough verifies end-to-end connectivity using the
+            pre-configured{" "}
+            <code className="text-emerald-300">__test__</code> stream. No
+            stream registration or admin setup required.
+          </p>
+          <p className="font-medium text-mm-text">You will open two connections:</p>
+          <ul className="list-inside list-disc space-y-1 pl-1">
+            <li>
+              <code>/ws/client</code> — authenticated channel to <strong>send</strong> test
+              data and receive ACKs
+            </li>
+            <li>
+              <code>/ws</code> — read-only stream to <strong>receive</strong> position
+              broadcasts (no auth required)
+            </li>
+          </ul>
+
+          <div className="mt-3 space-y-3">
+            <p className="text-xs font-semibold text-emerald-400">Step 1 — Open the position listener</p>
+            <p>
+              Connect to the read-only WebSocket. The server pushes a JSON
+              payload every ~2 s. Before any data is ingested you will
+              receive heartbeat frames with{" "}
+              <code>engineState: "WAITING"</code>.
+            </p>
+            <CodeBlock>{`# Python (websockets)
+import asyncio, websockets, json
+
+async def listen():
+    async with websockets.connect("ws://localhost:8000/ws") as ws:
+        async for msg in ws:
+            payload = json.loads(msg)
+            state = payload["context"]["engineState"]
+            n = len(payload["positions"])
+            print(f"[{state}] {n} positions")
+
+asyncio.run(listen())`}</CodeBlock>
+            <p>
+              In a browser console you can use the native WebSocket API:
+            </p>
+            <CodeBlock>{`const ws = new WebSocket("ws://localhost:8000/ws");
+ws.onmessage = (e) => {
+  const d = JSON.parse(e.data);
+  console.log(d.context.engineState, d.positions.length, "positions");
+};`}</CodeBlock>
+
+            <p className="text-xs font-semibold text-emerald-400">Step 2 — Send test data</p>
+            <p>
+              In a <strong>separate</strong> terminal / script, connect to the
+              authenticated client endpoint and push a snapshot frame to the{" "}
+              <code>__test__</code> stream.
+            </p>
+            <CodeBlock>{`# Python (websockets)
+import asyncio, websockets, json
+
+API_KEY = "YOUR_KEY"  # must match CLIENT_WS_API_KEY on the server
+
+async def send_test():
+    uri = f"ws://localhost:8000/ws/client?api_key={API_KEY}"
+    async with websockets.connect(uri) as ws:
+        frame = {
+            "seq": 1,
+            "stream_name": "__test__",
+            "rows": [
+                {
+                    "timestamp": "2026-01-15T12:00:00",
+                    "raw_value": 0.55,
+                    "symbol": "BTC"
+                }
+            ]
+        }
+        await ws.send(json.dumps(frame))
+        ack = json.loads(await ws.recv())
+        print("ACK:", ack)
+
+asyncio.run(send_test())`}</CodeBlock>
+            <p>You should receive:</p>
+            <CodeBlock>{`{"type": "ack", "seq": 1, "rows_accepted": 1, "pipeline_rerun": true}`}</CodeBlock>
+
+            <p className="text-xs font-semibold text-emerald-400">Step 3 — Observe positions</p>
+            <p>
+              Switch back to your <code>/ws</code> listener. After the ACK,
+              the engine re-runs and broadcasts positions. You should see
+              the state change from{" "}
+              <code>WAITING</code> → <code>OPTIMIZING</code> and a non-zero
+              <code> positions</code> count.
+            </p>
+            <CodeBlock>{`[WAITING] 0 positions
+[WAITING] 0 positions
+[OPTIMIZING] 4 positions   # ← engine produced output`}</CodeBlock>
+
+            <p className="mt-1">
+              The <code>__test__</code> stream uses an identity transform
+              (scale=1, offset=0, exponent=1) with a default block
+              configuration. It accepts rows with <code>timestamp</code>,{" "}
+              <code>raw_value</code>, and <code>symbol</code>.
+            </p>
+          </div>
         </Section>
 
         {/* ── Integration Workflow ─────────────────────── */}
@@ -269,6 +374,97 @@ export function ApiDocs() {
               <li>All timestamps are Unix milliseconds (UTC)</li>
             </ul>
           </Endpoint>
+        </Section>
+
+        {/* ── Client WebSocket ────────────────────────── */}
+        <Section id="client-ws" title="Client WebSocket">
+          <p>
+            The <code className="text-mm-accent">/ws/client</code> endpoint is
+            the <strong>authenticated bidirectional channel</strong> between your
+            server and the APT engine. It combines <strong>inbound snapshot
+            ingestion</strong> with <strong>outbound position broadcasts</strong>
+            on a single connection.
+          </p>
+
+          <Endpoint
+            method="WS"
+            path="/ws/client"
+            description="Authenticated data exchange channel. Requires API key and (optionally) IP whitelisting."
+          >
+            <p className="font-medium text-mm-text">Authentication:</p>
+            <ul className="list-inside list-disc space-y-1 pl-1">
+              <li>
+                Pass your API key as a query parameter{" "}
+                <code>?api_key=YOUR_KEY</code> or as the{" "}
+                <code>X-API-Key</code> header during the handshake.
+              </li>
+              <li>
+                If the server has <code>CLIENT_WS_ALLOWED_IPS</code> configured,
+                your source IP must be on the whitelist.
+              </li>
+              <li>
+                TLS is terminated at the infrastructure layer — always use{" "}
+                <code>wss://</code> in production.
+              </li>
+            </ul>
+
+            <p className="font-medium text-mm-text">Inbound (you → server):</p>
+            <p>
+              Send JSON text frames containing snapshot rows. Each frame must
+              include a <code>seq</code> (sequence number) which is echoed back
+              in the ACK so you can correlate responses.
+            </p>
+            <CodeBlock>{`{
+  "seq": 1,
+  "stream_name": "__test__",
+  "rows": [
+    {
+      "timestamp": "2026-01-15T12:00:00",
+      "raw_value": 0.55,
+      "symbol": "BTC"
+    }
+  ]
+}`}</CodeBlock>
+
+            <p className="font-medium text-mm-text">ACK response:</p>
+            <CodeBlock>{`{
+  "type": "ack",
+  "seq": 1,
+  "rows_accepted": 1,
+  "pipeline_rerun": false
+}`}</CodeBlock>
+
+            <p className="font-medium text-mm-text">Error response:</p>
+            <CodeBlock>{`{
+  "type": "error",
+  "seq": 1,
+  "detail": "Stream not found: 'bad_name'"
+}`}</CodeBlock>
+
+            <p className="font-medium text-mm-text">Outbound (server → you):</p>
+            <p>
+              Position broadcasts arrive automatically at the engine tick interval
+              (~2 s). The payload shape is identical to the{" "}
+              <code>/ws</code> stream documented above — an object with{" "}
+              <code>streams</code>, <code>context</code>, <code>positions</code>,
+              and <code>updates</code> arrays.
+            </p>
+          </Endpoint>
+
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2.5">
+            <p className="text-xs font-semibold text-emerald-400">
+              Quick test
+            </p>
+            <p>
+              A pre-configured{" "}
+              <code className="text-emerald-300">__test__</code> stream is
+              always available. See the{" "}
+              <a href="#quickstart" className="underline text-emerald-400 hover:text-emerald-300">
+                Quickstart
+              </a>{" "}
+              section for a complete send & receive walkthrough.
+            </p>
+          </div>
         </Section>
 
         {/* ── Health ───────────────────────────────────── */}
