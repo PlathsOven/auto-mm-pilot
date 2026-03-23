@@ -31,7 +31,6 @@ from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
 
 from server.api.models import (
     AdminConfigureStreamRequest,
@@ -39,6 +38,9 @@ from server.api.models import (
     BankrollResponse,
     BlockConfigPayload,
     CreateStreamRequest,
+    InvestigateRequest,
+    JustifyRequest,
+    JustifyResponse,
     MarketPricingRequest,
     MarketPricingResponse,
     SnapshotRequest,
@@ -47,7 +49,7 @@ from server.api.models import (
     StreamResponse,
     UpdateStreamRequest,
 )
-from server.api.stream_registry import get_stream_registry
+from server.api.stream_registry import StreamRegistration, get_stream_registry
 from server.api.ws import pipeline_ws, restart_ticker
 
 from server.api.engine_state import (
@@ -105,33 +107,6 @@ def _get_llm_service() -> LlmService:
     if _llm_service is None:
         _llm_service = LlmService()
     return _llm_service
-
-
-# ---------------------------------------------------------------------------
-# Request / response models
-# ---------------------------------------------------------------------------
-
-class InvestigateRequest(BaseModel):
-    conversation: list[dict[str, str]] = Field(
-        ...,
-        description="OpenAI-style message array: [{role, content}, ...]",
-    )
-    cell_context: dict[str, Any] | None = Field(
-        default=None,
-        description="Optional cell/card context clicked by the user",
-    )
-
-
-class JustifyRequest(BaseModel):
-    asset: str
-    expiry: str
-    old_pos: float
-    new_pos: float
-    delta: float
-
-
-class JustifyResponse(BaseModel):
-    justification: str
 
 
 # ---------------------------------------------------------------------------
@@ -217,7 +192,7 @@ async def justify(req: JustifyRequest) -> JustifyResponse:
 # Stream management endpoints
 # ---------------------------------------------------------------------------
 
-def _stream_to_response(reg) -> StreamResponse:
+def _stream_to_response(reg: StreamRegistration) -> StreamResponse:
     """Convert a StreamRegistration to its API response model."""
     block_payload = None
     if reg.block is not None:

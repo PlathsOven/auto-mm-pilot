@@ -66,15 +66,15 @@ function loadState(): { panels: PanelInstance[]; layout: LayoutItem[] } | null {
 }
 
 export function LayoutProvider({ children }: { children: ReactNode }) {
-  const [panels, setPanels] = useState<PanelInstance[]>(() => {
-    const saved = loadState();
-    return saved ? saved.panels : DEFAULT_PANELS;
-  });
+  const [saved] = useState(loadState);
 
-  const [layout, setLayout] = useState<LayoutItem[]>(() => {
-    const saved = loadState();
-    return saved ? saved.layout : DEFAULT_LAYOUT;
-  });
+  const [panels, setPanels] = useState<PanelInstance[]>(
+    saved ? saved.panels : DEFAULT_PANELS,
+  );
+
+  const [layout, setLayout] = useState<LayoutItem[]>(
+    saved ? saved.layout : DEFAULT_LAYOUT,
+  );
 
   useEffect(() => {
     localStorage.setItem(PANELS_KEY, JSON.stringify(panels));

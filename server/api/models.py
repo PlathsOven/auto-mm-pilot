@@ -10,6 +10,33 @@ from pydantic import BaseModel, Field
 
 
 # ---------------------------------------------------------------------------
+# LLM endpoints
+# ---------------------------------------------------------------------------
+
+class InvestigateRequest(BaseModel):
+    conversation: list[dict[str, str]] = Field(
+        ...,
+        description="OpenAI-style message array: [{role, content}, ...]",
+    )
+    cell_context: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional cell/card context clicked by the user",
+    )
+
+
+class JustifyRequest(BaseModel):
+    asset: str
+    expiry: str
+    old_pos: float
+    new_pos: float
+    delta: float
+
+
+class JustifyResponse(BaseModel):
+    justification: str
+
+
+# ---------------------------------------------------------------------------
 # Stream management
 # ---------------------------------------------------------------------------
 

@@ -1,3 +1,6 @@
+/** Page routing for the main App shell */
+export type AppPage = "dashboard" | "apidocs";
+
 /** Status of an individual data stream adapter */
 export type StreamStatus = "ONLINE" | "DEGRADED" | "OFFLINE";
 

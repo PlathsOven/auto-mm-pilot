@@ -49,6 +49,9 @@ def _parse_int_list(env_var: str, defaults: tuple[int, ...]) -> tuple[int, ...]:
 SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT: tuple[int, ...] = (300, 3600, 21600, 86400)  # 5m, 1h, 6h, 24h
 SNAPSHOT_BUFFER_MAX_DEFAULT: int = 2048
 
+# ── Application mode ─────────────────────────────────────────────────────
+APT_MODE: str = os.environ.get("APT_MODE", "mock").lower()
+
 
 @dataclass(frozen=True)
 class OpenRouterConfig:

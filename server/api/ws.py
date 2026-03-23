@@ -14,18 +14,16 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Any
 
 import polars as pl
 from fastapi import WebSocket, WebSocketDisconnect
 
+from server.api.config import APT_MODE
 from server.api.engine_state import get_pipeline_results
 
 log = logging.getLogger(__name__)
-
-_APT_MODE: str = os.environ.get("APT_MODE", "mock").lower()
 
 # How often (in real seconds) we push a new tick to clients
 TICK_INTERVAL_SECS: float = 2.0
@@ -136,7 +134,7 @@ _latest_payload: str | None = None
 _ticker_task: asyncio.Task | None = None
 
 
-def _extract_timeline(results: dict) -> tuple[pl.DataFrame, pl.DataFrame, list[datetime]] | None:
+def _extract_timeline(results: dict[str, pl.DataFrame]) -> tuple[pl.DataFrame, pl.DataFrame, list[datetime]] | None:
     """Shared setup: extract DataFrames and sorted timestamps from pipeline results."""
     desired_pos_df = results["desired_pos_df"]
     blocks_df = results["blocks_df"]
@@ -283,7 +281,7 @@ async def _run_ticker() -> None:
 
     desired_pos_df, blocks_df, timestamps = timeline
 
-    if _APT_MODE == "prod":
+    if APT_MODE == "prod":
         await _run_ticker_prod(desired_pos_df, blocks_df, timestamps)
     else:
         await _run_ticker_mock(desired_pos_df, blocks_df, timestamps)
@@ -293,7 +291,7 @@ def _ensure_ticker() -> None:
     """Start the singleton ticker if it isn't already running."""
     global _ticker_task
     if _ticker_task is None or _ticker_task.done():
-        _ticker_task = asyncio.get_event_loop().create_task(_run_ticker())
+        _ticker_task = asyncio.get_running_loop().create_task(_run_ticker())
 
 
 async def restart_ticker() -> None:
@@ -311,7 +309,7 @@ async def restart_ticker() -> None:
             pass
         log.info("Previous ticker cancelled for pipeline restart")
     _latest_payload = None
-    _ticker_task = asyncio.get_event_loop().create_task(_run_ticker())
+    _ticker_task = asyncio.get_running_loop().create_task(_run_ticker())
 
 
 # ---------------------------------------------------------------------------

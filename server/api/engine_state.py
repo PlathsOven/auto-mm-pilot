@@ -14,13 +14,12 @@ Supports two modes:
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Any
 
 import polars as pl
 
-from server.api.config import OpenRouterConfig
+from server.api.config import APT_MODE, OpenRouterConfig
 from server.api.llm.snapshot_buffer import SnapshotBufferConfig, SnapshotRingBuffer
 from server.core.mock_scenario import (
     MOCK_BANKROLL,
@@ -61,9 +60,6 @@ _market_pricing: dict[str, float] = dict(MOCK_MARKET_PRICING)
 # Tracks whether a live rerun has ever been performed
 _live_mode: bool = False
 
-# Mode: "mock" (default) runs pipeline with mock data on first access;
-# "prod" starts empty and waits for API-driven snapshots.
-_APT_MODE: str = os.environ.get("APT_MODE", "mock").lower()
 
 
 # ---------------------------------------------------------------------------
@@ -236,7 +232,7 @@ def set_market_pricing(pricing: dict[str, float]) -> None:
 
 def _maybe_init() -> None:
     """Trigger mock init if in mock mode and state is uninitialized."""
-    if _APT_MODE == "mock" and _pipeline_results is None:
+    if APT_MODE == "mock" and _pipeline_results is None:
         _init_mock()
 
 

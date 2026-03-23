@@ -5,7 +5,6 @@
  *   POST   /api/streams                — Create a stream
  *   GET    /api/streams                — List all streams
  *   PATCH  /api/streams/{name}         — Update stream name/key_cols
- *   POST   /api/streams/{name}/configure — Admin: set pipeline params
  *   DELETE /api/streams/{name}         — Delete a stream
  *   POST   /api/snapshots              — Ingest snapshot rows
  *   POST   /api/market-pricing         — Update market pricing
@@ -13,10 +12,7 @@
  */
 
 import { API_BASE } from "../config";
-import type {
-  RegisteredStream,
-  BlockConfigPayload,
-} from "../types";
+import type { RegisteredStream } from "../types";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -66,21 +62,6 @@ export async function updateStream(
     method: "PATCH",
     body: JSON.stringify(patch),
   });
-}
-
-export async function configureStream(
-  streamName: string,
-  config: {
-    scale: number;
-    offset: number;
-    exponent: number;
-    block: BlockConfigPayload;
-  },
-): Promise<RegisteredStream> {
-  return apiFetch<RegisteredStream>(
-    `/api/streams/${encodeURIComponent(streamName)}/configure`,
-    { method: "POST", body: JSON.stringify(config) },
-  );
 }
 
 export async function deleteStream(streamName: string): Promise<void> {

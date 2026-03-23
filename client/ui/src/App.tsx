@@ -11,10 +11,9 @@ import { ApiDocs } from "./components/ApiDocs";
 import { PanelWindow } from "./components/PanelWindow";
 import { useLayout, PANEL_LABELS } from "./providers/LayoutProvider";
 import type { PanelType } from "./providers/LayoutProvider";
+import type { AppPage } from "./types";
 
 import "react-grid-layout/css/styles.css";
-
-export type AppPage = "dashboard" | "apidocs";
 
 const PANEL_COMPONENT: Record<PanelType, React.FC> = {
   streams: IngestionSidebar,

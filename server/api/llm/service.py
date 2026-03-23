@@ -7,8 +7,7 @@ dispatches to the OpenRouter client, and returns structured responses.
 
 from __future__ import annotations
 
-import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, AsyncIterator
 
 from server.api.config import OpenRouterConfig, get_openrouter_config
@@ -86,7 +85,7 @@ class LlmService:
         """Build history context string from the snapshot buffer, if available."""
         if buffer is None or len(buffer) < 2:
             return None
-        ts = now or datetime.utcnow()
+        ts = now or datetime.now(timezone.utc).replace(tzinfo=None)
         return buffer.build_history_context(ts)
 
     # ------------------------------------------------------------------
@@ -102,7 +101,6 @@ class LlmService:
         old_pos: float,
         new_pos: float,
         delta: float,
-        engine_context: dict[str, Any] | None = None,
         pipeline_snapshot: dict[str, Any] | None = None,
     ) -> str:
         """Generate a concise one-line justification for a position change."""
@@ -112,8 +110,6 @@ class LlmService:
             f"Expiry: {expiry}\n"
             f"Position change: {old_pos:+.2f} → {new_pos:+.2f} $vega (delta {delta:+.2f})\n"
         )
-        if engine_context:
-            user_content += f"Engine context: {json.dumps(engine_context, default=str)}\n"
 
         messages = [
             {"role": "system", "content": system_prompt},

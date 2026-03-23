@@ -65,6 +65,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [noteThread, setNoteThread] = useState<NoteThread | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const messagesRef = useRef<ChatMessage[]>(messages);
+  messagesRef.current = messages;
 
   const pushMessage = useCallback(
     (role: ChatMessage["role"], content: string, sender: string): string => {
@@ -91,7 +93,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       if (isAptQuery) {
         // Build conversation history for the LLM (last 20 user+assistant messages)
-        const recentMessages = [...messages, { id: "", role: "user" as const, sender: CURRENT_USER.name, content, timestamp: Date.now() }];
+        const recentMessages = [...messagesRef.current, { id: "", role: "user" as const, sender: CURRENT_USER.name, content, timestamp: Date.now() }];
         const conversation = recentMessages
           .filter((m) => m.role === "user" || m.role === "assistant")
           .slice(-20)
@@ -143,7 +145,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [pushMessage, updateMessage, messages],
+    [pushMessage, updateMessage],
   );
 
   const cancelStream = useCallback(() => {

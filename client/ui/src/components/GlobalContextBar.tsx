@@ -4,7 +4,7 @@ import { formatUtcTime } from "../utils";
 import { CURRENT_USER } from "../providers/MockDataProvider";
 import { useLayout, PANEL_LABELS } from "../providers/LayoutProvider";
 import type { PanelType } from "../providers/LayoutProvider";
-import type { AppPage } from "../App";
+import type { AppPage } from "../types";
 
 const SPACE_OPTIONS = ["D50 VOLATILITY"];
 
