@@ -51,6 +51,32 @@ function Section({
   );
 }
 
+function Collapsible({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-lg border border-mm-border/30 bg-mm-surface/60">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-mm-border/10"
+      >
+        <span className="text-[11px] font-medium text-mm-text">{title}</span>
+        <span className="ml-auto text-[10px] text-mm-text-dim">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="border-t border-mm-border/20 px-3 py-2.5 text-[11px] text-mm-text-dim">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Endpoint({
   method,
   path,
@@ -250,6 +276,85 @@ asyncio.run(send_test())`}</CodeBlock>
               <code>raw_value</code>, and <code>symbol</code>.
             </p>
           </div>
+
+          <Collapsible title="Complete script — apt_test.py (copy & paste)">
+            <p className="mb-2 text-mm-text-dim">
+              Single-file script that sends a test snapshot and listens for
+              position broadcasts. Requires <code>pip install websockets</code>.
+            </p>
+            <CodeBlock>{`#!/usr/bin/env python3
+"""apt_test.py — Minimal APT send & receive test.
+
+Usage:
+    pip install websockets
+    python apt_test.py
+"""
+
+import asyncio
+import json
+import websockets
+
+# ── Config ────────────────────────────────────────────────────────────────
+HOST = "apt-admin.up.railway.app"
+API_KEY = "YOUR_KEY"  # must match CLIENT_WS_API_KEY on the server
+
+SEND_URI = f"wss://{HOST}/ws/client?api_key={API_KEY}"
+LISTEN_URI = f"wss://{HOST}/ws"
+
+TEST_FRAME = {
+    "seq": 1,
+    "stream_name": "__test__",
+    "rows": [
+        {
+            "timestamp": "2026-01-15T12:00:00",
+            "raw_value": 0.55,
+            "symbol": "BTC",
+        }
+    ],
+}
+
+MAX_TICKS = 5  # how many position broadcasts to print before exiting
+
+
+# ── Listener (read-only /ws) ──────────────────────────────────────────────
+async def listen(started: asyncio.Event) -> None:
+    async with websockets.connect(LISTEN_URI) as ws:
+        started.set()
+        count = 0
+        async for msg in ws:
+            payload = json.loads(msg)
+            state = payload["context"]["engineState"]
+            n = len(payload["positions"])
+            print(f"  [listen] {state} — {n} positions")
+            count += 1
+            if count >= MAX_TICKS:
+                break
+
+
+# ── Sender (authenticated /ws/client) ─────────────────────────────────────
+async def send(started: asyncio.Event) -> None:
+    await started.wait()  # wait for listener to connect first
+    await asyncio.sleep(0.5)
+    async with websockets.connect(SEND_URI) as ws:
+        print(f"  [send]   sending test frame ...")
+        await ws.send(json.dumps(TEST_FRAME))
+        ack = json.loads(await ws.recv())
+        print(f"  [send]   ACK: {json.dumps(ack)}")
+
+
+# ── Main ──────────────────────────────────────────────────────────────────
+async def main() -> None:
+    print(f"Connecting to {HOST} ...\\n")
+    started = asyncio.Event()
+    listener = asyncio.create_task(listen(started))
+    sender = asyncio.create_task(send(started))
+    await asyncio.gather(sender, listener)
+    print("\\nDone.")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())`}</CodeBlock>
+          </Collapsible>
         </Section>
 
         {/* ── Integration Workflow ─────────────────────── */}
