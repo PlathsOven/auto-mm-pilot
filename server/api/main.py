@@ -2,7 +2,8 @@
 FastAPI application — APT terminal backend.
 
 Endpoints:
-    WS    /ws                              — Real-time pipeline data stream
+    WS    /ws                              — Real-time pipeline data stream (internal UI)
+    WS    /ws/client                       — Authenticated client data exchange channel
     POST  /api/investigate                 — SSE investigation token stream
     POST  /api/justify                     — JSON one-line justification
     GET   /api/health                      — Health check
@@ -50,6 +51,7 @@ from server.api.models import (
     UpdateStreamRequest,
 )
 from server.api.stream_registry import StreamRegistration, get_stream_registry
+from server.api.client_ws import client_ws
 from server.api.ws import pipeline_ws, restart_ticker
 
 from server.api.engine_state import (
@@ -121,6 +123,11 @@ async def health() -> dict[str, str]:
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket) -> None:
     await pipeline_ws(websocket)
+
+
+@app.websocket("/ws/client")
+async def ws_client_endpoint(websocket: WebSocket) -> None:
+    await client_ws(websocket)
 
 
 @app.post("/api/investigate")

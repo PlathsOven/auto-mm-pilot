@@ -28,6 +28,10 @@ log = logging.getLogger(__name__)
 # Required columns in every snapshot row (in addition to key_cols)
 _REQUIRED_SNAPSHOT_COLS = {"timestamp", "raw_value"}
 
+# Default test stream — always exists on init so the client can verify connectivity
+TEST_STREAM_NAME = "__test__"
+_TEST_STREAM_KEY_COLS = ["symbol"]
+
 
 # ---------------------------------------------------------------------------
 # Registration dataclass
@@ -124,6 +128,25 @@ class StreamRegistry:
     def __init__(self) -> None:
         self._streams: dict[str, StreamRegistration] = {}
         self._lock = threading.Lock()
+        self._seed_test_stream()
+
+    def _seed_test_stream(self) -> None:
+        """Create a pre-configured READY test stream for connectivity verification.
+
+        Uses identity transform (scale=1, offset=0, exponent=1) and default
+        BlockConfig so the client can immediately send snapshot rows without
+        needing admin configuration.
+        """
+        reg = StreamRegistration(
+            stream_name=TEST_STREAM_NAME,
+            key_cols=list(_TEST_STREAM_KEY_COLS),
+            scale=1.0,
+            offset=0.0,
+            exponent=1.0,
+            block=BlockConfig(),
+        )
+        self._streams[TEST_STREAM_NAME] = reg
+        log.info("Test stream '%s' seeded (status=%s)", TEST_STREAM_NAME, reg.status)
 
     # -- Read ---------------------------------------------------------------
 

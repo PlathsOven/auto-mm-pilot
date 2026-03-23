@@ -76,6 +76,8 @@ The system is physically split to protect proprietary IP.
 | `server/api/models.py` | Pydantic request/response models for stream, snapshot, market-pricing, and bankroll endpoints |
 | `server/api/stream_registry.py` | In-memory stream registry — CRUD, snapshot storage, validation, `StreamConfig` builder |
 | `server/api/ws.py` | WebSocket endpoint — singleton ticker broadcasts pipeline ticks; `restart_ticker()` on re-run |
+| `server/api/client_ws.py` | Client-facing WS endpoint (`/ws/client`) — auth-gated, inbound snapshot frames with ACK, joins broadcast for outbound positions |
+| `server/api/client_ws_auth.py` | Client WS auth — API key validation + IP whitelist, runs before accept |
 | `server/api/main.py` | FastAPI app — WS, LLM, stream CRUD, snapshot ingestion, market-pricing, bankroll endpoints |
 | `server/api/engine_state.py` | Engine state singleton — mock init + live `rerun_pipeline()`, mutable bankroll/market pricing |
 | `server/core/__init__.py` | Core pipeline package — re-exports public API |

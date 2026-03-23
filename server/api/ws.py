@@ -268,15 +268,43 @@ async def _run_ticker_prod(
         await asyncio.sleep(TICK_INTERVAL_SECS)
 
 
+async def _run_heartbeat() -> None:
+    """Broadcast empty heartbeat payloads until pipeline data is available.
+
+    Keeps connected clients alive so they know the connection is working.
+    Cancelled by ``restart_ticker()`` once the pipeline has run.
+    """
+    global _latest_payload
+
+    log.info("Heartbeat ticker started (no pipeline data yet)")
+
+    while True:
+        now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        payload_dict = {
+            "streams": [],
+            "context": {
+                "engineState": "WAITING",
+                "operatingSpace": "NONE",
+                "lastUpdateTimestamp": now_ms,
+            },
+            "positions": [],
+            "updates": [],
+        }
+        _latest_payload = json.dumps(payload_dict)
+        await _broadcast(_latest_payload)
+        await asyncio.sleep(TICK_INTERVAL_SECS)
+
+
 async def _run_ticker() -> None:
-    """Background task: dispatch to mock or prod ticker."""
+    """Background task: dispatch to heartbeat, mock, or prod ticker."""
     results = get_pipeline_results()
     if results is None:
-        log.error("Pipeline not initialized — ticker cannot start")
+        await _run_heartbeat()
         return
 
     timeline = _extract_timeline(results)
     if timeline is None:
+        await _run_heartbeat()
         return
 
     desired_pos_df, blocks_df, timestamps = timeline
@@ -310,6 +338,26 @@ async def restart_ticker() -> None:
         log.info("Previous ticker cancelled for pipeline restart")
     _latest_payload = None
     _ticker_task = asyncio.get_running_loop().create_task(_run_ticker())
+
+
+# ---------------------------------------------------------------------------
+# Client registration API (used by client_ws.py)
+# ---------------------------------------------------------------------------
+
+def register_client(ws: WebSocket) -> None:
+    """Add an external client WS to the broadcast set."""
+    _clients.add(ws)
+    _ensure_ticker()
+
+
+def unregister_client(ws: WebSocket) -> None:
+    """Remove an external client WS from the broadcast set."""
+    _clients.discard(ws)
+
+
+def get_latest_payload() -> str | None:
+    """Return the most recent broadcast payload (for initial catch-up)."""
+    return _latest_payload
 
 
 # ---------------------------------------------------------------------------

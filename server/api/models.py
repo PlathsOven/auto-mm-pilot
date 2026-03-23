@@ -139,3 +139,40 @@ class BankrollRequest(BaseModel):
 class BankrollResponse(BaseModel):
     bankroll: float
     pipeline_rerun: bool
+
+
+# ---------------------------------------------------------------------------
+# Client-facing WebSocket frames
+# ---------------------------------------------------------------------------
+
+class ClientWsInboundFrame(BaseModel):
+    """Text frame sent by the client over the /ws/client channel.
+
+    The client sends snapshot rows for a named stream.  Each frame
+    receives a JSON ACK so the client knows we processed it.
+    """
+    seq: int = Field(..., description="Sequence number — echoed back in ACK")
+    stream_name: str = Field(..., min_length=1)
+    rows: list[dict[str, Any]] = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Snapshot rows. Each row must contain 'timestamp', 'raw_value', "
+            "and all key_cols defined on the stream."
+        ),
+    )
+
+
+class ClientWsAck(BaseModel):
+    """ACK response sent back for every inbound frame."""
+    type: Literal["ack"] = "ack"
+    seq: int = Field(..., description="Echoed sequence number from the inbound frame")
+    rows_accepted: int = 0
+    pipeline_rerun: bool = False
+
+
+class ClientWsError(BaseModel):
+    """Error response sent when an inbound frame fails validation/processing."""
+    type: Literal["error"] = "error"
+    seq: int | None = Field(None, description="Sequence number if parseable, else null")
+    detail: str

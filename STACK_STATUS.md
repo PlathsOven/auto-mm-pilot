@@ -21,6 +21,8 @@
 |-----------|---------|--------|------------|-------|
 | **FastAPI App** | `server/api/main.py` | `PROD` | Engine State Provider, LLM Service, WS Ticker | CORS enabled, SSE streaming, WS |
 | **WS Ticker** | `server/api/ws.py` | `PROD` | Engine State Provider | Singleton background ticker broadcasts pipeline ticks to WS clients |
+| **Client WS Endpoint** | `server/api/client_ws.py` | `PROD` | WS Ticker, Stream Registry, Client WS Auth | Auth-gated `/ws/client` — inbound snapshots with ACK, outbound positions via broadcast |
+| **Client WS Auth** | `server/api/client_ws_auth.py` | `PROD` | `CLIENT_WS_API_KEY`, `CLIENT_WS_ALLOWED_IPS` env vars | API key + IP whitelist gate |
 | **OpenRouter Client** | `server/api/llm/client.py` | `PROD` | `OPENROUTER_API_KEY` env var | Async httpx, fallback model chain |
 | **LLM Service** | `server/api/llm/service.py` | `PROD` | OpenRouter Client, Prompts, Engine State | Investigation (stream) + Justification |
 | **Investigation Prompt** | `server/api/llm/prompts/investigation.py` | `PROD` | — | System prompt for Zone E |
@@ -90,6 +92,12 @@
 │  │ WS /ws (pipeline)  │ POST /api/investigate (SSE)     │   │
 │  │                    │ POST /api/justify                │   │
 │  └──────────────┬───────────────┴──────────┬────────────┘   │
+│                 │                          │                │
+│  ┌──────────────┴─────────────────────────────────────┐     │
+│  │ WS /ws/client (auth-gated, bidirectional)          │     │
+│  │   ← inbound snapshots (ACK each)                   │     │
+│  │   → outbound positions (broadcast ticker)           │     │
+│  └──────────────┬─────────────────────────────────────┘     │
 │                 ▼                          ▼                │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │              LlmService                              │   │
