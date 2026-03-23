@@ -140,7 +140,7 @@ export function ApiDocs() {
           </p>
           <p>
             The base URL is determined by your deployment (e.g.{" "}
-            <code>http://localhost:8000</code> for local development). Set the{" "}
+            <code>https://apt-admin.up.railway.app</code>). Set the{" "}
             <code>VITE_API_BASE</code> environment variable to override.
           </p>
           <p>
@@ -181,7 +181,7 @@ export function ApiDocs() {
 import asyncio, websockets, json
 
 async def listen():
-    async with websockets.connect("ws://localhost:8000/ws") as ws:
+    async with websockets.connect("wss://apt-admin.up.railway.app/ws") as ws:
         async for msg in ws:
             payload = json.loads(msg)
             state = payload["context"]["engineState"]
@@ -192,7 +192,7 @@ asyncio.run(listen())`}</CodeBlock>
             <p>
               In a browser console you can use the native WebSocket API:
             </p>
-            <CodeBlock>{`const ws = new WebSocket("ws://localhost:8000/ws");
+            <CodeBlock>{`const ws = new WebSocket("wss://apt-admin.up.railway.app/ws");
 ws.onmessage = (e) => {
   const d = JSON.parse(e.data);
   console.log(d.context.engineState, d.positions.length, "positions");
@@ -210,7 +210,7 @@ import asyncio, websockets, json
 API_KEY = "YOUR_KEY"  # must match CLIENT_WS_API_KEY on the server
 
 async def send_test():
-    uri = f"ws://localhost:8000/ws/client?api_key={API_KEY}"
+    uri = f"wss://apt-admin.up.railway.app/ws/client?api_key={API_KEY}"
     async with websockets.connect(uri) as ws:
         frame = {
             "seq": 1,
