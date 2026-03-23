@@ -19,7 +19,7 @@ from typing import Any
 
 import polars as pl
 
-from server.api.config import APT_MODE, OpenRouterConfig
+from server.api.config import APT_MODE, SNAPSHOT_BUFFER_MAX_DEFAULT, SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT
 from server.api.llm.snapshot_buffer import SnapshotBufferConfig, SnapshotRingBuffer
 from server.core.mock_scenario import (
     MOCK_BANKROLL,
@@ -56,9 +56,6 @@ _mock_now: datetime = datetime(2026, 1, 1, 17, 0, 0)
 # Client-settable parameters (initialised from mock defaults)
 _bankroll: float = MOCK_BANKROLL
 _market_pricing: dict[str, float] = dict(MOCK_MARKET_PRICING)
-
-# Tracks whether a live rerun has ever been performed
-_live_mode: bool = False
 
 
 
@@ -99,10 +96,9 @@ def _init_mock() -> None:
         risk_dimension_cols=MOCK_RISK_DIMENSION_COLS,
     )
 
-    config = OpenRouterConfig()
     buf_config = SnapshotBufferConfig(
-        max_snapshots=config.snapshot_buffer_max,
-        lookback_offsets_seconds=config.snapshot_lookback_offsets,
+        max_snapshots=SNAPSHOT_BUFFER_MAX_DEFAULT,
+        lookback_offsets_seconds=SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT,
     )
     _snapshot_buffer = SnapshotRingBuffer(buf_config)
     _snapshot_buffer.push(_mock_now, _pipeline_snapshot)
@@ -140,7 +136,7 @@ def rerun_pipeline(
     ValueError
         If ``streams`` is empty or the pipeline fails.
     """
-    global _snapshot_buffer, _pipeline_snapshot, _engine_state, _pipeline_results, _bankroll, _market_pricing, _live_mode
+    global _snapshot_buffer, _pipeline_snapshot, _engine_state, _pipeline_results, _bankroll, _market_pricing
 
     if not streams:
         raise ValueError("Cannot rerun pipeline with zero streams")
@@ -184,15 +180,13 @@ def rerun_pipeline(
 
     # Push to snapshot buffer (create if first live run)
     if _snapshot_buffer is None:
-        config = OpenRouterConfig()
         buf_config = SnapshotBufferConfig(
-            max_snapshots=config.snapshot_buffer_max,
-            lookback_offsets_seconds=config.snapshot_lookback_offsets,
+            max_snapshots=SNAPSHOT_BUFFER_MAX_DEFAULT,
+            lookback_offsets_seconds=SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT,
         )
         _snapshot_buffer = SnapshotRingBuffer(buf_config)
 
     _snapshot_buffer.push(now, _pipeline_snapshot)
-    _live_mode = True
 
     log.info("Pipeline re-run complete at T=%s", now)
     return _pipeline_results
@@ -202,21 +196,11 @@ def rerun_pipeline(
 # Bankroll & market pricing accessors
 # ---------------------------------------------------------------------------
 
-def get_bankroll() -> float:
-    """Return the current bankroll."""
-    return _bankroll
-
-
 def set_bankroll(value: float) -> None:
     """Update the bankroll (does NOT trigger a pipeline re-run)."""
     global _bankroll
     _bankroll = value
     log.info("Bankroll updated to %.2f", value)
-
-
-def get_market_pricing() -> dict[str, float]:
-    """Return the current market pricing dict."""
-    return dict(_market_pricing)
 
 
 def set_market_pricing(pricing: dict[str, float]) -> None:

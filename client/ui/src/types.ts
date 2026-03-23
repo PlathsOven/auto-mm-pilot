@@ -40,6 +40,7 @@ export interface RegisteredStream {
 
 /** Engine operating mode */
 export type EngineState =
+  | "WAITING"
   | "INITIALIZING"
   | "STABILIZING"
   | "OPTIMIZING"

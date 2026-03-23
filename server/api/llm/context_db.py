@@ -134,18 +134,6 @@ def get_all_stream_contexts() -> list[StreamContext]:
     return list(_store)
 
 
-def get_stream_context(stream_id: str) -> StreamContext | None:
-    """Look up a single stream context by ID."""
-    for s in _store:
-        if s.id == stream_id:
-            return s
-    return None
-
-
-def add_stream_context(ctx: StreamContext) -> None:
-    """Add a new stream context entry (client-contributed)."""
-    _store.append(ctx)
-
 
 def serialize_stream_contexts() -> str:
     """Serialize all stream contexts to a JSON string for prompt injection."""
