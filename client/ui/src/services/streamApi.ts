@@ -11,29 +11,13 @@
  *   PATCH  /api/config/bankroll        — Set bankroll
  */
 
-import { API_BASE } from "../config";
-import type { RegisteredStream } from "../types";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-async function apiFetch<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "Unknown error");
-    throw new Error(`${res.status}: ${body}`);
-  }
-  // 204 No Content
-  if (res.status === 204) return undefined as unknown as T;
-  return res.json();
-}
+import type {
+  BankrollResponse,
+  MarketPricingResponse,
+  RegisteredStream,
+  SnapshotResponse,
+} from "../types";
+import { apiFetch } from "./api";
 
 // ---------------------------------------------------------------------------
 // Stream CRUD
@@ -74,12 +58,6 @@ export async function deleteStream(streamName: string): Promise<void> {
 // Snapshot ingestion
 // ---------------------------------------------------------------------------
 
-export interface SnapshotResponse {
-  stream_name: string;
-  rows_accepted: number;
-  pipeline_rerun: boolean;
-}
-
 export async function ingestSnapshot(
   streamName: string,
   rows: Record<string, unknown>[],
@@ -94,11 +72,6 @@ export async function ingestSnapshot(
 // Market pricing
 // ---------------------------------------------------------------------------
 
-export interface MarketPricingResponse {
-  spaces_updated: number;
-  pipeline_rerun: boolean;
-}
-
 export async function updateMarketPricing(
   pricing: Record<string, number>,
 ): Promise<MarketPricingResponse> {
@@ -111,11 +84,6 @@ export async function updateMarketPricing(
 // ---------------------------------------------------------------------------
 // Bankroll
 // ---------------------------------------------------------------------------
-
-export interface BankrollResponse {
-  bankroll: number;
-  pipeline_rerun: boolean;
-}
 
 export async function updateBankroll(
   bankroll: number,

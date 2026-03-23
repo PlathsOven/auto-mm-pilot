@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { ChatMessage, InvestigationContext, CellNote } from "../types";
 import { CURRENT_USER, MOCK_USERS, getCellNotes, addCellNote } from "./MockDataProvider";
 import { streamInvestigation } from "../services/llmApi";
+import { createIdGenerator } from "../utils";
 
 interface NoteThread {
   cellKey: string;
@@ -41,12 +42,7 @@ export function useChat() {
   return useContext(ChatContext);
 }
 
-let msgCounter = 0;
-
-function nextId(): string {
-  msgCounter++;
-  return `msg-${msgCounter}`;
-}
+const nextId = createIdGenerator("msg-");
 
 /** Mock team chatter — other desk members occasionally post */
 const TEAM_CHATTER = [

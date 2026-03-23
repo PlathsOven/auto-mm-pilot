@@ -7,6 +7,7 @@ import {
   updateStream,
 } from "../services/streamApi";
 import type { RegisteredStream, RegisteredStreamStatus, StreamStatus } from "../types";
+import { formatAge } from "../utils";
 
 // ---------------------------------------------------------------------------
 // Status styling
@@ -33,14 +34,6 @@ const REG_STATUS_TEXT: Record<RegisteredStreamStatus, string> = {
   PENDING: "text-mm-warn",
   READY: "text-mm-accent",
 };
-
-function formatAge(ms: number): string {
-  if (ms < 1000) return "just now";
-  const secs = Math.floor(ms / 1000);
-  if (secs < 60) return `${secs}s ago`;
-  const mins = Math.floor(secs / 60);
-  return `${mins}m ago`;
-}
 
 // ---------------------------------------------------------------------------
 // Create Stream Form

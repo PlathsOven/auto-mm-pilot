@@ -142,3 +142,46 @@ export interface WrapScenario {
   description: string;
   trigger: string;
 }
+
+// ---------------------------------------------------------------------------
+// API request / response types
+// ---------------------------------------------------------------------------
+
+/** POST /api/investigate — request payload */
+export interface InvestigatePayload {
+  conversation: { role: string; content: string }[];
+  cell_context?: Record<string, unknown> | null;
+}
+
+/** POST /api/justify — request payload */
+export interface JustifyPayload {
+  asset: string;
+  expiry: string;
+  old_pos: number;
+  new_pos: number;
+  delta: number;
+}
+
+/** POST /api/justify — response */
+export interface JustifyResponse {
+  justification: string;
+}
+
+/** POST /api/snapshots — response */
+export interface SnapshotResponse {
+  stream_name: string;
+  rows_accepted: number;
+  pipeline_rerun: boolean;
+}
+
+/** POST /api/market-pricing — response */
+export interface MarketPricingResponse {
+  spaces_updated: number;
+  pipeline_rerun: boolean;
+}
+
+/** PATCH /api/config/bankroll — response */
+export interface BankrollResponse {
+  bankroll: number;
+  pipeline_rerun: boolean;
+}

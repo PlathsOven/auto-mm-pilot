@@ -1,53 +1,13 @@
-import { useMemo, useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useWebSocket } from "../providers/WebSocketProvider";
 import { useChat } from "../providers/ChatProvider";
 import { useLayout } from "../providers/LayoutProvider";
 import { valColor, cellBg } from "../utils";
 import { getCellNotes } from "../providers/MockDataProvider";
+import { VIEW_MODE_META, TIMEFRAME_OPTIONS, getCellValue } from "./grid-config";
+import type { ViewMode, TimeframeLabel } from "./grid-config";
 import type { DesiredPosition } from "../types";
-
-type ViewMode = "position" | "rawPosition" | "change" | "edge" | "smoothedEdge" | "variance" | "smoothedVar" | "totalFair" | "totalMarketFair";
-
-const VIEW_MODE_META: Record<ViewMode, { label: string; unit: string; decimals: number }> = {
-  position: { label: "Desired Position", unit: "$vega", decimals: 2 },
-  rawPosition: { label: "Raw Desired Position", unit: "$vega", decimals: 2 },
-  change: { label: "Change", unit: "$vega", decimals: 2 },
-  edge: { label: "Edge", unit: "", decimals: 6 },
-  smoothedEdge: { label: "Smoothed Edge", unit: "", decimals: 6 },
-  variance: { label: "Variance", unit: "", decimals: 6 },
-  smoothedVar: { label: "Smoothed Variance", unit: "", decimals: 6 },
-  totalFair: { label: "Total Fair", unit: "", decimals: 6 },
-  totalMarketFair: { label: "Total Market Fair", unit: "", decimals: 6 },
-};
-
-const TIMEFRAME_OPTIONS = [
-  { label: "Latest", ms: 0 },
-  { label: "1 min", ms: 60_000 },
-  { label: "5 min", ms: 300_000 },
-  { label: "15 min", ms: 900_000 },
-] as const;
-type TimeframeLabel = (typeof TIMEFRAME_OPTIONS)[number]["label"];
-
-const HIGHLIGHT_DURATION_MS = 2000;
-
-interface HistoryEntry {
-  value: number;
-  timestamp: number;
-}
-
-function getCellValue(p: DesiredPosition, mode: ViewMode, change: number): number {
-  switch (mode) {
-    case "position": return p.desiredPos;
-    case "rawPosition": return p.rawDesiredPos;
-    case "change": return change;
-    case "edge": return p.edge;
-    case "smoothedEdge": return p.smoothedEdge;
-    case "variance": return p.variance;
-    case "smoothedVar": return p.smoothedVar;
-    case "totalFair": return p.totalFair;
-    case "totalMarketFair": return p.totalMarketFair;
-  }
-}
+import { usePositionHistory } from "../hooks/usePositionHistory";
 
 interface PendingEdit {
   key: string;
@@ -78,8 +38,6 @@ export function DesiredPositionGrid() {
     prevEditKeyRef.current = pendingEdit?.key ?? null;
   }, [pendingEdit]);
 
-  const historyRef = useRef<Map<string, HistoryEntry[]>>(new Map());
-
   const noteCountMap = useMemo(() => {
     const map = new Map<string, number>();
     for (const n of getCellNotes()) {
@@ -95,47 +53,7 @@ export function DesiredPositionGrid() {
     if (!panels.some((p) => p.type === "chat")) addPanel("chat");
   }, [openNoteThread, panels, addPanel]);
 
-  const { assets, expiries, grid, recentKeys } = useMemo(() => {
-    const now = Date.now();
-    const assetSet = new Set<string>();
-    const expirySet = new Set<string>();
-    const gridMap = new Map<string, { pos: DesiredPosition; change: number }>();
-    const recent = new Set<string>();
-
-    for (const p of positions) {
-      assetSet.add(p.asset);
-      expirySet.add(p.expiry);
-      const key = `${p.asset}-${p.expiry}`;
-
-      const history = historyRef.current.get(key) ?? [];
-      history.push({ value: p.desiredPos, timestamp: now });
-      if (history.length > 500) history.splice(0, history.length - 500);
-      historyRef.current.set(key, history);
-
-      let change = p.changeMagnitude;
-      const tfOption = TIMEFRAME_OPTIONS.find((t) => t.label === timeframe);
-      if (tfOption && tfOption.ms > 0) {
-        const cutoff = now - tfOption.ms;
-        const baseline = history.find((h) => h.timestamp >= cutoff);
-        if (baseline) {
-          change = +(p.desiredPos - baseline.value).toFixed(3);
-        }
-      }
-
-      gridMap.set(key, { pos: p, change });
-
-      if (now - p.updatedAt < HIGHLIGHT_DURATION_MS) {
-        recent.add(key);
-      }
-    }
-
-    return {
-      assets: Array.from(assetSet).sort(),
-      expiries: Array.from(expirySet),
-      grid: gridMap,
-      recentKeys: recent,
-    };
-  }, [positions, timeframe]);
+  const { assets, expiries, grid, recentKeys } = usePositionHistory(positions, timeframe);
 
   const getDisplayValue = useCallback(
     (key: string, pos: DesiredPosition, mode: ViewMode, change: number): number => {
@@ -312,90 +230,132 @@ export function DesiredPositionGrid() {
                       </td>
                     );
                   })}
-                  {(() => {
-                    const rowTotal = expiries.reduce((sum, exp) => {
-                      const k = `${asset}-${exp}`;
-                      const cell = grid.get(k);
-                      return sum + (cell ? getDisplayValue(k, cell.pos, viewMode, cell.change) : 0);
-                    }, 0);
-                    return (
-                      <td
-                        className={`px-2 py-1.5 text-center text-[11px] tabular-nums font-semibold ${valColor(rowTotal)}`}
-                        style={{ backgroundColor: cellBg(rowTotal) }}
-                      >
-                        {rowTotal > 0 ? "+" : ""}
-                        {rowTotal.toFixed(meta.decimals)}
-                      </td>
-                    );
-                  })()}
+                  <TotalCell
+                    value={computeRowTotal(asset, expiries, grid, getDisplayValue, viewMode)}
+                    decimals={meta.decimals}
+                  />
                 </tr>
               ))}
               <tr className="border-t border-mm-border/40">
                 <td className="px-2 py-1.5 text-[11px] font-semibold text-mm-text-dim">Total</td>
-                {expiries.map((exp) => {
-                  const colTotal = assets.reduce((sum, a) => {
-                    const k = `${a}-${exp}`;
-                    const cell = grid.get(k);
-                    return sum + (cell ? getDisplayValue(k, cell.pos, viewMode, cell.change) : 0);
-                  }, 0);
-                  return (
-                    <td
-                      key={exp}
-                      className={`px-2 py-1.5 text-center text-[11px] tabular-nums font-semibold ${valColor(colTotal)}`}
-                      style={{ backgroundColor: cellBg(colTotal) }}
-                    >
-                      {colTotal > 0 ? "+" : ""}
-                      {colTotal.toFixed(meta.decimals)}
-                    </td>
-                  );
-                })}
-                {(() => {
-                  const grandTotal = assets.reduce((sum, a) =>
-                    sum + expiries.reduce((s, exp) => {
-                      const k = `${a}-${exp}`;
-                      const cell = grid.get(k);
-                      return s + (cell ? getDisplayValue(k, cell.pos, viewMode, cell.change) : 0);
-                    }, 0), 0);
-                  return (
-                    <td
-                      className={`px-2 py-1.5 text-center text-[11px] tabular-nums font-semibold ${valColor(grandTotal)}`}
-                      style={{ backgroundColor: cellBg(grandTotal) }}
-                    >
-                      {grandTotal > 0 ? "+" : ""}
-                      {grandTotal.toFixed(meta.decimals)}
-                    </td>
-                  );
-                })()}
+                {expiries.map((exp) => (
+                  <TotalCell
+                    key={exp}
+                    value={computeColTotal(exp, assets, grid, getDisplayValue, viewMode)}
+                    decimals={meta.decimals}
+                  />
+                ))}
+                <TotalCell
+                  value={computeGrandTotal(assets, expiries, grid, getDisplayValue, viewMode)}
+                  decimals={meta.decimals}
+                />
               </tr>
             </tbody>
           </table>
         )}
       </div>
 
+      <OverrideStatusBar
+        pendingEdit={pendingEdit}
+        overrideCount={overrides.size}
+        decimals={meta.decimals}
+        viewMode={viewMode}
+        onCancel={cancelEdit}
+        onConfirm={confirmOverride}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Totals helpers
+// ---------------------------------------------------------------------------
+
+type DisplayValueFn = (key: string, pos: DesiredPosition, mode: ViewMode, change: number) => number;
+type GridMap = Map<string, { pos: DesiredPosition; change: number }>;
+
+function computeRowTotal(asset: string, expiries: string[], grid: GridMap, getVal: DisplayValueFn, mode: ViewMode): number {
+  return expiries.reduce((sum, exp) => {
+    const k = `${asset}-${exp}`;
+    const cell = grid.get(k);
+    return sum + (cell ? getVal(k, cell.pos, mode, cell.change) : 0);
+  }, 0);
+}
+
+function computeColTotal(expiry: string, assets: string[], grid: GridMap, getVal: DisplayValueFn, mode: ViewMode): number {
+  return assets.reduce((sum, a) => {
+    const k = `${a}-${expiry}`;
+    const cell = grid.get(k);
+    return sum + (cell ? getVal(k, cell.pos, mode, cell.change) : 0);
+  }, 0);
+}
+
+function computeGrandTotal(assets: string[], expiries: string[], grid: GridMap, getVal: DisplayValueFn, mode: ViewMode): number {
+  return assets.reduce((sum, a) =>
+    sum + expiries.reduce((s, exp) => {
+      const k = `${a}-${exp}`;
+      const cell = grid.get(k);
+      return s + (cell ? getVal(k, cell.pos, mode, cell.change) : 0);
+    }, 0), 0);
+}
+
+function TotalCell({ value, decimals }: { value: number; decimals: number }) {
+  return (
+    <td
+      className={`px-2 py-1.5 text-center text-[11px] tabular-nums font-semibold ${valColor(value)}`}
+      style={{ backgroundColor: cellBg(value) }}
+    >
+      {value > 0 ? "+" : ""}
+      {value.toFixed(decimals)}
+    </td>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Override status bar
+// ---------------------------------------------------------------------------
+
+function OverrideStatusBar({
+  pendingEdit,
+  overrideCount,
+  decimals,
+  viewMode,
+  onCancel,
+  onConfirm,
+}: {
+  pendingEdit: PendingEdit | null;
+  overrideCount: number;
+  decimals: number;
+  viewMode: ViewMode;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <>
       {pendingEdit && (
         <div className="mt-2 flex items-center justify-between rounded-lg border-t border-mm-border/40 bg-mm-bg/80 px-3 py-2">
           <span className="text-[10px] text-mm-text">
             Override <span className="font-semibold">{pendingEdit.asset} {pendingEdit.expiry}</span>:
-            <span className="ml-1 text-mm-text-dim">{pendingEdit.aptValue > 0 ? "+" : ""}{pendingEdit.aptValue.toFixed(meta.decimals)}</span>
+            <span className="ml-1 text-mm-text-dim">{pendingEdit.aptValue > 0 ? "+" : ""}{pendingEdit.aptValue.toFixed(decimals)}</span>
             <span className="mx-1">→</span>
-            <span className="font-semibold text-amber-400">{isNaN(parseFloat(pendingEdit.value)) ? "—" : (parseFloat(pendingEdit.value) > 0 ? "+" : "") + parseFloat(pendingEdit.value).toFixed(meta.decimals)}</span>
+            <span className="font-semibold text-amber-400">{isNaN(parseFloat(pendingEdit.value)) ? "—" : (parseFloat(pendingEdit.value) > 0 ? "+" : "") + parseFloat(pendingEdit.value).toFixed(decimals)}</span>
           </span>
           <div className="flex gap-2">
-            <button onClick={cancelEdit} className="rounded-md px-2 py-0.5 text-[10px] text-mm-text-dim hover:text-mm-text transition-colors">Cancel</button>
-            <button onClick={confirmOverride} className="rounded-md px-2 py-0.5 text-[10px] bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors font-medium">Confirm</button>
+            <button onClick={onCancel} className="rounded-md px-2 py-0.5 text-[10px] text-mm-text-dim hover:text-mm-text transition-colors">Cancel</button>
+            <button onClick={onConfirm} className="rounded-md px-2 py-0.5 text-[10px] bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors font-medium">Confirm</button>
           </div>
         </div>
       )}
 
-      {overrides.size > 0 && !pendingEdit && (
+      {overrideCount > 0 && !pendingEdit && (
         <p className="mt-1 text-[9px] text-amber-400/70">
-          {overrides.size} override{overrides.size > 1 ? "s" : ""} active — double-click to edit, ✕ to undo.
+          {overrideCount} override{overrideCount > 1 ? "s" : ""} active — double-click to edit, ✕ to undo.
         </p>
       )}
 
       <p className="mt-1 text-[9px] text-mm-text-dim">
         {viewMode === "position" ? "Double-click a cell to override. " : ""}Click the badge to view/add notes in Team Chat.
       </p>
-    </div>
+    </>
   );
 }

@@ -12,6 +12,21 @@ export function cellBg(val: number): string {
   return "transparent";
 }
 
+/** Formats an elapsed duration (ms) as a human-readable age string. */
+export function formatAge(ms: number): string {
+  if (ms < 1000) return "just now";
+  const secs = Math.floor(ms / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  return `${mins}m ago`;
+}
+
+/** Creates an auto-incrementing ID generator with a given prefix. */
+export function createIdGenerator(prefix: string): () => string {
+  let counter = 0;
+  return () => `${prefix}${++counter}`;
+}
+
 /** Formats a UTC timestamp (ms) as HH:MM:SS.mmm */
 export function formatUtcTime(ts: number): string {
   const d = new Date(ts);

@@ -3,6 +3,7 @@ import type {
   CellNote,
   DailyWrapData,
 } from "../types";
+import { createIdGenerator } from "../utils";
 
 /** Mock team members for the client firm */
 export const MOCK_USERS: UserIdentity[] = [
@@ -26,16 +27,15 @@ const SEED_NOTES: CellNote[] = [
 
 /** Mutable cell notes store */
 let cellNotesStore: CellNote[] = [...SEED_NOTES];
-let noteCounter = SEED_NOTES.length;
+const nextNoteId = createIdGenerator("note-");
 
 export function getCellNotes(): CellNote[] {
   return cellNotesStore;
 }
 
 export function addCellNote(cellKey: string, content: string): CellNote {
-  noteCounter++;
   const note: CellNote = {
-    id: `note-${noteCounter}`,
+    id: nextNoteId(),
     cellKey,
     author: CURRENT_USER.name,
     authorInitials: CURRENT_USER.initials,

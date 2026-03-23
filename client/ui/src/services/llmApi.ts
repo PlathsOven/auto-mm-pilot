@@ -6,15 +6,12 @@
  */
 
 import { API_BASE } from "../config";
+import type { InvestigatePayload, JustifyPayload, JustifyResponse } from "../types";
+import { apiFetch } from "./api";
 
 // ---------------------------------------------------------------------------
 // Investigation — SSE streaming
 // ---------------------------------------------------------------------------
-
-export interface InvestigatePayload {
-  conversation: { role: string; content: string }[];
-  cell_context?: Record<string, unknown> | null;
-}
 
 /**
  * Stream investigation tokens from the server.
@@ -119,18 +116,6 @@ export function streamInvestigation(
 // Justification — single JSON response
 // ---------------------------------------------------------------------------
 
-export interface JustifyPayload {
-  asset: string;
-  expiry: string;
-  old_pos: number;
-  new_pos: number;
-  delta: number;
-}
-
-export interface JustifyResponse {
-  justification: string;
-}
-
 /**
  * Fetch a one-line justification for a position change.
  * Throws on any failure.
@@ -138,17 +123,9 @@ export interface JustifyResponse {
 export async function fetchJustification(
   payload: JustifyPayload,
 ): Promise<string> {
-  const response = await fetch(`${API_BASE}/api/justify`, {
+  const data = await apiFetch<JustifyResponse>("/api/justify", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "Unknown error");
-    throw new Error(`Justification failed (${response.status}): ${body}`);
-  }
-
-  const data: JustifyResponse = await response.json();
   return data.justification;
 }
