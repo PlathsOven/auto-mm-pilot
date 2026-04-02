@@ -129,12 +129,6 @@ _MOCK_STREAMS: list[StreamContext] = [
 _store: list[StreamContext] = list(_MOCK_STREAMS)
 
 
-def get_all_stream_contexts() -> list[StreamContext]:
-    """Return all stream context entries."""
-    return list(_store)
-
-
-
 def serialize_stream_contexts() -> str:
     """Serialize all stream contexts to a JSON string for prompt injection."""
     return json.dumps(

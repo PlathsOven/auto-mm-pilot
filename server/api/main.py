@@ -25,8 +25,11 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime as _dt
 from pathlib import Path
 from typing import Any
+
+import polars as pl
 
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -52,16 +55,18 @@ from server.api.models import (
 )
 from server.api.stream_registry import StreamRegistration, get_stream_registry
 from server.api.client_ws import client_ws
-from server.api.ws import pipeline_ws, restart_ticker
+from server.api.ws import pipeline_ws, restart_ticker, get_current_tick_ts
 
 from server.api.engine_state import (
     get_engine_state,
     get_mock_now,
+    get_pipeline_results,
     get_pipeline_snapshot,
     get_snapshot_buffer,
     rerun_pipeline,
     set_bankroll,
     set_market_pricing,
+    RISK_DIMENSION_COLS,
 )
 from server.api.llm.service import LlmService
 from server.core.config import BlockConfig
@@ -399,3 +404,133 @@ async def update_bankroll(req: BankrollRequest) -> BankrollResponse:
         bankroll=req.bankroll,
         pipeline_rerun=pipeline_rerun,
     )
+
+
+# ---------------------------------------------------------------------------
+# Pipeline time series (read-only, for charting)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/pipeline/dimensions")
+async def pipeline_dimensions() -> dict:
+    """Return available (symbol, expiry) pairs from the current pipeline run."""
+    results = get_pipeline_results()
+    if results is None:
+        return {"dimensions": []}
+
+    pos_df = results["desired_pos_df"]
+    dims = (
+        pos_df.select(RISK_DIMENSION_COLS)
+        .unique()
+        .sort(RISK_DIMENSION_COLS)
+    )
+    out = []
+    for row in dims.iter_rows(named=True):
+        out.append({
+            "symbol": row["symbol"],
+            "expiry": row["expiry"].isoformat() if hasattr(row["expiry"], "isoformat") else str(row["expiry"]),
+        })
+    return {"dimensions": out}
+
+
+@app.get("/api/pipeline/timeseries")
+async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
+    """Return full block-level and aggregated time series for a symbol/expiry."""
+    results = get_pipeline_results()
+    if results is None:
+        raise HTTPException(status_code=404, detail="No pipeline results available")
+
+    # Parse expiry string
+    try:
+        expiry_dt = _dt.fromisoformat(expiry)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid expiry format: {exc}") from exc
+
+    block_var_df = results["block_var_df"]
+    pos_df = results["desired_pos_df"]
+
+    # Slice to current tick if the ticker is running
+    current_ts = get_current_tick_ts()
+
+    # Filter to requested dimension
+    bv = block_var_df.filter(
+        (pl.col("symbol") == symbol) & (pl.col("expiry") == expiry_dt)
+    ).drop_nulls(subset=["fair"])
+    pd = pos_df.filter(
+        (pl.col("symbol") == symbol) & (pl.col("expiry") == expiry_dt)
+    ).drop_nulls(subset=["raw_desired_position"])
+
+    if current_ts is not None:
+        bv = bv.filter(pl.col("timestamp") >= current_ts)
+        pd = pd.filter(pl.col("timestamp") >= current_ts)
+
+    if bv.is_empty() and pd.is_empty():
+        raise HTTPException(status_code=404, detail=f"No data for {symbol}/{expiry}")
+
+    # Block-level time series
+    block_names = sorted(bv["block_name"].unique().to_list())
+    blocks = []
+    for bn in block_names:
+        bd = bv.filter(pl.col("block_name") == bn).sort("timestamp")
+        blocks.append({
+            "block_name": bn,
+            "space_id": bd["space_id"][0] if bd.height > 0 else "",
+            "aggregation_logic": bd["aggregation_logic"][0] if bd.height > 0 else "",
+            "timestamps": [t.isoformat() for t in bd["timestamp"].to_list()],
+            "fair": bd["fair"].to_list(),
+            "market_fair": bd["market_fair"].to_list(),
+            "var": bd["var"].to_list(),
+        })
+
+    # Aggregated time series
+    pd_sorted = pd.sort("timestamp")
+    timestamps = [t.isoformat() for t in pd_sorted["timestamp"].to_list()]
+    aggregated = {
+        "timestamps": timestamps,
+        "total_fair": pd_sorted["total_fair"].to_list(),
+        "total_market_fair": pd_sorted["total_market_fair"].to_list(),
+        "edge": pd_sorted["edge"].to_list(),
+        "smoothed_edge": pd_sorted["smoothed_edge"].to_list(),
+        "var": pd_sorted["var"].to_list(),
+        "smoothed_var": pd_sorted["smoothed_var"].to_list(),
+        "raw_desired_position": pd_sorted["raw_desired_position"].to_list(),
+        "smoothed_desired_position": pd_sorted["smoothed_desired_position"].to_list(),
+    }
+
+    # Current decomposition (first timestamp = current tick)
+    current_blocks = []
+    if bv.height > 0:
+        first_ts = bv["timestamp"].min()
+        latest_bv = bv.filter(pl.col("timestamp") == first_ts)
+        for row in latest_bv.iter_rows(named=True):
+            current_blocks.append({
+                "block_name": row["block_name"],
+                "space_id": row["space_id"],
+                "fair": row["fair"],
+                "market_fair": row["market_fair"],
+                "var": row["var"],
+            })
+
+    current_agg = {}
+    if pd_sorted.height > 0:
+        last = pd_sorted.row(0, named=True)
+        current_agg = {
+            "total_fair": last["total_fair"],
+            "total_market_fair": last["total_market_fair"],
+            "edge": last["edge"],
+            "smoothed_edge": last["smoothed_edge"],
+            "var": last["var"],
+            "smoothed_var": last["smoothed_var"],
+            "raw_desired_position": last["raw_desired_position"],
+            "smoothed_desired_position": last["smoothed_desired_position"],
+        }
+
+    return {
+        "symbol": symbol,
+        "expiry": expiry,
+        "blocks": blocks,
+        "aggregated": aggregated,
+        "current_decomposition": {
+            "blocks": current_blocks,
+            "aggregated": current_agg,
+        },
+    }

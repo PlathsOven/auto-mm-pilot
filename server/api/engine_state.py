@@ -58,7 +58,6 @@ _bankroll: float = MOCK_BANKROLL
 _market_pricing: dict[str, float] = dict(MOCK_MARKET_PRICING)
 
 
-
 # ---------------------------------------------------------------------------
 # Mock initialization (development fallback)
 # ---------------------------------------------------------------------------
