@@ -88,6 +88,8 @@ The system is physically split to protect proprietary IP.
 | `server/core/serializers.py` | DataFrame→dict bridge for LLM prompt injection |
 | `client/ui/src/services/llmApi.ts` | HTTP client for LLM server endpoints (SSE streaming + JSON fetch) |
 | `client/ui/src/services/streamApi.ts` | HTTP client for stream CRUD, snapshot ingestion, market-pricing, bankroll endpoints |
+| `client/ui/src/components/PipelineChart.tsx` | Pipeline Analysis panel — ECharts time series (desired position, fair value decomposition, variance decomposition) with symbol/expiry selector |
+| `client/ui/src/services/pipelineApi.ts` | HTTP client for pipeline dimensions + time series endpoints |
 | `prototyping/test_api.ipynb` | API integration test notebook — exercises full prod-mode pipeline via HTTP |
 | `STACK_STATUS.md` | Component registry — tracks PROD/MOCK/STUB/OFF status and connection map |
 | `DEPLOY.md` | Step-by-step deployment guide (Vercel for client, Railway for server) |

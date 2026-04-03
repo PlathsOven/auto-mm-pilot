@@ -7,6 +7,7 @@ import { DesiredPositionGrid } from "./components/DesiredPositionGrid";
 import { UpdatesFeed } from "./components/UpdatesFeed";
 import { LlmChat } from "./components/LlmChat";
 import { DailyWrap } from "./components/DailyWrap";
+import { PipelineChart } from "./components/PipelineChart";
 import { ApiDocs } from "./components/ApiDocs";
 import { PanelWindow } from "./components/PanelWindow";
 import { useLayout, PANEL_LABELS } from "./providers/LayoutProvider";
@@ -21,6 +22,7 @@ const PANEL_COMPONENT: Record<PanelType, React.FC> = {
   updates: UpdatesFeed,
   chat: LlmChat,
   wrap: DailyWrap,
+  pipeline: PipelineChart,
 };
 
 const FALLBACK_ROW_HEIGHT = 60;

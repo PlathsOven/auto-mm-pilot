@@ -8,7 +8,7 @@ import type { AppPage } from "../types";
 
 const SPACE_OPTIONS = ["D50 VOLATILITY"];
 
-const PANEL_TYPES: PanelType[] = ["streams", "positions", "wrap", "updates", "chat"];
+const PANEL_TYPES: PanelType[] = ["streams", "positions", "wrap", "updates", "chat", "pipeline"];
 
 export function GlobalContextBar({ page, setPage }: { page: AppPage; setPage: (p: AppPage) => void }) {
   const { connectionStatus } = useWebSocket();

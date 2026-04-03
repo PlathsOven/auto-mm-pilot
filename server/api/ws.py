@@ -132,6 +132,12 @@ def _context_at_tick(timestamp: datetime) -> dict[str, Any]:
 _clients: set[WebSocket] = set()
 _latest_payload: str | None = None
 _ticker_task: asyncio.Task | None = None
+_current_tick_ts: datetime | None = None
+
+
+def get_current_tick_ts() -> datetime | None:
+    """Return the timestamp of the most recently broadcast pipeline tick."""
+    return _current_tick_ts
 
 
 def _extract_timeline(results: dict[str, pl.DataFrame]) -> tuple[pl.DataFrame, pl.DataFrame, list[datetime]] | None:
@@ -171,7 +177,7 @@ async def _run_ticker_mock(
     timestamps: list[datetime],
 ) -> None:
     """Mock mode: step through pipeline time grid at artificial intervals."""
-    global _latest_payload
+    global _latest_payload, _current_tick_ts
 
     log.info("Mock ticker started: %d pipeline ticks at %.1fs interval", len(timestamps), TICK_INTERVAL_SECS)
 
@@ -179,6 +185,7 @@ async def _run_ticker_mock(
     streams = _streams_from_blocks(blocks_df, timestamps[0])
 
     for i, ts in enumerate(timestamps):
+        _current_tick_ts = ts
         positions = _positions_at_tick(desired_pos_df, ts, prev_positions)
         updates = _updates_from_diff(positions, prev_positions, i)
 
@@ -214,7 +221,7 @@ async def _run_ticker_prod(
     On each tick, finds the latest pipeline timestamp <= now and broadcasts
     that snapshot.  Runs continuously until cancelled by ``restart_ticker()``.
     """
-    global _latest_payload
+    global _latest_payload, _current_tick_ts
 
     log.info("Prod ticker started: %d pipeline timestamps, %.1fs heartbeat", len(timestamps), TICK_INTERVAL_SECS)
 
@@ -239,6 +246,7 @@ async def _run_ticker_prod(
             ts_idx = 0
 
         ts = timestamps[ts_idx]
+        _current_tick_ts = ts
         positions = _positions_at_tick(desired_pos_df, ts, prev_positions)
 
         # Only emit update cards when the active timestamp advances

@@ -186,3 +186,58 @@ export interface BankrollResponse {
   bankroll: number;
   pipeline_rerun: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Pipeline time series (charting)
+// ---------------------------------------------------------------------------
+
+/** A single symbol/expiry dimension from the pipeline */
+export interface TimeSeriesDimension {
+  symbol: string;
+  expiry: string;
+}
+
+/** Block-level time series for one block */
+export interface BlockTimeSeries {
+  block_name: string;
+  space_id: string;
+  aggregation_logic: string;
+  timestamps: string[];
+  fair: number[];
+  market_fair: number[];
+  var: number[];
+}
+
+/** Aggregated time series across all blocks */
+export interface AggregatedTimeSeries {
+  timestamps: string[];
+  total_fair: number[];
+  total_market_fair: number[];
+  edge: number[];
+  smoothed_edge: number[];
+  var: number[];
+  smoothed_var: number[];
+  raw_desired_position: number[];
+  smoothed_desired_position: number[];
+}
+
+/** Current decomposition snapshot for the latest timestamp */
+export interface CurrentBlockDecomposition {
+  block_name: string;
+  space_id: string;
+  fair: number;
+  market_fair: number;
+  var: number;
+}
+
+/** Full pipeline time series response */
+export interface PipelineTimeSeriesResponse {
+  symbol: string;
+  expiry: string;
+  blocks: BlockTimeSeries[];
+  aggregated: AggregatedTimeSeries;
+  current_decomposition: {
+    blocks: CurrentBlockDecomposition[];
+    aggregated: Record<string, number>;
+  };
+}
