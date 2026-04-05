@@ -12,7 +12,7 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import type { BlockRow } from "../types";
-import { fetchBlocks, createManualBlock, type ManualBlockPayload } from "../services/blockApi";
+import { fetchBlocks, createManualBlock, updateBlock, type ManualBlockPayload, type UpdateBlockPayload } from "../services/blockApi";
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -234,6 +234,12 @@ export function BlockTable() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Inline edit state
+  const [editingStream, setEditingStream] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<Record<string, string | boolean>>({});
+  const [editError, setEditError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
   // Table state
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -377,6 +383,75 @@ export function BlockTable() {
     [],
   );
 
+  // Start editing an existing row
+  const startEdit = useCallback((block: BlockRow) => {
+    setEditingStream(block.stream_name);
+    setEditDraft({
+      scale: String(block.scale),
+      offset: String(block.offset),
+      exponent: String(block.exponent),
+      annualized: block.annualized,
+      size_type: block.size_type,
+      aggregation_logic: block.aggregation_logic,
+      temporal_position: block.temporal_position,
+      decay_end_size_mult: String(block.decay_end_size_mult),
+      decay_rate_prop_per_min: String(block.decay_rate_prop_per_min),
+      var_fair_ratio: String(block.var_fair_ratio),
+      raw_value: String(block.raw_value),
+    });
+    setEditError(null);
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    setEditingStream(null);
+    setEditDraft({});
+    setEditError(null);
+  }, []);
+
+  const saveEdit = useCallback(async () => {
+    if (!editingStream) return;
+    setSaving(true);
+    setEditError(null);
+    try {
+      const payload: UpdateBlockPayload = {
+        scale: parseFloat(editDraft.scale as string) || undefined,
+        offset: parseFloat(editDraft.offset as string),
+        exponent: parseFloat(editDraft.exponent as string) || undefined,
+        block: {
+          annualized: editDraft.annualized === true || editDraft.annualized === "true",
+          size_type: (editDraft.size_type as "fixed" | "relative") || "fixed",
+          aggregation_logic: (editDraft.aggregation_logic as "average" | "offset") || "average",
+          temporal_position: (editDraft.temporal_position as "static" | "shifting") || "shifting",
+          decay_end_size_mult: parseFloat(editDraft.decay_end_size_mult as string) || 1,
+          decay_rate_prop_per_min: parseFloat(editDraft.decay_rate_prop_per_min as string) || 0,
+          decay_profile: "linear",
+          var_fair_ratio: parseFloat(editDraft.var_fair_ratio as string) || 1,
+        },
+      };
+      await updateBlock(editingStream, payload);
+      setEditingStream(null);
+      setEditDraft({});
+      await loadBlocks();
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      let detail = raw;
+      const jsonStart = raw.indexOf("{");
+      if (jsonStart !== -1) {
+        try {
+          const parsed = JSON.parse(raw.slice(jsonStart));
+          if (parsed.detail) detail = parsed.detail;
+        } catch { /* keep raw */ }
+      }
+      setEditError(detail);
+    } finally {
+      setSaving(false);
+    }
+  }, [editingStream, editDraft, loadBlocks]);
+
+  const patchEdit = useCallback((key: string, value: string | boolean) => {
+    setEditDraft((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
   return (
     <div className="flex h-full flex-col p-3">
       {/* Toolbar */}
@@ -404,8 +479,28 @@ export function BlockTable() {
             groups={columnGroups}
           />
 
+          {/* Edit save/cancel */}
+          {editingStream && (
+            <>
+              <button
+                onClick={saveEdit}
+                disabled={saving}
+                className="rounded-md bg-mm-accent/20 px-2.5 py-1 text-[10px] font-medium text-mm-accent transition-colors hover:bg-mm-accent/30 disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Save"}
+              </button>
+              <button
+                onClick={cancelEdit}
+                disabled={saving}
+                className="rounded-md px-2.5 py-1 text-[10px] font-medium text-mm-text-dim transition-colors hover:text-mm-text"
+              >
+                Cancel
+              </button>
+            </>
+          )}
+
           {/* Add manual block / Create+Cancel */}
-          {showForm ? (
+          {!editingStream && showForm ? (
             <>
               <button
                 onClick={handleSubmit}
@@ -422,20 +517,20 @@ export function BlockTable() {
                 Cancel
               </button>
             </>
-          ) : (
+          ) : !editingStream ? (
             <button
               onClick={() => setShowForm(true)}
               className="rounded-md bg-mm-border/30 px-2.5 py-1 text-[10px] font-medium text-mm-text-dim transition-colors hover:bg-mm-border/50 hover:text-mm-text"
             >
               + Manual Block
             </button>
-          )}
+          ) : null}
         </div>
       </div>
 
-      {(error || (submitError && showForm)) && (
+      {(error || (submitError && showForm) || editError) && (
         <div className="mb-2 rounded-md bg-mm-error/10 px-3 py-1.5 text-[10px] text-mm-error">
-          {submitError && showForm ? submitError : error}
+          {editError ?? (submitError && showForm ? submitError : error)}
         </div>
       )}
 
@@ -489,21 +584,34 @@ export function BlockTable() {
                 </td>
               </tr>
             ) : (
-              table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-mm-border/20 transition-colors hover:bg-mm-accent/5"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td
-                      key={cell.id}
-                      className="whitespace-nowrap px-2 py-1.5 text-[10px] tabular-nums text-mm-text"
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
-              ))
+              table.getRowModel().rows.map((row) => {
+                const block = row.original;
+                const isEditing = editingStream === block.stream_name;
+                return isEditing ? (
+                  <EditRow
+                    key={row.id}
+                    editDraft={editDraft}
+                    patchEdit={patchEdit}
+                    visibleColumns={table.getVisibleLeafColumns().map((c) => c.id)}
+                    original={block}
+                  />
+                ) : (
+                  <tr
+                    key={row.id}
+                    className="border-b border-mm-border/20 transition-colors hover:bg-mm-accent/5 cursor-pointer"
+                    onDoubleClick={() => startEdit(block)}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        className="whitespace-nowrap px-2 py-1.5 text-[10px] tabular-nums text-mm-text"
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })
             )}
 
             {/* Inline editable draft row */}
@@ -715,6 +823,132 @@ function DraftRow({
                 onChange={(e) => {
                   const v = cfg.field === "annualized" ? (e.target.value === "true") : e.target.value;
                   patchDraft(cfg.field, v as never);
+                }}
+                className={cellCls}
+              >
+                {cfg.options.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </td>
+          );
+        }
+
+        return <td key={colId} />;
+      })}
+    </tr>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Inline edit row for existing blocks — editable engine params, read-only outputs
+// ---------------------------------------------------------------------------
+
+/** Column IDs that are editable when editing an existing block */
+const EDITABLE_COLS: Record<
+  string,
+  | { kind: "number"; field: string; step?: string }
+  | { kind: "select"; field: string; options: { value: string; label: string }[] }
+> = {
+  scale: { kind: "number", field: "scale", step: "any" },
+  offset: { kind: "number", field: "offset", step: "any" },
+  exponent: { kind: "number", field: "exponent", step: "any" },
+  annualized: {
+    kind: "select", field: "annualized",
+    options: [{ value: "true", label: "Yes" }, { value: "false", label: "No" }],
+  },
+  size_type: {
+    kind: "select", field: "size_type",
+    options: [{ value: "fixed", label: "fixed" }, { value: "relative", label: "relative" }],
+  },
+  aggregation_logic: {
+    kind: "select", field: "aggregation_logic",
+    options: [{ value: "average", label: "average" }, { value: "offset", label: "offset" }],
+  },
+  temporal_position: {
+    kind: "select", field: "temporal_position",
+    options: [{ value: "shifting", label: "shifting" }, { value: "static", label: "static" }],
+  },
+  decay_end_size_mult: { kind: "number", field: "decay_end_size_mult", step: "any" },
+  decay_rate_prop_per_min: { kind: "number", field: "decay_rate_prop_per_min", step: "any" },
+  var_fair_ratio: { kind: "number", field: "var_fair_ratio", step: "any" },
+  raw_value: { kind: "number", field: "raw_value", step: "any" },
+};
+
+/** Columns whose original value is shown as read-only text during edit */
+function formatOriginal(colId: string, block: BlockRow): string {
+  const v = block[colId as keyof BlockRow];
+  if (v == null) return "—";
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (typeof v === "number") return v.toFixed(6);
+  if (colId === "expiry") {
+    try { return new Date(v as string).toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" }); } catch { /* fall through */ }
+  }
+  if (colId === "updated_at") {
+    try { return new Date(v as string).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); } catch { /* fall through */ }
+  }
+  return String(v);
+}
+
+function EditRow({
+  editDraft,
+  patchEdit,
+  visibleColumns,
+  original,
+}: {
+  editDraft: Record<string, string | boolean>;
+  patchEdit: (key: string, value: string | boolean) => void;
+  visibleColumns: string[];
+  original: BlockRow;
+}) {
+  const cellCls = "form-input !py-0.5 !px-1.5 !text-[9px]";
+
+  return (
+    <tr className="border-b border-mm-accent/30 bg-mm-accent/5">
+      {visibleColumns.map((colId) => {
+        const cfg = EDITABLE_COLS[colId];
+
+        if (!cfg) {
+          return (
+            <td
+              key={colId}
+              className="whitespace-nowrap px-2 py-1 text-[10px] text-mm-text"
+            >
+              {colId === "source" ? (
+                <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${
+                  original.source === "manual" ? "bg-amber-500/20 text-amber-400" : "bg-mm-accent/15 text-mm-accent"
+                }`}>{original.source}</span>
+              ) : colId === "block_name" ? (
+                <span className="font-medium">{original.block_name}</span>
+              ) : formatOriginal(colId, original)}
+            </td>
+          );
+        }
+
+        if (cfg.kind === "number") {
+          return (
+            <td key={colId} className="px-1 py-1">
+              <input
+                type="number"
+                step={cfg.step}
+                value={editDraft[cfg.field] as string ?? ""}
+                onChange={(e) => patchEdit(cfg.field, e.target.value)}
+                className={cellCls}
+              />
+            </td>
+          );
+        }
+
+        if (cfg.kind === "select") {
+          const raw = editDraft[cfg.field];
+          const selectVal = typeof raw === "boolean" ? String(raw) : (raw as string);
+          return (
+            <td key={colId} className="px-1 py-1">
+              <select
+                value={selectVal}
+                onChange={(e) => {
+                  const v = cfg.field === "annualized" ? (e.target.value === "true") : e.target.value;
+                  patchEdit(cfg.field, v);
                 }}
                 className={cellCls}
               >

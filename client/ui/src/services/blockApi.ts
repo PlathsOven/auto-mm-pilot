@@ -49,3 +49,34 @@ export async function createManualBlock(
     body: JSON.stringify(payload),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Update existing block
+// ---------------------------------------------------------------------------
+
+export interface UpdateBlockPayload {
+  scale?: number;
+  offset?: number;
+  exponent?: number;
+  block?: {
+    annualized: boolean;
+    size_type: "fixed" | "relative";
+    aggregation_logic: "average" | "offset";
+    temporal_position: "static" | "shifting";
+    decay_end_size_mult: number;
+    decay_rate_prop_per_min: number;
+    decay_profile: "linear";
+    var_fair_ratio: number;
+  };
+  snapshot_rows?: Record<string, unknown>[];
+}
+
+export async function updateBlock(
+  streamName: string,
+  payload: UpdateBlockPayload,
+): Promise<BlockRow> {
+  return apiFetch<BlockRow>(`/api/blocks/${encodeURIComponent(streamName)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}

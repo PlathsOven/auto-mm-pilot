@@ -199,6 +199,15 @@ class ManualBlockRequest(BaseModel):
     )
 
 
+class UpdateBlockRequest(BaseModel):
+    """User updates an existing block's engine parameters and/or snapshot."""
+    scale: float | None = None
+    offset: float | None = None
+    exponent: float | None = None
+    block: BlockConfigPayload | None = None
+    snapshot_rows: list[dict[str, Any]] | None = None
+
+
 class ClientWsInboundFrame(BaseModel):
     """Text frame sent by the client over the /ws/client channel.
 
