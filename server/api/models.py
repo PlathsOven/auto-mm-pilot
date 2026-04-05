@@ -145,6 +145,60 @@ class BankrollResponse(BaseModel):
 # Client-facing WebSocket frames
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Block table
+# ---------------------------------------------------------------------------
+
+class BlockRowResponse(BaseModel):
+    """A single block row in the block configuration table."""
+    block_name: str
+    stream_name: str
+    symbol: str
+    expiry: str
+    space_id: str
+    source: Literal["stream", "manual"]
+    # Engine parameters
+    annualized: bool
+    size_type: Literal["fixed", "relative"]
+    aggregation_logic: Literal["average", "offset"]
+    temporal_position: Literal["static", "shifting"]
+    decay_end_size_mult: float
+    decay_rate_prop_per_min: float
+    var_fair_ratio: float
+    scale: float
+    offset: float
+    exponent: float
+    # Output values
+    target_value: float
+    raw_value: float
+    target_market_value: float | None = None
+    fair: float | None = None
+    market_fair: float | None = None
+    var: float | None = None
+    # Timing
+    start_timestamp: str | None = None
+    updated_at: str | None = None
+
+
+class BlockListResponse(BaseModel):
+    blocks: list[BlockRowResponse]
+
+
+class ManualBlockRequest(BaseModel):
+    """User creates a manual block by specifying all input parameters."""
+    stream_name: str = Field(..., min_length=1, description="Name for the manual stream")
+    key_cols: list[str] = Field(default_factory=lambda: ["symbol", "expiry"], description="Index columns")
+    scale: float = Field(1.0, description="Multiplicative scale for raw → target conversion")
+    offset: float = Field(0.0, description="Additive offset")
+    exponent: float = Field(1.0, description="Power exponent")
+    block: BlockConfigPayload = Field(default_factory=BlockConfigPayload)
+    snapshot_rows: list[dict[str, Any]] = Field(
+        ...,
+        min_length=1,
+        description="Snapshot rows with timestamp, raw_value, and all key_cols",
+    )
+
+
 class ClientWsInboundFrame(BaseModel):
     """Text frame sent by the client over the /ws/client channel.
 

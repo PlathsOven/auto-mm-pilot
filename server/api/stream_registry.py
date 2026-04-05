@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import polars as pl
@@ -104,14 +104,23 @@ def _coerce_datetime_fields(
     rows: list[dict[str, Any]],
     key_cols: list[str],
 ) -> list[dict[str, Any]]:
-    """Parse ISO-format strings into ``datetime`` objects for known datetime columns."""
+    """Parse ISO-format strings into ``datetime`` objects for known datetime columns.
+
+    All datetimes are normalised to **naive** (tzinfo stripped) to match the
+    codebase convention where naive datetimes represent UTC.  This prevents
+    Polars ``datetime[μs]`` vs ``datetime[μs, UTC]`` supertype mismatches
+    when manual blocks are combined with mock/existing streams.
+    """
     dt_cols = _DATETIME_FIELDS | {k for k in key_cols if k in _DATETIME_FIELDS}
     coerced: list[dict[str, Any]] = []
     for row in rows:
         out: dict[str, Any] = {}
         for k, v in row.items():
             if k in dt_cols and isinstance(v, str):
-                out[k] = datetime.fromisoformat(v)
+                dt = datetime.fromisoformat(v)
+                if dt.tzinfo is not None:
+                    dt = dt.replace(tzinfo=None)
+                out[k] = dt
             else:
                 out[k] = v
         coerced.append(out)
@@ -147,6 +156,28 @@ class StreamRegistry:
         )
         self._streams[TEST_STREAM_NAME] = reg
         log.info("Test stream '%s' seeded (status=%s)", TEST_STREAM_NAME, reg.status)
+
+    # -- Seed from StreamConfig --------------------------------------------
+
+    def seed_stream_config(self, sc: StreamConfig) -> None:
+        """Register a fully-built ``StreamConfig`` directly into the registry.
+
+        Used to seed mock/startup streams so they are included in
+        ``build_stream_configs()`` alongside any streams added later.
+        Overwrites any existing stream with the same name.
+        """
+        with self._lock:
+            reg = StreamRegistration(
+                stream_name=sc.stream_name,
+                key_cols=list(sc.key_cols),
+                scale=sc.scale,
+                offset=sc.offset,
+                exponent=sc.exponent,
+                block=sc.block,
+                snapshot_rows=sc.snapshot.to_dicts(),
+            )
+            self._streams[sc.stream_name] = reg
+            log.info("Stream seeded from StreamConfig: %s (status=%s)", sc.stream_name, reg.status)
 
     # -- Read ---------------------------------------------------------------
 

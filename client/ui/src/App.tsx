@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState } from "react";
 import { Responsive, useContainerWidth, verticalCompactor } from "react-grid-layout";
 import type { Layout, LayoutItem } from "react-grid-layout";
 import { IngestionSidebar } from "./components/IngestionSidebar";
@@ -8,6 +8,7 @@ import { UpdatesFeed } from "./components/UpdatesFeed";
 import { LlmChat } from "./components/LlmChat";
 import { DailyWrap } from "./components/DailyWrap";
 import { PipelineChart } from "./components/PipelineChart";
+import { BlockTable } from "./components/BlockTable";
 import { ApiDocs } from "./components/ApiDocs";
 import { PanelWindow } from "./components/PanelWindow";
 import { useLayout, PANEL_LABELS } from "./providers/LayoutProvider";
@@ -23,34 +24,15 @@ const PANEL_COMPONENT: Record<PanelType, React.FC> = {
   chat: LlmChat,
   wrap: DailyWrap,
   pipeline: PipelineChart,
+  blocks: BlockTable,
 };
 
-const FALLBACK_ROW_HEIGHT = 60;
-const MARGIN_Y = 1;
+const ROW_HEIGHT = 60;
 
 export default function App() {
   const [page, setPage] = useState<AppPage>("dashboard");
   const { panels, layout, removePanel, onLayoutChange } = useLayout();
   const { width, containerRef, mounted } = useContainerWidth();
-  const [containerHeight, setContainerHeight] = useState(0);
-  const heightRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const node = heightRef.current;
-    if (!node) return;
-    const ro = new ResizeObserver(([entry]) => setContainerHeight(entry.contentRect.height));
-    ro.observe(node);
-    return () => ro.disconnect();
-  }, [mounted]);
-
-  const maxRow = useMemo(
-    () => layout.reduce((max, item) => Math.max(max, item.y + item.h), 0) || 1,
-    [layout],
-  );
-
-  const rowHeight = containerHeight > 0
-    ? (containerHeight - (maxRow - 1) * MARGIN_Y) / maxRow
-    : FALLBACK_ROW_HEIGHT;
 
   const layouts = useMemo(() => ({ lg: layout as unknown as Layout }), [layout]);
 
@@ -66,11 +48,8 @@ export default function App() {
         </div>
       ) : (
         <div
-          ref={(node) => {
-            (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-            heightRef.current = node;
-          }}
-          className="min-h-0 flex-1 overflow-hidden"
+          ref={containerRef as React.RefObject<HTMLDivElement>}
+          className="min-h-0 flex-1 overflow-y-auto"
         >
           {mounted && (
             <Responsive
@@ -79,7 +58,7 @@ export default function App() {
               layouts={layouts}
               breakpoints={{ lg: 0 }}
               cols={{ lg: 12 }}
-              rowHeight={rowHeight}
+              rowHeight={ROW_HEIGHT}
               dragConfig={{ handle: ".panel-drag-handle" }}
               compactor={verticalCompactor}
               onLayoutChange={(current: Layout) => onLayoutChange([...current] as LayoutItem[])}

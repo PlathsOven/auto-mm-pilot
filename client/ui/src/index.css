@@ -34,6 +34,10 @@
   .row-highlight {
     animation: fade-highlight 2s ease-out forwards;
   }
+
+  .form-input {
+    @apply w-full rounded-md border border-mm-border/60 bg-mm-bg px-2 py-1 text-[10px] text-mm-text outline-none transition-colors placeholder:text-mm-text-dim/50 focus:border-mm-accent/60 focus:ring-1 focus:ring-mm-accent/20;
+  }
 }
 
 /* Markdown prose inside APT chat messages */

@@ -230,6 +230,37 @@ export interface CurrentBlockDecomposition {
   var: number;
 }
 
+/** A single row in the block configuration table */
+export interface BlockRow {
+  block_name: string;
+  stream_name: string;
+  symbol: string;
+  expiry: string;
+  space_id: string;
+  source: "stream" | "manual";
+  // Engine parameters
+  annualized: boolean;
+  size_type: "fixed" | "relative";
+  aggregation_logic: "average" | "offset";
+  temporal_position: "static" | "shifting";
+  decay_end_size_mult: number;
+  decay_rate_prop_per_min: number;
+  var_fair_ratio: number;
+  scale: number;
+  offset: number;
+  exponent: number;
+  // Output values
+  target_value: number;
+  raw_value: number;
+  target_market_value: number | null;
+  fair: number | null;
+  market_fair: number | null;
+  var: number | null;
+  // Timing
+  start_timestamp: string | null;
+  updated_at: string | null;
+}
+
 /** Full pipeline time series response */
 export interface PipelineTimeSeriesResponse {
   symbol: string;

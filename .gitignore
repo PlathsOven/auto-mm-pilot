@@ -43,3 +43,6 @@ server/api/llm/test_data/
 # Logs
 *.log
 npm-debug.log*
+
+# LLM
+.claude/

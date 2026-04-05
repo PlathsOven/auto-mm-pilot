@@ -41,10 +41,13 @@ from server.api.models import (
     BankrollRequest,
     BankrollResponse,
     BlockConfigPayload,
+    BlockListResponse,
+    BlockRowResponse,
     CreateStreamRequest,
     InvestigateRequest,
     JustifyRequest,
     JustifyResponse,
+    ManualBlockRequest,
     MarketPricingRequest,
     MarketPricingResponse,
     SnapshotRequest,
@@ -460,8 +463,13 @@ async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
     ).drop_nulls(subset=["raw_desired_position"])
 
     if current_ts is not None:
-        bv = bv.filter(pl.col("timestamp") >= current_ts)
-        pd = pd.filter(pl.col("timestamp") >= current_ts)
+        bv_sliced = bv.filter(pl.col("timestamp") >= current_ts)
+        pd_sliced = pd.filter(pl.col("timestamp") >= current_ts)
+        # If the ticker has advanced past this instrument's last timestamp,
+        # fall back to the full (unfiltered) data instead of returning 404.
+        if not bv_sliced.is_empty() or not pd_sliced.is_empty():
+            bv = bv_sliced
+            pd = pd_sliced
 
     if bv.is_empty() and pd.is_empty():
         raise HTTPException(status_code=404, detail=f"No data for {symbol}/{expiry}")
@@ -534,3 +542,177 @@ async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
             "aggregated": current_agg,
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Block configuration table
+# ---------------------------------------------------------------------------
+
+# In-memory store for manually created blocks (source="manual")
+_manual_streams: dict[str, dict] = {}
+
+
+def _blocks_from_pipeline() -> list[BlockRowResponse]:
+    """Serialize the current blocks_df + block_var_df into BlockRowResponse list."""
+    results = get_pipeline_results()
+    if results is None:
+        return []
+
+    blocks_df = results["blocks_df"]
+    block_var_df = results.get("block_var_df")
+
+    # Get latest fair/market_fair/var per block from block_var_df (first timestamp = current tick)
+    latest_vars: dict[str, dict[str, float]] = {}
+    if block_var_df is not None and block_var_df.height > 0:
+        current_ts = get_current_tick_ts()
+        if current_ts is not None:
+            at_tick = block_var_df.filter(pl.col("timestamp") == current_ts)
+        else:
+            first_ts = block_var_df["timestamp"].min()
+            at_tick = block_var_df.filter(pl.col("timestamp") == first_ts)
+        for row in at_tick.iter_rows(named=True):
+            latest_vars[row["block_name"]] = {
+                "fair": row.get("fair"),
+                "market_fair": row.get("market_fair"),
+                "var": row.get("var"),
+            }
+
+    rows: list[BlockRowResponse] = []
+    for row in blocks_df.iter_rows(named=True):
+        bn = row["block_name"]
+        sn = row["stream_name"]
+        lv = latest_vars.get(bn, {})
+
+        start_ts = row.get("start_timestamp")
+        start_str = start_ts.isoformat() if hasattr(start_ts, "isoformat") and start_ts is not None else None
+
+        source = "manual" if sn in _manual_streams else "stream"
+
+        # Serialize expiry (may be datetime or string)
+        raw_expiry = row.get("expiry")
+        expiry_str = raw_expiry.isoformat() if hasattr(raw_expiry, "isoformat") and raw_expiry is not None else str(raw_expiry) if raw_expiry is not None else ""
+
+        rows.append(BlockRowResponse(
+            block_name=bn,
+            stream_name=sn,
+            symbol=row.get("symbol", ""),
+            expiry=expiry_str,
+            space_id=row["space_id"],
+            source=source,
+            annualized=row["annualized"],
+            size_type=row["size_type"],
+            aggregation_logic=row["aggregation_logic"],
+            temporal_position=row["temporal_position"],
+            decay_end_size_mult=row["decay_end_size_mult"],
+            decay_rate_prop_per_min=row["decay_rate_prop_per_min"],
+            var_fair_ratio=row["var_fair_ratio"],
+            scale=row["scale"],
+            offset=row["offset"],
+            exponent=row["exponent"],
+            target_value=row["target_value"],
+            raw_value=row["raw_value"],
+            target_market_value=row.get("target_market_value"),
+            fair=lv.get("fair"),
+            market_fair=lv.get("market_fair"),
+            var=lv.get("var"),
+            start_timestamp=start_str,
+            updated_at=_dt.now().isoformat(),
+        ))
+    return rows
+
+
+@app.get("/api/blocks", response_model=BlockListResponse)
+async def list_blocks() -> BlockListResponse:
+    """Return all blocks from the current pipeline run."""
+    return BlockListResponse(blocks=_blocks_from_pipeline())
+
+
+@app.post("/api/blocks", response_model=BlockRowResponse, status_code=201)
+async def create_manual_block(req: ManualBlockRequest) -> BlockRowResponse:
+    """Create a manual block by registering a stream, configuring it, and re-running the pipeline."""
+    registry = get_stream_registry()
+
+    # Create the stream
+    try:
+        registry.create(req.stream_name, req.key_cols)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    # Configure it with the provided block params
+    try:
+        block = BlockConfig(
+            annualized=req.block.annualized,
+            size_type=req.block.size_type,
+            aggregation_logic=req.block.aggregation_logic,
+            temporal_position=req.block.temporal_position,
+            decay_end_size_mult=req.block.decay_end_size_mult,
+            decay_rate_prop_per_min=req.block.decay_rate_prop_per_min,
+            decay_profile=req.block.decay_profile,
+            var_fair_ratio=req.block.var_fair_ratio,
+        )
+    except (AssertionError, ValueError) as exc:
+        registry.delete(req.stream_name)
+        raise HTTPException(status_code=422, detail=f"Invalid BlockConfig: {exc}") from exc
+
+    try:
+        registry.configure(
+            req.stream_name,
+            scale=req.scale,
+            offset=req.offset,
+            exponent=req.exponent,
+            block=block,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    # Ingest snapshot rows
+    try:
+        registry.ingest_snapshot(req.stream_name, req.snapshot_rows)
+    except (KeyError, ValueError) as exc:
+        registry.delete(req.stream_name)
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # Track as manual
+    _manual_streams[req.stream_name] = {"created_at": _dt.now().isoformat()}
+
+    # Re-run pipeline
+    stream_configs = registry.build_stream_configs()
+    if stream_configs:
+        try:
+            rerun_pipeline(stream_configs)
+            await restart_ticker()
+        except Exception as exc:
+            log.exception("Pipeline re-run failed after manual block creation")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Block created but pipeline re-run failed: {exc}",
+            ) from exc
+
+    # Return the newly created block from the refreshed pipeline
+    all_blocks = _blocks_from_pipeline()
+    for b in all_blocks:
+        if b.stream_name == req.stream_name:
+            return b
+
+    # Fallback: return a stub if pipeline didn't produce the block yet
+    return BlockRowResponse(
+        block_name=req.stream_name,
+        stream_name=req.stream_name,
+        symbol="",
+        expiry="",
+        space_id="unknown",
+        source="manual",
+        annualized=req.block.annualized,
+        size_type=req.block.size_type,
+        aggregation_logic=req.block.aggregation_logic,
+        temporal_position=req.block.temporal_position,
+        decay_end_size_mult=req.block.decay_end_size_mult,
+        decay_rate_prop_per_min=req.block.decay_rate_prop_per_min,
+        var_fair_ratio=req.block.var_fair_ratio,
+        scale=req.scale,
+        offset=req.offset,
+        exponent=req.exponent,
+        target_value=0.0,
+        raw_value=0.0,
+        updated_at=_dt.now().isoformat(),
+    )

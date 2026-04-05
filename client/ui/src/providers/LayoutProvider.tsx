@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { LayoutItem } from "react-grid-layout";
 
-export type PanelType = "streams" | "positions" | "updates" | "chat" | "wrap" | "pipeline";
+export type PanelType = "streams" | "positions" | "updates" | "chat" | "wrap" | "pipeline" | "blocks";
 
 export interface PanelInstance {
   id: string;
@@ -15,6 +15,7 @@ export const PANEL_LABELS: Record<PanelType, string> = {
   chat: "Team Chat",
   wrap: "Daily Trading Wrap",
   pipeline: "Pipeline Analysis",
+  blocks: "Block Configuration",
 };
 
 const DEFAULT_SIZES: Record<PanelType, { w: number; h: number }> = {
@@ -24,6 +25,7 @@ const DEFAULT_SIZES: Record<PanelType, { w: number; h: number }> = {
   chat: { w: 3, h: 5 },
   wrap: { w: 6, h: 4 },
   pipeline: { w: 9, h: 8 },
+  blocks: { w: 12, h: 6 },
 };
 
 const DEFAULT_PANELS: PanelInstance[] = [
