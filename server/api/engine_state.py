@@ -251,6 +251,12 @@ def get_snapshot_buffer() -> SnapshotRingBuffer | None:
     return _snapshot_buffer
 
 
+def get_market_pricing() -> dict[str, float]:
+    """Return a copy of the current market pricing dict."""
+    _maybe_init()
+    return dict(_market_pricing)
+
+
 def get_mock_now() -> datetime:
     """Return the mock 'now' timestamp used by the engine state provider."""
     return _mock_now

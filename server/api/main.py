@@ -23,6 +23,7 @@ Run:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime as _dt
@@ -49,6 +50,7 @@ from server.api.models import (
     JustifyResponse,
     ManualBlockRequest,
     MarketPricingRequest,
+    UpdateBlockRequest,
     MarketPricingResponse,
     SnapshotRequest,
     SnapshotResponse,
@@ -62,6 +64,7 @@ from server.api.ws import pipeline_ws, restart_ticker, get_current_tick_ts
 
 from server.api.engine_state import (
     get_engine_state,
+    get_market_pricing,
     get_mock_now,
     get_pipeline_results,
     get_pipeline_snapshot,
@@ -332,7 +335,7 @@ async def ingest_snapshot(req: SnapshotRequest) -> SnapshotResponse:
     pipeline_rerun = False
     if stream_configs:
         try:
-            rerun_pipeline(stream_configs)
+            await asyncio.to_thread(rerun_pipeline, stream_configs)
             await restart_ticker()
             pipeline_rerun = True
         except Exception as exc:
@@ -353,6 +356,12 @@ async def ingest_snapshot(req: SnapshotRequest) -> SnapshotResponse:
 # Market pricing
 # ---------------------------------------------------------------------------
 
+@app.get("/api/market-pricing")
+async def read_market_pricing() -> dict:
+    """Return the current market pricing dict (all space_id → price entries)."""
+    return {"pricing": get_market_pricing()}
+
+
 @app.post("/api/market-pricing", response_model=MarketPricingResponse)
 async def update_market_pricing(req: MarketPricingRequest) -> MarketPricingResponse:
     """Merge new market pricing entries and re-run pipeline if streams are available."""
@@ -361,7 +370,7 @@ async def update_market_pricing(req: MarketPricingRequest) -> MarketPricingRespo
     pipeline_rerun = False
     if stream_configs:
         try:
-            rerun_pipeline(stream_configs, market_pricing=req.pricing)
+            await asyncio.to_thread(rerun_pipeline, stream_configs, market_pricing=req.pricing)
             await restart_ticker()
             pipeline_rerun = True
         except Exception as exc:
@@ -394,7 +403,7 @@ async def update_bankroll(req: BankrollRequest) -> BankrollResponse:
     pipeline_rerun = False
     if stream_configs:
         try:
-            rerun_pipeline(stream_configs, bankroll=req.bankroll)
+            await asyncio.to_thread(rerun_pipeline, stream_configs, bankroll=req.bankroll)
             await restart_ticker()
             pipeline_rerun = True
         except Exception as exc:
@@ -680,7 +689,7 @@ async def create_manual_block(req: ManualBlockRequest) -> BlockRowResponse:
     stream_configs = registry.build_stream_configs()
     if stream_configs:
         try:
-            rerun_pipeline(stream_configs)
+            await asyncio.to_thread(rerun_pipeline, stream_configs)
             await restart_ticker()
         except Exception as exc:
             log.exception("Pipeline re-run failed after manual block creation")
@@ -717,3 +726,68 @@ async def create_manual_block(req: ManualBlockRequest) -> BlockRowResponse:
         raw_value=0.0,
         updated_at=_dt.now().isoformat(),
     )
+
+
+@app.patch("/api/blocks/{stream_name}", response_model=BlockRowResponse)
+async def update_block(stream_name: str, req: UpdateBlockRequest) -> BlockRowResponse:
+    """Update an existing block's configuration and/or snapshot, then re-run pipeline."""
+    registry = get_stream_registry()
+
+    reg = registry.get(stream_name)
+    if reg is None:
+        raise HTTPException(status_code=404, detail=f"Stream '{stream_name}' not found")
+    if reg.status != "READY":
+        raise HTTPException(status_code=422, detail=f"Stream '{stream_name}' is not READY")
+
+    # Build updated config from existing + patches
+    scale = req.scale if req.scale is not None else reg.scale
+    offset = req.offset if req.offset is not None else reg.offset
+    exponent = req.exponent if req.exponent is not None else reg.exponent
+
+    if req.block is not None:
+        try:
+            block = BlockConfig(
+                annualized=req.block.annualized,
+                size_type=req.block.size_type,
+                aggregation_logic=req.block.aggregation_logic,
+                temporal_position=req.block.temporal_position,
+                decay_end_size_mult=req.block.decay_end_size_mult,
+                decay_rate_prop_per_min=req.block.decay_rate_prop_per_min,
+                decay_profile=req.block.decay_profile,
+                var_fair_ratio=req.block.var_fair_ratio,
+            )
+        except (AssertionError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=f"Invalid BlockConfig: {exc}") from exc
+    else:
+        block = reg.block
+
+    assert scale is not None and offset is not None and exponent is not None and block is not None
+    registry.configure(stream_name, scale=scale, offset=offset, exponent=exponent, block=block)
+
+    # Update snapshot if provided
+    if req.snapshot_rows is not None:
+        try:
+            registry.ingest_snapshot(stream_name, req.snapshot_rows)
+        except (KeyError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # Re-run pipeline
+    stream_configs = registry.build_stream_configs()
+    if stream_configs:
+        try:
+            await asyncio.to_thread(rerun_pipeline, stream_configs)
+            await restart_ticker()
+        except Exception as exc:
+            log.exception("Pipeline re-run failed after block update")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Block updated but pipeline re-run failed: {exc}",
+            ) from exc
+
+    # Return the updated block
+    all_blocks = _blocks_from_pipeline()
+    for b in all_blocks:
+        if b.stream_name == stream_name:
+            return b
+
+    raise HTTPException(status_code=404, detail=f"Block '{stream_name}' not found in pipeline results")

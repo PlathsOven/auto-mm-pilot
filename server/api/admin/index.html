@@ -408,8 +408,19 @@ function esc(str) {
 // Init
 // ---------------------------------------------------------------------------
 
+async function loadPricing() {
+  try {
+    const data = await apiFetch('/api/market-pricing');
+    pricingData = data.pricing || {};
+    renderPricingRows();
+  } catch (err) {
+    showToast(`Failed to load pricing: ${err.message}`, 'error');
+    renderPricingRows();
+  }
+}
+
 loadStreams();
-renderPricingRows();
+loadPricing();
 </script>
 
 </body>

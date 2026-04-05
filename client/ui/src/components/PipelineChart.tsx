@@ -257,23 +257,36 @@ export function PipelineChart() {
   const [sidebarWidth, setSidebarWidth] = useState(176); // default w-44 = 11rem = 176px
   const dragRef = useRef<{ startX: number; startW: number } | null>(null);
 
-  // Fetch available dimensions on mount
+  // Fetch available dimensions on mount + poll every 5s
   useEffect(() => {
     let cancelled = false;
-    fetchDimensions()
-      .then((dims) => {
-        if (cancelled) return;
-        setDimensions(dims);
-        if (dims.length > 0 && !selected) setSelected(dims[0]);
-        if (dims.length === 0) setLoading(false);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-          setLoading(false);
-        }
-      });
-    return () => { cancelled = true; };
+
+    const doFetch = () => {
+      fetchDimensions()
+        .then((dims) => {
+          if (cancelled) return;
+          setDimensions(dims);
+          setSelected((prev) => {
+            if (!prev && dims.length > 0) return dims[0];
+            if (prev && !dims.some((d) => d.symbol === prev.symbol && d.expiry === prev.expiry)) {
+              return dims.length > 0 ? dims[0] : null;
+            }
+            return prev;
+          });
+          if (dims.length === 0) setLoading(false);
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : String(err));
+            setLoading(false);
+          }
+        });
+    };
+
+    doFetch();
+    const interval = setInterval(doFetch, 5000);
+
+    return () => { cancelled = true; clearInterval(interval); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch time series on selection change + poll every 2s to track ticks

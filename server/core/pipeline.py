@@ -14,8 +14,11 @@ Polars DataFrames.
 from __future__ import annotations
 
 import datetime as dt
+import logging
 
 import polars as pl
+
+log = logging.getLogger(__name__)
 
 from server.core.config import SECONDS_PER_YEAR, StreamConfig
 from server.core.helpers import annualize, deannualize, raw_to_target_expr
@@ -113,7 +116,10 @@ def attach_market_values(
     """
     missing = set(blocks_df["space_id"].unique().to_list()) - set(market_pricing.keys())
     if missing:
-        raise ValueError(f"Missing market pricing for spaces: {missing}")
+        log.warning("Missing market pricing for spaces: %s — defaulting to 0.0", missing)
+        market_pricing = dict(market_pricing)
+        for sid in missing:
+            market_pricing[sid] = 0.0
 
     market_df = pl.DataFrame({
         "space_id": list(market_pricing.keys()),
