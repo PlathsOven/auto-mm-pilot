@@ -355,9 +355,7 @@ async def ingest_snapshot(req: SnapshotRequest) -> SnapshotResponse:
 
 @app.post("/api/market-pricing", response_model=MarketPricingResponse)
 async def update_market_pricing(req: MarketPricingRequest) -> MarketPricingResponse:
-    """Update market pricing and re-run pipeline if streams are available."""
-    set_market_pricing(req.pricing)
-
+    """Merge new market pricing entries and re-run pipeline if streams are available."""
     registry = get_stream_registry()
     stream_configs = registry.build_stream_configs()
     pipeline_rerun = False
@@ -372,6 +370,9 @@ async def update_market_pricing(req: MarketPricingRequest) -> MarketPricingRespo
                 status_code=500,
                 detail=f"Pricing updated but pipeline re-run failed: {exc}",
             ) from exc
+    else:
+        # No streams ready yet — store pricing for use in future pipeline runs
+        set_market_pricing(req.pricing)
 
     return MarketPricingResponse(
         spaces_updated=len(req.pricing),

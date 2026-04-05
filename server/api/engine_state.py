@@ -63,51 +63,25 @@ _market_pricing: dict[str, float] = dict(MOCK_MARKET_PRICING)
 # ---------------------------------------------------------------------------
 
 def _init_mock() -> None:
-    """Run the pipeline once with mock scenario data."""
-    global _snapshot_buffer, _pipeline_snapshot, _engine_state, _pipeline_results
+    """Seed mock streams into the registry and run the pipeline.
 
-    log.info("Running core pipeline with mock scenario data…")
+    Uses ``rerun_pipeline()`` so the startup path and subsequent re-runs
+    share the exact same code — mock streams live in the registry and
+    are included in every future ``build_stream_configs()`` call.
+    """
+    log.info("Seeding mock streams into registry…")
 
-    # Seed mock streams into the registry so they persist across pipeline reruns
     from server.api.stream_registry import get_stream_registry
     registry = get_stream_registry()
     for sc in MOCK_STREAMS:
         registry.seed_stream_config(sc)
 
-    _pipeline_results = run_pipeline(
-        streams=MOCK_STREAMS,
-        market_pricing=MOCK_MARKET_PRICING,
-        risk_dimension_cols=MOCK_RISK_DIMENSION_COLS,
-        now=MOCK_NOW,
-        bankroll=MOCK_BANKROLL,
-        smoothing_hl_secs=MOCK_SMOOTHING_HL_SECS,
-        time_grid_interval=MOCK_TIME_GRID_INTERVAL,
-    )
+    stream_configs = registry.build_stream_configs()
+    if not stream_configs:
+        log.error("No READY streams after seeding — mock init aborted")
+        return
 
-    log.info("Pipeline complete. Serializing snapshot at T=%s", _mock_now)
-
-    _pipeline_snapshot = snapshot_from_pipeline(
-        results=_pipeline_results,
-        timestamp=_mock_now,
-        risk_dimension_cols=MOCK_RISK_DIMENSION_COLS,
-        bankroll=MOCK_BANKROLL,
-        smoothing_hl_secs=MOCK_SMOOTHING_HL_SECS,
-        now=MOCK_NOW,
-    )
-
-    _engine_state = engine_state_from_pipeline(
-        results=_pipeline_results,
-        timestamp=_mock_now,
-        risk_dimension_cols=MOCK_RISK_DIMENSION_COLS,
-    )
-
-    buf_config = SnapshotBufferConfig(
-        max_snapshots=SNAPSHOT_BUFFER_MAX_DEFAULT,
-        lookback_offsets_seconds=SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT,
-    )
-    _snapshot_buffer = SnapshotRingBuffer(buf_config)
-    _snapshot_buffer.push(_mock_now, _pipeline_snapshot)
-
+    rerun_pipeline(stream_configs)
     log.info("Engine state initialized from mock pipeline.")
 
 
@@ -127,7 +101,7 @@ def rerun_pipeline(
     streams : list[StreamConfig]
         Built from the stream registry (``registry.build_stream_configs()``).
     market_pricing : dict[str, float] | None
-        If provided, replaces the stored market pricing.
+        If provided, merged into the stored market pricing.
     bankroll : float | None
         If provided, replaces the stored bankroll.
 
@@ -147,7 +121,7 @@ def rerun_pipeline(
         raise ValueError("Cannot rerun pipeline with zero streams")
 
     if market_pricing is not None:
-        _market_pricing = dict(market_pricing)
+        _market_pricing.update(market_pricing)
     if bankroll is not None:
         _bankroll = bankroll
 
@@ -230,10 +204,15 @@ def set_bankroll(value: float) -> None:
 
 
 def set_market_pricing(pricing: dict[str, float]) -> None:
-    """Replace market pricing (does NOT trigger a pipeline re-run)."""
+    """Merge new entries into market pricing (does NOT trigger a pipeline re-run).
+
+    Uses ``update()`` so that existing entries (e.g. mock pricing for
+    "shifting" / "static_*") are preserved when clients add pricing for
+    new space IDs.
+    """
     global _market_pricing
-    _market_pricing = dict(pricing)
-    log.info("Market pricing updated: %d spaces", len(pricing))
+    _market_pricing.update(pricing)
+    log.info("Market pricing merged: %d new/updated entries, %d total", len(pricing), len(_market_pricing))
 
 
 # ---------------------------------------------------------------------------
