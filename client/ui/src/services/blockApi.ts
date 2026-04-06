@@ -39,6 +39,7 @@ export interface ManualBlockPayload {
     var_fair_ratio: number;
   };
   snapshot_rows: Record<string, unknown>[];
+  space_id?: string;
 }
 
 export async function createManualBlock(

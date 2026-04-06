@@ -201,6 +201,8 @@ interface NewBlockDraft {
   expiry: string;
   raw_value: string;
   timestamp: string;
+  // Optional space_id override (blank = auto-computed)
+  space_id: string;
 }
 
 const EMPTY_DRAFT: NewBlockDraft = {
@@ -219,6 +221,7 @@ const EMPTY_DRAFT: NewBlockDraft = {
   expiry: "",
   raw_value: "",
   timestamp: new Date().toISOString().slice(0, 16),
+  space_id: "",
 };
 
 // ---------------------------------------------------------------------------
@@ -352,12 +355,14 @@ export function BlockTable() {
             raw_value: parseFloat(draft.raw_value),
           },
         ],
+        ...(draft.space_id.trim() ? { space_id: draft.space_id.trim() } : {}),
       };
 
-      await createManualBlock(payload);
+      const newBlock = await createManualBlock(payload);
+      setBlocks((prev) => [...prev, newBlock]);
       setDraft({ ...EMPTY_DRAFT });
       setShowForm(false);
-      await loadBlocks();
+      // Polling will refresh with real computed values once the background pipeline finishes
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err);
       // Try to extract the "detail" field from a JSON error body like '422: {"detail":"..."}'
@@ -712,7 +717,7 @@ const DRAFT_CELL_MAP: Record<
   symbol: { kind: "text", field: "symbol", placeholder: "BTC" },
   expiry: { kind: "datetime", field: "expiry" },
   source: { kind: "readonly", text: "manual" },
-  space_id: { kind: "readonly", text: "—" },
+  space_id: { kind: "text", field: "space_id", placeholder: "auto" },
   annualized: {
     kind: "select", field: "annualized",
     options: [{ value: "true", label: "Yes" }, { value: "false", label: "No" }],

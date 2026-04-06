@@ -53,6 +53,9 @@ class StreamRegistration:
     # Latest snapshot rows (list of dicts, set via API)
     snapshot_rows: list[dict[str, Any]] = field(default_factory=list)
 
+    # Optional space_id override (bypasses auto-computation from temporal_position)
+    space_id_override: str | None = None
+
     @property
     def status(self) -> str:
         if self.scale is None or self.block is None:
@@ -90,6 +93,7 @@ class StreamRegistration:
             offset=self.offset,
             exponent=self.exponent,
             block=self.block,
+            space_id_override=self.space_id_override,
         )
 
 
