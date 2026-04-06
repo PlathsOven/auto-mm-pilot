@@ -56,6 +56,7 @@ _mock_now: datetime = datetime(2026, 1, 1, 17, 0, 0)
 # Client-settable parameters (initialised from mock defaults)
 _bankroll: float = MOCK_BANKROLL
 _market_pricing: dict[str, float] = dict(MOCK_MARKET_PRICING)
+_transform_config: dict[str, Any] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -93,6 +94,7 @@ def rerun_pipeline(
     streams: list[Any],
     market_pricing: dict[str, float] | None = None,
     bankroll: float | None = None,
+    transform_config: dict[str, Any] | None = None,
 ) -> dict[str, pl.DataFrame]:
     """Re-run the full pipeline with the given streams and update all state.
 
@@ -115,7 +117,7 @@ def rerun_pipeline(
     ValueError
         If ``streams`` is empty or the pipeline fails.
     """
-    global _snapshot_buffer, _pipeline_snapshot, _engine_state, _pipeline_results, _bankroll, _market_pricing
+    global _snapshot_buffer, _pipeline_snapshot, _engine_state, _pipeline_results, _bankroll, _market_pricing, _transform_config
 
     if not streams:
         raise ValueError("Cannot rerun pipeline with zero streams")
@@ -124,6 +126,8 @@ def rerun_pipeline(
         _market_pricing.update(market_pricing)
     if bankroll is not None:
         _bankroll = bankroll
+    if transform_config is not None:
+        _transform_config = transform_config
 
     now = MOCK_NOW if APT_MODE == "mock" else datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -143,6 +147,7 @@ def rerun_pipeline(
         bankroll=_bankroll,
         smoothing_hl_secs=SMOOTHING_HL_SECS,
         time_grid_interval=TIME_GRID_INTERVAL,
+        transform_config=_transform_config,
     )
 
     _pipeline_snapshot = snapshot_from_pipeline(
@@ -242,3 +247,15 @@ def get_market_pricing() -> dict[str, float]:
 def get_mock_now() -> datetime:
     """Return the mock 'now' timestamp used by the engine state provider."""
     return _mock_now
+
+
+def get_transform_config() -> dict[str, Any] | None:
+    """Return the current transform configuration dict."""
+    return _transform_config
+
+
+def set_transform_config(config: dict[str, Any]) -> None:
+    """Update the stored transform configuration."""
+    global _transform_config
+    _transform_config = config
+    log.info("Transform config updated: %s", list(config.keys()))

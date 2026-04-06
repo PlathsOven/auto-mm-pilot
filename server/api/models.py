@@ -244,3 +244,57 @@ class ClientWsError(BaseModel):
     type: Literal["error"] = "error"
     seq: int | None = Field(None, description="Sequence number if parseable, else null")
     detail: str
+
+
+# ---------------------------------------------------------------------------
+# Transform configuration
+# ---------------------------------------------------------------------------
+
+class TransformParamResponse(BaseModel):
+    """Schema for one user-configurable parameter of a transform function."""
+    name: str
+    type: str
+    default: Any
+    description: str = ""
+    min: float | None = None
+    max: float | None = None
+    options: list[str] | None = None
+
+
+class TransformResponse(BaseModel):
+    """A single registered transform function."""
+    name: str
+    description: str
+    params: list[TransformParamResponse]
+
+
+class TransformStepResponse(BaseModel):
+    """A pipeline step with its available transforms and current selection."""
+    label: str
+    contract: str
+    selected: str
+    params: dict[str, Any]
+    transforms: list[TransformResponse]
+
+
+class TransformListResponse(BaseModel):
+    """All pipeline steps with their transform libraries."""
+    steps: dict[str, TransformStepResponse]
+
+
+class TransformConfigRequest(BaseModel):
+    """Update transform selections and/or parameter values."""
+    unit_conversion: str | None = None
+    unit_conversion_params: dict[str, Any] | None = None
+    decay_profile: str | None = None
+    decay_profile_params: dict[str, Any] | None = None
+    temporal_fair_value: str | None = None
+    temporal_fair_value_params: dict[str, Any] | None = None
+    variance: str | None = None
+    variance_params: dict[str, Any] | None = None
+    aggregation: str | None = None
+    aggregation_params: dict[str, Any] | None = None
+    position_sizing: str | None = None
+    position_sizing_params: dict[str, Any] | None = None
+    smoothing: str | None = None
+    smoothing_params: dict[str, Any] | None = None

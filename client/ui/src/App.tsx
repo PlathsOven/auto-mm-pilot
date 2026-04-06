@@ -9,6 +9,7 @@ import { LlmChat } from "./components/LlmChat";
 import { DailyWrap } from "./components/DailyWrap";
 import { PipelineChart } from "./components/PipelineChart";
 import { BlockTable } from "./components/BlockTable";
+import { TransformConfigPanel } from "./components/TransformConfigPanel";
 import { ApiDocs } from "./components/ApiDocs";
 import { PanelWindow } from "./components/PanelWindow";
 import { useLayout, PANEL_LABELS } from "./providers/LayoutProvider";
@@ -25,6 +26,7 @@ const PANEL_COMPONENT: Record<PanelType, React.FC> = {
   wrap: DailyWrap,
   pipeline: PipelineChart,
   blocks: BlockTable,
+  transforms: TransformConfigPanel,
 };
 
 const ROW_HEIGHT = 60;
