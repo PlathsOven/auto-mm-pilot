@@ -197,6 +197,10 @@ class ManualBlockRequest(BaseModel):
         min_length=1,
         description="Snapshot rows with timestamp, raw_value, and all key_cols",
     )
+    space_id: str | None = Field(
+        default=None,
+        description="Optional custom space_id (overrides auto-computed value from temporal_position).",
+    )
 
 
 class UpdateBlockRequest(BaseModel):

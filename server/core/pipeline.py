@@ -63,8 +63,10 @@ def build_blocks_df(
         for row in snap.iter_rows(named=True):
             block_name = "_".join([sc.stream_name] + [str(row[k]) for k in extra_keys])
 
-            # Assign space_id
-            if sc.block.temporal_position == "shifting":
+            # Assign space_id (with optional override from StreamConfig)
+            if sc.space_id_override is not None:
+                space_id = sc.space_id_override
+            elif sc.block.temporal_position == "shifting":
                 space_id = "shifting"
             else:
                 st = row["start_timestamp"]

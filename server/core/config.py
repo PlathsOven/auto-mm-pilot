@@ -68,3 +68,4 @@ class StreamConfig:
     offset: float = 0.0
     exponent: float = 1.0
     block: BlockConfig = field(default_factory=BlockConfig)
+    space_id_override: str | None = None

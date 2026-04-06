@@ -47,10 +47,19 @@ def _positions_at_tick(
     timestamp: datetime,
     prev_positions: dict[str, float],
 ) -> list[dict[str, Any]]:
-    """Build the ``positions`` array for a single tick."""
-    rows = desired_pos_df.filter(pl.col("timestamp") == timestamp)
-    positions: list[dict[str, Any]] = []
+    """Build the ``positions`` array for a single tick.
 
+    Uses "latest at or before" semantics per risk dimension so that
+    dimensions with different time grids always have data.
+    """
+    at_or_before = desired_pos_df.filter(pl.col("timestamp") <= timestamp)
+    if at_or_before.is_empty():
+        return []
+
+    # Per (symbol, expiry), take the row with the latest timestamp
+    rows = at_or_before.sort("timestamp").group_by(["symbol", "expiry"]).agg(pl.all().last())
+
+    positions: list[dict[str, Any]] = []
     for row in rows.iter_rows(named=True):
         key = f"{row['symbol']}-{_format_expiry(row['expiry'])}"
         prev_desired = prev_positions.get(key, row["smoothed_desired_position"])

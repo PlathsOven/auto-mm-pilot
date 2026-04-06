@@ -571,21 +571,31 @@ def _blocks_from_pipeline() -> list[BlockRowResponse]:
     blocks_df = results["blocks_df"]
     block_var_df = results.get("block_var_df")
 
-    # Get latest fair/market_fair/var per block from block_var_df (first timestamp = current tick)
+    # Get latest fair/market_fair/var per block from block_var_df.
+    # Use per-block "latest at or before current_ts" so blocks from different
+    # risk dimensions (with different time grids) always have data.
     latest_vars: dict[str, dict[str, float]] = {}
     if block_var_df is not None and block_var_df.height > 0:
         current_ts = get_current_tick_ts()
-        if current_ts is not None:
-            at_tick = block_var_df.filter(pl.col("timestamp") == current_ts)
-        else:
-            first_ts = block_var_df["timestamp"].min()
-            at_tick = block_var_df.filter(pl.col("timestamp") == first_ts)
-        for row in at_tick.iter_rows(named=True):
-            latest_vars[row["block_name"]] = {
-                "fair": row.get("fair"),
-                "market_fair": row.get("market_fair"),
-                "var": row.get("var"),
-            }
+        for bn in block_var_df["block_name"].unique().to_list():
+            block_slice = block_var_df.filter(pl.col("block_name") == bn)
+            if current_ts is not None:
+                at_or_before = block_slice.filter(pl.col("timestamp") <= current_ts)
+                if at_or_before.height > 0:
+                    best_ts = at_or_before["timestamp"].max()
+                    at_tick = at_or_before.filter(pl.col("timestamp") == best_ts)
+                else:
+                    first_ts = block_slice["timestamp"].min()
+                    at_tick = block_slice.filter(pl.col("timestamp") == first_ts)
+            else:
+                first_ts = block_slice["timestamp"].min()
+                at_tick = block_slice.filter(pl.col("timestamp") == first_ts)
+            for row in at_tick.iter_rows(named=True):
+                latest_vars[row["block_name"]] = {
+                    "fair": row.get("fair"),
+                    "market_fair": row.get("market_fair"),
+                    "var": row.get("var"),
+                }
 
     rows: list[BlockRowResponse] = []
     for row in blocks_df.iter_rows(named=True):
@@ -682,35 +692,39 @@ async def create_manual_block(req: ManualBlockRequest) -> BlockRowResponse:
         registry.delete(req.stream_name)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    # Apply optional space_id override
+    if req.space_id:
+        reg = registry.get(req.stream_name)
+        if reg:
+            reg.space_id_override = req.space_id
+
     # Track as manual
     _manual_streams[req.stream_name] = {"created_at": _dt.now().isoformat()}
 
-    # Re-run pipeline
+    # Fire-and-forget pipeline rerun — return the stub immediately so the
+    # client sees the block in the table within milliseconds.  Computed values
+    # (fair, market_fair, var) will populate on the next 5 s poll once the
+    # background pipeline finishes.
     stream_configs = registry.build_stream_configs()
     if stream_configs:
-        try:
-            await asyncio.to_thread(rerun_pipeline, stream_configs)
-            await restart_ticker()
-        except Exception as exc:
-            log.exception("Pipeline re-run failed after manual block creation")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Block created but pipeline re-run failed: {exc}",
-            ) from exc
+        async def _bg_rerun() -> None:
+            try:
+                await asyncio.to_thread(rerun_pipeline, stream_configs)
+                await restart_ticker()
+            except Exception:
+                log.exception("Background pipeline re-run failed after manual block creation")
+        asyncio.create_task(_bg_rerun())
 
-    # Return the newly created block from the refreshed pipeline
-    all_blocks = _blocks_from_pipeline()
-    for b in all_blocks:
-        if b.stream_name == req.stream_name:
-            return b
+    # Extract snapshot fields for the stub response
+    snap = req.snapshot_rows[0] if req.snapshot_rows else {}
+    raw_val = float(snap.get("raw_value", 0))
 
-    # Fallback: return a stub if pipeline didn't produce the block yet
     return BlockRowResponse(
         block_name=req.stream_name,
         stream_name=req.stream_name,
-        symbol="",
-        expiry="",
-        space_id="unknown",
+        symbol=str(snap.get("symbol", "")),
+        expiry=str(snap.get("expiry", "")),
+        space_id=req.space_id or "pending",
         source="manual",
         annualized=req.block.annualized,
         size_type=req.block.size_type,
@@ -723,7 +737,7 @@ async def create_manual_block(req: ManualBlockRequest) -> BlockRowResponse:
         offset=req.offset,
         exponent=req.exponent,
         target_value=0.0,
-        raw_value=0.0,
+        raw_value=raw_val,
         updated_at=_dt.now().isoformat(),
     )
 
