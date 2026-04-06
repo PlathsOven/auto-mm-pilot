@@ -27,6 +27,19 @@ export function createIdGenerator(prefix: string): () => string {
   return () => `${prefix}${++counter}`;
 }
 
+/** Converts an ISO-8601 expiry string to DDMMMYY format (e.g. "27MAR26"). */
+export function formatExpiry(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    const mon = d.toLocaleString("en", { month: "short", timeZone: "UTC" }).toUpperCase();
+    const yr = String(d.getUTCFullYear()).slice(2);
+    return `${day}${mon}${yr}`;
+  } catch {
+    return iso;
+  }
+}
+
 /** Formats a UTC timestamp (ms) as HH:MM:SS.mmm */
 export function formatUtcTime(ts: number): string {
   const d = new Date(ts);

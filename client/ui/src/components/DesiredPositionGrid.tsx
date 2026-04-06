@@ -3,6 +3,7 @@ import { useWebSocket } from "../providers/WebSocketProvider";
 import { useChat } from "../providers/ChatProvider";
 import { useLayout } from "../providers/LayoutProvider";
 import { valColor, cellBg } from "../utils";
+import { useSelection } from "../providers/SelectionProvider";
 import { getCellNotes } from "../providers/MockDataProvider";
 import { VIEW_MODE_META, TIMEFRAME_OPTIONS, getCellValue } from "./grid-config";
 import type { ViewMode, TimeframeLabel } from "./grid-config";
@@ -21,6 +22,7 @@ export function DesiredPositionGrid() {
   const { payload } = useWebSocket();
   const { investigate, openNoteThread } = useChat();
   const { panels, addPanel } = useLayout();
+  const { selectDimension, isDimensionSelected } = useSelection();
   const positions = payload?.positions ?? [];
 
   const [viewMode, setViewMode] = useState<ViewMode>("position");
@@ -181,9 +183,9 @@ export function DesiredPositionGrid() {
                     return (
                       <td
                         key={exp}
-                        onClick={() => investigate({ type: "position", asset, expiry: exp, position: cell.pos })}
+                        onClick={() => { investigate({ type: "position", asset, expiry: exp, position: cell.pos }); selectDimension(asset, exp); }}
                         onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClick(key, asset, exp, cell.pos); }}
-                        className={`relative cursor-pointer rounded px-2 py-1.5 text-center text-[11px] tabular-nums transition-colors hover:ring-1 hover:ring-mm-accent/30 ${valColor(val)} ${isRecent ? "row-highlight" : ""}`}
+                        className={`relative cursor-pointer rounded px-2 py-1.5 text-center text-[11px] tabular-nums transition-colors hover:ring-1 hover:ring-mm-accent/30 ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${isDimensionSelected(asset, exp) ? "channel-highlight-cell" : ""}`}
                         style={{ backgroundColor: cellBg(val) }}
                       >
                         {isEditing ? (

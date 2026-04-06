@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -13,6 +13,7 @@ import {
 } from "@tanstack/react-table";
 import type { BlockRow } from "../types";
 import { fetchBlocks, createManualBlock, updateBlock, type ManualBlockPayload, type UpdateBlockPayload } from "../services/blockApi";
+import { useSelection } from "../providers/SelectionProvider";
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -234,6 +235,9 @@ const EMPTY_DRAFT: NewBlockDraft = {
 // ---------------------------------------------------------------------------
 
 export function BlockTable() {
+  const { selectBlock, isBlockSelected, selectedBlocks } = useSelection();
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
   const [blocks, setBlocks] = useState<BlockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -294,6 +298,15 @@ export function BlockTable() {
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
   });
+
+  // Auto-scroll selected block row into view when selection changes externally
+  const tableRef = useRef<HTMLTableSectionElement>(null);
+  useEffect(() => {
+    if (selectedBlocks.size === 0 || !tableRef.current) return;
+    const name = [...selectedBlocks][0];
+    const row = tableRef.current.querySelector<HTMLElement>(`tr[data-block="${CSS.escape(name)}"]`);
+    row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selectedBlocks]);
 
   // Column groups for visibility dropdown
   const columnGroups = useMemo(
@@ -574,7 +587,7 @@ export function BlockTable() {
             ))}
           </thead>
 
-          <tbody>
+          <tbody ref={tableRef}>
             {loading && blocks.length === 0 ? (
               <tr>
                 <td
@@ -608,8 +621,15 @@ export function BlockTable() {
                 ) : (
                   <tr
                     key={row.id}
-                    className="border-b border-mm-border/20 transition-colors hover:bg-mm-accent/5 cursor-pointer"
-                    onDoubleClick={() => startEdit(block)}
+                    data-block={block.block_name}
+                    className={`border-b border-mm-border/20 transition-colors hover:bg-mm-accent/5 cursor-pointer ${isBlockSelected(block.block_name) ? "channel-highlight" : ""}`}
+                    onClick={() => {
+                      clearTimeout(clickTimerRef.current);
+                      clickTimerRef.current = setTimeout(() => {
+                        selectBlock(block.block_name, block.symbol, block.expiry);
+                      }, 200);
+                    }}
+                    onDoubleClick={() => { clearTimeout(clickTimerRef.current); startEdit(block); }}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <td

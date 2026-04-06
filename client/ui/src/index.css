@@ -35,6 +35,14 @@
     animation: fade-highlight 2s ease-out forwards;
   }
 
+  .channel-highlight {
+    background-color: rgba(129, 140, 248, 0.08);
+    border-left: 2.5px solid #818cf8;
+  }
+  .channel-highlight-cell {
+    box-shadow: inset 0 0 0 1.5px rgba(129, 140, 248, 0.4);
+  }
+
   .form-input {
     @apply w-full rounded-md border border-mm-border/60 bg-mm-bg px-2 py-1 text-[10px] text-mm-text outline-none transition-colors placeholder:text-mm-text-dim/50 focus:border-mm-accent/60 focus:ring-1 focus:ring-mm-accent/20;
   }
