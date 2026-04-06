@@ -631,6 +631,7 @@ def _blocks_from_pipeline() -> list[BlockRowResponse]:
             exponent=row["exponent"],
             target_value=row["target_value"],
             raw_value=row["raw_value"],
+            market_value=row.get("market_value"),
             target_market_value=row.get("target_market_value"),
             fair=lv.get("fair"),
             market_fair=lv.get("market_fair"),

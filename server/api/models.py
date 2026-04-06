@@ -171,6 +171,7 @@ class BlockRowResponse(BaseModel):
     # Output values
     target_value: float
     raw_value: float
+    market_value: float | None = None
     target_market_value: float | None = None
     fair: float | None = None
     market_fair: float | None = None

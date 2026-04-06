@@ -134,10 +134,15 @@ const columns = [
     cell: (info) => info.getValue().toFixed(6),
     size: 100,
   }),
-  columnHelper.accessor("target_market_value", {
-    header: "Mkt Value",
+  columnHelper.accessor("market_value", {
+    header: "Mkt Price",
     cell: (info) => info.getValue()?.toFixed(6) ?? "—",
     size: 90,
+  }),
+  columnHelper.accessor("target_market_value", {
+    header: "Tgt Mkt Val",
+    cell: (info) => info.getValue()?.toFixed(6) ?? "—",
+    size: 95,
   }),
   columnHelper.accessor("fair", {
     header: "Fair",
@@ -307,7 +312,7 @@ export function BlockTable() {
       },
       {
         label: "Outputs",
-        ids: ["raw_value", "target_value", "target_market_value", "fair", "market_fair", "var"],
+        ids: ["raw_value", "target_value", "market_value", "target_market_value", "fair", "market_fair", "var"],
       },
       {
         label: "Timing",
