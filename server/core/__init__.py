@@ -12,7 +12,6 @@ from server.core.serializers import engine_state_from_pipeline, snapshot_from_pi
 from server.core.transforms import (
     TransformParam,
     TransformRegistration,
-    TransformRegistry,
     StepLibrary,
     get_registry,
 )
@@ -29,7 +28,6 @@ __all__ = [
     "engine_state_from_pipeline",
     "TransformParam",
     "TransformRegistration",
-    "TransformRegistry",
     "StepLibrary",
     "get_registry",
 ]
