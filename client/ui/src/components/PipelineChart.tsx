@@ -259,12 +259,12 @@ export function PipelineChart() {
 
   // Fetch available dimensions on mount + poll every 5s
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
     const doFetch = () => {
-      fetchDimensions()
+      fetchDimensions(controller.signal)
         .then((dims) => {
-          if (cancelled) return;
+          if (controller.signal.aborted) return;
           setDimensions(dims);
           setSelected((prev) => {
             if (!prev && dims.length > 0) return dims[0];
@@ -276,46 +276,45 @@ export function PipelineChart() {
           if (dims.length === 0) setLoading(false);
         })
         .catch((err) => {
-          if (!cancelled) {
-            setError(err instanceof Error ? err.message : String(err));
-            setLoading(false);
-          }
+          if (controller.signal.aborted) return;
+          setError(err instanceof Error ? err.message : String(err));
+          setLoading(false);
         });
     };
 
     doFetch();
     const interval = setInterval(doFetch, 5000);
 
-    return () => { cancelled = true; clearInterval(interval); };
+    return () => { controller.abort(); clearInterval(interval); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch time series on selection change + poll every 2s to track ticks
+  // Fetch time series on selection change + poll every 5s to track ticks.
+  // AbortController cancels in-flight requests when the instrument changes
+  // so switching is instant instead of waiting for the old response.
   useEffect(() => {
     if (!selected) return;
-    let cancelled = false;
+    const controller = new AbortController();
 
     const doFetch = () => {
-      fetchTimeSeries(selected.symbol, selected.expiry)
+      fetchTimeSeries(selected.symbol, selected.expiry, controller.signal)
         .then((res) => {
-          if (!cancelled) {
-            setData(res);
-            setLoading(false);
-          }
+          if (controller.signal.aborted) return;
+          setData(res);
+          setLoading(false);
         })
         .catch((err) => {
-          if (!cancelled) {
-            setError(err instanceof Error ? err.message : String(err));
-            setLoading(false);
-          }
+          if (controller.signal.aborted) return;
+          setError(err instanceof Error ? err.message : String(err));
+          setLoading(false);
         });
     };
 
     setLoading(true);
     setError(null);
     doFetch();
-    const interval = setInterval(doFetch, 2000);
+    const interval = setInterval(doFetch, 5000);
 
-    return () => { cancelled = true; clearInterval(interval); };
+    return () => { controller.abort(); clearInterval(interval); };
   }, [selected]);
 
   // Sidebar resize drag handlers

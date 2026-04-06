@@ -252,6 +252,7 @@ export interface BlockRow {
   // Output values
   target_value: number;
   raw_value: number;
+  market_value: number | null;
   target_market_value: number | null;
   fair: number | null;
   market_fair: number | null;

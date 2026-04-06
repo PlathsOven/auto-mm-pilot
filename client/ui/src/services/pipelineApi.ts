@@ -12,9 +12,10 @@ import type {
 } from "../types";
 import { apiFetch } from "./api";
 
-export async function fetchDimensions(): Promise<TimeSeriesDimension[]> {
+export async function fetchDimensions(signal?: AbortSignal): Promise<TimeSeriesDimension[]> {
   const data = await apiFetch<{ dimensions: TimeSeriesDimension[] }>(
     "/api/pipeline/dimensions",
+    { signal },
   );
   return data.dimensions;
 }
@@ -22,9 +23,11 @@ export async function fetchDimensions(): Promise<TimeSeriesDimension[]> {
 export async function fetchTimeSeries(
   symbol: string,
   expiry: string,
+  signal?: AbortSignal,
 ): Promise<PipelineTimeSeriesResponse> {
   const params = new URLSearchParams({ symbol, expiry });
   return apiFetch<PipelineTimeSeriesResponse>(
     `/api/pipeline/timeseries?${params}`,
+    { signal },
   );
 }
