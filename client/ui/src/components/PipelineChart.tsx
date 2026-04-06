@@ -27,9 +27,11 @@ const BLOCK_COLORS = [
 const POSITION_COLOR = "#636efa";
 const SMOOTHED_COLOR = "rgba(99,110,250,1)";
 const RAW_COLOR = "rgba(99,110,250,0.3)";
-const FAIR_COLOR = "#00cc96";
-const VARIANCE_COLOR = "#ef553b";
-const MARKET_FAIR_COLOR = "rgba(255,255,255,0.5)";
+const FAIR_COLOR = "#ffffff";
+const VARIANCE_COLOR = "#ffffff";
+const MARKET_FAIR_COLOR = "rgba(255,255,255,0.35)";
+const SIDEBAR_FAIR_COLOR = "#00cc96";
+const SIDEBAR_VARIANCE_COLOR = "#ef553b";
 
 type DecompositionMode = "variance" | "fair_value" | "desired_position" | "smoothed_desired_position";
 
@@ -155,8 +157,8 @@ function DecompositionSidebar({
   const CARDS: { key: DecompositionMode; label: string; value: number; color: string; fmt: (v: number) => string }[] = [
     { key: "desired_position", label: "Desired Pos (Raw)", value: rawDesPos, color: POSITION_COLOR, fmt: (v) => v.toLocaleString(undefined, { maximumFractionDigits: 0 }) },
     { key: "smoothed_desired_position", label: "Desired Pos (Smooth)", value: smoothDesPos, color: POSITION_COLOR, fmt: (v) => v.toLocaleString(undefined, { maximumFractionDigits: 0 }) },
-    { key: "fair_value", label: "Fair Value", value: totalFair, color: FAIR_COLOR, fmt: sci },
-    { key: "variance", label: "Variance", value: totalVar, color: VARIANCE_COLOR, fmt: sci },
+    { key: "fair_value", label: "Fair Value", value: totalFair, color: SIDEBAR_FAIR_COLOR, fmt: sci },
+    { key: "variance", label: "Variance", value: totalVar, color: SIDEBAR_VARIANCE_COLOR, fmt: sci },
   ];
 
   return (
@@ -386,8 +388,8 @@ export function PipelineChart() {
       data: b.fair,
       showSymbol: false,
       stack: "fair",
-      areaStyle: { opacity: 0.5 },
-      lineStyle: { width: 0.5, color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
+      areaStyle: { opacity: 0.25 },
+      lineStyle: { width: 0, color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
       itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
       emphasis: { focus: "series" as const },
     }));
@@ -400,7 +402,7 @@ export function PipelineChart() {
       yAxisIndex: 1,
       data: aggregated.total_fair,
       showSymbol: false,
-      lineStyle: { width: 2, color: FAIR_COLOR },
+      lineStyle: { width: 3, color: FAIR_COLOR },
       itemStyle: { color: FAIR_COLOR },
       z: 10,
     });
@@ -427,8 +429,8 @@ export function PipelineChart() {
       data: b.var,
       showSymbol: false,
       stack: "var",
-      areaStyle: { opacity: 0.5 },
-      lineStyle: { width: 0.5, color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
+      areaStyle: { opacity: 0.25 },
+      lineStyle: { width: 0, color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
       itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
       emphasis: { focus: "series" as const },
     }));
@@ -441,7 +443,7 @@ export function PipelineChart() {
       yAxisIndex: 2,
       data: aggregated.var,
       showSymbol: false,
-      lineStyle: { width: 2, color: VARIANCE_COLOR },
+      lineStyle: { width: 3, color: VARIANCE_COLOR },
       itemStyle: { color: VARIANCE_COLOR },
       z: 10,
     });
