@@ -7,6 +7,8 @@ import type {
   CurrentBlockDecomposition,
 } from "../types";
 import { fetchDimensions, fetchTimeSeries } from "../services/pipelineApi";
+import { formatExpiry } from "../utils";
+import { useSelection } from "../providers/SelectionProvider";
 
 // ---------------------------------------------------------------------------
 // Color palette — distinct, saturated colors for block decomposition
@@ -24,7 +26,6 @@ const BLOCK_COLORS = [
   "#fecb52", // yellow
 ];
 
-const POSITION_COLOR = "#ffffff";
 const SMOOTHED_COLOR = "#ffffff";
 const RAW_COLOR = "rgba(255,255,255,0.3)";
 const FAIR_COLOR = "#ffffff";
@@ -53,17 +54,7 @@ const TOOLTIP_STYLE = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatExpiry(iso: string): string {
-  try {
-    const d = new Date(iso);
-    const day = String(d.getUTCDate()).padStart(2, "0");
-    const mon = d.toLocaleString("en", { month: "short", timeZone: "UTC" }).toUpperCase();
-    const yr = String(d.getUTCFullYear()).slice(2);
-    return `${day}${mon}${yr}`;
-  } catch {
-    return iso;
-  }
-}
+// formatExpiry imported from ../utils
 
 function sci(v: number): string {
   if (v === 0) return "0";
@@ -81,11 +72,15 @@ function DecompositionSidebar({
   aggregated,
   mode,
   onModeChange,
+  selectedBlocks,
+  onBlockClick,
 }: {
   blocks: CurrentBlockDecomposition[];
   aggregated: Record<string, number>;
   mode: DecompositionMode;
   onModeChange: (m: DecompositionMode) => void;
+  selectedBlocks: Set<string>;
+  onBlockClick: (blockName: string) => void;
 }) {
   const totalFair = aggregated.total_fair ?? 0;
   const totalVar = aggregated.smoothed_var ?? aggregated.var ?? 0;
@@ -210,8 +205,14 @@ function DecompositionSidebar({
           const pct = maxVal > 0 ? Math.abs(b.value) / maxVal : 0;
           const color = BLOCK_COLORS[i % BLOCK_COLORS.length];
           const pctOfTotal = absTotal > 0 ? (Math.abs(b.value) / absTotal) * 100 : 0;
+          const hasSelection = selectedBlocks.size > 0;
+          const dimmed = hasSelection && !selectedBlocks.has(b.block_name);
           return (
-            <div key={b.block_name} className="flex flex-col gap-0.5">
+            <div
+              key={b.block_name}
+              className={`flex flex-col gap-0.5 cursor-pointer rounded px-1 -mx-1 transition-opacity ${dimmed ? "opacity-30" : ""} ${hasSelection && !dimmed ? "channel-highlight" : ""}`}
+              onClick={() => onBlockClick(b.block_name)}
+            >
               <div className="flex items-center justify-between">
                 <span className="truncate font-medium text-mm-text">
                   {b.block_name}
@@ -251,6 +252,7 @@ function DecompositionSidebar({
 // ---------------------------------------------------------------------------
 
 export function PipelineChart() {
+  const { selectBlock, selectedBlocks, selectedDimension } = useSelection();
   const [dimensions, setDimensions] = useState<TimeSeriesDimension[]>([]);
   const [selected, setSelected] = useState<TimeSeriesDimension | null>(null);
   const [data, setData] = useState<PipelineTimeSeriesResponse | null>(null);
@@ -320,6 +322,18 @@ export function PipelineChart() {
     return () => { controller.abort(); clearInterval(interval); };
   }, [selected]);
 
+  // Auto-switch dimension when block channelling selects a different instrument
+  useEffect(() => {
+    if (!selectedDimension || dimensions.length === 0) return;
+    const targetExpiry = selectedDimension.expiry;
+    const match = dimensions.find(
+      (d) => d.symbol === selectedDimension.symbol && formatExpiry(d.expiry) === targetExpiry,
+    );
+    if (match && (!selected || match.symbol !== selected.symbol || match.expiry !== selected.expiry)) {
+      setSelected(match);
+    }
+  }, [selectedDimension, dimensions]);
+
   // Sidebar resize drag handlers
   const onDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -381,19 +395,23 @@ export function PipelineChart() {
     ];
 
     // --- Chart 2: Fair Value by Block (middle, stacked area) ---
-    const fairSeries: EChartsOption["series"] = blocks.map((b, i) => ({
-      name: `${b.block_name} (fair)`,
-      type: "line" as const,
-      xAxisIndex: 1,
-      yAxisIndex: 1,
-      data: b.fair,
-      showSymbol: false,
-      stack: "fair",
-      areaStyle: { opacity: 0.25 },
-      lineStyle: { width: 0, color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
-      itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
-      emphasis: { focus: "series" as const },
-    }));
+    const hasSelection = selectedBlocks.size > 0;
+    const fairSeries: EChartsOption["series"] = blocks.map((b, i) => {
+      const dimmed = hasSelection && !selectedBlocks.has(b.block_name);
+      return {
+        name: `${b.block_name} (fair)`,
+        type: "line" as const,
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: b.fair,
+        showSymbol: false,
+        stack: "fair",
+        areaStyle: { opacity: dimmed ? 0.08 : 0.25 },
+        lineStyle: { width: dimmed ? 0.3 : 0, color: BLOCK_COLORS[i % BLOCK_COLORS.length], opacity: dimmed ? 0.3 : 1 },
+        itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
+        emphasis: { focus: "series" as const },
+      };
+    });
 
     // Total Fair outline (bold line showing actual aggregated value)
     fairSeries.push({
@@ -422,19 +440,22 @@ export function PipelineChart() {
     });
 
     // --- Chart 3: Variance by Block (bottom, stacked area) ---
-    const varSeries: EChartsOption["series"] = blocks.map((b, i) => ({
-      name: `${b.block_name} (var)`,
-      type: "line" as const,
-      xAxisIndex: 2,
-      yAxisIndex: 2,
-      data: b.var,
-      showSymbol: false,
-      stack: "var",
-      areaStyle: { opacity: 0.25 },
-      lineStyle: { width: 0, color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
-      itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
-      emphasis: { focus: "series" as const },
-    }));
+    const varSeries: EChartsOption["series"] = blocks.map((b, i) => {
+      const dimmed = hasSelection && !selectedBlocks.has(b.block_name);
+      return {
+        name: `${b.block_name} (var)`,
+        type: "line" as const,
+        xAxisIndex: 2,
+        yAxisIndex: 2,
+        data: b.var,
+        showSymbol: false,
+        stack: "var",
+        areaStyle: { opacity: dimmed ? 0.08 : 0.25 },
+        lineStyle: { width: dimmed ? 0.3 : 0, color: BLOCK_COLORS[i % BLOCK_COLORS.length], opacity: dimmed ? 0.3 : 1 },
+        itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
+        emphasis: { focus: "series" as const },
+      };
+    });
 
     // Total Variance outline (bold line showing actual aggregated value)
     varSeries.push({
@@ -616,7 +637,19 @@ export function PipelineChart() {
     };
 
     return option;
-  }, [data]);
+  }, [data, selectedBlocks]);
+
+  // Chart click → select block
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleChartClick = useCallback((params: any) => {
+    const seriesName: string = params.seriesName ?? "";
+    const match = seriesName.match(/^(.+?)\s*\((fair|var)\)$/);
+    if (match && selected) {
+      selectBlock(match[1], selected.symbol, selected.expiry);
+    }
+  }, [selected, selectBlock]);
+
+  const chartEvents = useMemo(() => ({ click: handleChartClick }), [handleChartClick]);
 
   // Empty / loading states
   if (error) {
@@ -664,6 +697,8 @@ export function PipelineChart() {
                 aggregated={data.current_decomposition.aggregated}
                 mode={decompositionMode}
                 onModeChange={setDecompositionMode}
+                selectedBlocks={selectedBlocks}
+                onBlockClick={(blockName) => selected && selectBlock(blockName, selected.symbol, selected.expiry)}
               />
             </div>
             {/* Drag handle */}
@@ -685,6 +720,7 @@ export function PipelineChart() {
               lazyUpdate
               style={{ width: "100%", height: "100%" }}
               opts={{ renderer: "canvas" }}
+              onEvents={chartEvents}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-[11px] text-mm-text-dim">
