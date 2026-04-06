@@ -67,5 +67,15 @@ class StreamConfig:
     scale: float = 1.0
     offset: float = 0.0
     exponent: float = 1.0
+    # Generic conversion params dict — when non-empty, takes precedence over
+    # scale/offset/exponent.  Keys match the selected unit_conversion function's
+    # parameter names (e.g. {"scale": 1.0, "offset": 0.0, "exponent": 2.0}).
+    conversion_params: dict[str, float] = field(default_factory=dict)
     block: BlockConfig = field(default_factory=BlockConfig)
     space_id_override: str | None = None
+
+    def get_conversion_params(self) -> dict[str, float]:
+        """Return conversion params, falling back to legacy fields."""
+        if self.conversion_params:
+            return self.conversion_params
+        return {"scale": self.scale, "offset": self.offset, "exponent": self.exponent}

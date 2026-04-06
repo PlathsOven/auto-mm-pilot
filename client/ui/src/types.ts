@@ -273,3 +273,35 @@ export interface PipelineTimeSeriesResponse {
     aggregated: Record<string, number>;
   };
 }
+
+// ---------------------------------------------------------------------------
+// Transform configuration
+// ---------------------------------------------------------------------------
+
+export interface TransformParam {
+  name: string;
+  type: "float" | "int" | "bool" | "str";
+  default: unknown;
+  description: string;
+  min: number | null;
+  max: number | null;
+  options: string[] | null;
+}
+
+export interface TransformInfo {
+  name: string;
+  description: string;
+  params: TransformParam[];
+}
+
+export interface TransformStep {
+  label: string;
+  contract: string;
+  selected: string;
+  params: Record<string, unknown>;
+  transforms: TransformInfo[];
+}
+
+export interface TransformListResponse {
+  steps: Record<string, TransformStep>;
+}
