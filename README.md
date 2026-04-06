@@ -1,12 +1,12 @@
 # APT — Automated Positional Trader
 
-An advisory trading terminal for crypto options market-making desks. APT formalises position management into a configurable engine: plug in any data source, and the system tells you what your position should be and why.
+APT transforms opinions into decisions for buy-side financial institutions. It initially caters to crypto options market-making desks. APT formalises position management into a configurable decision engine: plug in any data source, and the system tells you what your position should be and why.
 
 ---
 
 ## The Problem
 
-Every trading firm's PnL decomposes into three multiplicative factors:
+Every market-making firm's PnL decomposes into three multiplicative factors:
 
 **PnL = Market Edge x Edge Share x Edge Retention**
 
@@ -15,6 +15,8 @@ Every trading firm's PnL decomposes into three multiplicative factors:
 Market selection and execution infrastructure are well-understood problems. Edge Retention — specifically long-term position management — is not. Today, position management is a senior trader staring at a screen, mentally synthesising multiple data feeds (realized vol, scheduled events, historical IV percentiles, funding rates, cross-asset correlations) into a single decision: how much should we be long or short, and in what?
 
 This does not scale. It is not transferable. It walks out the door when the trader leaves. And it is the single highest-leverage factor in determining whether a desk is profitable.
+
+Crypto options market-making desks are the natural starting point for two reasons. First, crypto markets run 24/7 — there is no closing bell, no overnight break. Continuous coverage is not optional; it is a structural requirement. Automation is not a luxury here, it is the only way to maintain consistent position management across a cycle that never pauses. Second, crypto options is a nascent field. Unlike equities or rates desks with decades of accumulated institutional knowledge, crypto desks have far less positional expertise to draw from. APT fills that gap — providing a formal, transferable framework for position management that would otherwise take years of senior-trader experience to develop organically.
 
 APT replaces this process with a formal, configurable engine that makes the same decision — continuously, explainably, and without key-person risk.
 
