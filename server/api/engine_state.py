@@ -127,30 +127,12 @@ def rerun_pipeline(
 
     now = MOCK_NOW if APT_MODE == "mock" else datetime.now(timezone.utc).replace(tzinfo=None)
 
-    # Pick a time-grid interval that keeps total grid points manageable.
-    # Target ~1500 points per instrument to stay under a few seconds.
-    max_ttx_secs = 0.0
-    for sc in streams:
-        if "expiry" in sc.snapshot.columns:
-            expiries = sc.snapshot["expiry"].unique().to_list()
-            for exp in expiries:
-                if hasattr(exp, "timestamp"):
-                    ttx = (exp - now).total_seconds()
-                    if ttx > max_ttx_secs:
-                        max_ttx_secs = ttx
-
-    if max_ttx_secs <= 2 * 86400:          # ≤ 2 days  → 1m  (up to 2880 pts)
-        grid_interval = TIME_GRID_INTERVAL
-    elif max_ttx_secs <= 30 * 86400:       # ≤ 30 days → 15m
-        grid_interval = "15m"
-    elif max_ttx_secs <= 365 * 86400:      # ≤ 1 year  → 1h
-        grid_interval = "1h"
-    else:                                   # > 1 year  → 4h
-        grid_interval = "4h"
-
+    # Grid interval is now computed *per risk dimension* inside
+    # build_time_grid() so that adding a far-future instrument never
+    # coarsens the grid of an existing short-dated one.
     log.info(
-        "Re-running pipeline: %d streams, %d market prices, bankroll=%.2f, now=%s, interval=%s (max_ttx=%.0fs)",
-        len(streams), len(_market_pricing), _bankroll, now, grid_interval, max_ttx_secs,
+        "Re-running pipeline: %d streams, %d market prices, bankroll=%.2f, now=%s, default_interval=%s",
+        len(streams), len(_market_pricing), _bankroll, now, TIME_GRID_INTERVAL,
     )
 
     _pipeline_results = run_pipeline(
@@ -160,7 +142,7 @@ def rerun_pipeline(
         now=now,
         bankroll=_bankroll,
         smoothing_hl_secs=SMOOTHING_HL_SECS,
-        time_grid_interval=grid_interval,
+        time_grid_interval=TIME_GRID_INTERVAL,
     )
 
     _pipeline_snapshot = snapshot_from_pipeline(

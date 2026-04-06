@@ -147,6 +147,21 @@ def attach_market_values(
 # Stage 3: Build time grid
 # ---------------------------------------------------------------------------
 
+def _pick_grid_interval(ttx_secs: float, default: str) -> str:
+    """Choose a time-grid interval for a single risk dimension.
+
+    Keeps total grid points manageable (~1 500 per dimension) while
+    preserving the finest granularity for short-lived instruments.
+    """
+    if ttx_secs <= 2 * 86_400:            # ≤ 2 days  → use default (e.g. "1m")
+        return default
+    if ttx_secs <= 30 * 86_400:           # ≤ 30 days → 15 min
+        return "15m"
+    if ttx_secs <= 365 * 86_400:          # ≤ 1 year  → 1 h
+        return "1h"
+    return "4h"                            # > 1 year  → 4 h
+
+
 def build_time_grid(
     blocks_df: pl.DataFrame,
     risk_dimension_cols: list[str],
@@ -155,8 +170,9 @@ def build_time_grid(
 ) -> pl.DataFrame:
     """Create a time grid per unique risk dimension.
 
-    Discovers ``expiry`` from the blocks_df (must be in ``risk_dimension_cols`` or
-    as a column).  One grid is built from ``now`` to each risk dimension's expiry.
+    Each dimension gets its own interval chosen by ``_pick_grid_interval``
+    based on its time-to-expiry, so adding a far-future instrument never
+    coarsens the grid of a short-dated one.
 
     Returns a single DataFrame with risk_dimension_cols + timestamp + dtte.
     """
@@ -168,7 +184,9 @@ def build_time_grid(
 
     for row in unique_dims.iter_rows(named=True):
         expiry = row["expiry"]
-        timestamps = pl.datetime_range(start=now, end=expiry, interval=interval, eager=True)
+        ttx_secs = (expiry - now).total_seconds()
+        dim_interval = _pick_grid_interval(ttx_secs, interval)
+        timestamps = pl.datetime_range(start=now, end=expiry, interval=dim_interval, eager=True)
         grid = pl.DataFrame({"timestamp": timestamps})
 
         # Add risk dimension columns as literals
