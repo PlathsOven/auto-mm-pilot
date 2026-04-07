@@ -7,6 +7,8 @@ interface Props {
   step: TransformStep;
   active: boolean;
   saving: boolean;
+  /** Plain-language one-liner describing what this step does. */
+  subtitle?: string;
   onSelectTransform: (stepKey: string, name: string) => void;
   onParamChange: (stepKey: string, paramName: string, value: unknown) => void;
 }
@@ -25,6 +27,7 @@ export function PipelineStepCard({
   step,
   active,
   saving,
+  subtitle,
   onSelectTransform,
   onParamChange,
 }: Props) {
@@ -35,7 +38,7 @@ export function PipelineStepCard({
     <article
       className={`flex flex-col gap-2 rounded-xl border bg-mm-bg/40 p-3 transition-colors ${
         active
-          ? "border-mm-accent/60 ring-1 ring-mm-accent/30"
+          ? "border-mm-accent/70 ring-2 ring-mm-accent/40 ring-offset-2 ring-offset-mm-bg-deep"
           : "border-mm-border/60 hover:border-mm-border"
       }`}
     >
@@ -54,7 +57,13 @@ export function PipelineStepCard({
             </span>
             {saving && <span className="text-[9px] text-mm-text-dim">saving…</span>}
           </div>
-          <p className="mt-0.5 truncate font-mono text-[9px] text-mm-text-dim">
+          {subtitle && (
+            <p className="mt-0.5 text-[10px] italic text-mm-text-dim">{subtitle}</p>
+          )}
+          <p
+            className="mt-0.5 truncate font-mono text-[9px] text-mm-text-dim"
+            title={step.contract}
+          >
             {step.contract}
           </p>
         </div>
