@@ -51,6 +51,7 @@ export function StreamCanvas({ streamName, templateId }: Props) {
   const [focusedSection, setFocusedSection] = useState<SectionId>("identity");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [copilotOpen, setCopilotOpen] = useState(false);
 
   // Sync stream name draft → registry status
   useEffect(() => {
@@ -100,8 +101,9 @@ export function StreamCanvas({ streamName, templateId }: Props) {
     try {
       const created = await createStream(draft.identity.stream_name, draft.identity.key_cols);
       setPendingStreamName(created.stream_name);
-      // Update URL so refresh keeps the canvas pinned to this stream
-      setMode("studio", `streams/${created.stream_name}`);
+      // Update URL so refresh keeps the canvas pinned to this stream inside
+      // the Anatomy streams sidebar.
+      setMode("studio", `anatomy?stream=${encodeURIComponent(created.stream_name)}`);
       await refreshRegistry();
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : String(err));
@@ -135,10 +137,14 @@ export function StreamCanvas({ streamName, templateId }: Props) {
             </label>
             <button
               type="button"
-              onClick={() => setMode("studio", "streams")}
-              className="rounded px-2 py-1 text-[10px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+              onClick={() => setCopilotOpen((v) => !v)}
+              className={`rounded-md border px-2 py-1 text-[10px] transition-colors ${
+                copilotOpen
+                  ? "border-mm-accent/60 bg-mm-accent/15 text-mm-accent"
+                  : "border-mm-border/40 text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+              }`}
             >
-              ← Library
+              ✨ Co-pilot
             </button>
           </div>
         </div>
@@ -230,13 +236,15 @@ export function StreamCanvas({ streamName, templateId }: Props) {
         </div>
       </div>
 
-      {/* Co-pilot — right 1/3 */}
-      <aside className="flex w-[340px] shrink-0 flex-col border-l border-mm-border/60 bg-mm-surface/40">
-        <StreamCanvasCopilot
-          seed={draft.identity.description}
-          onSuggestion={handleCopilotSuggestion}
-        />
-      </aside>
+      {/* Co-pilot — opt-in pop-out, hidden by default */}
+      {copilotOpen && (
+        <aside className="flex w-[340px] shrink-0 flex-col border-l border-mm-border/60 bg-mm-surface/60">
+          <StreamCanvasCopilot
+            seed={draft.identity.description}
+            onSuggestion={handleCopilotSuggestion}
+          />
+        </aside>
+      )}
     </div>
   );
 }

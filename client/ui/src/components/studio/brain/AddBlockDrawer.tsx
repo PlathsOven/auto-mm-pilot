@@ -50,6 +50,11 @@ const EMPTY_DRAFT: Draft = {
   },
 };
 
+// Strict numeric — matches whole-string integers, decimals, scientific
+// notation, with an optional leading sign. Critically rejects `"27MAR26"`
+// which `parseFloat` would otherwise parse as `27`.
+const NUMERIC_RE = /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
+
 /**
  * Parse pasted CSV into row objects suitable for /api/snapshots / /api/blocks.
  * Mirrors the parser in `studio/sections/PreviewSection.tsx`.
@@ -67,8 +72,7 @@ function parseCsvToRows(csv: string): Record<string, unknown>[] {
     const row: Record<string, unknown> = {};
     headers.forEach((h, i) => {
       const cell = cells[i] ?? "";
-      const num = parseFloat(cell);
-      row[h] = !isNaN(num) && cell !== "" && /^-?\d/.test(cell) ? num : cell;
+      row[h] = NUMERIC_RE.test(cell) ? parseFloat(cell) : cell;
     });
     return row;
   });

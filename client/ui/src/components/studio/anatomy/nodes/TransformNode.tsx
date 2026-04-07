@@ -25,7 +25,11 @@ export const TransformNode = memo(function TransformNode({
   const { stepNumber, label, selectedImpl, subtitle, saving } = data as TransformNodeData;
   return (
     <div
-      className={`flex w-[240px] flex-col gap-1.5 rounded-xl border bg-mm-bg/80 p-3 shadow-sm transition-colors ${
+      // Fixed height keeps the source/target handles aligned across all
+      // pipeline nodes — without this, narrative text with different line
+      // counts shifts the vertical center of each node, and edges fan out
+      // at slight angles instead of running straight across the row.
+      className={`flex h-[140px] w-[240px] flex-col gap-1.5 rounded-xl border bg-mm-bg/80 p-3 shadow-sm transition-colors ${
         selected
           ? "border-mm-accent/70 ring-2 ring-mm-accent/40 ring-offset-2 ring-offset-mm-bg-deep"
           : "border-mm-border/60 hover:border-mm-accent/50"
