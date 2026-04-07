@@ -1,4 +1,3 @@
-import { useMode } from "../../providers/ModeProvider";
 import { useTransforms } from "../../providers/TransformsProvider";
 import { useFocusedCell } from "../../hooks/useFocusedCell";
 import { useActivePositionSizing } from "../../hooks/useActivePositionSizing";
@@ -11,7 +10,12 @@ import { CANONICAL_GLYPH, renderFormula } from "./formulaTemplates";
  *   of which sizing rule is active. The symbolic anchor for the framework.
  * - `md` — Floor pinned strip beneath the positions grid. Live numeric values
  *   for the focused cell, formula reflects the active `position_sizing` step.
- * - `lg` — Studio Preview / Pipeline display. Same renderer as md, larger.
+ * - `lg` — Studio Anatomy detail panel. Same renderer as md, larger.
+ *
+ * The strip is intentionally read-only: navigation to Studio / Anatomy lives
+ * in the mode switcher and ⌘K command palette, not inline here. The
+ * numeric LHS comes from the authoritative `desiredPos` on the WS payload so
+ * it always matches the positions grid exactly.
  */
 
 export type EquationStripSize = "xs" | "md" | "lg";
@@ -64,7 +68,6 @@ function MdLgStrip({ size }: { size: "md" | "lg" }) {
   const focused = useFocusedCell();
   const positionSizing = useActivePositionSizing();
   const { bankroll } = useTransforms();
-  const { setMode } = useMode();
 
   if (!positionSizing) {
     return (
@@ -91,6 +94,7 @@ function MdLgStrip({ size }: { size: "md" | "lg" }) {
     variance: focused.position.smoothedVar,
     bankroll,
     params: positionSizing.params,
+    position: focused.position.desiredPos,
   });
 
   const symbolicSize = size === "lg" ? "text-lg" : "text-sm";
@@ -110,14 +114,6 @@ function MdLgStrip({ size }: { size: "md" | "lg" }) {
         </span>
         <span className="text-[10px] text-mm-text-dim">{rendered.caption}</span>
       </div>
-      <button
-        type="button"
-        onClick={() => setMode("studio", "pipeline")}
-        className="ml-3 shrink-0 rounded-md border border-mm-border/40 px-2 py-1 text-[10px] text-mm-text-dim transition-colors hover:border-mm-accent/40 hover:text-mm-accent"
-        title="Inspect or modify the position-sizing transform"
-      >
-        View full pipeline →
-      </button>
     </StripShell>
   );
 }

@@ -4,7 +4,6 @@ import { CommandPalette } from "./components/shared/CommandPalette";
 import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
 import { FloorPage } from "./pages/FloorPage";
 import { StudioPage } from "./pages/StudioPage";
-import { LensPage } from "./pages/LensPage";
 import { DocsPage } from "./pages/DocsPage";
 import { useMode, type ModeId } from "./providers/ModeProvider";
 
@@ -13,7 +12,6 @@ import "react-grid-layout/css/styles.css";
 const MODE_PAGES: Record<ModeId, React.FC> = {
   floor: FloorPage,
   studio: StudioPage,
-  lens: LensPage,
   docs: DocsPage,
 };
 

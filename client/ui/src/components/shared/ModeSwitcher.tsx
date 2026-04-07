@@ -1,11 +1,10 @@
 import { useMode, MODE_LABELS, type ModeId } from "../../providers/ModeProvider";
 
-const VISIBLE_MODES: ModeId[] = ["floor", "studio", "lens"];
+const VISIBLE_MODES: ModeId[] = ["floor", "studio"];
 
 const MODE_TITLES: Record<ModeId, string> = {
   floor: "Operator dashboard — monitor positions, investigate changes",
-  studio: "Architect workbench — compose streams and pipeline",
-  lens: "Auditor surface — decompose, replay, inspect",
+  studio: "Architect workbench — design pipeline, inspect decisions",
   docs: "API documentation",
 };
 

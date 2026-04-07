@@ -545,6 +545,20 @@ async def pipeline_dimensions() -> dict:
     return {"dimensions": out}
 
 
+def _parse_expiry(raw: str) -> _dt:
+    """Accept ISO 8601 (``2026-01-02``) or canonical DDMMMYY (``02JAN26``).
+
+    The WebSocket payload normalises expiries to DDMMMYY via ``_format_expiry``
+    in ``ws.py``, so the client often forwards that format verbatim. This
+    helper accepts both so callers never have to guess which one the server
+    wants.
+    """
+    try:
+        return _dt.fromisoformat(raw)
+    except ValueError:
+        return _dt.strptime(raw, "%d%b%y")
+
+
 @app.get("/api/pipeline/timeseries")
 async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
     """Return full block-level and aggregated time series for a symbol/expiry."""
@@ -552,9 +566,9 @@ async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
     if results is None:
         raise HTTPException(status_code=404, detail="No pipeline results available")
 
-    # Parse expiry string
+    # Parse expiry string (tolerant of both ISO and DDMMMYY)
     try:
-        expiry_dt = _dt.fromisoformat(expiry)
+        expiry_dt = _parse_expiry(expiry)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=f"Invalid expiry format: {exc}") from exc
 

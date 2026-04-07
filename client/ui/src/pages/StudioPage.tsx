@@ -1,46 +1,39 @@
 import { useMode } from "../providers/ModeProvider";
-import { StreamLibrary } from "../components/studio/StreamLibrary";
-import { StreamCanvas } from "../components/studio/StreamCanvas";
-import { PipelineComposer } from "../components/studio/PipelineComposer";
+import { AnatomyCanvas } from "../components/studio/anatomy/AnatomyCanvas";
+import { BrainPage } from "./BrainPage";
 
 /**
  * Studio — the architect's workbench.
  *
- * Routes (hash sub-paths parsed by ModeProvider):
- *  - `#studio` or `#studio/streams`            → Stream Library
- *  - `#studio/streams/{name}`                  → Stream Canvas (edit existing)
- *  - `#studio/streams/new`                     → Stream Canvas (blank)
- *  - `#studio/streams/new?template={id}`       → Stream Canvas (preloaded template)
- *  - `#studio/pipeline`                        → Pipeline Composer
+ * Two sub-tabs, picked via the hash sub-path:
+ *  - `#studio` or `#studio/anatomy`   → live pipeline canvas + streams
+ *  - `#studio/brain`                  → decomposition + chart + block inspector
+ *
+ * Anatomy also honours `?stream=<name>` to auto-open the Stream Canvas
+ * drawer on that stream.
  */
 export function StudioPage() {
-  const { segments, query, setMode } = useMode();
-  const section = segments[0] === "pipeline" ? "pipeline" : "streams";
-  const streamName = section === "streams" ? segments[1] ?? null : null;
+  const { segments, setMode } = useMode();
+  const first = segments[0] ?? "anatomy";
+  const section: "anatomy" | "brain" = first === "brain" ? "brain" : "anatomy";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <nav className="flex shrink-0 items-center gap-1 border-b border-mm-border/40 bg-mm-surface/40 px-6">
         <SectionTab
-          label="Streams"
-          active={section === "streams"}
-          onClick={() => setMode("studio", "streams")}
+          label="Anatomy"
+          active={section === "anatomy"}
+          onClick={() => setMode("studio", "anatomy")}
         />
         <SectionTab
-          label="Pipeline"
-          active={section === "pipeline"}
-          onClick={() => setMode("studio", "pipeline")}
+          label="Brain"
+          active={section === "brain"}
+          onClick={() => setMode("studio", "brain")}
         />
       </nav>
 
-      {section === "streams" && streamName === null && <StreamLibrary />}
-      {section === "streams" && streamName !== null && (
-        <StreamCanvas
-          streamName={streamName === "new" ? null : streamName}
-          templateId={query.template ?? null}
-        />
-      )}
-      {section === "pipeline" && <PipelineComposer />}
+      {section === "anatomy" && <AnatomyCanvas />}
+      {section === "brain" && <BrainPage />}
     </div>
   );
 }

@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { useFocusedCell } from "../../hooks/useFocusedCell";
-import { useStreamContributions } from "../../hooks/useStreamContributions";
-import { useWebSocket } from "../../providers/WebSocketProvider";
-import { useMode } from "../../providers/ModeProvider";
-import { useSelection } from "../../providers/SelectionProvider";
-import type { StreamContribution } from "../../hooks/useStreamContributions";
-import { valColor } from "../../utils";
+import { useFocusedCell } from "../../../hooks/useFocusedCell";
+import { useStreamContributions } from "../../../hooks/useStreamContributions";
+import { useWebSocket } from "../../../providers/WebSocketProvider";
+import { useMode } from "../../../providers/ModeProvider";
+import { useSelection } from "../../../providers/SelectionProvider";
+import type { StreamContribution } from "../../../hooks/useStreamContributions";
+import { valColor } from "../../../utils";
 
 type SortKey = "magnitude" | "fair" | "variance" | "name";
 
 /**
- * Lens Decomposition view.
+ * Block Decomposition view (Studio → Brain).
  *
- * Shows stream-level contributions to fair value and variance for a focused
- * (asset, expiry) cell. Sortable, with bar visualisations and links to the
- * Studio canvas for each stream.
+ * Shows stream-level contributions to fair value and variance for the
+ * focused (asset, expiry) cell. Sortable bar visualisation; each row links
+ * back into Anatomy with the stream's canvas drawer pre-opened.
  */
 export function BlockDecompositionView() {
   const focused = useFocusedCell();
@@ -64,10 +64,10 @@ export function BlockDecompositionView() {
   }, [sorted]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-6 py-4">
+    <section className="rounded-xl border border-mm-border/60 bg-mm-bg/40 p-4">
       <header className="mb-3 flex items-baseline justify-between gap-3">
         <div>
-          <h2 className="zone-header">Decomposition</h2>
+          <h3 className="zone-header">Decomposition</h3>
           <p className="mt-1 text-[11px] text-mm-text-dim">
             Stream-level contributions to fair value and variance.
             {focused && (
@@ -134,12 +134,12 @@ export function BlockDecompositionView() {
               key={c.blockName}
               c={c}
               maxMagnitude={maxMagnitude}
-              onOpen={() => setMode("studio", `streams/${c.blockName}`)}
+              onOpen={() => setMode("studio", `anatomy?stream=${encodeURIComponent(c.blockName)}`)}
             />
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 

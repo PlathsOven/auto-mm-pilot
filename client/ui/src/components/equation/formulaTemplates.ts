@@ -6,9 +6,11 @@
  * functions. It provides only:
  *
  *   - `CANONICAL_GLYPH`: the immutable symbolic form for the top-bar glyph.
- *   - `renderFormula(formula, ctx)`: substitutes live numeric values into the
- *     server-provided symbolic form, picking whichever parameters the formula
- *     references.
+ *   - `renderFormula(formula, ctx)`: formats the formula with live inputs. The
+ *     LHS (computed position) comes from the caller — it's the authoritative
+ *     `desiredPos` from the WS payload, not a client recomputation. This
+ *     guarantees the strip's number always matches the positions grid exactly
+ *     and avoids float drift from rounded wire values.
  *
  * The client stays dumb: adding a new sizing rule only requires registering
  * it on the server with a `formula="..."` string. No client deploy needed.
@@ -20,6 +22,12 @@ export interface FormulaContext {
   variance: number;
   /** Parameters as returned by GET /api/transforms for the active step. */
   params: Record<string, unknown>;
+  /**
+   * Authoritative computed position (e.g. `DesiredPosition.desiredPos` from
+   * the WS payload). The numeric formula uses this value as the LHS so it
+   * always matches the grid cell.
+   */
+  position: number;
 }
 
 export interface RenderedFormula {
@@ -29,8 +37,6 @@ export interface RenderedFormula {
   numeric: string;
   /** Plain-language caption derived from the symbolic form. */
   caption: string;
-  /** Computed position value (NaN if the formula can't be evaluated). */
-  position: number;
 }
 
 export const CANONICAL_GLYPH = "P = E·B / V";
@@ -56,38 +62,18 @@ function fmtPos(v: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Evaluator
+// Renderers per symbolic shape
 // ---------------------------------------------------------------------------
 
-/**
- * Very small expression evaluator keyed by the symbolic shapes used in the
- * registered transforms (`P = E·B / V`, `P = E·B / (γ·V)`, etc.). We don't
- * parse arbitrary math — we detect the handful of shapes we know about.
- */
-function evaluate(symbolic: string, ctx: FormulaContext): number {
-  const { edge, bankroll, variance, params } = ctx;
-  if (variance === 0) return NaN;
-  // Kelly shape: E·B / V
-  if (/E\s*[·*]\s*B\s*\/\s*V(?!\s*\))/.test(symbolic)) {
-    return (edge * bankroll) / variance;
-  }
-  // Power utility shape: E·B / (γ·V)
-  if (/E\s*[·*]\s*B\s*\/\s*\(\s*γ\s*[·*]\s*V\s*\)/.test(symbolic)) {
-    const gamma =
-      typeof params.risk_aversion === "number"
-        ? (params.risk_aversion as number)
-        : 2.0;
-    return (edge * bankroll) / (gamma * variance);
-  }
-  return NaN;
-}
+const KELLY_SHAPE = /E\s*[·*]\s*B\s*\/\s*V(?!\s*\))/;
+const POWER_UTILITY_SHAPE = /E\s*[·*]\s*B\s*\/\s*\(\s*γ\s*[·*]\s*V\s*\)/;
 
-function numericForm(symbolic: string, ctx: FormulaContext, position: number): string {
-  const { edge, bankroll, variance, params } = ctx;
-  if (/E\s*[·*]\s*B\s*\/\s*V(?!\s*\))/.test(symbolic)) {
+function numericForm(symbolic: string, ctx: FormulaContext): string {
+  const { edge, bankroll, variance, params, position } = ctx;
+  if (KELLY_SHAPE.test(symbolic)) {
     return `${fmtPos(position)} = ${fmt(edge)} × ${fmt(bankroll)} / ${fmt(variance)}`;
   }
-  if (/E\s*[·*]\s*B\s*\/\s*\(\s*γ\s*[·*]\s*V\s*\)/.test(symbolic)) {
+  if (POWER_UTILITY_SHAPE.test(symbolic)) {
     const gamma =
       typeof params.risk_aversion === "number"
         ? (params.risk_aversion as number)
@@ -98,10 +84,10 @@ function numericForm(symbolic: string, ctx: FormulaContext, position: number): s
 }
 
 function caption(symbolic: string, ctx: FormulaContext): string {
-  if (/E\s*[·*]\s*B\s*\/\s*V(?!\s*\))/.test(symbolic)) {
+  if (KELLY_SHAPE.test(symbolic)) {
     return "Position = Edge × Bankroll / Variance";
   }
-  if (/E\s*[·*]\s*B\s*\/\s*\(\s*γ\s*[·*]\s*V\s*\)/.test(symbolic)) {
+  if (POWER_UTILITY_SHAPE.test(symbolic)) {
     const gamma =
       typeof ctx.params.risk_aversion === "number"
         ? (ctx.params.risk_aversion as number)
@@ -115,15 +101,15 @@ function caption(symbolic: string, ctx: FormulaContext): string {
  * Render a formula for display in the Live Equation Strip.
  *
  * `formula` is the server-provided symbolic string (empty = unknown sizing
- * rule, falls back to the generic shape).
+ * rule, falls back to the generic shape). `ctx.position` is the authoritative
+ * value from the WS payload — used as the LHS so the displayed number always
+ * matches the positions grid.
  */
 export function renderFormula(formula: string, ctx: FormulaContext): RenderedFormula {
   const symbolic = formula || FALLBACK_SYMBOLIC;
-  const position = evaluate(symbolic, ctx);
   return {
     symbolic,
-    position,
-    numeric: numericForm(symbolic, ctx, position),
+    numeric: numericForm(symbolic, ctx),
     caption: caption(symbolic, ctx),
   };
 }
