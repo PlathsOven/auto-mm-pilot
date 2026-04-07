@@ -121,6 +121,11 @@ export async function updateMarketPricing(
 // Bankroll
 // ---------------------------------------------------------------------------
 
+export async function fetchBankroll(): Promise<number> {
+  const data = await apiFetch<BankrollResponse>("/api/config/bankroll");
+  return data.bankroll;
+}
+
 export async function updateBankroll(
   bankroll: number,
 ): Promise<BankrollResponse> {

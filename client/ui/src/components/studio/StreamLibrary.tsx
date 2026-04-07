@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
-import { listStreams, deleteStream } from "../../services/streamApi";
-import type { RegisteredStream } from "../../types";
+import { useState } from "react";
+import { deleteStream } from "../../services/streamApi";
 import { useMode } from "../../providers/ModeProvider";
+import { useRegisteredStreams } from "../../hooks/useRegisteredStreams";
 import { STREAM_TEMPLATES } from "./templates";
 
 /**
@@ -10,29 +10,14 @@ import { STREAM_TEMPLATES } from "./templates";
  * Lists all registered streams as cards (with status, key cols, registry
  * health) plus 5 quick-start templates. Clicking a card or template navigates
  * to the canvas at `#studio/streams/{name}` for editing.
+ *
+ * Stream list comes from the shared `useRegisteredStreams` hook so Floor's
+ * StreamStatusList and Studio's StreamLibrary share a single polling loop.
  */
 export function StreamLibrary() {
   const { setMode } = useMode();
-  const [streams, setStreams] = useState<RegisteredStream[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const list = await listStreams();
-      setStreams(list);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  const { streams, loading, error, refresh } = useRegisteredStreams();
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   const openCanvas = (streamName: string) => setMode("studio", `streams/${streamName}`);
   const openTemplate = (templateId: string) =>
@@ -42,11 +27,14 @@ export function StreamLibrary() {
   const handleDelete = async (streamName: string) => {
     try {
       await deleteStream(streamName);
-      refresh();
+      await refresh();
+      setMutationError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setMutationError(err instanceof Error ? err.message : String(err));
     }
   };
+
+  const displayError = error ?? mutationError;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4">
@@ -66,9 +54,9 @@ export function StreamLibrary() {
         </button>
       </header>
 
-      {error && (
+      {displayError && (
         <p className="mb-3 rounded-md border border-mm-error/40 bg-mm-error/10 p-2 text-[10px] text-mm-error">
-          {error}
+          {displayError}
         </p>
       )}
 

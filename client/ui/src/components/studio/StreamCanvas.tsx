@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { listStreams, createStream } from "../../services/streamApi";
-import type { RegisteredStream } from "../../types";
+import { createStream } from "../../services/streamApi";
 import { useMode } from "../../providers/ModeProvider";
+import { useRegisteredStreams } from "../../hooks/useRegisteredStreams";
 import { IdentitySection } from "./sections/IdentitySection";
 import { DataShapeSection } from "./sections/DataShapeSection";
 import { TargetMappingSection } from "./sections/TargetMappingSection";
@@ -37,6 +37,7 @@ const WALK_THROUGH_KEY = "apt.studio.walkthrough";
  */
 export function StreamCanvas({ streamName, templateId }: Props) {
   const { setMode } = useMode();
+  const { streams: registry, refresh: refreshRegistry } = useRegisteredStreams();
   const [draft, setDraft] = useState<StreamDraft>(() => initialDraft(streamName, templateId));
   const [pendingStreamName, setPendingStreamName] = useState<string | null>(streamName);
   const [walkThrough, setWalkThrough] = useState(() => {
@@ -50,12 +51,6 @@ export function StreamCanvas({ streamName, templateId }: Props) {
   const [focusedSection, setFocusedSection] = useState<SectionId>("identity");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [registry, setRegistry] = useState<RegisteredStream[]>([]);
-
-  // Load registry to detect whether the named stream already exists
-  useEffect(() => {
-    listStreams().then(setRegistry).catch(() => undefined);
-  }, []);
 
   // Sync stream name draft → registry status
   useEffect(() => {
@@ -107,9 +102,7 @@ export function StreamCanvas({ streamName, templateId }: Props) {
       setPendingStreamName(created.stream_name);
       // Update URL so refresh keeps the canvas pinned to this stream
       setMode("studio", `streams/${created.stream_name}`);
-      // Refresh registry
-      const next = await listStreams();
-      setRegistry(next);
+      await refreshRegistry();
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -230,7 +223,7 @@ export function StreamCanvas({ streamName, templateId }: Props) {
               state={states.preview}
               allValid={allValid}
               pendingStreamName={pendingStreamName}
-              onActivated={() => listStreams().then(setRegistry).catch(() => undefined)}
+              onActivated={() => refreshRegistry()}
               dimmed={dimmed("preview")}
             />
           </div>

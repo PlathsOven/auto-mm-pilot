@@ -1,14 +1,17 @@
 /**
- * Formula renderers keyed by `position_sizing` transform name.
+ * Formula rendering helpers.
  *
- * APT's canonical form is `Position = Edge × Bankroll / Variance` (the README's
- * "P = E·B / V"), but `position_sizing` is one of seven pluggable transform
- * steps and the active implementation can be swapped. The Live Equation Strip
- * looks up the active template here so the displayed formula always matches
- * what the server is actually computing.
+ * The active transform's symbolic formula comes from the server (see
+ * `TransformInfo.formula`), so this file no longer hand-codes template
+ * functions. It provides only:
  *
- * To support a new sizing transform, add an entry to FORMULA_TEMPLATES.
- * Unknown implementations fall back to FALLBACK_TEMPLATE.
+ *   - `CANONICAL_GLYPH`: the immutable symbolic form for the top-bar glyph.
+ *   - `renderFormula(formula, ctx)`: substitutes live numeric values into the
+ *     server-provided symbolic form, picking whichever parameters the formula
+ *     references.
+ *
+ * The client stays dumb: adding a new sizing rule only requires registering
+ * it on the server with a `formula="..."` string. No client deploy needed.
  */
 
 export interface FormulaContext {
@@ -20,17 +23,19 @@ export interface FormulaContext {
 }
 
 export interface RenderedFormula {
-  /** Symbolic form, e.g. "P = E·B / V" or "P = E·B / (γ·V)". */
+  /** Symbolic form, e.g. "P = E·B / V" (echoed from the server). */
   symbolic: string;
   /** Numeric form with live values, e.g. "+12,500 = 0.0024 × 5,000,000 / 0.96". */
   numeric: string;
-  /** Plain-language caption explaining the formula. */
+  /** Plain-language caption derived from the symbolic form. */
   caption: string;
-  /** Computed position value (NaN if unknown). */
+  /** Computed position value (NaN if the formula can't be evaluated). */
   position: number;
 }
 
-export type FormulaTemplate = (ctx: FormulaContext) => RenderedFormula;
+export const CANONICAL_GLYPH = "P = E·B / V";
+
+const FALLBACK_SYMBOLIC = "P = f(E, B, V)";
 
 // ---------------------------------------------------------------------------
 // Number formatting helpers
@@ -51,56 +56,74 @@ function fmtPos(v: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Templates
+// Evaluator
 // ---------------------------------------------------------------------------
 
-export const KELLY_TEMPLATE: FormulaTemplate = ({ edge, bankroll, variance }) => {
-  const position = variance === 0 ? NaN : (edge * bankroll) / variance;
-  return {
-    symbolic: "P = E·B / V",
-    numeric: `${fmtPos(position)} = ${fmt(edge)} × ${fmt(bankroll)} / ${fmt(variance)}`,
-    caption: "Position = Edge × Bankroll / Variance",
-    position,
-  };
-};
+/**
+ * Very small expression evaluator keyed by the symbolic shapes used in the
+ * registered transforms (`P = E·B / V`, `P = E·B / (γ·V)`, etc.). We don't
+ * parse arbitrary math — we detect the handful of shapes we know about.
+ */
+function evaluate(symbolic: string, ctx: FormulaContext): number {
+  const { edge, bankroll, variance, params } = ctx;
+  if (variance === 0) return NaN;
+  // Kelly shape: E·B / V
+  if (/E\s*[·*]\s*B\s*\/\s*V(?!\s*\))/.test(symbolic)) {
+    return (edge * bankroll) / variance;
+  }
+  // Power utility shape: E·B / (γ·V)
+  if (/E\s*[·*]\s*B\s*\/\s*\(\s*γ\s*[·*]\s*V\s*\)/.test(symbolic)) {
+    const gamma =
+      typeof params.risk_aversion === "number"
+        ? (params.risk_aversion as number)
+        : 2.0;
+    return (edge * bankroll) / (gamma * variance);
+  }
+  return NaN;
+}
 
-export const POWER_UTILITY_TEMPLATE: FormulaTemplate = ({
-  edge,
-  bankroll,
-  variance,
-  params,
-}) => {
-  const gamma =
-    typeof params.risk_aversion === "number" ? (params.risk_aversion as number) : 2.0;
-  const position = variance === 0 ? NaN : (edge * bankroll) / (gamma * variance);
-  return {
-    symbolic: "P = E·B / (γ·V)",
-    numeric: `${fmtPos(position)} = ${fmt(edge)} × ${fmt(bankroll)} / (${fmt(gamma)} × ${fmt(variance)})`,
-    caption: `Position = Edge × Bankroll / (γ × Variance), γ = ${fmt(gamma)}`,
-    position,
-  };
-};
+function numericForm(symbolic: string, ctx: FormulaContext, position: number): string {
+  const { edge, bankroll, variance, params } = ctx;
+  if (/E\s*[·*]\s*B\s*\/\s*V(?!\s*\))/.test(symbolic)) {
+    return `${fmtPos(position)} = ${fmt(edge)} × ${fmt(bankroll)} / ${fmt(variance)}`;
+  }
+  if (/E\s*[·*]\s*B\s*\/\s*\(\s*γ\s*[·*]\s*V\s*\)/.test(symbolic)) {
+    const gamma =
+      typeof params.risk_aversion === "number"
+        ? (params.risk_aversion as number)
+        : 2.0;
+    return `${fmtPos(position)} = ${fmt(edge)} × ${fmt(bankroll)} / (${fmt(gamma)} × ${fmt(variance)})`;
+  }
+  return `${fmtPos(position)} ≈ f(${fmt(edge)}, ${fmt(bankroll)}, ${fmt(variance)})`;
+}
 
-export const FALLBACK_TEMPLATE: FormulaTemplate = ({ edge, bankroll, variance }) => ({
-  symbolic: "P = f(E, B, V)",
-  numeric: `f(${fmt(edge)}, ${fmt(bankroll)}, ${fmt(variance)})`,
-  caption: "Position = f(Edge, Bankroll, Variance) — sizing rule not registered in UI",
-  position: NaN,
-});
-
-export const FORMULA_TEMPLATES: Record<string, FormulaTemplate> = {
-  kelly: KELLY_TEMPLATE,
-  power_utility: POWER_UTILITY_TEMPLATE,
-};
+function caption(symbolic: string, ctx: FormulaContext): string {
+  if (/E\s*[·*]\s*B\s*\/\s*V(?!\s*\))/.test(symbolic)) {
+    return "Position = Edge × Bankroll / Variance";
+  }
+  if (/E\s*[·*]\s*B\s*\/\s*\(\s*γ\s*[·*]\s*V\s*\)/.test(symbolic)) {
+    const gamma =
+      typeof ctx.params.risk_aversion === "number"
+        ? (ctx.params.risk_aversion as number)
+        : 2.0;
+    return `Position = Edge × Bankroll / (γ × Variance), γ = ${fmt(gamma)}`;
+  }
+  return "Position = f(Edge, Bankroll, Variance)";
+}
 
 /**
- * Canonical symbolic form. Used as the persistent top-bar glyph regardless of
- * which sizing rule is currently active — it's the symbolic anchor for the
- * whole framework, not a live render.
+ * Render a formula for display in the Live Equation Strip.
+ *
+ * `formula` is the server-provided symbolic string (empty = unknown sizing
+ * rule, falls back to the generic shape).
  */
-export const CANONICAL_GLYPH = "P = E·B / V";
-
-export function getTemplate(name: string | undefined | null): FormulaTemplate {
-  if (!name) return FALLBACK_TEMPLATE;
-  return FORMULA_TEMPLATES[name] ?? FALLBACK_TEMPLATE;
+export function renderFormula(formula: string, ctx: FormulaContext): RenderedFormula {
+  const symbolic = formula || FALLBACK_SYMBOLIC;
+  const position = evaluate(symbolic, ctx);
+  return {
+    symbolic,
+    position,
+    numeric: numericForm(symbolic, ctx, position),
+    caption: caption(symbolic, ctx),
+  };
 }

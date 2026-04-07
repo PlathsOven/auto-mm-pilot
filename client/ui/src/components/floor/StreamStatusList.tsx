@@ -1,15 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
 import { useWebSocket } from "../../providers/WebSocketProvider";
-import { listStreams } from "../../services/streamApi";
 import { useMode } from "../../providers/ModeProvider";
-import type {
-  RegisteredStream,
-  RegisteredStreamStatus,
-  StreamStatus,
-} from "../../types";
+import { useRegisteredStreams } from "../../hooks/useRegisteredStreams";
+import type { RegisteredStreamStatus, StreamStatus } from "../../types";
 import { formatAge } from "../../utils";
-
-const POLL_INTERVAL_MS = 5000;
 
 const LIVE_STATUS_DOT: Record<StreamStatus, string> = {
   ONLINE: "bg-mm-accent",
@@ -44,26 +37,8 @@ const REG_STATUS_TEXT: Record<RegisteredStreamStatus, string> = {
 export function StreamStatusList() {
   const { payload } = useWebSocket();
   const { setMode } = useMode();
+  const { streams: registeredStreams, error: loadError } = useRegisteredStreams();
   const liveStreams = payload?.streams ?? [];
-
-  const [registeredStreams, setRegisteredStreams] = useState<RegisteredStream[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  const fetchStreams = useCallback(async () => {
-    try {
-      const streams = await listStreams();
-      setRegisteredStreams(streams);
-      setLoadError(null);
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : String(err));
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchStreams();
-    const id = setInterval(fetchStreams, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [fetchStreams]);
 
   return (
     <div className="flex h-full flex-col p-4">
@@ -79,7 +54,6 @@ export function StreamStatusList() {
       </div>
 
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
-        {/* Registry — REST API */}
         {registeredStreams.length > 0 && (
           <div className="flex flex-col gap-2">
             <p className="text-[10px] font-medium uppercase tracking-wider text-mm-text-dim">
@@ -111,7 +85,6 @@ export function StreamStatusList() {
           </div>
         )}
 
-        {/* Live heartbeats — WS payload */}
         {liveStreams.length > 0 && (
           <div className="flex flex-col gap-2">
             <p className="text-[10px] font-medium uppercase tracking-wider text-mm-text-dim">
@@ -143,7 +116,6 @@ export function StreamStatusList() {
           </div>
         )}
 
-        {/* Empty state */}
         {registeredStreams.length === 0 && liveStreams.length === 0 && (
           <p className="text-xs text-mm-text-dim">
             No streams registered. Open Studio to create one.

@@ -14,6 +14,7 @@ Endpoints:
     DEL   /api/streams/{name}              — Delete a stream
     POST  /api/snapshots                   — Ingest snapshot rows
     POST  /api/market-pricing              — Update market pricing
+    GET   /api/config/bankroll             — Read current bankroll
     PATCH /api/config/bankroll             — Set bankroll
 
 Run:
@@ -65,6 +66,7 @@ from server.api.client_ws import client_ws
 from server.api.ws import pipeline_ws, restart_ticker, get_current_tick_ts
 
 from server.api.engine_state import (
+    get_bankroll,
     get_engine_state,
     get_market_pricing,
     get_mock_now,
@@ -384,6 +386,12 @@ async def update_market_pricing(req: MarketPricingRequest) -> MarketPricingRespo
 # Bankroll
 # ---------------------------------------------------------------------------
 
+@app.get("/api/config/bankroll", response_model=BankrollResponse)
+async def read_bankroll() -> BankrollResponse:
+    """Return the current portfolio bankroll."""
+    return BankrollResponse(bankroll=get_bankroll(), pipeline_rerun=False)
+
+
 @app.patch("/api/config/bankroll", response_model=BankrollResponse)
 async def update_bankroll(req: BankrollRequest) -> BankrollResponse:
     """User sets the portfolio bankroll and re-runs pipeline if streams are available."""
@@ -441,6 +449,7 @@ async def list_transforms() -> TransformListResponse:
             transforms.append(TransformResponse(
                 name=t.name,
                 description=t.description,
+                formula=t.formula,
                 params=[
                     TransformParamResponse(
                         name=p.name,

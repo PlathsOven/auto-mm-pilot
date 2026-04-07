@@ -1,6 +1,7 @@
 import { useTransforms } from "../../../providers/TransformsProvider";
 import type { TargetMappingDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
+import { Field } from "./Field";
 
 interface Props {
   value: TargetMappingDraft;
@@ -19,23 +20,23 @@ interface Props {
  */
 export function TargetMappingSection({ value, onChange, state, dimmed }: Props) {
   const { steps } = useTransforms();
-  const unit = steps?.unit_conversion;
-  const activeName = unit?.selected ?? "affine_power";
+  const activeName = steps?.unit_conversion?.selected ?? "affine_power";
 
-  // Mini chart of target = f(raw) over a sample range
-  const samples: { raw: number; target: number }[] = [];
-  for (let i = 0; i < 30; i++) {
+  // Sample target = f(raw) over a small range to render a mini sparkline
+  const samples = Array.from({ length: 30 }, (_, i) => {
     const raw = i / 5; // 0..6
-    let target = value.scale * Math.pow(Math.max(raw, 1e-12), value.exponent) + value.offset;
-    if (!Number.isFinite(target)) target = 0;
-    samples.push({ raw, target });
-  }
+    const target = value.scale * Math.pow(Math.max(raw, 1e-12), value.exponent) + value.offset;
+    return { raw, target: Number.isFinite(target) ? target : 0 };
+  });
   const minT = Math.min(...samples.map((s) => s.target), 0);
   const maxT = Math.max(...samples.map((s) => s.target), 1);
   const range = maxT - minT || 1;
   const points = samples
-    .map((s, i) => `${(i / (samples.length - 1)) * 100},${100 - ((s.target - minT) / range) * 100}`)
+    .map((s, i) => `${(i / (samples.length - 1)) * 100},${50 - ((s.target - minT) / range) * 50}`)
     .join(" ");
+
+  const patch = <K extends keyof TargetMappingDraft>(k: K, v: TargetMappingDraft[K]) =>
+    onChange({ ...value, [k]: v });
 
   return (
     <SectionCard
@@ -52,66 +53,17 @@ export function TargetMappingSection({ value, onChange, state, dimmed }: Props) 
       }
     >
       <div className="grid grid-cols-3 gap-3">
-        <NumericField
-          label="scale"
-          value={value.scale}
-          onChange={(v) => onChange({ ...value, scale: v })}
-        />
-        <NumericField
-          label="offset"
-          value={value.offset}
-          onChange={(v) => onChange({ ...value, offset: v })}
-        />
-        <NumericField
-          label="exponent"
-          value={value.exponent}
-          onChange={(v) => onChange({ ...value, exponent: v })}
-        />
+        <Field type="number" label="scale" value={value.scale} onChange={(v) => patch("scale", v)} />
+        <Field type="number" label="offset" value={value.offset} onChange={(v) => patch("offset", v)} />
+        <Field type="number" label="exponent" value={value.exponent} onChange={(v) => patch("exponent", v)} />
       </div>
 
       <div className="mt-3 rounded-md border border-mm-border/40 bg-mm-bg-deep/60 p-2">
         <div className="mb-1 text-[10px] text-mm-text-dim">target = f(raw)</div>
         <svg viewBox="0 0 100 50" preserveAspectRatio="none" className="h-12 w-full">
-          <polyline
-            points={points
-              .split(" ")
-              .map((p) => {
-                const [x, y] = p.split(",");
-                return `${x},${parseFloat(y) / 2}`;
-              })
-              .join(" ")}
-            fill="none"
-            stroke="#818cf8"
-            strokeWidth="0.6"
-          />
+          <polyline points={points} fill="none" stroke="#818cf8" strokeWidth="0.6" />
         </svg>
       </div>
     </SectionCard>
-  );
-}
-
-function NumericField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[10px] font-medium text-mm-text-dim">{label}</span>
-      <input
-        type="number"
-        step="any"
-        value={Number.isFinite(value) ? value : ""}
-        onChange={(e) => {
-          const parsed = parseFloat(e.target.value);
-          onChange(Number.isFinite(parsed) ? parsed : 0);
-        }}
-        className="form-input font-mono"
-      />
-    </label>
   );
 }

@@ -1,5 +1,5 @@
-import { useEffect } from "react";
 import { useChat } from "../../providers/ChatProvider";
+import { useKeyboardShortcut } from "../../hooks/useKeyboardShortcut";
 import { LlmChat } from "../LlmChat";
 
 /**
@@ -17,20 +17,8 @@ import { LlmChat } from "../LlmChat";
 export function ChatDrawer() {
   const { drawerOpen, toggleDrawer, closeDrawer } = useChat();
 
-  // Global keyboard shortcut: cmd+\ (mac) / ctrl+\ (win/linux)
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
-        e.preventDefault();
-        toggleDrawer();
-      }
-      if (e.key === "Escape" && drawerOpen) {
-        closeDrawer();
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [toggleDrawer, closeDrawer, drawerOpen]);
+  useKeyboardShortcut("\\", toggleDrawer);
+  useKeyboardShortcut("Escape", () => drawerOpen && closeDrawer(), { mod: false });
 
   if (!drawerOpen) return null;
 

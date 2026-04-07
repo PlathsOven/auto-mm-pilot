@@ -1,26 +1,23 @@
 import { useState } from "react";
 import { BlockDecompositionView } from "../components/lens/BlockDecompositionView";
-import { TimeMachineScrubber } from "../components/lens/TimeMachineScrubber";
 import { PipelineDetail } from "../components/lens/PipelineDetail";
 
-type LensTab = "decomposition" | "time_machine" | "pipeline_detail";
+type LensTab = "decomposition" | "pipeline_detail";
 
 const TABS: { id: LensTab; label: string }[] = [
   { id: "decomposition", label: "Decomposition" },
-  { id: "time_machine", label: "Time Machine" },
   { id: "pipeline_detail", label: "Pipeline Detail" },
 ];
 
 /**
  * Lens — the auditor surface.
  *
- * Three sub-tabs:
+ * Two sub-tabs:
  *   - Decomposition: stream-level breakdown of a focused (asset, expiry) cell
- *   - Time Machine: scrub historical pipeline state
  *   - Pipeline Detail: existing PipelineChart + read-only block inspector
  *
- * The focused cell flows in from `SelectionProvider`, so a click in Floor →
- * Lens "Decomposition" picks up the same cell automatically.
+ * Time Machine will land once `snapshot_buffer.py`'s timestamp-lookup support
+ * is verified and `GET /api/pipeline/snapshot_at` is exposed.
  */
 export function LensPage() {
   const [tab, setTab] = useState<LensTab>("decomposition");
@@ -46,7 +43,6 @@ export function LensPage() {
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {tab === "decomposition" && <BlockDecompositionView />}
-        {tab === "time_machine" && <TimeMachineScrubber />}
         {tab === "pipeline_detail" && <PipelineDetail />}
       </div>
     </div>

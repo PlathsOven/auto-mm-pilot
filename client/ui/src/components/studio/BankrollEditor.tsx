@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { updateBankroll } from "../../services/streamApi";
-import { useDerivedBankroll } from "../../hooks/useDerivedBankroll";
+import { useTransforms } from "../../providers/TransformsProvider";
 
 /**
  * Bankroll editor lifted from `server/api/admin/index.html`.
  *
- * Reads the current value via `useDerivedBankroll` (inversion of the active
- * position-sizing formula on a non-zero position) until a dedicated GET
- * endpoint is added in a later iteration.
+ * Reads the current value from `TransformsProvider`, which fetches it from
+ * `GET /api/config/bankroll`. After a successful PATCH, refreshes the
+ * provider so the Floor equation strip (and any other consumer) picks up
+ * the new bankroll on the next render.
  */
 export function BankrollEditor() {
-  const current = useDerivedBankroll();
+  const { bankroll: current, refresh } = useTransforms();
   const [input, setInput] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "ok" | "err"; text: string } | null>(null);
@@ -25,6 +26,7 @@ export function BankrollEditor() {
     setFeedback(null);
     try {
       await updateBankroll(parsed);
+      await refresh();
       setFeedback({ type: "ok", text: `Bankroll set to ${parsed.toLocaleString()}` });
       setInput("");
     } catch (err) {

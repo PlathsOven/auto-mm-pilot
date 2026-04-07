@@ -6,6 +6,8 @@ export interface ActivePositionSizing {
   name: string;
   /** Param values currently set on that transform. */
   params: Record<string, unknown>;
+  /** Symbolic form echoed from the server (empty string if unset). */
+  formula: string;
 }
 
 /**
@@ -18,6 +20,11 @@ export function useActivePositionSizing(): ActivePositionSizing | null {
   return useMemo(() => {
     const ps = steps?.position_sizing;
     if (!ps) return null;
-    return { name: ps.selected, params: ps.params };
+    const info = ps.transforms.find((t) => t.name === ps.selected);
+    return {
+      name: ps.selected,
+      params: ps.params,
+      formula: info?.formula ?? "",
+    };
   }, [steps]);
 }

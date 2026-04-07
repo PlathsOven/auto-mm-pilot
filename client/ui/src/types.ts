@@ -279,6 +279,8 @@ export interface TransformInfo {
   name: string;
   description: string;
   params: TransformParam[];
+  /** Optional symbolic form, e.g. "P = E·B / (γ·V)". Empty string if unset. */
+  formula: string;
 }
 
 export interface TransformStep {

@@ -1,6 +1,7 @@
 import { useTransforms } from "../../../providers/TransformsProvider";
 import type { BlockShapeDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
+import { Field } from "./Field";
 
 interface Props {
   value: BlockShapeDraft;
@@ -54,6 +55,9 @@ export function BlockShapeSection({ value, onChange, state, dimmed }: Props) {
   const points = decayPoints(decayProfile, value.decay_end_size_mult, value.decay_rate_prop_per_min);
   const polyline = points.map((p) => `${p.x},${Math.max(0, Math.min(100, p.y))}`).join(" ");
 
+  const patch = <K extends keyof BlockShapeDraft>(k: K, v: BlockShapeDraft[K]) =>
+    onChange({ ...value, [k]: v });
+
   return (
     <SectionCard
       title="Block Shape"
@@ -70,34 +74,37 @@ export function BlockShapeSection({ value, onChange, state, dimmed }: Props) {
       }
     >
       <div className="grid grid-cols-2 gap-3">
-        <ToggleField
+        <Field
+          type="toggle"
           label="Annualized"
           value={value.annualized}
-          onChange={(v) => onChange({ ...value, annualized: v })}
+          onChange={(v) => patch("annualized", v)}
         />
-        <SelectField
+        <Field
+          type="select"
           label="Size type"
           value={value.size_type}
           options={["fixed", "relative"]}
-          onChange={(v) => onChange({ ...value, size_type: v as "fixed" | "relative" })}
+          onChange={(v) => patch("size_type", v as "fixed" | "relative")}
         />
-        <SelectField
+        <Field
+          type="select"
           label="Temporal position"
           value={value.temporal_position}
           options={["static", "shifting"]}
-          onChange={(v) =>
-            onChange({ ...value, temporal_position: v as "static" | "shifting" })
-          }
+          onChange={(v) => patch("temporal_position", v as "static" | "shifting")}
         />
-        <NumericField
+        <Field
+          type="number"
           label="decay_end_size_mult"
           value={value.decay_end_size_mult}
-          onChange={(v) => onChange({ ...value, decay_end_size_mult: v })}
+          onChange={(v) => patch("decay_end_size_mult", v)}
         />
-        <NumericField
+        <Field
+          type="number"
           label="decay_rate_prop_per_min"
           value={value.decay_rate_prop_per_min}
-          onChange={(v) => onChange({ ...value, decay_rate_prop_per_min: v })}
+          onChange={(v) => patch("decay_rate_prop_per_min", v)}
         />
       </div>
 
@@ -111,89 +118,5 @@ export function BlockShapeSection({ value, onChange, state, dimmed }: Props) {
         </svg>
       </div>
     </SectionCard>
-  );
-}
-
-function ToggleField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center justify-between gap-2 rounded-md border border-mm-border/40 bg-mm-bg/40 px-2 py-1.5">
-      <span className="text-[10px] font-medium text-mm-text-dim">{label}</span>
-      <button
-        type="button"
-        onClick={() => onChange(!value)}
-        className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
-          value ? "bg-mm-accent" : "bg-mm-border"
-        }`}
-      >
-        <span
-          className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${
-            value ? "translate-x-[14px]" : "translate-x-[2px]"
-          }`}
-        />
-      </button>
-    </label>
-  );
-}
-
-function SelectField({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[10px] font-medium text-mm-text-dim">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="form-input"
-      >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function NumericField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[10px] font-medium text-mm-text-dim">{label}</span>
-      <input
-        type="number"
-        step="any"
-        value={Number.isFinite(value) ? value : ""}
-        onChange={(e) => {
-          const parsed = parseFloat(e.target.value);
-          onChange(Number.isFinite(parsed) ? parsed : 0);
-        }}
-        className="form-input font-mono"
-      />
-    </label>
   );
 }

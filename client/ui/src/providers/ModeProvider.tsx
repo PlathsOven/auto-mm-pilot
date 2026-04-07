@@ -20,24 +20,45 @@ export const MODE_LABELS: Record<ModeId, string> = {
   docs: "Docs",
 };
 
+/**
+ * Parsed route state.
+ *
+ * `segments` are the slash-separated parts of everything after the mode, and
+ * `query` holds any `?k=v` pairs. For example, `#studio/streams/btc?template=fomc`
+ * yields `{ mode: "studio", segments: ["streams", "btc"], query: { template: "fomc" } }`.
+ */
 interface ParsedRoute {
   mode: ModeId;
   subPath: string;
+  segments: readonly string[];
+  query: Readonly<Record<string, string>>;
 }
 
 function parseHash(hash: string): ParsedRoute {
-  // hash is "#floor", "#studio/streams", "#studio/streams/btc", etc.
   const cleaned = hash.replace(/^#\/?/, "");
-  if (!cleaned) return { mode: DEFAULT_MODE, subPath: "" };
+  if (!cleaned) return emptyRoute(DEFAULT_MODE);
 
-  const slash = cleaned.indexOf("/");
-  const head = slash === -1 ? cleaned : cleaned.slice(0, slash);
-  const rest = slash === -1 ? "" : cleaned.slice(slash + 1);
+  const [path, queryString = ""] = cleaned.split("?");
+  const slash = path.indexOf("/");
+  const head = slash === -1 ? path : path.slice(0, slash);
+  const rest = slash === -1 ? "" : path.slice(slash + 1);
 
-  if ((VALID_MODES as readonly string[]).includes(head)) {
-    return { mode: head as ModeId, subPath: rest };
+  if (!(VALID_MODES as readonly string[]).includes(head)) {
+    return emptyRoute(DEFAULT_MODE);
   }
-  return { mode: DEFAULT_MODE, subPath: "" };
+
+  const segments = rest ? rest.split("/").filter(Boolean) : [];
+  const query: Record<string, string> = {};
+  if (queryString) {
+    for (const [k, v] of new URLSearchParams(queryString).entries()) {
+      query[k] = v;
+    }
+  }
+  return { mode: head as ModeId, subPath: rest, segments, query };
+}
+
+function emptyRoute(mode: ModeId): ParsedRoute {
+  return { mode, subPath: "", segments: [], query: {} };
 }
 
 function buildHash(mode: ModeId, subPath: string = ""): string {
@@ -47,6 +68,8 @@ function buildHash(mode: ModeId, subPath: string = ""): string {
 interface ModeContextValue {
   mode: ModeId;
   subPath: string;
+  segments: readonly string[];
+  query: Readonly<Record<string, string>>;
   setMode: (mode: ModeId, subPath?: string) => void;
   navigate: (path: string) => void;
 }
@@ -58,7 +81,6 @@ export function ModeProvider({ children }: { children: ReactNode }) {
     parseHash(window.location.hash),
   );
 
-  // Listen for hash changes — covers browser back/forward AND our own navigations.
   useEffect(() => {
     function handleHashChange() {
       setRoute(parseHash(window.location.hash));
@@ -67,7 +89,6 @@ export function ModeProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
-  // On initial mount: write the default hash if it's missing so the URL is shareable.
   useEffect(() => {
     if (!window.location.hash) {
       window.location.hash = buildHash(DEFAULT_MODE);
@@ -90,8 +111,15 @@ export function ModeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ mode: route.mode, subPath: route.subPath, setMode, navigate }),
-    [route.mode, route.subPath, setMode, navigate],
+    () => ({
+      mode: route.mode,
+      subPath: route.subPath,
+      segments: route.segments,
+      query: route.query,
+      setMode,
+      navigate,
+    }),
+    [route.mode, route.subPath, route.segments, route.query, setMode, navigate],
   );
 
   return <ModeContext.Provider value={value}>{children}</ModeContext.Provider>;

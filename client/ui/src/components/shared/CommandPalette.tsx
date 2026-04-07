@@ -5,6 +5,7 @@ import { useChat } from "../../providers/ChatProvider";
 import { useOnboarding } from "../../providers/OnboardingProvider";
 import { useWebSocket } from "../../providers/WebSocketProvider";
 import { useSelection } from "../../providers/SelectionProvider";
+import { useKeyboardShortcut } from "../../hooks/useKeyboardShortcut";
 
 interface Command {
   id: string;
@@ -32,20 +33,8 @@ export function CommandPalette() {
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Global cmd+K handler
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        togglePalette();
-      }
-      if (e.key === "Escape" && open) {
-        closePalette();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, togglePalette, closePalette]);
+  useKeyboardShortcut("k", togglePalette);
+  useKeyboardShortcut("Escape", () => open && closePalette(), { mod: false });
 
   useEffect(() => {
     if (open) {

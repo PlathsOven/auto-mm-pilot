@@ -1,8 +1,8 @@
 import { useMode } from "../../providers/ModeProvider";
+import { useTransforms } from "../../providers/TransformsProvider";
 import { useFocusedCell } from "../../hooks/useFocusedCell";
 import { useActivePositionSizing } from "../../hooks/useActivePositionSizing";
-import { useDerivedBankroll } from "../../hooks/useDerivedBankroll";
-import { CANONICAL_GLYPH, getTemplate } from "./formulaTemplates";
+import { CANONICAL_GLYPH, renderFormula } from "./formulaTemplates";
 
 /**
  * Three-size renderer for the canonical APT equation.
@@ -63,7 +63,7 @@ function XsGlyph({ onClick }: { onClick?: () => void }) {
 function MdLgStrip({ size }: { size: "md" | "lg" }) {
   const focused = useFocusedCell();
   const positionSizing = useActivePositionSizing();
-  const bankroll = useDerivedBankroll();
+  const { bankroll } = useTransforms();
   const { setMode } = useMode();
 
   if (!positionSizing) {
@@ -86,8 +86,7 @@ function MdLgStrip({ size }: { size: "md" | "lg" }) {
     );
   }
 
-  const template = getTemplate(positionSizing.name);
-  const rendered = template({
+  const rendered = renderFormula(positionSizing.formula, {
     edge: focused.position.smoothedEdge,
     variance: focused.position.smoothedVar,
     bankroll,

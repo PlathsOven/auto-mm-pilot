@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { DataShapeDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
+import { Field } from "./Field";
 
 interface Props {
   value: DataShapeDraft;
@@ -33,6 +34,9 @@ function parseCsv(raw: string): ParsedSchema | null {
 export function DataShapeSection({ value, onChange, state, dimmed }: Props) {
   const schema = useMemo(() => parseCsv(value.sample_csv), [value.sample_csv]);
 
+  const patch = <K extends keyof DataShapeDraft>(k: K, v: DataShapeDraft[K]) =>
+    onChange({ ...value, [k]: v });
+
   return (
     <SectionCard
       title="Data Shape"
@@ -42,19 +46,15 @@ export function DataShapeSection({ value, onChange, state, dimmed }: Props) {
       dimmed={dimmed}
     >
       <div className="grid gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium text-mm-text-dim">
-            Paste a sample (CSV with header row)
-          </span>
-          <textarea
-            value={value.sample_csv}
-            onChange={(e) => onChange({ ...value, sample_csv: e.target.value })}
-            placeholder={"timestamp,symbol,expiry,raw_value\n2026-01-15T16:00:00Z,BTC,27MAR26,0.74"}
-            rows={5}
-            spellCheck={false}
-            className="form-input resize-y font-mono"
-          />
-        </label>
+        <Field
+          type="textarea"
+          label="Paste a sample (CSV with header row)"
+          placeholder={"timestamp,symbol,expiry,raw_value\n2026-01-15T16:00:00Z,BTC,27MAR26,0.74"}
+          rows={5}
+          mono
+          value={value.sample_csv}
+          onChange={(v) => patch("sample_csv", v)}
+        />
 
         {schema && (
           <div className="rounded-md border border-mm-border/40 bg-mm-bg-deep/60 p-2 text-[10px]">
@@ -79,24 +79,14 @@ export function DataShapeSection({ value, onChange, state, dimmed }: Props) {
           </div>
         )}
 
-        {schema && (
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-medium text-mm-text-dim">Value column</span>
-            <select
-              value={value.value_column}
-              onChange={(e) => onChange({ ...value, value_column: e.target.value })}
-              className="form-input"
-            >
-              {schema.numericColumns.length === 0 && (
-                <option value="">— no numeric columns detected —</option>
-              )}
-              {schema.numericColumns.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </label>
+        {schema && schema.numericColumns.length > 0 && (
+          <Field
+            type="select"
+            label="Value column"
+            value={value.value_column}
+            options={schema.numericColumns}
+            onChange={(v) => patch("value_column", v)}
+          />
         )}
       </div>
     </SectionCard>
