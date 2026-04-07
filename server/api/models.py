@@ -266,6 +266,10 @@ class TransformResponse(BaseModel):
     name: str
     description: str
     params: list[TransformParamResponse]
+    # Optional symbolic form (e.g. "P = E·B / (γ·V)"). Used by the client's
+    # LiveEquationStrip to render whichever transform is active without
+    # hand-coding templates.
+    formula: str = ""
 
 
 class TransformStepResponse(BaseModel):

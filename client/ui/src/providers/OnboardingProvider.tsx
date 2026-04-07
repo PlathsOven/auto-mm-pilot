@@ -1,0 +1,78 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
+
+const STORAGE_KEY = "apt.onboarding.completed";
+
+interface OnboardingContextValue {
+  /** True if the user has completed (or skipped) onboarding before. */
+  completed: boolean;
+  /** True if the onboarding overlay should be visible. */
+  open: boolean;
+  openOnboarding: () => void;
+  closeOnboarding: () => void;
+  markCompleted: () => void;
+  resetOnboarding: () => void;
+}
+
+const OnboardingContext = createContext<OnboardingContextValue | null>(null);
+
+function readCompleted(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+export function OnboardingProvider({ children }: { children: ReactNode }) {
+  const [completed, setCompleted] = useState<boolean>(readCompleted);
+  const [open, setOpen] = useState<boolean>(false);
+
+  // First launch: open if not yet completed
+  useEffect(() => {
+    if (!completed) setOpen(true);
+  }, [completed]);
+
+  const openOnboarding = useCallback(() => setOpen(true), []);
+  const closeOnboarding = useCallback(() => setOpen(false), []);
+
+  const markCompleted = useCallback(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, "true");
+    } catch {
+      // ignore
+    }
+    setCompleted(true);
+    setOpen(false);
+  }, []);
+
+  const resetOnboarding = useCallback(() => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    setCompleted(false);
+    setOpen(true);
+  }, []);
+
+  return (
+    <OnboardingContext.Provider
+      value={{ completed, open, openOnboarding, closeOnboarding, markCompleted, resetOnboarding }}
+    >
+      {children}
+    </OnboardingContext.Provider>
+  );
+}
+
+export function useOnboarding() {
+  const ctx = useContext(OnboardingContext);
+  if (!ctx) throw new Error("useOnboarding must be used within OnboardingProvider");
+  return ctx;
+}

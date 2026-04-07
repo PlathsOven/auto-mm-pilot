@@ -190,6 +190,11 @@ def set_bankroll(value: float) -> None:
     log.info("Bankroll updated to %.2f", value)
 
 
+def get_bankroll() -> float:
+    """Return the current bankroll."""
+    return _bankroll
+
+
 def set_market_pricing(pricing: dict[str, float]) -> None:
     """Merge new entries into market pricing (does NOT trigger a pipeline re-run).
 

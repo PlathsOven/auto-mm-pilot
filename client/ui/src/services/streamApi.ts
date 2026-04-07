@@ -13,6 +13,7 @@
 
 import type {
   BankrollResponse,
+  BlockConfigPayload,
   MarketPricingResponse,
   RegisteredStream,
   SnapshotResponse,
@@ -55,6 +56,36 @@ export async function deleteStream(streamName: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Stream activation (PENDING → READY)
+// ---------------------------------------------------------------------------
+
+export interface ConfigureStreamRequest {
+  scale: number;
+  offset: number;
+  exponent: number;
+  block: BlockConfigPayload;
+}
+
+/**
+ * Apply pipeline-facing parameters and transition a PENDING stream to READY.
+ *
+ * Backed by `POST /api/streams/{name}/configure` (formerly only reachable
+ * from the admin HTML). Used by Studio Stream Canvas's Activate button.
+ */
+export async function configureStream(
+  streamName: string,
+  payload: ConfigureStreamRequest,
+): Promise<RegisteredStream> {
+  return apiFetch<RegisteredStream>(
+    `/api/streams/${encodeURIComponent(streamName)}/configure`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Snapshot ingestion
 // ---------------------------------------------------------------------------
 
@@ -72,6 +103,11 @@ export async function ingestSnapshot(
 // Market pricing
 // ---------------------------------------------------------------------------
 
+export async function fetchMarketPricing(): Promise<Record<string, number>> {
+  const data = await apiFetch<{ pricing: Record<string, number> }>("/api/market-pricing");
+  return data.pricing;
+}
+
 export async function updateMarketPricing(
   pricing: Record<string, number>,
 ): Promise<MarketPricingResponse> {
@@ -84,6 +120,11 @@ export async function updateMarketPricing(
 // ---------------------------------------------------------------------------
 // Bankroll
 // ---------------------------------------------------------------------------
+
+export async function fetchBankroll(): Promise<number> {
+  const data = await apiFetch<BankrollResponse>("/api/config/bankroll");
+  return data.bankroll;
+}
 
 export async function updateBankroll(
   bankroll: number,

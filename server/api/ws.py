@@ -126,8 +126,6 @@ def _streams_from_blocks(blocks_df: pl.DataFrame, timestamp: datetime) -> list[d
 
 def _context_at_tick(timestamp: datetime) -> dict[str, Any]:
     return {
-        "engineState": "OPTIMIZING",
-        "operatingSpace": "VARIANCE",
         "lastUpdateTimestamp": int(timestamp.timestamp() * 1000),
     }
 
@@ -300,8 +298,6 @@ async def _run_heartbeat() -> None:
         payload_dict = {
             "streams": [],
             "context": {
-                "engineState": "WAITING",
-                "operatingSpace": "NONE",
                 "lastUpdateTimestamp": now_ms,
             },
             "positions": [],

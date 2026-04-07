@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { LayoutItem } from "react-grid-layout";
 
-export type PanelType = "streams" | "positions" | "updates" | "chat" | "wrap" | "pipeline" | "blocks" | "transforms";
+export type PanelType = "streams" | "positions" | "updates" | "wrap" | "pipeline";
 
 export interface PanelInstance {
   id: string;
@@ -12,38 +12,30 @@ export const PANEL_LABELS: Record<PanelType, string> = {
   streams: "Data Streams",
   positions: "Desired Positions",
   updates: "Updates",
-  chat: "Team Chat",
   wrap: "Daily Trading Wrap",
   pipeline: "Pipeline Analysis",
-  blocks: "Block Configuration",
-  transforms: "Transform Config",
 };
 
 const DEFAULT_SIZES: Record<PanelType, { w: number; h: number }> = {
   streams: { w: 3, h: 6 },
   positions: { w: 6, h: 6 },
   updates: { w: 3, h: 4 },
-  chat: { w: 3, h: 5 },
   wrap: { w: 6, h: 4 },
   pipeline: { w: 9, h: 8 },
-  blocks: { w: 12, h: 6 },
-  transforms: { w: 6, h: 8 },
 };
 
 const DEFAULT_PANELS: PanelInstance[] = [
   { id: "streams-0", type: "streams" },
   { id: "positions-0", type: "positions" },
   { id: "updates-0", type: "updates" },
-  { id: "chat-0", type: "chat" },
   { id: "wrap-0", type: "wrap" },
 ];
 
 const DEFAULT_LAYOUT: LayoutItem[] = [
   { i: "streams-0", x: 0, y: 0, w: 3, h: 10, minW: 2, minH: 3 },
-  { i: "positions-0", x: 3, y: 0, w: 6, h: 6, minW: 4, minH: 3 },
-  { i: "updates-0", x: 9, y: 0, w: 3, h: 4, minW: 2, minH: 3 },
-  { i: "chat-0", x: 9, y: 4, w: 3, h: 6, minW: 2, minH: 3 },
-  { i: "wrap-0", x: 3, y: 6, w: 6, h: 4, minW: 3, minH: 3 },
+  { i: "positions-0", x: 3, y: 0, w: 6, h: 10, minW: 4, minH: 3 },
+  { i: "updates-0", x: 9, y: 0, w: 3, h: 6, minW: 2, minH: 3 },
+  { i: "wrap-0", x: 9, y: 6, w: 3, h: 4, minW: 2, minH: 3 },
 ] as LayoutItem[];
 
 const STORAGE_KEY = "apt-layout";
@@ -62,13 +54,29 @@ const LayoutContext = createContext<LayoutContextValue | null>(null);
 
 let nextId = 1;
 
+const VALID_PANEL_TYPES = new Set<PanelType>([
+  "streams",
+  "positions",
+  "updates",
+  "wrap",
+  "pipeline",
+]);
+
 function loadState(): { panels: PanelInstance[]; layout: LayoutItem[] } | null {
   try {
     const p = localStorage.getItem(PANELS_KEY);
     const l = localStorage.getItem(STORAGE_KEY);
-    if (p && l) return { panels: JSON.parse(p), layout: JSON.parse(l) };
-  } catch { /* ignore corrupt storage */ }
-  return null;
+    if (!p || !l) return null;
+    const rawPanels = JSON.parse(p) as PanelInstance[];
+    const rawLayout = JSON.parse(l) as LayoutItem[];
+    // Filter out panels whose type is no longer supported (legacy chat/blocks/transforms).
+    const panels = rawPanels.filter((panel) => VALID_PANEL_TYPES.has(panel.type));
+    const validIds = new Set(panels.map((p) => p.id));
+    const layout = rawLayout.filter((item) => validIds.has(item.i));
+    return { panels, layout };
+  } catch {
+    return null;
+  }
 }
 
 export function LayoutProvider({ children }: { children: ReactNode }) {

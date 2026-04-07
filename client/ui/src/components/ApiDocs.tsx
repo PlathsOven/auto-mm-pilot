@@ -200,8 +200,8 @@ export function ApiDocs() {
             <p>
               Connect to the read-only WebSocket. The server pushes a JSON
               payload every ~2 s. Before any data is ingested you will
-              receive heartbeat frames with{" "}
-              <code>engineState: "WAITING"</code>.
+              receive heartbeat frames with an empty <code>positions</code>{" "}
+              array.
             </p>
             <CodeBlock>{`# Python (websockets)
 import asyncio, websockets, json
@@ -210,9 +210,9 @@ async def listen():
     async with websockets.connect("wss://apt-admin.up.railway.app/ws") as ws:
         async for msg in ws:
             payload = json.loads(msg)
-            state = payload["context"]["engineState"]
             n = len(payload["positions"])
-            print(f"[{state}] {n} positions")
+            ts = payload["context"]["lastUpdateTimestamp"]
+            print(f"[{ts}] {n} positions")
 
 asyncio.run(listen())`}</CodeBlock>
             <p>
@@ -221,7 +221,7 @@ asyncio.run(listen())`}</CodeBlock>
             <CodeBlock>{`const ws = new WebSocket("wss://apt-admin.up.railway.app/ws");
 ws.onmessage = (e) => {
   const d = JSON.parse(e.data);
-  console.log(d.context.engineState, d.positions.length, "positions");
+  console.log(d.context.lastUpdateTimestamp, d.positions.length, "positions");
 };`}</CodeBlock>
 
             <p className="text-xs font-semibold text-emerald-400">Step 2 — Send test data</p>
@@ -260,14 +260,12 @@ asyncio.run(send_test())`}</CodeBlock>
             <p className="text-xs font-semibold text-emerald-400">Step 3 — Observe positions</p>
             <p>
               Switch back to your <code>/ws</code> listener. After the ACK,
-              the engine re-runs and broadcasts positions. You should see
-              the state change from{" "}
-              <code>WAITING</code> → <code>OPTIMIZING</code> and a non-zero
-              <code> positions</code> count.
+              the engine re-runs and broadcasts positions. You should see the
+              <code> positions</code> count flip from 0 to a non-zero value.
             </p>
-            <CodeBlock>{`[WAITING] 0 positions
-[WAITING] 0 positions
-[OPTIMIZING] 4 positions   # ← engine produced output`}</CodeBlock>
+            <CodeBlock>{`[1710000000000] 0 positions
+[1710000002000] 0 positions
+[1710000004000] 4 positions   # ← engine produced output`}</CodeBlock>
 
             <p className="mt-1">
               The <code>__test__</code> stream uses an identity transform
@@ -323,9 +321,9 @@ async def listen(started: asyncio.Event) -> None:
         count = 0
         async for msg in ws:
             payload = json.loads(msg)
-            state = payload["context"]["engineState"]
+            ts = payload["context"]["lastUpdateTimestamp"]
             n = len(payload["positions"])
-            print(f"  [listen] {state} — {n} positions")
+            print(f"  [listen] {ts} — {n} positions")
             count += 1
             if count >= MAX_TICKS:
                 break
@@ -431,8 +429,6 @@ if __name__ == "__main__":
     }
   ],
   "context": {
-    "engineState": "OPTIMIZING",
-    "operatingSpace": "VARIANCE",
     "lastUpdateTimestamp": 1710000000000
   },
   "positions": [

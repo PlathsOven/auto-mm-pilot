@@ -47,6 +47,10 @@ class TransformRegistration:
     fn: Callable
     description: str
     params: list[TransformParam]
+    # Optional symbolic form, e.g. "P = E·B / (γ·V)". Consumed by the UI's
+    # LiveEquationStrip to render whichever position_sizing transform is
+    # currently active without hand-coding templates on the client.
+    formula: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -115,10 +119,12 @@ class StepLibrary:
         self._param_values: dict[str, Any] = {}
 
     def register(self, name: str, fn: Callable, *, description: str = "",
+                 formula: str = "",
                  param_overrides: dict[str, dict] | None = None) -> None:
         params = _introspect_params(fn, self.infrastructure_params, param_overrides)
         self._transforms[name] = TransformRegistration(
-            name=name, step=self.step, fn=fn, description=description, params=params,
+            name=name, step=self.step, fn=fn, description=description,
+            params=params, formula=formula,
         )
         if self._selected is None:
             self._selected = name
@@ -222,10 +228,18 @@ def get_registry() -> _RegistryProxy:
 
 
 def transform(step: str, name: str, *, description: str = "",
+              formula: str = "",
               param_overrides: dict[str, dict] | None = None) -> Callable:
-    """Register a function into a step's library."""
+    """Register a function into a step's library.
+
+    `formula` is an optional symbolic form (e.g. "P = E·B / V") that the UI
+    renders when this transform is the active implementation.
+    """
     def wrapper(fn: Callable) -> Callable:
-        get_step(step).register(name, fn, description=description, param_overrides=param_overrides)
+        get_step(step).register(
+            name, fn, description=description, formula=formula,
+            param_overrides=param_overrides,
+        )
         return fn
     return wrapper
 
@@ -644,13 +658,15 @@ def agg_sum_all(block_df: pl.DataFrame, risk_dimension_cols: list[str]) -> pl.Da
 # ---------------------------------------------------------------------------
 
 @transform("position_sizing", "kelly",
-           description="Kelly criterion (log utility): position = edge * bankroll / var")
+           description="Kelly criterion (log utility): position = edge * bankroll / var",
+           formula="P = E·B / V")
 def ps_kelly(edge: pl.Expr, var: pl.Expr, bankroll: float) -> pl.Expr:
     return edge * bankroll / var
 
 
 @transform("position_sizing", "power_utility",
            description="CRRA power utility: nonlinear position sizing for risk_aversion ≠ 1",
+           formula="P = E·B / (γ·V)",
            param_overrides={
                "risk_aversion": {
                    "description": "CRRA risk aversion coefficient γ (γ=1 is Kelly/log utility)",

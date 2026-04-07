@@ -1,43 +1,34 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useWebSocket } from "../providers/WebSocketProvider";
+import { useChat } from "../providers/ChatProvider";
+import { useCommandPalette } from "../providers/CommandPaletteProvider";
+import { useOnboarding } from "../providers/OnboardingProvider";
 import { formatUtcTime } from "../utils";
 import { CURRENT_USER } from "../providers/MockDataProvider";
-import { useLayout, PANEL_LABELS } from "../providers/LayoutProvider";
-import type { PanelType } from "../providers/LayoutProvider";
-import type { AppPage } from "../types";
+import { useMode } from "../providers/ModeProvider";
+import { ModeSwitcher } from "./shared/ModeSwitcher";
+import { LiveEquationStrip } from "./equation/LiveEquationStrip";
 
-const SPACE_OPTIONS = ["D50 VOLATILITY"];
-
-const PANEL_TYPES: PanelType[] = ["streams", "positions", "wrap", "updates", "chat", "pipeline", "blocks"];
-
-export function GlobalContextBar({ page, setPage }: { page: AppPage; setPage: (p: AppPage) => void }) {
+export function GlobalContextBar() {
   const { connectionStatus } = useWebSocket();
-  const { addPanel, resetLayout } = useLayout();
+  const { mode, setMode } = useMode();
+  const { drawerOpen, toggleDrawer } = useChat();
+  const { openPalette } = useCommandPalette();
+  const { resetOnboarding } = useOnboarding();
   const [now, setNow] = useState(Date.now());
-  const [space, setSpace] = useState(SPACE_OPTIONS[0]);
   const [aptEnabled, setAptEnabled] = useState(true);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 47);
     return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [menuOpen]);
+  const inDocs = mode === "docs";
 
   return (
     <div className="flex h-[60px] items-center justify-between border-b border-mm-border/40 bg-mm-surface/80 px-6 backdrop-blur-sm">
-      {/* Logo + App Name */}
+      {/* Left: brand + connection + canonical equation glyph */}
       <div className="flex items-center gap-3">
         <span className="text-base font-bold tracking-wide text-mm-accent">
           APT
@@ -48,67 +39,47 @@ export function GlobalContextBar({ page, setPage }: { page: AppPage; setPage: (p
         <span className="text-[10px] text-mm-text-dim">
           [{connectionStatus}]
         </span>
+        <LiveEquationStrip size="xs" />
       </div>
 
-      <div className="flex items-center gap-6">
-        {/* Operating Space (dropdown) */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-mm-text-dim">Space:</span>
-          <select
-            value={space}
-            onChange={(e) => setSpace(e.target.value)}
-            className="rounded-lg border border-mm-border/60 bg-mm-bg px-3 py-1.5 text-xs text-mm-text outline-none transition-colors focus:border-mm-accent/60 focus:ring-1 focus:ring-mm-accent/20"
-          >
-            {SPACE_OPTIONS.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Middle: mode switcher + per-mode controls */}
+      <div className="flex items-center gap-4">
+        <ModeSwitcher />
 
-        {/* Windows dropdown */}
-        <div ref={menuRef} className="relative pl-4">
-          <button
-            onClick={() => setMenuOpen((v) => !v)}
-            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
-          >
-            <span>Windows</span>
-            <span className="text-[8px]">{menuOpen ? "▲" : "▼"}</span>
-          </button>
-          {menuOpen && (
-            <div className="absolute left-0 top-full z-50 mt-2 min-w-[180px] overflow-hidden rounded-xl border border-mm-border/60 bg-mm-surface py-1 shadow-xl shadow-black/30">
-              {PANEL_TYPES.map((type) => (
-                <button
-                  key={type}
-                  onClick={() => { addPanel(type); setMenuOpen(false); }}
-                  className="flex w-full items-center px-3 py-2 text-left text-xs text-mm-text transition-colors hover:bg-mm-accent/10"
-                >
-                  <span className="mr-2 text-[10px] text-mm-accent">+</span>
-                  {PANEL_LABELS[type]}
-                </button>
-              ))}
-              <div className="my-1 border-t border-mm-border/40" />
-              <button
-                onClick={() => { resetLayout(); setMenuOpen(false); }}
-                className="flex w-full items-center px-3 py-2 text-left text-xs text-mm-text-dim transition-colors hover:bg-mm-accent/10 hover:text-mm-text"
-              >
-                Reset Layout
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* API Docs link */}
+        {/* Cmd+K hint */}
         <button
-          onClick={() => setPage(page === "apidocs" ? "dashboard" : "apidocs")}
-          className={`rounded-lg px-2.5 py-1.5 text-xs transition-colors ${
-            page === "apidocs"
+          onClick={openPalette}
+          className="flex items-center gap-1.5 rounded-lg border border-mm-border/40 px-2.5 py-1 text-[10px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+          title="Open command palette"
+        >
+          <span>Search</span>
+          <span className="text-[9px]">⌘K</span>
+        </button>
+
+        {/* Chat drawer toggle */}
+        <button
+          onClick={toggleDrawer}
+          className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition-colors ${
+            drawerOpen
+              ? "bg-mm-accent/15 font-medium text-mm-accent"
+              : "text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+          }`}
+          title="Toggle APT Chat (⌘\\)"
+        >
+          <span>Chat</span>
+          <span className="text-[9px] text-mm-text-dim">⌘\</span>
+        </button>
+
+        {/* Docs toggle */}
+        <button
+          onClick={() => setMode(inDocs ? "floor" : "docs")}
+          className={`rounded-lg px-2.5 py-1 text-xs transition-colors ${
+            inDocs
               ? "bg-mm-accent/15 font-medium text-mm-accent"
               : "text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
           }`}
         >
-          {page === "apidocs" ? "← Dashboard" : "API Docs"}
+          {inDocs ? "← Back" : "API Docs"}
         </button>
 
         {/* APT Parameter Control Toggle */}
@@ -143,14 +114,35 @@ export function GlobalContextBar({ page, setPage }: { page: AppPage; setPage: (p
         </div>
 
         {/* Logged-in User */}
-        <div className="flex items-center gap-2 pl-4">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-mm-accent/20 text-[10px] font-bold text-mm-accent">
-            {CURRENT_USER.initials}
-          </span>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-medium text-mm-text">{CURRENT_USER.name}</span>
-            <span className="text-[9px] text-mm-text-dim">{CURRENT_USER.role}</span>
-          </div>
+        <div className="relative pl-4">
+          <button
+            onClick={() => setUserMenuOpen((v) => !v)}
+            className="flex items-center gap-2"
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-mm-accent/20 text-[10px] font-bold text-mm-accent">
+              {CURRENT_USER.initials}
+            </span>
+            <div className="flex flex-col text-left">
+              <span className="text-[10px] font-medium text-mm-text">{CURRENT_USER.name}</span>
+              <span className="text-[9px] text-mm-text-dim">{CURRENT_USER.role}</span>
+            </div>
+          </button>
+          {userMenuOpen && (
+            <div
+              onMouseLeave={() => setUserMenuOpen(false)}
+              className="absolute right-0 top-full z-50 mt-2 min-w-[200px] overflow-hidden rounded-xl border border-mm-border/60 bg-mm-surface py-1 shadow-xl shadow-black/30"
+            >
+              <button
+                onClick={() => {
+                  resetOnboarding();
+                  setUserMenuOpen(false);
+                }}
+                className="flex w-full items-center px-3 py-2 text-left text-xs text-mm-text transition-colors hover:bg-mm-accent/10"
+              >
+                Replay onboarding tour
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
