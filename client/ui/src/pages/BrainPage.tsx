@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PipelineChart } from "../components/PipelineChart";
 import { EditableBlockTable } from "../components/studio/brain/EditableBlockTable";
 import { AddBlockDrawer } from "../components/studio/brain/AddBlockDrawer";
@@ -27,6 +27,26 @@ export function BrainPage() {
   const openDrawer = () => setDrawerOpen(true);
   const closeDrawer = () => setDrawerOpen(false);
   const onBlockCreated = () => setRefreshKey((k) => k + 1);
+
+  // ECharts (inside PipelineChart) measures its container at mount-time.
+  // When BrainPage mounts as a sub-tab — without a full page reload — the
+  // chart sometimes captures a transitional 0×0 layout from React's render
+  // batch and stays stuck there. Dispatch a synthetic resize twice (once
+  // after the next paint, once after a short delay) to nudge ECharts and
+  // any other ResizeObserver consumers to remeasure once the real layout
+  // has settled.
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    const t = setTimeout(() => {
+      window.dispatchEvent(new Event("resize"));
+    }, 120);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, []);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-4">

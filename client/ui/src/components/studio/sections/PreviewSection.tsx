@@ -145,6 +145,11 @@ function DraftRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+// Strict numeric — matches whole-string integers, decimals, scientific
+// notation, with an optional leading sign. Critically rejects `"27MAR26"`
+// which `parseFloat` would otherwise parse as `27`.
+const NUMERIC_RE = /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
+
 /** Parse pasted CSV into row objects suitable for /api/snapshots. */
 function parseCsvToRows(csv: string): Record<string, unknown>[] {
   const lines = csv
@@ -159,8 +164,7 @@ function parseCsvToRows(csv: string): Record<string, unknown>[] {
     const row: Record<string, unknown> = {};
     headers.forEach((h, i) => {
       const cell = cells[i] ?? "";
-      const num = parseFloat(cell);
-      row[h] = !isNaN(num) && cell !== "" && /^-?\d/.test(cell) ? num : cell;
+      row[h] = NUMERIC_RE.test(cell) ? parseFloat(cell) : cell;
     });
     return row;
   });
