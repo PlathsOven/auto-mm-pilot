@@ -1,13 +1,9 @@
 import type { TransformParam, TransformStep } from "../../../types";
-import { BankrollEditor } from "../BankrollEditor";
-import { MarketPricingEditor } from "../MarketPricingEditor";
-import { LiveEquationStrip } from "../../equation/LiveEquationStrip";
 import type { StepKey } from "./anatomyGraph";
 import { PIPELINE_NARRATIVE } from "./anatomyGraph";
 
 export type AnatomySelection =
   | { kind: "transform"; stepKey: StepKey }
-  | { kind: "stream"; streamName: string }
   | { kind: "none" };
 
 interface Props {
@@ -16,18 +12,17 @@ interface Props {
   savingKey: string | null;
   onSelectTransform: (stepKey: string, name: string) => void;
   onParamChange: (stepKey: string, paramName: string, value: unknown) => void;
-  onOpenStreamDrawer: (streamName: string) => void;
+  onClose: () => void;
 }
 
 /**
  * Right-side inspector panel for the Anatomy canvas.
  *
- * Content depends on the current selection:
- * - `transform`: implementation picker + param editor (lifted from the old
- *   PipelineStepCard) + "Show me the math" disclosure.
- * - `stream`: read-only summary + "Open canvas" button.
- * - `none`: pipeline-level controls (BankrollEditor, MarketPricingEditor,
- *   LiveEquationStrip lg).
+ * Only mounted when a transform node is selected — default Anatomy has no
+ * side panels at all. Stream nodes open the left StreamSidebar instead.
+ *
+ * Hosts the implementation picker + parameter editor (lifted from the old
+ * PipelineStepCard) plus the "Show me the math" formula disclosure.
  */
 export function NodeDetailPanel({
   selection,
@@ -35,37 +30,22 @@ export function NodeDetailPanel({
   savingKey,
   onSelectTransform,
   onParamChange,
-  onOpenStreamDrawer,
+  onClose,
 }: Props) {
+  if (selection.kind !== "transform") return null;
+  const step = steps?.[selection.stepKey];
+  if (!step) return null;
+
   return (
     <aside className="flex w-[340px] shrink-0 flex-col gap-3 overflow-y-auto border-l border-mm-border/60 bg-mm-surface/40 p-4">
-      {selection.kind === "transform" && steps?.[selection.stepKey] && (
-        <TransformDetail
-          stepKey={selection.stepKey}
-          step={steps[selection.stepKey]}
-          saving={savingKey === selection.stepKey}
-          onSelectTransform={onSelectTransform}
-          onParamChange={onParamChange}
-        />
-      )}
-
-      {selection.kind === "stream" && (
-        <StreamDetail
-          streamName={selection.streamName}
-          onOpenStreamDrawer={onOpenStreamDrawer}
-        />
-      )}
-
-      {selection.kind === "none" && (
-        <div className="flex flex-col gap-3">
-          <section className="rounded-xl border border-mm-border/60 bg-mm-bg/40 p-3">
-            <h3 className="zone-header mb-2 text-[11px]">Active sizing rule</h3>
-            <LiveEquationStrip size="lg" />
-          </section>
-          <BankrollEditor />
-          <MarketPricingEditor />
-        </div>
-      )}
+      <TransformDetail
+        stepKey={selection.stepKey}
+        step={step}
+        saving={savingKey === selection.stepKey}
+        onSelectTransform={onSelectTransform}
+        onParamChange={onParamChange}
+        onClose={onClose}
+      />
     </aside>
   );
 }
@@ -80,20 +60,32 @@ function TransformDetail({
   saving,
   onSelectTransform,
   onParamChange,
+  onClose,
 }: {
   stepKey: StepKey;
   step: TransformStep;
   saving: boolean;
   onSelectTransform: (stepKey: string, name: string) => void;
   onParamChange: (stepKey: string, paramName: string, value: unknown) => void;
+  onClose: () => void;
 }) {
   const selected = step.transforms.find((t) => t.name === step.selected);
 
   return (
     <section className="rounded-xl border border-mm-border/60 bg-mm-bg/40 p-4">
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-mm-text">{step.label}</h3>
-        {saving && <span className="text-[9px] text-mm-text-dim">saving…</span>}
+        <div className="flex items-center gap-2">
+          {saving && <span className="text-[9px] text-mm-text-dim">saving…</span>}
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+            title="Close"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       <p className="mb-3 text-[10px] italic text-mm-text-dim">
@@ -152,35 +144,6 @@ function TransformDetail({
       >
         {step.contract}
       </p>
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Stream detail (read-only + Open canvas)
-// ---------------------------------------------------------------------------
-
-function StreamDetail({
-  streamName,
-  onOpenStreamDrawer,
-}: {
-  streamName: string;
-  onOpenStreamDrawer: (streamName: string) => void;
-}) {
-  return (
-    <section className="rounded-xl border border-mm-border/60 bg-mm-bg/40 p-4">
-      <h3 className="mb-2 text-sm font-semibold text-mm-text">{streamName}</h3>
-      <p className="mb-3 text-[10px] text-mm-text-dim">
-        Stream feeding the pipeline. Open the canvas to edit its identity,
-        schema, target mapping, block shape, and confidence.
-      </p>
-      <button
-        type="button"
-        onClick={() => onOpenStreamDrawer(streamName)}
-        className="w-full rounded-lg bg-mm-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-mm-accent/90"
-      >
-        Open canvas →
-      </button>
     </section>
   );
 }

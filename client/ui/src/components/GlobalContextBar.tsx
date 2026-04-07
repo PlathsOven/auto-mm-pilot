@@ -7,7 +7,6 @@ import { formatUtcTime } from "../utils";
 import { CURRENT_USER } from "../providers/MockDataProvider";
 import { useMode } from "../providers/ModeProvider";
 import { ModeSwitcher } from "./shared/ModeSwitcher";
-import { LiveEquationStrip } from "./equation/LiveEquationStrip";
 
 export function GlobalContextBar() {
   const { connectionStatus } = useWebSocket();
@@ -28,7 +27,7 @@ export function GlobalContextBar() {
 
   return (
     <div className="flex h-[60px] items-center justify-between border-b border-mm-border/40 bg-mm-surface/80 px-6 backdrop-blur-sm">
-      {/* Left: brand + connection + canonical equation glyph */}
+      {/* Left: brand + connection */}
       <div className="flex items-center gap-3">
         <span className="text-base font-bold tracking-wide text-mm-accent">
           APT
@@ -39,7 +38,6 @@ export function GlobalContextBar() {
         <span className="text-[10px] text-mm-text-dim">
           [{connectionStatus}]
         </span>
-        <LiveEquationStrip size="xs" />
       </div>
 
       {/* Middle: mode switcher + per-mode controls */}

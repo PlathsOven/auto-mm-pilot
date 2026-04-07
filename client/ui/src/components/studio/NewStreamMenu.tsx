@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { useMode } from "../../providers/ModeProvider";
 import { STREAM_TEMPLATES } from "./templates";
+
+interface Props {
+  /** Fires when the user picks "Blank stream" (main body or popover top row). */
+  onOpenBlank: () => void;
+  /** Fires when the user picks a template id. */
+  onOpenTemplate: (templateId: string) => void;
+}
 
 /**
  * Split button with a template popover.
@@ -10,10 +16,11 @@ import { STREAM_TEMPLATES } from "./templates";
  * popover listing Blank + each registered template's title + one-liner.
  *
  * This is how quick-start templates are kept "less salient": they're
- * invisible until the user explicitly commits to creating a stream.
+ * invisible until the user explicitly commits to creating a stream. The
+ * open-action is delegated to the parent so callers control whether the
+ * new stream opens in the Anatomy sidebar or elsewhere.
  */
-export function NewStreamMenu() {
-  const { setMode } = useMode();
+export function NewStreamMenu({ onOpenBlank, onOpenTemplate }: Props) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -35,15 +42,12 @@ export function NewStreamMenu() {
     };
   }, [open]);
 
-  const openBlank = () => setMode("studio", "streams/new");
-  const openTemplate = (id: string) => setMode("studio", `streams/new?template=${id}`);
-
   return (
     <div ref={containerRef} className="relative">
       <div className="flex items-stretch overflow-hidden rounded-lg bg-mm-accent text-white shadow-sm">
         <button
           type="button"
-          onClick={openBlank}
+          onClick={onOpenBlank}
           className="px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-mm-accent/90"
         >
           + New stream
@@ -64,7 +68,7 @@ export function NewStreamMenu() {
           <button
             type="button"
             onClick={() => {
-              openBlank();
+              onOpenBlank();
               setOpen(false);
             }}
             className="flex w-full flex-col items-start gap-0.5 border-b border-mm-border/30 px-3 py-2 text-left transition-colors hover:bg-mm-accent/10"
@@ -84,7 +88,7 @@ export function NewStreamMenu() {
                 key={tpl.id}
                 type="button"
                 onClick={() => {
-                  openTemplate(tpl.id);
+                  onOpenTemplate(tpl.id);
                   setOpen(false);
                 }}
                 className="flex w-full flex-col items-start gap-0.5 px-3 py-1.5 text-left transition-colors hover:bg-mm-accent/10"

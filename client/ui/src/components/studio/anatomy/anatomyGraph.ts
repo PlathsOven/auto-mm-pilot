@@ -31,23 +31,26 @@ export const PIPELINE_NARRATIVE: Record<StepKey, string> = {
   smoothing: "Stabilise the position over short-term noise.",
 };
 
-/** Column x-coordinates (pixels) for each pipeline step. */
+/** Column x-coordinates (pixels) for each pipeline step.
+ *
+ * Node cards are ~240px wide — the 380px column spacing leaves ~140px of
+ * free space for the edge label chip between each pair of nodes. */
 const X = {
   streams: 0,
-  unit_conversion: 260,
-  decay_profile: 520,
-  temporal_fair_value: 780,
-  variance: 1040,
-  aggregation: 1300,
-  smoothing: 1560,
-  position_sizing: 1820,
-  output: 2080,
+  unit_conversion: 380,
+  decay_profile: 760,
+  temporal_fair_value: 1140,
+  variance: 1520,
+  aggregation: 1900,
+  smoothing: 2280,
+  position_sizing: 2660,
+  output: 3040,
 };
 
 /** Base y-row (main track). */
-const Y_MAIN = 220;
+const Y_MAIN = 240;
 /** Variance branch row — offset downward to show the fork clearly. */
-const Y_VARIANCE = 360;
+const Y_VARIANCE = 440;
 
 /** Hardcoded positions for the 7 transform step nodes + the output node. */
 export const STEP_NODE_POSITIONS: Record<StepKey, { x: number; y: number }> = {

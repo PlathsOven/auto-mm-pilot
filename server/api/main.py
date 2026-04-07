@@ -816,19 +816,20 @@ async def create_manual_block(req: ManualBlockRequest) -> BlockRowResponse:
     # Track as manual
     _manual_streams[req.stream_name] = {"created_at": _dt.now().isoformat()}
 
-    # Fire-and-forget pipeline rerun — return the stub immediately so the
-    # client sees the block in the table within milliseconds.  Computed values
-    # (fair, market_fair, var) will populate on the next 5 s poll once the
-    # background pipeline finishes.
+    # Await the pipeline re-run synchronously so the caller's immediate
+    # refetch of /api/blocks sees the new row. The rerun takes a few hundred
+    # ms which the drawer's "Creating…" spinner already hides.
     stream_configs = registry.build_stream_configs()
     if stream_configs:
-        async def _bg_rerun() -> None:
-            try:
-                await asyncio.to_thread(rerun_pipeline, stream_configs)
-                await restart_ticker()
-            except Exception:
-                log.exception("Background pipeline re-run failed after manual block creation")
-        asyncio.create_task(_bg_rerun())
+        try:
+            await asyncio.to_thread(rerun_pipeline, stream_configs)
+            await restart_ticker()
+        except Exception as exc:
+            log.exception("Pipeline re-run failed after manual block creation")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Block registered but pipeline re-run failed: {exc}",
+            ) from exc
 
     # Extract snapshot fields for the stub response
     snap = req.snapshot_rows[0] if req.snapshot_rows else {}

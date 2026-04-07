@@ -1,22 +1,24 @@
 import { useState } from "react";
 import { PipelineChart } from "../components/PipelineChart";
-import { BlockDecompositionView } from "../components/studio/brain/BlockDecompositionView";
 import { EditableBlockTable } from "../components/studio/brain/EditableBlockTable";
 import { AddBlockDrawer } from "../components/studio/brain/AddBlockDrawer";
 
 /**
  * Studio → Brain.
  *
- * "What is the pipeline currently thinking?" — three stacked sections
+ * "What is the pipeline currently thinking?" — two stacked sections
  * showing the output of the currently-configured pipeline:
  *
- *   1. **Decomposition** — per-stream contributions to fair value + variance
- *      for the focused (asset, expiry) cell. Click a cell on Floor to focus.
- *   2. **Pipeline time series** — the existing PipelineChart (edge, variance,
+ *   1. **Pipeline time series** — the existing PipelineChart (edge, variance,
  *      smoothed position over time) for the focused dimension.
- *   3. **Block inspector** — every block in the pipeline. The "Add manual
+ *   2. **Block inspector** — every block in the pipeline. The "Add manual
  *      block" button opens a drawer that calls `createManualBlock` for
  *      architects who want to drop a one-off block into the pipeline.
+ *
+ * The previous top-level Decomposition section was removed because the
+ * same information is already available as a hover-card on Floor cells
+ * (`StreamAttributionHoverCard`) for quick inspection, and the full
+ * breakdown lives inside `PipelineChart`'s left sidebar.
  */
 export function BrainPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -35,9 +37,10 @@ export function BrainPage() {
         </p>
       </header>
 
-      <BlockDecompositionView />
-
-      <section className="min-h-[400px] rounded-xl border border-mm-border/60 bg-mm-bg/40 p-3">
+      {/* Explicit height so PipelineChart's h-full has something to resolve
+          against. Without this the chart renders at 0px on initial mount and
+          only recovers on a window resize or full page reload. */}
+      <section className="h-[520px] shrink-0 overflow-hidden rounded-xl border border-mm-border/60 bg-mm-bg/40">
         <PipelineChart />
       </section>
 

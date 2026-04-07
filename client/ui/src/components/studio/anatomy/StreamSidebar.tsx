@@ -1,60 +1,133 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StreamTable } from "../StreamTable";
 import { NewStreamMenu } from "../NewStreamMenu";
+import { StreamCanvas } from "../StreamCanvas";
+import { useKeyboardShortcut } from "../../../hooks/useKeyboardShortcut";
+
+export type StreamSidebarMode =
+  | { kind: "closed" }
+  | { kind: "list" }
+  | { kind: "canvas"; streamName: string | null; templateId: string | null };
 
 interface Props {
-  open: boolean;
+  mode: StreamSidebarMode;
+  onOpenList: () => void;
+  onOpenCanvas: (streamName: string | null, templateId: string | null) => void;
   onClose: () => void;
 }
 
 /**
- * Collapsible left-side drawer on the Anatomy canvas.
+ * Anatomy's streams drawer.
  *
- * Hosts the full `StreamTable` (sortable, filterable) + `NewStreamMenu`
- * split button for bulk comparison and creation. Streams also appear as
- * nodes on the canvas; the sidebar is the power-user alternative when the
- * architect needs to compare many streams side-by-side.
+ * Opens from the left side of the canvas and hosts EITHER the sortable
+ * `StreamTable` for bulk comparison OR the `StreamCanvas` editor inline
+ * (no separate right drawer). The user toggles between the two modes via
+ * the "Streams list" header button on the canvas / the "← Streams list"
+ * back button inside the canvas view.
+ *
+ * Default state is closed — Anatomy is just the pipeline graph until the
+ * user clicks a stream node or the toolbar button.
  */
-export function StreamSidebar({ open, onClose }: Props) {
+export function StreamSidebar({ mode, onOpenList, onOpenCanvas, onClose }: Props) {
   const [filter, setFilter] = useState("");
 
-  if (!open) return null;
+  useKeyboardShortcut("Escape", () => mode.kind !== "closed" && onClose(), { mod: false });
+
+  // When a new stream name enters the URL, reset internal filter state so the
+  // sidebar content feels fresh to the user.
+  useEffect(() => {
+    if (mode.kind === "canvas") setFilter("");
+  }, [mode.kind === "canvas" ? mode.streamName : null]);
+
+  if (mode.kind === "closed") return null;
+
+  const width = mode.kind === "canvas" ? 720 : 560;
 
   return (
-    <aside className="absolute left-0 top-0 z-10 flex h-full w-[520px] flex-col border-r border-mm-border/60 bg-mm-surface/95 shadow-xl shadow-black/30 backdrop-blur-sm">
-      <header className="flex items-center justify-between border-b border-mm-border/40 px-4 py-3">
-        <div>
-          <h3 className="zone-header">Streams</h3>
-          <p className="mt-0.5 text-[10px] text-mm-text-dim">
-            Every data source feeding the pipeline.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <NewStreamMenu />
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
-            title="Close (Esc)"
-          >
-            ✕
-          </button>
-        </div>
+    <aside
+      className="absolute left-0 top-0 z-10 flex h-full flex-col border-r border-mm-border/60 bg-mm-surface/95 shadow-xl shadow-black/40 backdrop-blur-sm"
+      style={{ width }}
+    >
+      <header className="flex shrink-0 items-center justify-between border-b border-mm-border/40 px-4 py-3">
+        {mode.kind === "list" && (
+          <>
+            <div>
+              <h3 className="zone-header">Streams</h3>
+              <p className="mt-0.5 text-[10px] text-mm-text-dim">
+                Every data source feeding the pipeline.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <NewStreamMenu onOpenBlank={() => onOpenCanvas("new", null)} onOpenTemplate={(id) => onOpenCanvas("new", id)} />
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+                title="Close (Esc)"
+              >
+                ✕
+              </button>
+            </div>
+          </>
+        )}
+        {mode.kind === "canvas" && (
+          <>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onOpenList}
+                className="rounded-md border border-mm-border/40 px-2 py-1 text-[10px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+              >
+                ← Streams list
+              </button>
+              <div>
+                <h3 className="zone-header">Stream Canvas</h3>
+                <p className="mt-0.5 font-mono text-[10px] text-mm-text-dim">
+                  {mode.streamName ?? "new"}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+              title="Close (Esc)"
+            >
+              ✕
+            </button>
+          </>
+        )}
       </header>
 
-      <div className="border-b border-mm-border/40 px-4 py-3">
-        <input
-          type="text"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter by name or key column…"
-          className="form-input w-full"
-        />
-      </div>
+      {mode.kind === "list" && (
+        <>
+          <div className="border-b border-mm-border/40 px-4 py-3">
+            <input
+              type="text"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter by name or key column…"
+              className="form-input w-full"
+            />
+          </div>
+          <div className="flex-1 overflow-auto p-4">
+            <StreamTable
+              filter={filter}
+              onFilterChange={setFilter}
+              onOpenStream={(name) => onOpenCanvas(name, null)}
+            />
+          </div>
+        </>
+      )}
 
-      <div className="flex-1 overflow-auto p-4">
-        <StreamTable filter={filter} onFilterChange={setFilter} />
-      </div>
+      {mode.kind === "canvas" && (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <StreamCanvas
+            streamName={mode.streamName === "new" ? null : mode.streamName}
+            templateId={mode.templateId}
+          />
+        </div>
+      )}
     </aside>
   );
 }

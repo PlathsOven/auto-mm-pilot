@@ -10,7 +10,6 @@ import {
   type Row,
 } from "@tanstack/react-table";
 import type { RegisteredStream } from "../../types";
-import { useMode } from "../../providers/ModeProvider";
 import { useRegisteredStreams } from "../../hooks/useRegisteredStreams";
 import { deleteStream } from "../../services/streamApi";
 
@@ -46,17 +45,17 @@ function formatMapping(s: RegisteredStream): string {
 interface Props {
   filter: string;
   onFilterChange: (value: string) => void;
+  /** Row click + Configure action handler. Defaults to a no-op if not given. */
+  onOpenStream?: (streamName: string) => void;
 }
 
-export function StreamTable({ filter, onFilterChange }: Props) {
+export function StreamTable({ filter, onFilterChange, onOpenStream }: Props) {
   const { streams, loading, error, refresh } = useRegisteredStreams();
-  const { setMode } = useMode();
   const [sorting, setSorting] = useState<SortingState>([{ id: "status", desc: false }]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [mutationError, setMutationError] = useState<string | null>(null);
 
-  const openCanvas = (streamName: string) =>
-    setMode("studio", `streams/${streamName}`);
+  const openCanvas = (streamName: string) => onOpenStream?.(streamName);
 
   const handleDelete = async (streamName: string) => {
     try {
