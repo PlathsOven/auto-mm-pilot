@@ -1,6 +1,3 @@
-/** Page routing for the main App shell */
-export type AppPage = "dashboard" | "apidocs";
-
 /** Status of an individual data stream adapter */
 export type StreamStatus = "ONLINE" | "DEGRADED" | "OFFLINE";
 
@@ -38,18 +35,8 @@ export interface RegisteredStream {
   block: BlockConfigPayload | null;
 }
 
-/** Engine operating mode */
-export type EngineState =
-  | "WAITING"
-  | "INITIALIZING"
-  | "STABILIZING"
-  | "OPTIMIZING"
-  | "DISRUPTED";
-
 /** Global context bar state */
 export interface GlobalContext {
-  engineState: EngineState;
-  operatingSpace: string;
   lastUpdateTimestamp: number;
 }
 

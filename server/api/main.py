@@ -15,7 +15,6 @@ Endpoints:
     POST  /api/snapshots                   — Ingest snapshot rows
     POST  /api/market-pricing              — Update market pricing
     PATCH /api/config/bankroll             — Set bankroll
-    GET   /admin                           — Admin dashboard (server-side only)
 
 Run:
     uvicorn server.api.main:app --host 0.0.0.0 --port 8000 --reload
@@ -27,15 +26,13 @@ import asyncio
 import json
 import logging
 from datetime import datetime as _dt
-from pathlib import Path
 from typing import Any
 
 import polars as pl
 
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse
 
 from server.api.models import (
     AdminConfigureStreamRequest,
@@ -92,20 +89,6 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 app = FastAPI(title="APT Server", version="0.1.0")
-
-# ---------------------------------------------------------------------------
-# Admin dashboard — served from server/api/admin/
-# ---------------------------------------------------------------------------
-
-_ADMIN_DIR = Path(__file__).resolve().parent / "admin"
-
-
-@app.get("/admin", include_in_schema=False)
-async def admin_dashboard():
-    return FileResponse(_ADMIN_DIR / "index.html")
-
-
-app.mount("/admin/static", StaticFiles(directory=_ADMIN_DIR), name="admin-static")
 
 app.add_middleware(
     CORSMiddleware,

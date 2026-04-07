@@ -15,6 +15,8 @@ interface ChatState {
   investigation: InvestigationContext | null;
   noteThread: NoteThread | null;
   isStreaming: boolean;
+  /** Whether the global ChatDrawer is currently visible. */
+  drawerOpen: boolean;
   sendMessage: (content: string) => void;
   investigate: (ctx: InvestigationContext) => void;
   clearInvestigation: () => void;
@@ -22,6 +24,9 @@ interface ChatState {
   closeNoteThread: () => void;
   addNote: (content: string) => void;
   cancelStream: () => void;
+  openDrawer: () => void;
+  closeDrawer: () => void;
+  toggleDrawer: () => void;
 }
 
 const ChatContext = createContext<ChatState>({
@@ -29,6 +34,7 @@ const ChatContext = createContext<ChatState>({
   investigation: null,
   noteThread: null,
   isStreaming: false,
+  drawerOpen: false,
   sendMessage: () => {},
   investigate: () => {},
   clearInvestigation: () => {},
@@ -36,6 +42,9 @@ const ChatContext = createContext<ChatState>({
   closeNoteThread: () => {},
   addNote: () => {},
   cancelStream: () => {},
+  openDrawer: () => {},
+  closeDrawer: () => {},
+  toggleDrawer: () => {},
 });
 
 export function useChat() {
@@ -60,9 +69,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     useState<InvestigationContext | null>(null);
   const [noteThread, setNoteThread] = useState<NoteThread | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatMessage[]>(messages);
   messagesRef.current = messages;
+
+  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const toggleDrawer = useCallback(() => setDrawerOpen((v) => !v), []);
 
   const pushMessage = useCallback(
     (role: ChatMessage["role"], content: string, sender: string): string => {
@@ -155,6 +169,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const investigate = useCallback(
     (ctx: InvestigationContext) => {
       setInvestigation(ctx);
+      setDrawerOpen(true);
     },
     [],
   );
@@ -180,7 +195,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   return (
     <ChatContext.Provider
-      value={{ messages, investigation, noteThread, isStreaming, sendMessage, investigate, clearInvestigation, openNoteThread, closeNoteThread, addNote: addNoteToThread, cancelStream }}
+      value={{
+        messages,
+        investigation,
+        noteThread,
+        isStreaming,
+        drawerOpen,
+        sendMessage,
+        investigate,
+        clearInvestigation,
+        openNoteThread,
+        closeNoteThread,
+        addNote: addNoteToThread,
+        cancelStream,
+        openDrawer,
+        closeDrawer,
+        toggleDrawer,
+      }}
     >
       {children}
     </ChatContext.Provider>

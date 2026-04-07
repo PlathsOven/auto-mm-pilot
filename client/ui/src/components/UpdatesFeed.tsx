@@ -3,8 +3,10 @@ import Markdown from "react-markdown";
 import { useWebSocket } from "../providers/WebSocketProvider";
 import { useChat } from "../providers/ChatProvider";
 import { valColor, formatUtcTime } from "../utils";
+import { useStreamContributions } from "../hooks/useStreamContributions";
 
 const HIGHLIGHT_AGE_MS = 2500;
+const ATTRIBUTION_TOP_N = 2;
 
 export function UpdatesFeed() {
   const { payload, updateHistory } = useWebSocket();
@@ -72,10 +74,49 @@ export function UpdatesFeed() {
               <div className="prose-apt text-mm-text-dim">
                 <Markdown>{card.reason}</Markdown>
               </div>
+
+              <CardAttribution asset={card.asset} expiry={card.expiry} />
             </div>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Top-N stream contributions for an update card. Shown alongside the LLM
+ * justification so the operator can see WHICH stream caused the position
+ * change without leaving the feed.
+ */
+function CardAttribution({ asset, expiry }: { asset: string; expiry: string }) {
+  const { contributions } = useStreamContributions({ asset, expiry });
+  if (!contributions || contributions.length === 0) return null;
+
+  const top = contributions.slice(0, ATTRIBUTION_TOP_N);
+
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 border-t border-mm-border/30 pt-1.5">
+      <span className="text-[9px] uppercase tracking-wider text-mm-text-dim">
+        Streams
+      </span>
+      {top.map((c) => (
+        <span
+          key={c.blockName}
+          className="rounded border border-mm-border/40 bg-mm-bg/40 px-1.5 py-0.5 text-[9px] tabular-nums"
+        >
+          <span className="text-mm-text">{c.blockName}</span>
+          <span className={`ml-1 ${valColor(c.edge)}`}>
+            {c.edge >= 0 ? "+" : ""}
+            {c.edge.toFixed(4)}
+          </span>
+        </span>
+      ))}
+      {contributions.length > ATTRIBUTION_TOP_N && (
+        <span className="text-[9px] text-mm-text-dim">
+          +{contributions.length - ATTRIBUTION_TOP_N}
+        </span>
+      )}
     </div>
   );
 }

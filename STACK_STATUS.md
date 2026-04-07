@@ -49,7 +49,8 @@
 | **Updates Feed** | `client/ui/src/components/UpdatesFeed.tsx` | `PROD` | WebSocket Provider, LLM API Client | Zone D — enriches reasons via `/api/justify` |
 | **Team Chat (LLM Chat)** | `client/ui/src/components/LlmChat.tsx` | `PROD` | Chat Provider | Zone E — streaming assistant messages |
 | **Daily Wrap** | `client/ui/src/components/DailyWrap.tsx` | `MOCK` | — | Static mock data; **needs LLM-generated wrap** |
-| **Ingestion Sidebar** | `client/ui/src/components/IngestionSidebar.tsx` | `MOCK` | WebSocket Provider | Zone A — mock stream list |
+| **Stream Status List** | `client/ui/src/components/floor/StreamStatusList.tsx` | `PROD` | WebSocket Provider, stream API | Floor read-only stream registry/health (replaces IngestionSidebar) |
+| **Stream Library / Canvas** | `client/ui/src/components/studio/StreamLibrary.tsx`, `StreamCanvas.tsx` | `PROD` | stream API, TransformsProvider, LLM API | Studio CRUD + activate flow with 7 sections + LLM co-pilot |
 | **Global Context Bar** | `client/ui/src/components/GlobalContextBar.tsx` | `PROD` | WebSocket Provider | Zone B |
 
 ## Data Adapters (`client/adapter/`)

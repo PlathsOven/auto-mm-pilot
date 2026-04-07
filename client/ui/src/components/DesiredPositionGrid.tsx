@@ -1,14 +1,21 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useWebSocket } from "../providers/WebSocketProvider";
 import { useChat } from "../providers/ChatProvider";
-import { useLayout } from "../providers/LayoutProvider";
 import { valColor, cellBg } from "../utils";
 import { useSelection } from "../providers/SelectionProvider";
 import { getCellNotes } from "../providers/MockDataProvider";
-import { VIEW_MODE_META, TIMEFRAME_OPTIONS, getCellValue } from "./grid-config";
+import {
+  VIEW_MODE_META,
+  TIMEFRAME_OPTIONS,
+  PRIMARY_VIEW_MODES,
+  SECONDARY_VIEW_MODES,
+  getCellValue,
+} from "./grid-config";
 import type { ViewMode, TimeframeLabel } from "./grid-config";
 import type { DesiredPosition } from "../types";
 import { usePositionHistory } from "../hooks/usePositionHistory";
+import { LiveEquationStrip } from "./equation/LiveEquationStrip";
+import { StreamAttributionHoverCard } from "./floor/StreamAttributionHoverCard";
 
 interface PendingEdit {
   key: string;
@@ -18,10 +25,11 @@ interface PendingEdit {
   aptValue: number;
 }
 
+const HOVER_DELAY_MS = 350;
+
 export function DesiredPositionGrid() {
   const { payload } = useWebSocket();
-  const { investigate, openNoteThread } = useChat();
-  const { panels, addPanel } = useLayout();
+  const { investigate, openNoteThread, openDrawer } = useChat();
   const { selectDimension, isDimensionSelected } = useSelection();
   const positions = payload?.positions ?? [];
 
@@ -29,8 +37,12 @@ export function DesiredPositionGrid() {
   const [timeframe, setTimeframe] = useState<TimeframeLabel>("Latest");
   const [overrides, setOverrides] = useState<Map<string, number>>(new Map());
   const [pendingEdit, setPendingEdit] = useState<PendingEdit | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [hoverCell, setHoverCell] = useState<{ asset: string; expiry: string; key: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const prevEditKeyRef = useRef<string | null>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (pendingEdit && inputRef.current && prevEditKeyRef.current !== pendingEdit.key) {
@@ -39,6 +51,25 @@ export function DesiredPositionGrid() {
     }
     prevEditKeyRef.current = pendingEdit?.key ?? null;
   }, [pendingEdit]);
+
+  // Close "More" dropdown on outside click
+  useEffect(() => {
+    if (!moreOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [moreOpen]);
+
+  // Cleanup hover timer on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    };
+  }, []);
 
   const noteCountMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -52,8 +83,8 @@ export function DesiredPositionGrid() {
     e.stopPropagation();
     e.preventDefault();
     openNoteThread(cellKey);
-    if (!panels.some((p) => p.type === "chat")) addPanel("chat");
-  }, [openNoteThread, panels, addPanel]);
+    openDrawer();
+  }, [openNoteThread, openDrawer]);
 
   const { assets, expiries, grid, recentKeys } = usePositionHistory(positions, timeframe);
 
@@ -96,7 +127,20 @@ export function DesiredPositionGrid() {
     });
   }, []);
 
+  const handleMouseEnter = useCallback((asset: string, expiry: string, key: string) => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoverCell({ asset, expiry, key });
+    }, HOVER_DELAY_MS);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    setHoverCell(null);
+  }, []);
+
   const meta = VIEW_MODE_META[viewMode];
+  const secondaryActive = SECONDARY_VIEW_MODES.includes(viewMode);
 
   return (
     <div className="flex h-full flex-col p-4">
@@ -107,7 +151,7 @@ export function DesiredPositionGrid() {
             <span className="text-[10px] text-mm-text-dim">({meta.unit})</span>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {viewMode === "change" && (
             <div className="flex items-center gap-1">
               {TIMEFRAME_OPTIONS.map((tf) => (
@@ -125,17 +169,56 @@ export function DesiredPositionGrid() {
               ))}
             </div>
           )}
-          <select
-            value={viewMode}
-            onChange={(e) => setViewMode(e.target.value as ViewMode)}
-            className="rounded-lg border border-mm-border/60 bg-mm-bg px-2 py-1 text-[10px] text-mm-text outline-none transition-colors focus:border-mm-accent/60 focus:ring-1 focus:ring-mm-accent/20"
-          >
-            {Object.entries(VIEW_MODE_META).map(([key, m]) => (
-              <option key={key} value={key}>
-                {m.label}{m.unit ? ` (${m.unit})` : ""}
-              </option>
+
+          {/* Primary 4 view modes as a tab strip */}
+          <div className="flex items-center gap-0.5 rounded-lg border border-mm-border/60 bg-mm-bg/60 p-0.5">
+            {PRIMARY_VIEW_MODES.map((m) => (
+              <button
+                key={m}
+                onClick={() => setViewMode(m)}
+                className={`rounded-md px-2 py-1 text-[10px] font-medium transition-colors ${
+                  viewMode === m
+                    ? "bg-mm-accent/15 text-mm-accent"
+                    : "text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+                }`}
+              >
+                {VIEW_MODE_META[m].label}
+              </button>
             ))}
-          </select>
+          </div>
+
+          {/* "More" dropdown for secondary modes */}
+          <div ref={moreMenuRef} className="relative">
+            <button
+              onClick={() => setMoreOpen((v) => !v)}
+              className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-medium transition-colors ${
+                secondaryActive
+                  ? "border-mm-accent/40 bg-mm-accent/15 text-mm-accent"
+                  : "border-mm-border/60 bg-mm-bg/60 text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+              }`}
+            >
+              <span>{secondaryActive ? VIEW_MODE_META[viewMode].label : "More"}</span>
+              <span className="text-[8px]">{moreOpen ? "▲" : "▼"}</span>
+            </button>
+            {moreOpen && (
+              <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-lg border border-mm-border/60 bg-mm-surface py-1 shadow-xl shadow-black/30">
+                {SECONDARY_VIEW_MODES.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => { setViewMode(m); setMoreOpen(false); }}
+                    className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-[10px] transition-colors hover:bg-mm-accent/10 ${
+                      viewMode === m ? "text-mm-accent" : "text-mm-text"
+                    }`}
+                  >
+                    <span>{VIEW_MODE_META[m].label}</span>
+                    {VIEW_MODE_META[m].unit && (
+                      <span className="text-[9px] text-mm-text-dim">{VIEW_MODE_META[m].unit}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -177,6 +260,7 @@ export function DesiredPositionGrid() {
                     const isRecent = recentKeys.has(key);
                     const isEditing = pendingEdit?.key === key;
                     const hasOverride = viewMode === "position" && overrides.has(key);
+                    const showHover = hoverCell?.key === key && !isEditing;
 
                     const noteCount = noteCountMap.get(key) ?? 0;
 
@@ -185,6 +269,8 @@ export function DesiredPositionGrid() {
                         key={exp}
                         onClick={() => { investigate({ type: "position", asset, expiry: exp, position: cell.pos }); selectDimension(asset, exp); }}
                         onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClick(key, asset, exp, cell.pos); }}
+                        onMouseEnter={() => handleMouseEnter(asset, exp, key)}
+                        onMouseLeave={handleMouseLeave}
                         className={`relative cursor-pointer rounded px-2 py-1.5 text-center text-[11px] tabular-nums transition-colors hover:ring-1 hover:ring-mm-accent/30 ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${isDimensionSelected(asset, exp) ? "channel-highlight-cell" : ""}`}
                         style={{ backgroundColor: cellBg(val) }}
                       >
@@ -229,6 +315,9 @@ export function DesiredPositionGrid() {
                             {noteCount}
                           </button>
                         )}
+                        {showHover && (
+                          <StreamAttributionHoverCard asset={asset} expiry={exp} />
+                        )}
                       </td>
                     );
                   })}
@@ -256,6 +345,8 @@ export function DesiredPositionGrid() {
           </table>
         )}
       </div>
+
+      <LiveEquationStrip size="md" />
 
       <OverrideStatusBar
         pendingEdit={pendingEdit}
@@ -356,7 +447,7 @@ function OverrideStatusBar({
       )}
 
       <p className="mt-1 text-[9px] text-mm-text-dim">
-        {viewMode === "position" ? "Double-click a cell to override. " : ""}Click the badge to view/add notes in Team Chat.
+        {viewMode === "position" ? "Double-click a cell to override. " : ""}Hover for stream attribution. Click the badge to view/add notes.
       </p>
     </>
   );
