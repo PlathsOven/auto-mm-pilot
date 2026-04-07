@@ -13,9 +13,8 @@ const PIPELINE_STEPS = [
 ];
 
 const MODES = [
-  { label: "Studio", sub: "Build streams + pipeline" },
-  { label: "Floor", sub: "Monitor positions" },
-  { label: "Lens", sub: "Audit decisions" },
+  { label: "Studio", sub: "Build the pipeline + audit decisions" },
+  { label: "Floor", sub: "Monitor live positions" },
 ] as const;
 
 interface OnboardingCard {
@@ -223,7 +222,7 @@ const CARDS: OnboardingCard[] = [
   {
     id: "tour",
     label: "Mode tour",
-    heading: "Three modes, three roles.",
+    heading: "Two modes.",
     body: (
       <>
         Switch between them in the top bar (or with{" "}

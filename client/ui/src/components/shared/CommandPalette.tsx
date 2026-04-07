@@ -52,9 +52,8 @@ export function CommandPalette() {
     };
     return [
       { id: "go-floor", group: "navigate", title: "Go to Floor", hint: "operator dashboard", run: goMode("floor") },
-      { id: "go-studio-streams", group: "navigate", title: "Open Studio: Streams", hint: "library + canvas", run: goMode("studio", "streams") },
-      { id: "go-studio-pipeline", group: "navigate", title: "Open Studio: Pipeline", hint: "transform composer", run: goMode("studio", "pipeline") },
-      { id: "go-lens-decomp", group: "navigate", title: "Open Lens: Decomposition", hint: "stream contributions", run: goMode("lens") },
+      { id: "go-studio-anatomy", group: "navigate", title: "Open Studio: Anatomy", hint: "pipeline canvas", run: goMode("studio", "anatomy") },
+      { id: "go-studio-brain", group: "navigate", title: "Open Studio: Brain", hint: "decomposition + block inspector", run: goMode("studio", "brain") },
       { id: "go-docs", group: "navigate", title: "Open API Docs", run: goMode("docs") },
       {
         id: "toggle-chat",

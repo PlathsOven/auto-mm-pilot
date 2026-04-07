@@ -8,15 +8,14 @@ import {
   type ReactNode,
 } from "react";
 
-export type ModeId = "floor" | "studio" | "lens" | "docs";
+export type ModeId = "floor" | "studio" | "docs";
 
-const VALID_MODES: readonly ModeId[] = ["floor", "studio", "lens", "docs"] as const;
+const VALID_MODES: readonly ModeId[] = ["floor", "studio", "docs"] as const;
 const DEFAULT_MODE: ModeId = "floor";
 
 export const MODE_LABELS: Record<ModeId, string> = {
   floor: "Floor",
   studio: "Studio",
-  lens: "Lens",
   docs: "Docs",
 };
 

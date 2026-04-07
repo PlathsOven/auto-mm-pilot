@@ -1,20 +1,30 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { fetchBlocks } from "../../services/blockApi";
-import type { BlockRow } from "../../types";
-import { valColor } from "../../utils";
+import { fetchBlocks } from "../../../services/blockApi";
+import type { BlockRow } from "../../../types";
+import { valColor } from "../../../utils";
 
 const POLL_INTERVAL_MS = 5000;
 
 type SortKey = "block" | "fair" | "var" | "edge";
 
+interface Props {
+  /** Slot rendered on the right of the header — used by BrainPage to host the "Add manual block" button. */
+  headerAction?: React.ReactNode;
+  /** Fires whenever the block list refreshes so parents can chain actions. */
+  onRefresh?: () => void;
+  /** Forces a refresh when this key changes (parent incrementing it after a mutation). */
+  refreshKey?: number;
+}
+
 /**
- * Read-only block inspector for Lens Pipeline Detail.
+ * Block inspector for Studio → Brain.
  *
- * Trimmed cousin of `BlockTable.tsx` — same data source (`GET /api/blocks`),
- * but no inline editing or manual block creation. Edits live in Studio
- * Streams; this surface is for the auditor to read pipeline state.
+ * Read-only today; Group E will add inline editing for `source === "manual"`
+ * rows and wire the "Add manual block" button via `headerAction`. Stream-
+ * sourced blocks stay read-only because they'll be overwritten on the next
+ * stream snapshot.
  */
-export function ReadOnlyBlockTable() {
+export function EditableBlockTable({ headerAction, onRefresh, refreshKey }: Props) {
   const [blocks, setBlocks] = useState<BlockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,18 +36,25 @@ export function ReadOnlyBlockTable() {
       const data = await fetchBlocks();
       setBlocks(data);
       setError(null);
+      onRefresh?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onRefresh]);
 
   useEffect(() => {
     refresh();
     const id = setInterval(refresh, POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, [refresh]);
+
+  // Parent can force a refresh after a mutation
+  useEffect(() => {
+    if (refreshKey !== undefined) refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   const sorted = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -71,9 +88,9 @@ export function ReadOnlyBlockTable() {
   }, [blocks, filter, sortKey]);
 
   return (
-    <div className="flex min-h-0 flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <h3 className="text-xs font-semibold text-mm-text">Block Inspector</h3>
+    <section className="rounded-xl border border-mm-border/60 bg-mm-bg/40 p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <h3 className="zone-header">Block Inspector</h3>
         <span className="text-[10px] text-mm-text-dim">({blocks.length} total)</span>
         <input
           type="text"
@@ -92,10 +109,11 @@ export function ReadOnlyBlockTable() {
           <option value="var">variance</option>
           <option value="block">name</option>
         </select>
+        {headerAction}
       </div>
 
       {error && (
-        <p className="rounded-md border border-mm-error/40 bg-mm-error/10 p-2 text-[10px] text-mm-error">
+        <p className="mb-2 rounded-md border border-mm-error/40 bg-mm-error/10 p-2 text-[10px] text-mm-error">
           {error}
         </p>
       )}
@@ -108,6 +126,7 @@ export function ReadOnlyBlockTable() {
             <thead className="bg-mm-bg-deep/60 text-mm-text-dim">
               <tr>
                 <Th>Block</Th>
+                <Th>Source</Th>
                 <Th>Stream</Th>
                 <Th>Symbol</Th>
                 <Th>Expiry</Th>
@@ -125,8 +144,22 @@ export function ReadOnlyBlockTable() {
                 const edge = fair - marketFair;
                 const variance = b.var ?? 0;
                 return (
-                  <tr key={b.block_name} className="border-t border-mm-border/20">
+                  <tr
+                    key={b.block_name}
+                    className="border-t border-mm-border/20 transition-colors hover:bg-mm-accent/5"
+                  >
                     <Td className="font-medium text-mm-text">{b.block_name}</Td>
+                    <Td>
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${
+                          b.source === "manual"
+                            ? "bg-mm-warn/15 text-mm-warn"
+                            : "bg-mm-accent/10 text-mm-accent"
+                        }`}
+                      >
+                        {b.source}
+                      </span>
+                    </Td>
                     <Td>{b.stream_name}</Td>
                     <Td>{b.symbol}</Td>
                     <Td>{b.expiry}</Td>
@@ -145,7 +178,7 @@ export function ReadOnlyBlockTable() {
           </table>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 

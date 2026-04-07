@@ -5,7 +5,6 @@ import { StreamStatusList } from "../components/floor/StreamStatusList";
 import { DesiredPositionGrid } from "../components/DesiredPositionGrid";
 import { UpdatesFeed } from "../components/UpdatesFeed";
 import { DailyWrap } from "../components/DailyWrap";
-import { PipelineChart } from "../components/PipelineChart";
 import { PanelWindow } from "../components/PanelWindow";
 import { useLayout, PANEL_LABELS } from "../providers/LayoutProvider";
 import type { PanelType } from "../providers/LayoutProvider";
@@ -17,7 +16,6 @@ const PANEL_COMPONENT: Record<PanelType, React.FC> = {
   positions: DesiredPositionGrid,
   updates: UpdatesFeed,
   wrap: DailyWrap,
-  pipeline: PipelineChart,
 };
 
 const ROW_HEIGHT = 60;
