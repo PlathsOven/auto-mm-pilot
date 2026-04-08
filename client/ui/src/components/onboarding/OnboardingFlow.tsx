@@ -2,31 +2,15 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useOnboarding } from "../../providers/OnboardingProvider";
 import { useMode } from "../../providers/ModeProvider";
 
-const PIPELINE_STEPS = [
-  "unit_conversion",
-  "decay_profile",
-  "temporal_fair_value",
-  "variance",
-  "aggregation",
-  "position_sizing",
-  "smoothing",
-];
-
-const MODES = [
-  { label: "Studio", sub: "Build the pipeline + audit decisions" },
-  { label: "Floor", sub: "Monitor live positions" },
-] as const;
+type HighlightKey = "all" | "streams" | "engine" | "positions" | "feedback";
 
 interface OnboardingCard {
   id: string;
   label: string;
-  /** If set, auto-advance this card after N ms. */
-  autoAdvanceMs?: number;
-  /** Heading + body text rendered by the shared primitive. */
-  heading?: ReactNode;
-  body?: ReactNode;
-  /** Custom visual rendered between body and nav buttons. */
-  visual?: ReactNode;
+  /** Which pipeline region the shared diagram should highlight. */
+  highlight: HighlightKey;
+  heading: ReactNode;
+  body: ReactNode;
   /** CTA label for the Next button. Defaults to "Next". */
   ctaLabel?: string;
 }
@@ -34,11 +18,13 @@ interface OnboardingCard {
 /**
  * First-launch onboarding overlay.
  *
- * Sequence is a flat data array walked by `CardShell`. Adding a card = one
- * entry in `CARDS`; no bespoke sub-components required.
+ * Every card shares one persistent pipeline diagram and walks the user through
+ * its regions in order: inputs (streams) → engine → outputs (positions) →
+ * feedback loop (you + LLM). The shared visual is the through-line; each card
+ * only swaps heading, body, and which region is lit.
  *
- * State persists in `localStorage.apt.onboarding.completed`. Re-openable
- * from the user menu or via cmd+K → "Replay onboarding tour".
+ * State persists in `localStorage.apt.onboarding.completed`. Re-openable from
+ * the command palette ("Replay onboarding tour" / "Explain APT").
  */
 export function OnboardingFlow() {
   const { open, markCompleted } = useOnboarding();
@@ -48,15 +34,6 @@ export function OnboardingFlow() {
   useEffect(() => {
     if (open) setIndex(0);
   }, [open]);
-
-  // Auto-advance for cards that specify it
-  useEffect(() => {
-    if (!open) return;
-    const card = CARDS[index];
-    if (!card.autoAdvanceMs) return;
-    const t = setTimeout(() => setIndex((i) => Math.min(i + 1, CARDS.length - 1)), card.autoAdvanceMs);
-    return () => clearTimeout(t);
-  }, [open, index]);
 
   if (!open) return null;
 
@@ -78,35 +55,33 @@ export function OnboardingFlow() {
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div className="relative w-[600px] max-w-[90vw] overflow-hidden rounded-2xl border border-mm-border/60 bg-mm-surface shadow-2xl shadow-black/60">
         <div className="flex flex-col px-8 py-8">
-          {card.heading && (
-            <h2 className="text-base font-semibold text-mm-accent">{card.heading}</h2>
-          )}
-          {card.body && <div className="mt-2 text-[11px] text-mm-text-dim">{card.body}</div>}
-          {card.visual && <div className="my-5">{card.visual}</div>}
+          <h2 className="text-base font-semibold text-mm-accent">{card.heading}</h2>
+          <div className="mt-2 text-xs leading-relaxed text-mm-text-dim">{card.body}</div>
 
-          {/* Nav buttons — hidden on auto-advance cards */}
-          {!card.autoAdvanceMs && (
-            <div className="flex items-center justify-between">
-              {!isFirst ? (
-                <button
-                  type="button"
-                  onClick={() => setIndex((i) => Math.max(i - 1, 0))}
-                  className="text-[10px] text-mm-text-dim hover:text-mm-text"
-                >
-                  ← Back
-                </button>
-              ) : (
-                <span />
-              )}
+          <div className="my-6">
+            <PipelineDiagram highlight={card.highlight} />
+          </div>
+
+          <div className="flex items-center justify-between">
+            {!isFirst ? (
               <button
                 type="button"
-                onClick={next}
-                className="rounded-lg bg-mm-accent px-5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-mm-accent/90"
+                onClick={() => setIndex((i) => Math.max(i - 1, 0))}
+                className="text-[10px] text-mm-text-dim hover:text-mm-text"
               >
-                {card.ctaLabel ?? "Next"}
+                ← Back
               </button>
-            </div>
-          )}
+            ) : (
+              <span />
+            )}
+            <button
+              type="button"
+              onClick={next}
+              className="rounded-lg bg-mm-accent px-5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-mm-accent/90"
+            >
+              {card.ctaLabel ?? "Next"}
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center justify-between border-t border-mm-border/40 bg-mm-bg/40 px-4 py-2 text-[10px] text-mm-text-dim">
@@ -125,123 +100,203 @@ export function OnboardingFlow() {
 }
 
 // ---------------------------------------------------------------------------
+// Pipeline diagram (shared visual)
+// ---------------------------------------------------------------------------
+
+const ACCENT = "#818cf8"; // mm-accent
+const DIM = "#3f3f46"; // mm-border, slightly lifted for visibility
+
+/**
+ * Four-region pipeline diagram: Streams → Engine → Positions, with a
+ * You+LLM feedback loop closing the circle. Fixed 460×220 box. The `highlight`
+ * prop selects which region(s) are lit; the rest dim.
+ */
+function PipelineDiagram({ highlight }: { highlight: HighlightKey }) {
+  const isLit = (k: Exclude<HighlightKey, "all">) => highlight === "all" || highlight === k;
+  const forwardLit = highlight === "all";
+  const feedbackLit = highlight === "all" || highlight === "feedback";
+
+  return (
+    <div className="relative mx-auto h-[220px] w-[460px]">
+      {/* SVG overlay for arrows (non-interactive). */}
+      <svg
+        className="pointer-events-none absolute inset-0 h-full w-full"
+        viewBox="0 0 460 220"
+        fill="none"
+      >
+        <defs>
+          <marker
+            id="arrow-lit"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="5"
+            markerHeight="5"
+            orient="auto"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill={ACCENT} />
+          </marker>
+          <marker
+            id="arrow-dim"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="5"
+            markerHeight="5"
+            orient="auto"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill={DIM} />
+          </marker>
+        </defs>
+
+        {/* Forward flow: Streams → Engine */}
+        <line
+          x1="120"
+          y1="50"
+          x2="168"
+          y2="50"
+          stroke={forwardLit ? ACCENT : DIM}
+          strokeWidth="1.5"
+          markerEnd={forwardLit ? "url(#arrow-lit)" : "url(#arrow-dim)"}
+        />
+        {/* Forward flow: Engine → Positions */}
+        <line
+          x1="290"
+          y1="50"
+          x2="338"
+          y2="50"
+          stroke={forwardLit ? ACCENT : DIM}
+          strokeWidth="1.5"
+          markerEnd={forwardLit ? "url(#arrow-lit)" : "url(#arrow-dim)"}
+        />
+
+        {/* Feedback loop: Positions bottom → down → left → You+LLM right edge */}
+        <path
+          d="M 400 80 L 400 190 L 292 190"
+          stroke={feedbackLit ? ACCENT : DIM}
+          strokeWidth="1.5"
+          strokeDasharray="4,4"
+          markerEnd={feedbackLit ? "url(#arrow-lit)" : "url(#arrow-dim)"}
+        />
+        {/* Feedback loop: You+LLM left edge → left → up → Streams bottom */}
+        <path
+          d="M 170 190 L 60 190 L 60 82"
+          stroke={feedbackLit ? ACCENT : DIM}
+          strokeWidth="1.5"
+          strokeDasharray="4,4"
+          markerEnd={feedbackLit ? "url(#arrow-lit)" : "url(#arrow-dim)"}
+        />
+      </svg>
+
+      <DiagramBox label="Streams" sub="what you know" lit={isLit("streams")} left={0} top={20} />
+      <DiagramBox label="Engine" sub="how it decides" lit={isLit("engine")} left={170} top={20} />
+      <DiagramBox label="Positions" sub="what to hold" lit={isLit("positions")} left={340} top={20} />
+      <DiagramBox
+        label="You + LLM"
+        sub="stay in the loop"
+        lit={isLit("feedback")}
+        left={170}
+        top={160}
+        dashed
+      />
+    </div>
+  );
+}
+
+function DiagramBox({
+  label,
+  sub,
+  lit,
+  left,
+  top,
+  dashed = false,
+}: {
+  label: string;
+  sub: string;
+  lit: boolean;
+  left: number;
+  top: number;
+  dashed?: boolean;
+}) {
+  const borderStyle = dashed ? "border-dashed" : "border-solid";
+  const litCls = "border-mm-accent bg-mm-accent/10 text-mm-accent shadow-[0_0_16px_-4px_rgba(129,140,248,0.45)]";
+  const dimCls = "border-mm-border bg-mm-bg-deep/50 text-mm-text-dim opacity-40";
+  return (
+    <div
+      className={`absolute flex h-[60px] w-[120px] flex-col items-center justify-center rounded-lg border transition-all duration-300 ${borderStyle} ${
+        lit ? litCls : dimCls
+      }`}
+      style={{ left, top }}
+    >
+      <span className="text-[11px] font-semibold uppercase tracking-wide">{label}</span>
+      <span className="mt-0.5 text-[9px] font-normal normal-case text-mm-text-dim">{sub}</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Card definitions
 // ---------------------------------------------------------------------------
 
 const CARDS: OnboardingCard[] = [
   {
-    id: "splash",
+    id: "intro",
     label: "Welcome",
-    autoAdvanceMs: 3000,
-    visual: (
-      <div className="flex flex-col items-center text-center">
-        <p className="text-sm text-mm-text-dim">Welcome to APT</p>
-        <p className="mt-3 text-base leading-relaxed text-mm-text">
-          APT turns ideas into positions through one configurable equation.
-        </p>
-        <p className="mt-6 text-3xl font-semibold text-mm-accent">P = E·B / V</p>
-        <p className="mt-2 text-[11px] text-mm-text-dim">
-          Position = Edge × Bankroll / Variance
-        </p>
-      </div>
-    ),
+    highlight: "all",
+    heading: "Welcome to APT",
+    body: <>APT turns ideas into positions through one configurable engine.</>,
   },
   {
     id: "streams",
-    label: "Step 1 of 3 — Streams",
-    heading: "You define streams.",
+    label: "Inputs — Streams",
+    highlight: "streams",
+    heading: "Start with what you know.",
     body: (
       <>
-        Realized vol, FOMC events, funding rates — anything you can quantify becomes a
-        stream contributing a view on fair value.
+        Realized vol, FOMC, funding rates, historical IV, your own regime call — anything you can
+        quantify becomes a stream, expressing a view on fair value. APT doesn&rsquo;t privilege any
+        source.
       </>
-    ),
-    visual: (
-      <div className="flex items-center justify-center gap-3 rounded-lg border border-mm-border/40 bg-mm-bg/40 p-6 text-center">
-        <div className="text-[10px] text-mm-text-dim">CSV row</div>
-        <div className="text-xl text-mm-accent">→</div>
-        <svg viewBox="0 0 80 30" className="h-10 w-20">
-          <polyline
-            points="0,25 10,22 20,18 30,15 40,12 50,10 60,7 70,5 80,3"
-            fill="none"
-            stroke="#818cf8"
-            strokeWidth="1.5"
-          />
-        </svg>
-        <div className="text-[10px] text-mm-text-dim">curve</div>
-      </div>
     ),
   },
   {
-    id: "pipeline",
-    label: "Step 2 of 3 — Pipeline",
-    heading: "APT runs a 7-step pipeline you control.",
+    id: "engine",
+    label: "Engine — Decision framework",
+    highlight: "engine",
+    heading: "Your judgment, formalized.",
     body: (
       <>
-        Every step is pluggable. Swap{" "}
-        <code className="rounded bg-mm-bg-deep px-1 text-mm-accent">position_sizing</code> from
-        Kelly to power-utility and watch positions adapt in real time.
+        The engine blends every stream into a single position decision — weighted by your
+        confidence in each source and the uncertainty around each view. The work a senior trader
+        does in their head, running continuously and consistently.
       </>
-    ),
-    visual: (
-      <div className="flex flex-wrap items-center justify-center gap-1 rounded-lg border border-mm-border/40 bg-mm-bg/40 p-3">
-        {PIPELINE_STEPS.map((s, i) => (
-          <span
-            key={s}
-            className="rounded border border-mm-border/40 bg-mm-bg-deep px-1.5 py-0.5 font-mono text-[9px] text-mm-text-dim"
-          >
-            {i + 1}. {s}
-          </span>
-        ))}
-      </div>
     ),
   },
   {
     id: "positions",
-    label: "Step 3 of 3 — Positions",
-    heading: "You see what your position should be — and why.",
+    label: "Outputs — Positions",
+    highlight: "positions",
+    heading: "See where your book should be.",
     body: (
       <>
-        Floor shows live positions. Hover any cell for stream attribution. Click to investigate
-        with the LLM. Open Lens for full decomposition.
+        For each (asset, expiry) pair, APT shows the position you should hold — and which streams
+        drove it. Every number traces back to the views that produced it.
       </>
-    ),
-    visual: (
-      <div className="rounded-lg border border-mm-border/40 bg-mm-bg/40 p-4">
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="rounded bg-mm-accent/10 p-2 text-[10px] text-mm-accent">+12,500</div>
-          <div className="rounded bg-mm-bg-deep p-2 text-[10px] text-mm-text-dim">+4,200</div>
-          <div className="rounded bg-mm-error/10 p-2 text-[10px] text-mm-error">−6,800</div>
-        </div>
-        <p className="mt-2 text-center text-[9px] text-mm-text-dim">
-          Each cell = one (asset, expiry) pair
-        </p>
-      </div>
     ),
   },
   {
-    id: "tour",
-    label: "Mode tour",
-    heading: "Two modes.",
+    id: "feedback",
+    label: "Feedback loop — You + LLM",
+    highlight: "feedback",
+    heading: "Stay in the loop.",
     body: (
       <>
-        Switch between them in the top bar (or with{" "}
-        <code className="rounded bg-mm-bg-deep px-1 text-mm-accent">⌘K</code>).
+        Disagree? Say so in plain English — <em>&ldquo;reduce BTC vol confidence&rdquo;</em>,{" "}
+        <em>&ldquo;add a view for next week&rsquo;s CPI&rdquo;</em>,{" "}
+        <em>&ldquo;freeze ETH near-dated exposure&rdquo;</em>. The LLM turns your judgment into
+        engine parameters, and suggests improvements back when it spots something worth knowing.
       </>
     ),
     ctaLabel: "Drop me into the Studio →",
-    visual: (
-      <div className="grid grid-cols-3 gap-2">
-        {MODES.map((m) => (
-          <div
-            key={m.label}
-            className="rounded-lg border border-mm-border/40 bg-mm-bg/40 p-3 text-center"
-          >
-            <div className="text-xs font-semibold text-mm-accent">{m.label}</div>
-            <div className="mt-1 text-[9px] text-mm-text-dim">{m.sub}</div>
-          </div>
-        ))}
-      </div>
-    ),
   },
 ];
