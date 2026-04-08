@@ -4,7 +4,6 @@ import type { Layout, LayoutItem } from "react-grid-layout";
 import { StreamStatusList } from "../components/floor/StreamStatusList";
 import { DesiredPositionGrid } from "../components/DesiredPositionGrid";
 import { UpdatesFeed } from "../components/UpdatesFeed";
-import { DailyWrap } from "../components/DailyWrap";
 import { PanelWindow } from "../components/PanelWindow";
 import { useLayout, PANEL_LABELS } from "../providers/LayoutProvider";
 import type { PanelType } from "../providers/LayoutProvider";
@@ -15,7 +14,6 @@ const PANEL_COMPONENT: Record<PanelType, React.FC> = {
   streams: StreamStatusList,
   positions: DesiredPositionGrid,
   updates: UpdatesFeed,
-  wrap: DailyWrap,
 };
 
 const ROW_HEIGHT = 60;

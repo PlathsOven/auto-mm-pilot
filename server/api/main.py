@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime as _dt
 from typing import Any
 
@@ -34,6 +35,8 @@ import polars as pl
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+
+from server.api.config import APT_MODE
 
 from server.api.models import (
     AdminConfigureStreamRequest,
@@ -74,6 +77,7 @@ from server.api.engine_state import (
     get_pipeline_snapshot,
     get_snapshot_buffer,
     get_transform_config,
+    init_mock,
     rerun_pipeline,
     set_bankroll,
     set_market_pricing,
@@ -90,7 +94,21 @@ log = logging.getLogger(__name__)
 # App
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="APT Server", version="0.1.0")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Run mock pipeline init at startup before accepting requests.
+
+    Init runs in a worker thread so the event loop stays responsive while
+    the (slow, sync) Polars pipeline executes. The ``yield`` only fires
+    after init returns, so by the time the first client request lands,
+    ``_pipeline_results`` is already populated and accessors are O(1).
+    """
+    if APT_MODE == "mock":
+        await asyncio.to_thread(init_mock)
+    yield
+
+
+app = FastAPI(title="APT Server", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -523,9 +541,8 @@ async def update_transforms(req: TransformConfigRequest) -> TransformListRespons
 # Pipeline time series (read-only, for charting)
 # ---------------------------------------------------------------------------
 
-@app.get("/api/pipeline/dimensions")
-async def pipeline_dimensions() -> dict:
-    """Return available (symbol, expiry) pairs from the current pipeline run."""
+def _pipeline_dimensions_sync() -> dict:
+    """Sync helper — runs in a worker thread via ``asyncio.to_thread``."""
     results = get_pipeline_results()
     if results is None:
         return {"dimensions": []}
@@ -545,6 +562,12 @@ async def pipeline_dimensions() -> dict:
     return {"dimensions": out}
 
 
+@app.get("/api/pipeline/dimensions")
+async def pipeline_dimensions() -> dict:
+    """Return available (symbol, expiry) pairs from the current pipeline run."""
+    return await asyncio.to_thread(_pipeline_dimensions_sync)
+
+
 def _parse_expiry(raw: str) -> _dt:
     """Accept ISO 8601 (``2026-01-02``) or canonical DDMMMYY (``02JAN26``).
 
@@ -559,18 +582,16 @@ def _parse_expiry(raw: str) -> _dt:
         return _dt.strptime(raw, "%d%b%y")
 
 
-@app.get("/api/pipeline/timeseries")
-async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
-    """Return full block-level and aggregated time series for a symbol/expiry."""
+def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
+    """Sync helper — runs in a worker thread via ``asyncio.to_thread``.
+
+    Returns ``None`` if no data exists for the requested dimension; the
+    async wrapper translates that into a 404. Returns the dict payload
+    otherwise.
+    """
     results = get_pipeline_results()
     if results is None:
-        raise HTTPException(status_code=404, detail="No pipeline results available")
-
-    # Parse expiry string (tolerant of both ISO and DDMMMYY)
-    try:
-        expiry_dt = _parse_expiry(expiry)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=f"Invalid expiry format: {exc}") from exc
+        return None
 
     block_var_df = results["block_var_df"]
     pos_df = results["desired_pos_df"]
@@ -596,7 +617,7 @@ async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
             pd = pd_sliced
 
     if bv.is_empty() and pd.is_empty():
-        raise HTTPException(status_code=404, detail=f"No data for {symbol}/{expiry}")
+        return None
 
     # Block-level time series
     block_names = sorted(bv["block_name"].unique().to_list())
@@ -658,7 +679,6 @@ async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
 
     return {
         "symbol": symbol,
-        "expiry": expiry,
         "blocks": blocks,
         "aggregated": aggregated,
         "current_decomposition": {
@@ -666,6 +686,25 @@ async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
             "aggregated": current_agg,
         },
     }
+
+
+@app.get("/api/pipeline/timeseries")
+async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
+    """Return full block-level and aggregated time series for a symbol/expiry."""
+    # Parse expiry string (tolerant of both ISO and DDMMMYY)
+    try:
+        expiry_dt = _parse_expiry(expiry)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid expiry format: {exc}") from exc
+
+    payload = await asyncio.to_thread(_pipeline_timeseries_sync, symbol, expiry_dt)
+    if payload is None:
+        results = get_pipeline_results()
+        if results is None:
+            raise HTTPException(status_code=404, detail="No pipeline results available")
+        raise HTTPException(status_code=404, detail=f"No data for {symbol}/{expiry}")
+    payload["expiry"] = expiry
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -759,7 +798,8 @@ def _blocks_from_pipeline() -> list[BlockRowResponse]:
 @app.get("/api/blocks", response_model=BlockListResponse)
 async def list_blocks() -> BlockListResponse:
     """Return all blocks from the current pipeline run."""
-    return BlockListResponse(blocks=_blocks_from_pipeline())
+    blocks = await asyncio.to_thread(_blocks_from_pipeline)
+    return BlockListResponse(blocks=blocks)
 
 
 @app.post("/api/blocks", response_model=BlockRowResponse, status_code=201)
@@ -915,7 +955,7 @@ async def update_block(stream_name: str, req: UpdateBlockRequest) -> BlockRowRes
             ) from exc
 
     # Return the updated block
-    all_blocks = _blocks_from_pipeline()
+    all_blocks = await asyncio.to_thread(_blocks_from_pipeline)
     for b in all_blocks:
         if b.stream_name == stream_name:
             return b

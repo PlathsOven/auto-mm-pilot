@@ -5,6 +5,7 @@ import {
   Background,
   Controls,
   MiniMap,
+  useReactFlow,
   type Node,
   type Edge,
   type NodeTypes,
@@ -85,6 +86,7 @@ function AnatomyCanvasInner() {
   const { streams } = useRegisteredStreams();
   const { query, setMode } = useMode();
   const { payload } = useWebSocket();
+  const reactFlowInstance = useReactFlow();
 
   const [localSteps, setLocalSteps] = useState<Record<string, TransformStep> | null>(steps);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -131,9 +133,34 @@ function AnatomyCanvasInner() {
     [setMode],
   );
 
+  // After the sidebar opens or closes, the canvas column resizes via flexbox
+  // — refit the ReactFlow viewport so nodes don't get clipped or stranded
+  // off-screen. Watch `sidebarMode.kind` (not the object) to avoid extra
+  // recomputes from upstream identity churn.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      reactFlowInstance.fitView({ duration: 200, padding: 0.2 });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [sidebarMode.kind, reactFlowInstance]);
+
   // Is the system "live"? Use the WS payload as the signal — when positions
   // are flowing, the DAG edges animate.
   const live = (payload?.positions.length ?? 0) > 0;
+
+  // Which stream nodes should the DAG highlight?
+  //   - sidebar in "list" mode → every stream
+  //   - sidebar in "canvas" mode for a specific stream → just that one
+  //   - sidebar closed → none
+  const highlightedStreamNames = useMemo(() => {
+    if (sidebarMode.kind === "list") {
+      return new Set(streams.map((s) => s.stream_name));
+    }
+    if (sidebarMode.kind === "canvas" && sidebarMode.streamName) {
+      return new Set([sidebarMode.streamName]);
+    }
+    return new Set<string>();
+  }, [sidebarMode, streams]);
 
   // ---------------------------------------------------------------------
   // Transform state machine (lifted from the old PipelineComposer)
@@ -219,6 +246,9 @@ function AnatomyCanvasInner() {
           keyCols: s.key_cols,
         },
         draggable: true,
+        className: highlightedStreamNames.has(s.stream_name)
+          ? "anatomy-node-highlighted"
+          : undefined,
       });
       es.push({
         id: `e-stream-${s.stream_name}-uc`,
@@ -277,7 +307,7 @@ function AnatomyCanvasInner() {
     }
 
     return { nodes: out, edges: es };
-  }, [localSteps, streams, savingKey, live]);
+  }, [localSteps, streams, savingKey, live, highlightedStreamNames]);
 
   // ---------------------------------------------------------------------
   // Node click handling
@@ -328,6 +358,15 @@ function AnatomyCanvasInner() {
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
+      {sidebarMode.kind !== "closed" && (
+        <StreamSidebar
+          mode={sidebarMode}
+          onOpenList={openSidebarList}
+          onOpenCanvas={openSidebarCanvas}
+          onClose={closeSidebar}
+        />
+      )}
+
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <header className="flex shrink-0 items-center justify-between border-b border-mm-border/40 bg-mm-surface/40 px-4 py-2">
           <div>
@@ -396,13 +435,6 @@ function AnatomyCanvasInner() {
               maskColor="rgba(9,9,11,0.7)"
             />
           </ReactFlow>
-
-          <StreamSidebar
-            mode={sidebarMode}
-            onOpenList={openSidebarList}
-            onOpenCanvas={openSidebarCanvas}
-            onClose={closeSidebar}
-          />
         </div>
       </div>
 

@@ -85,40 +85,9 @@ export type InvestigationContext =
 /** A single message in the LLM chat */
 export interface ChatMessage {
   id: string;
-  role: "user" | "assistant" | "team";
-  sender: string;
+  role: "user" | "assistant";
   content: string;
   timestamp: number;
-}
-
-/** Identity of the logged-in terminal user */
-export interface UserIdentity {
-  id: string;
-  name: string;
-  initials: string;
-  role: string;
-}
-
-/** Daily trading wrap summary data */
-export interface DailyWrapData {
-  generatedAt: number;
-  largestPositionChanges: WrapPositionEntry[];
-  largestDesiredChanges: WrapPositionEntry[];
-  currentRisks: string[];
-  bestCaseScenarios: WrapScenario[];
-  worstCaseScenarios: WrapScenario[];
-}
-
-export interface WrapPositionEntry {
-  asset: string;
-  expiry: string;
-  delta: number;
-  driver: string;
-}
-
-export interface WrapScenario {
-  description: string;
-  trigger: string;
 }
 
 // ---------------------------------------------------------------------------

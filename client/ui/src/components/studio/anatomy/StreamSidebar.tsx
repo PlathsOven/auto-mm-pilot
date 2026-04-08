@@ -39,13 +39,11 @@ export function StreamSidebar({ mode, onOpenList, onOpenCanvas, onClose }: Props
     if (mode.kind === "canvas") setFilter("");
   }, [mode.kind === "canvas" ? mode.streamName : null]);
 
-  if (mode.kind === "closed") return null;
-
   const width = mode.kind === "canvas" ? 720 : 560;
 
   return (
     <aside
-      className="absolute left-0 top-0 z-10 flex h-full flex-col border-r border-mm-border/60 bg-mm-surface/95 shadow-xl shadow-black/40 backdrop-blur-sm"
+      className="flex h-full shrink-0 flex-col border-r border-mm-border/60 bg-mm-surface/95"
       style={{ width }}
     >
       <header className="flex shrink-0 items-center justify-between border-b border-mm-border/40 px-4 py-3">

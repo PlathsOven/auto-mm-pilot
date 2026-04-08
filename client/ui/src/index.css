@@ -183,3 +183,13 @@
 .anatomy-live .react-flow__edge-path {
   animation: anatomy-flow-pulse 2.2s ease-in-out infinite;
 }
+
+/* Highlight a stream node when its corresponding sidebar is open. ReactFlow
+   applies the node's `className` to its wrapper, not the inner card — the
+   `> div` selector reaches the inner content. The existing `selected` ring
+   from StreamNode (`ring-2 ring-mm-accent/40`) still wins visually when both
+   are true, which is the right priority. */
+.anatomy-node-highlighted > div {
+  background-color: rgba(99, 110, 250, 0.10) !important;
+  box-shadow: 0 0 0 2px rgba(99, 110, 250, 0.40);
+}
