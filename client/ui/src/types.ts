@@ -65,7 +65,6 @@ export interface UpdateCard {
   oldPos: number;
   newPos: number;
   delta: number;
-  reason: string;
   timestamp: number;
 }
 
@@ -98,20 +97,6 @@ export interface ChatMessage {
 export interface InvestigatePayload {
   conversation: { role: string; content: string }[];
   cell_context?: Record<string, unknown> | null;
-}
-
-/** POST /api/justify — request payload */
-export interface JustifyPayload {
-  asset: string;
-  expiry: string;
-  old_pos: number;
-  new_pos: number;
-  delta: number;
-}
-
-/** POST /api/justify — response */
-export interface JustifyResponse {
-  justification: string;
 }
 
 /** POST /api/snapshots — response */

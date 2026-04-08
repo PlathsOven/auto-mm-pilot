@@ -24,9 +24,8 @@
 | **Client WS Endpoint** | `server/api/client_ws.py` | `PROD` | WS Ticker, Stream Registry, Client WS Auth | Auth-gated `/ws/client` — inbound snapshots with ACK, outbound positions via broadcast |
 | **Client WS Auth** | `server/api/client_ws_auth.py` | `PROD` | `CLIENT_WS_API_KEY`, `CLIENT_WS_ALLOWED_IPS` env vars | API key + IP whitelist gate |
 | **OpenRouter Client** | `server/api/llm/client.py` | `PROD` | `OPENROUTER_API_KEY` env var | Async httpx, fallback model chain |
-| **LLM Service** | `server/api/llm/service.py` | `PROD` | OpenRouter Client, Prompts, Engine State | Investigation (stream) + Justification |
+| **LLM Service** | `server/api/llm/service.py` | `PROD` | OpenRouter Client, Prompts, Engine State | Investigation (stream) |
 | **Investigation Prompt** | `server/api/llm/prompts/investigation.py` | `PROD` | — | System prompt for Zone E |
-| **Justification Prompt** | `server/api/llm/prompts/justification.py` | `PROD` | — | System prompt for Zone D |
 | **Shared Preamble** | `server/api/llm/prompts/preamble.py` | `PROD` | — | IP protection, language rules |
 | **Snapshot Buffer** | `server/api/llm/snapshot_buffer.py` | `PROD` | — | Ring buffer + delta table builder |
 | **Stream Context DB** | `server/api/llm/context_db.py` | `MOCK` | — | Hardcoded stream metadata; will be client-contributed via API |
@@ -44,9 +43,9 @@
 | **WebSocket Provider** | `client/ui/src/providers/WebSocketProvider.tsx` | `PROD` | Server WS `/ws` endpoint | Connects to real pipeline WS, auto-reconnects |
 | **Mock Data Generator** | `client/ui/src/providers/MockDataProvider.ts` | `MOCK` | — | Users, cell notes, daily wrap (position generation removed) |
 | **Chat Provider** | `client/ui/src/providers/ChatProvider.tsx` | `PROD` | LLM API Client | Routes @APT to server `/api/investigate` (SSE stream) |
-| **LLM API Client** | `client/ui/src/services/llmApi.ts` | `PROD` | FastAPI App | HTTP client for `/api/investigate` + `/api/justify` |
+| **LLM API Client** | `client/ui/src/services/llmApi.ts` | `PROD` | FastAPI App | HTTP client for `/api/investigate` |
 | **Desired Position Grid** | `client/ui/src/components/DesiredPositionGrid.tsx` | `PROD` | WebSocket Provider, Chat Provider | Zone C — clickable cells push context |
-| **Updates Feed** | `client/ui/src/components/UpdatesFeed.tsx` | `PROD` | WebSocket Provider, LLM API Client | Zone D — enriches reasons via `/api/justify` |
+| **Updates Feed** | `client/ui/src/components/UpdatesFeed.tsx` | `PROD` | WebSocket Provider | Zone D — position-change cards with stream attribution |
 | **Team Chat (LLM Chat)** | `client/ui/src/components/LlmChat.tsx` | `PROD` | Chat Provider | Zone E — streaming assistant messages |
 | **Daily Wrap** | `client/ui/src/components/DailyWrap.tsx` | `MOCK` | — | Static mock data; **needs LLM-generated wrap** |
 | **Stream Status List** | `client/ui/src/components/floor/StreamStatusList.tsx` | `PROD` | WebSocket Provider, stream API | Floor read-only stream registry/health (replaces IngestionSidebar) |
@@ -70,51 +69,50 @@
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐   │
 │  │ DesiredPos   │    │ UpdatesFeed  │    │ LlmChat      │   │
 │  │ Grid (C)     │    │ (D)          │    │ (E)          │   │
-│  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘   │
-│         │ click ctx         │ justify req       │ @APT msg  │
-│         ▼                   ▼                   ▼           │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐   │
-│  │ ChatProvider │    │ llmApi.ts    │    │ ChatProvider  │   │
-│  │ (investigate)│    │ (justify)    │    │ (investigate) │   │
-│  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘   │
-│         │                   │                   │           │
+│  └──────┬───────┘    └──────────────┘    └──────┬───────┘   │
+│         │ click ctx                             │ @APT msg  │
+│         ▼                                       ▼           │
+│  ┌──────────────┐                        ┌──────────────┐   │
+│  │ ChatProvider │                        │ ChatProvider │   │
+│  │ (investigate)│                        │ (investigate)│   │
+│  └──────┬───────┘                        └──────┬───────┘   │
+│         │                                       │           │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │           WebSocketProvider (ws://server/ws)         │   │
-│  └──────────────────────────┬──────────────────────────-┘   │
-│         │                   │                   │           │
-│ ════════╪═══════════════════╪═══════════════════╪══════WS+HTTP│
-└─────────┼───────────────────┼───────────────────┼───────────┘
-          │                   │                   │
-          ▼                   ▼                   ▼
+│  └──────────────────────────┬───────────────────────────┘   │
+│                             │                               │
+│ ════════════════════════════╪═══════════════════════WS+HTTP │
+└─────────────────────────────┼───────────────────────────────┘
+                              │
+                              ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  SERVER (FastAPI)                                           │
 │                                                             │
 │  ┌──────────────────────────────────────────────────────┐   │
-│  │ WS /ws (pipeline)  │ POST /api/investigate (SSE)     │   │
-│  │                    │ POST /api/justify                │   │
-│  └──────────────┬───────────────┴──────────┬────────────┘   │
-│                 │                          │                │
+│  │ WS /ws (pipeline)   │   POST /api/investigate (SSE)  │   │
+│  └──────────────┬──────────────────┬───────────────────-┘   │
+│                 │                  │                        │
 │  ┌──────────────┴─────────────────────────────────────┐     │
 │  │ WS /ws/client (auth-gated, bidirectional)          │     │
 │  │   ← inbound snapshots (ACK each)                   │     │
-│  │   → outbound positions (broadcast ticker)           │     │
+│  │   → outbound positions (broadcast ticker)          │     │
 │  └──────────────┬─────────────────────────────────────┘     │
-│                 ▼                          ▼                │
+│                 ▼                  ▼                        │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │              LlmService                              │   │
-│  │   investigate_stream()      justify()                │   │
-│  └──────────┬──────────────────────────┬────────────────┘   │
-│             │                          │                    │
-│     ┌───────▼────────┐     ┌──────────▼─────────┐          │
-│     │ Engine State   │     │ OpenRouter Client   │          │
+│  │           investigate_stream()                       │   │
+│  └──────────┬───────────────────────────────────────────┘   │
+│             │                                                │
+│     ┌───────▼────────┐     ┌────────────────────┐           │
+│     │ Engine State   │     │ OpenRouter Client  │           │
 │     │ Provider       │     │ (httpx → OpenRouter)│          │
-│     │ ✓ PROD         │     │ ✓ PROD              │          │
-│     └───────┬────────┘     └────────────────────┘          │
+│     │ ✓ PROD         │     │ ✓ PROD             │           │
+│     └───────┬────────┘     └────────────────────┘           │
 │             │ (runs pipeline with mock scenario data)       │
-│     ┌───────▼────────┐                                     │
-│     │ server/core/   │                                     │
-│     │ ✓ PROD         │                                     │
-│     └────────────────┘                                     │
+│     ┌───────▼────────┐                                      │
+│     │ server/core/   │                                      │
+│     │ ✓ PROD         │                                      │
+│     └────────────────┘                                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 

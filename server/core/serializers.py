@@ -3,7 +3,7 @@ DataFrame → dict serializers for downstream consumers.
 
 Converts pipeline output DataFrames into the dict structures expected by
 the LLM service layer (``engine_state.py``, ``snapshot_buffer.py``, and
-the investigation/justification prompts).
+the investigation prompt).
 """
 
 from __future__ import annotations

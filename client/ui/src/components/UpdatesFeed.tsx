@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import Markdown from "react-markdown";
 import { useWebSocket } from "../providers/WebSocketProvider";
 import { useChat } from "../providers/ChatProvider";
 import { valColor, formatUtcTime } from "../utils";
@@ -71,10 +70,6 @@ export function UpdatesFeed() {
                 <span className="text-[10px] text-mm-text-dim">$vega</span>
               </div>
 
-              <div className="prose-apt text-mm-text-dim">
-                <Markdown>{card.reason}</Markdown>
-              </div>
-
               <CardAttribution asset={card.asset} expiry={card.expiry} />
             </div>
           );
@@ -85,9 +80,8 @@ export function UpdatesFeed() {
 }
 
 /**
- * Top-N stream contributions for an update card. Shown alongside the LLM
- * justification so the operator can see WHICH stream caused the position
- * change without leaving the feed.
+ * Top-N stream contributions for an update card — shows WHICH stream
+ * caused the position change without leaving the feed.
  */
 function CardAttribution({ asset, expiry }: { asset: string; expiry: string }) {
   const { contributions } = useStreamContributions({ asset, expiry });
