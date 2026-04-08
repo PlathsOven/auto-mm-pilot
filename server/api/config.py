@@ -72,18 +72,10 @@ class OpenRouterConfig:
             ("anthropic/claude-sonnet-4", "openai/gpt-4.1", "google/gemini-2.5-pro-preview-06-05"),
         )
     )
-    justification_models: tuple[str, ...] = field(
-        default_factory=lambda: _parse_str_list(
-            "OPENROUTER_JUSTIFICATION_MODELS",
-            ("anthropic/claude-sonnet-4", "openai/gpt-4.1-mini", "google/gemini-2.5-flash-preview"),
-        )
-    )
 
     # Generation parameters
     max_tokens_investigation: int = 8196
-    max_tokens_justification: int = 1024
     temperature_investigation: float = 0.
-    temperature_justification: float = 0.
 
     # Snapshot buffer — controls how much pipeline history the LLM sees.
     # lookback_offsets_seconds: which historical points to sample (seconds before now).

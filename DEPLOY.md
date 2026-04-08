@@ -39,7 +39,6 @@ After the repo is imported, Railway will auto-detect the `Procfile` and `require
    - Optionally add model overrides:
    ```
    OPENROUTER_INVESTIGATION_MODELS=anthropic/claude-sonnet-4,openai/gpt-4.1
-   OPENROUTER_JUSTIFICATION_MODELS=anthropic/claude-sonnet-4,openai/gpt-4.1-mini
    ```
 
 ### 1.4 Generate a public URL

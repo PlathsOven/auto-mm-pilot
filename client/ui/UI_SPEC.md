@@ -55,9 +55,9 @@ The UI is a fixed-height, single-page application (SPA) divided into four primar
 * **Card contents:**
     * Asset + Expiry label and timestamp
     * Old value → new value with signed delta, all in **$vega** units (all numbers colored by sign)
-    * **Concise justification** — a one-line reason for the position change in small text
+    * **Stream attribution** — top contributing streams and their edge, shown inline on the card
 * **Highlighting:** New cards receive a fading blue highlight (~2.5s) on arrival.
-* **Clickable cards:** Clicking any card pushes its context (asset, expiry, old/new position, delta, reason) to the LLM Chat (Zone E) for investigation.
+* **Clickable cards:** Clicking any card pushes its context (asset, expiry, old/new position, delta) to the LLM Chat (Zone E) for investigation.
 
 ### E. Team Chat (Right Bottom — 30% Width, 60% Height)
 * **Header:** "Team Chat" with hint "Tag @APT to query the engine" and a "Clear context" button when investigation context is active.

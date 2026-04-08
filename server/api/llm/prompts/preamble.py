@@ -1,13 +1,10 @@
 """
-Shared system prompt preamble for all APT LLMs.
+Shared system prompt preamble for APT LLMs.
 
 Contains the APT context, IP protection rules, epistemological framework,
-parameter mapping, language rules, and epistemic honesty constraints that
-are common to both the Investigation (Zone E) and Justification (Zone D)
-prompts. Each prompt imports SHARED_PREAMBLE and wraps it with its own
-role-specific header and footer.
-
-Single source of truth — edit here to update both prompts simultaneously.
+parameter mapping, language rules, and epistemic honesty constraints used
+by the Investigation (Zone E) prompt. Each prompt imports SHARED_PREAMBLE
+and wraps it with its own role-specific header and footer.
 """
 
 from __future__ import annotations
