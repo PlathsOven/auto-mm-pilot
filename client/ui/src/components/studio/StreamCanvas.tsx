@@ -37,7 +37,7 @@ const WALK_THROUGH_KEY = "apt.studio.walkthrough";
  */
 export function StreamCanvas({ streamName, templateId }: Props) {
   const { setMode } = useMode();
-  const { streams: registry, refresh: refreshRegistry } = useRegisteredStreams();
+  const { streams: registry, refresh: refreshRegistry, addStream } = useRegisteredStreams();
   const [draft, setDraft] = useState<StreamDraft>(() => initialDraft(streamName, templateId));
   const [pendingStreamName, setPendingStreamName] = useState<string | null>(streamName);
   const [walkThrough, setWalkThrough] = useState(() => {
@@ -101,10 +101,14 @@ export function StreamCanvas({ streamName, templateId }: Props) {
     try {
       const created = await createStream(draft.identity.stream_name, draft.identity.key_cols);
       setPendingStreamName(created.stream_name);
+      // Optimistically inject into the shared registry cache so subscribers
+      // re-render immediately. We deliberately do NOT await refreshRegistry()
+      // here — joining its in-flight polling promise was the source of the
+      // "Creating…" hang.
+      addStream(created);
       // Update URL so refresh keeps the canvas pinned to this stream inside
       // the Anatomy streams sidebar.
       setMode("studio", `anatomy?stream=${encodeURIComponent(created.stream_name)}`);
-      await refreshRegistry();
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : String(err));
     } finally {

@@ -2,6 +2,7 @@ import { useMemo, useRef } from "react";
 import type { DesiredPosition } from "../types";
 import { HIGHLIGHT_DURATION_MS, TIMEFRAME_OPTIONS } from "../components/grid-config";
 import type { TimeframeLabel } from "../components/grid-config";
+import { parseExpiry } from "../utils";
 
 interface HistoryEntry {
   value: number;
@@ -54,7 +55,11 @@ export function usePositionHistory(
 
     return {
       assets: Array.from(assetSet).sort(),
-      expiries: Array.from(expirySet),
+      // Sort expiries chronologically so React's key-based reconciliation
+      // keeps cell DOM nodes stable across WS ticks. Without this, the
+      // 350 ms hover timer that drives the stream-attribution tooltip in
+      // DesiredPositionGrid is cancelled by remounts on every tick.
+      expiries: Array.from(expirySet).sort((a, b) => parseExpiry(a) - parseExpiry(b)),
       grid: gridMap,
       recentKeys: recent,
     };

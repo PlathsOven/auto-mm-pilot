@@ -1,9 +1,8 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useWebSocket } from "../providers/WebSocketProvider";
 import { useChat } from "../providers/ChatProvider";
 import { valColor, cellBg } from "../utils";
 import { useSelection } from "../providers/SelectionProvider";
-import { getCellNotes } from "../providers/MockDataProvider";
 import {
   VIEW_MODE_META,
   TIMEFRAME_OPTIONS,
@@ -14,7 +13,6 @@ import {
 import type { ViewMode, TimeframeLabel } from "./grid-config";
 import type { DesiredPosition } from "../types";
 import { usePositionHistory } from "../hooks/usePositionHistory";
-import { LiveEquationStrip } from "./equation/LiveEquationStrip";
 import { StreamAttributionHoverCard } from "./floor/StreamAttributionHoverCard";
 
 interface PendingEdit {
@@ -29,8 +27,8 @@ const HOVER_DELAY_MS = 350;
 
 export function DesiredPositionGrid() {
   const { payload } = useWebSocket();
-  const { investigate, openNoteThread, openDrawer } = useChat();
-  const { selectDimension, isDimensionSelected } = useSelection();
+  const { investigate } = useChat();
+  const { isDimensionSelected } = useSelection();
   const positions = payload?.positions ?? [];
 
   const [viewMode, setViewMode] = useState<ViewMode>("position");
@@ -70,21 +68,6 @@ export function DesiredPositionGrid() {
       if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     };
   }, []);
-
-  const noteCountMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const n of getCellNotes()) {
-      map.set(n.cellKey, (map.get(n.cellKey) ?? 0) + 1);
-    }
-    return map;
-  }, [positions]);
-
-  const handleNoteBadgeClick = useCallback((e: React.MouseEvent, cellKey: string) => {
-    e.stopPropagation();
-    e.preventDefault();
-    openNoteThread(cellKey);
-    openDrawer();
-  }, [openNoteThread, openDrawer]);
 
   const { assets, expiries, grid, recentKeys } = usePositionHistory(positions, timeframe);
 
@@ -262,12 +245,10 @@ export function DesiredPositionGrid() {
                     const hasOverride = viewMode === "position" && overrides.has(key);
                     const showHover = hoverCell?.key === key && !isEditing;
 
-                    const noteCount = noteCountMap.get(key) ?? 0;
-
                     return (
                       <td
                         key={exp}
-                        onClick={() => { investigate({ type: "position", asset, expiry: exp, position: cell.pos }); selectDimension(asset, exp); }}
+                        onClick={() => investigate({ type: "position", asset, expiry: exp, position: cell.pos })}
                         onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClick(key, asset, exp, cell.pos); }}
                         onMouseEnter={() => handleMouseEnter(asset, exp, key)}
                         onMouseLeave={handleMouseLeave}
@@ -306,15 +287,6 @@ export function DesiredPositionGrid() {
                             ✕
                           </button>
                         )}
-                        {noteCount > 0 && (
-                          <button
-                            onClick={(e) => handleNoteBadgeClick(e, key)}
-                            className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-mm-accent/30 text-[7px] font-bold text-mm-accent hover:bg-mm-accent/50 transition-colors cursor-pointer"
-                            title={`${noteCount} note${noteCount > 1 ? "s" : ""} — click to view`}
-                          >
-                            {noteCount}
-                          </button>
-                        )}
                         {showHover && (
                           <StreamAttributionHoverCard asset={asset} expiry={exp} />
                         )}
@@ -345,8 +317,6 @@ export function DesiredPositionGrid() {
           </table>
         )}
       </div>
-
-      <LiveEquationStrip size="md" />
 
       <OverrideStatusBar
         pendingEdit={pendingEdit}
@@ -447,7 +417,7 @@ function OverrideStatusBar({
       )}
 
       <p className="mt-1 text-[9px] text-mm-text-dim">
-        {viewMode === "position" ? "Double-click a cell to override. " : ""}Hover for stream attribution. Click the badge to view/add notes.
+        {viewMode === "position" ? "Double-click a cell to override. " : ""}Hover for stream attribution.
       </p>
     </>
   );

@@ -1,28 +1,19 @@
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { ChatMessage, InvestigationContext, CellNote } from "../types";
-import { CURRENT_USER, MOCK_USERS, getCellNotes, addCellNote } from "./MockDataProvider";
+import type { ChatMessage, InvestigationContext } from "../types";
+import { CURRENT_USER, MOCK_USERS } from "./MockDataProvider";
 import { streamInvestigation } from "../services/llmApi";
 import { createIdGenerator } from "../utils";
-
-interface NoteThread {
-  cellKey: string;
-  notes: CellNote[];
-}
 
 interface ChatState {
   messages: ChatMessage[];
   investigation: InvestigationContext | null;
-  noteThread: NoteThread | null;
   isStreaming: boolean;
   /** Whether the global ChatDrawer is currently visible. */
   drawerOpen: boolean;
   sendMessage: (content: string) => void;
   investigate: (ctx: InvestigationContext) => void;
   clearInvestigation: () => void;
-  openNoteThread: (cellKey: string) => void;
-  closeNoteThread: () => void;
-  addNote: (content: string) => void;
   cancelStream: () => void;
   openDrawer: () => void;
   closeDrawer: () => void;
@@ -32,15 +23,11 @@ interface ChatState {
 const ChatContext = createContext<ChatState>({
   messages: [],
   investigation: null,
-  noteThread: null,
   isStreaming: false,
   drawerOpen: false,
   sendMessage: () => {},
   investigate: () => {},
   clearInvestigation: () => {},
-  openNoteThread: () => {},
-  closeNoteThread: () => {},
-  addNote: () => {},
   cancelStream: () => {},
   openDrawer: () => {},
   closeDrawer: () => {},
@@ -67,7 +54,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [investigation, setInvestigation] =
     useState<InvestigationContext | null>(null);
-  const [noteThread, setNoteThread] = useState<NoteThread | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -178,35 +164,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setInvestigation(null);
   }, []);
 
-  const openNoteThread = useCallback((cellKey: string) => {
-    const notes = getCellNotes().filter((n) => n.cellKey === cellKey);
-    setNoteThread({ cellKey, notes });
-  }, []);
-
-  const closeNoteThread = useCallback(() => {
-    setNoteThread(null);
-  }, []);
-
-  const addNoteToThread = useCallback((content: string) => {
-    if (!noteThread) return;
-    const note = addCellNote(noteThread.cellKey, content);
-    setNoteThread((prev) => prev ? { ...prev, notes: [note, ...prev.notes] } : null);
-  }, [noteThread]);
-
   return (
     <ChatContext.Provider
       value={{
         messages,
         investigation,
-        noteThread,
         isStreaming,
         drawerOpen,
         sendMessage,
         investigate,
         clearInvestigation,
-        openNoteThread,
-        closeNoteThread,
-        addNote: addNoteToThread,
         cancelStream,
         openDrawer,
         closeDrawer,
