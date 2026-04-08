@@ -99,16 +99,6 @@ export interface UserIdentity {
   role: string;
 }
 
-/** A comment/note on a specific cell */
-export interface CellNote {
-  id: string;
-  cellKey: string;
-  author: string;
-  authorInitials: string;
-  content: string;
-  timestamp: number;
-}
-
 /** Daily trading wrap summary data */
 export interface DailyWrapData {
   generatedAt: number;

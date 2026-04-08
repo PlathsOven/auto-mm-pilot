@@ -1,9 +1,7 @@
 import type {
   UserIdentity,
-  CellNote,
   DailyWrapData,
 } from "../types";
-import { createIdGenerator } from "../utils";
 
 /** Mock team members for the client firm */
 export const MOCK_USERS: UserIdentity[] = [
@@ -15,36 +13,6 @@ export const MOCK_USERS: UserIdentity[] = [
 
 /** The currently logged-in user */
 export const CURRENT_USER: UserIdentity = MOCK_USERS[0];
-
-/** Pre-seeded cell notes from various team members */
-const SEED_NOTES: CellNote[] = [
-  { id: "note-1", cellKey: "BTC-27MAR26", author: "Sean Gong", authorInitials: "SG", content: "Watch for expiry pin risk — OI concentrated around 85k strike.", timestamp: Date.now() - 3_600_000 },
-  { id: "note-2", cellKey: "ETH-25APR26", author: "James Okafor", authorInitials: "JO", content: "Pectra upgrade catalyst could drive vol expansion mid-April.", timestamp: Date.now() - 7_200_000 },
-  { id: "note-3", cellKey: "BTC-30MAY26", author: "Sarah Lin", authorInitials: "SL", content: "Comfortable with current sizing — risk limits have headroom.", timestamp: Date.now() - 1_800_000 },
-  { id: "note-4", cellKey: "ETH-27JUN26", author: "Sjoerd Stevens", authorInitials: "SS", content: "Back-month looks cheap relative to realized. Keep building.", timestamp: Date.now() - 5_400_000 },
-  { id: "note-5", cellKey: "BTC-25APR26", author: "Sean Gong", authorInitials: "SG", content: "FOMC on Apr 30 could bleed into this expiry — stay nimble.", timestamp: Date.now() - 2_400_000 },
-];
-
-/** Mutable cell notes store */
-let cellNotesStore: CellNote[] = [...SEED_NOTES];
-const nextNoteId = createIdGenerator("note-");
-
-export function getCellNotes(): CellNote[] {
-  return cellNotesStore;
-}
-
-export function addCellNote(cellKey: string, content: string): CellNote {
-  const note: CellNote = {
-    id: nextNoteId(),
-    cellKey,
-    author: CURRENT_USER.name,
-    authorInitials: CURRENT_USER.initials,
-    content,
-    timestamp: Date.now(),
-  };
-  cellNotesStore = [note, ...cellNotesStore];
-  return note;
-}
 
 function rand(min: number, max: number): number {
   return Math.random() * (max - min) + min;

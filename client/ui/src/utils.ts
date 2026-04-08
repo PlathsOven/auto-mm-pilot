@@ -40,6 +40,25 @@ export function formatExpiry(iso: string): string {
   }
 }
 
+const MONTH_INDEX: Record<string, number> = {
+  JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5,
+  JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11,
+};
+
+/**
+ * Parses a DDMMMYY expiry string (e.g. "27MAR26") back into a UTC millisecond
+ * timestamp. Inverse of {@link formatExpiry}, suitable for chronological
+ * sorting of expiry columns. Returns NaN on malformed input.
+ */
+export function parseExpiry(ddmmmyy: string): number {
+  if (ddmmmyy.length !== 7) return NaN;
+  const day = parseInt(ddmmmyy.slice(0, 2), 10);
+  const mon = MONTH_INDEX[ddmmmyy.slice(2, 5).toUpperCase()];
+  const yr = parseInt(ddmmmyy.slice(5, 7), 10);
+  if (Number.isNaN(day) || mon === undefined || Number.isNaN(yr)) return NaN;
+  return Date.UTC(2000 + yr, mon, day);
+}
+
 /** Formats a UTC timestamp (ms) as HH:MM:SS.mmm */
 export function formatUtcTime(ts: number): string {
   const d = new Date(ts);

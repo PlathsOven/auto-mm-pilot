@@ -285,18 +285,15 @@ function AnatomyCanvasInner() {
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
       if (node.type === "stream") {
-        const streamName = (node.data as { streamName?: string }).streamName;
-        if (streamName) {
-          openSidebarCanvas(streamName, null);
-          setSelection({ kind: "none" });
-        }
+        openSidebarList();
+        setSelection({ kind: "none" });
       } else if (node.type === "transform") {
         setSelection({ kind: "transform", stepKey: node.id as StepKey });
       } else if (node.type === "output") {
         setMode("floor");
       }
     },
-    [setMode, openSidebarCanvas],
+    [setMode, openSidebarList],
   );
 
   const onPaneClick = useCallback(() => {

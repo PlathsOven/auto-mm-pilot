@@ -9,6 +9,9 @@ interface StreamsState {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  /** Optimistically inject a newly-created stream so subscribers see it
+   *  without waiting for the next poll cycle. */
+  addStream: (stream: RegisteredStream) => void;
 }
 
 // Module-level cache shared across subscribers so Floor's StreamStatusList
@@ -101,10 +104,26 @@ export function useRegisteredStreams(): StreamsState {
     await doFetch();
   }, []);
 
+  const addStream = useCallback((stream: RegisteredStream) => {
+    // Replace any existing entry with the same name (e.g. an admin re-create),
+    // otherwise append. Notify synchronously so callers can rely on the new
+    // entry being visible on the next render without awaiting any I/O.
+    const idx = cache.streams.findIndex((s) => s.stream_name === stream.stream_name);
+    if (idx === -1) {
+      cache.streams = [...cache.streams, stream];
+    } else {
+      const next = cache.streams.slice();
+      next[idx] = stream;
+      cache.streams = next;
+    }
+    notify();
+  }, []);
+
   return {
     streams: cache.streams,
     loading: cache.loading,
     error: cache.error,
     refresh,
+    addStream,
   };
 }

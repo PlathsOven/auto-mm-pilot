@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { useChat } from "../providers/ChatProvider";
-import { formatUtcTime } from "../utils";
 
 function senderInitials(name: string): string {
   return name
@@ -20,9 +19,8 @@ function investigationLabel(ctx: NonNullable<ReturnType<typeof useChat>["investi
 }
 
 export function LlmChat() {
-  const { messages, investigation, noteThread, isStreaming, sendMessage, clearInvestigation, closeNoteThread, addNote, cancelStream } = useChat();
+  const { messages, investigation, isStreaming, sendMessage, clearInvestigation, cancelStream } = useChat();
   const [input, setInput] = useState("");
-  const [noteInput, setNoteInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -36,14 +34,6 @@ export function LlmChat() {
     const prefix = investigation ? `[Context: ${investigationLabel(investigation)}]\n` : "";
     sendMessage(prefix + text);
     setInput("");
-  }
-
-  function handleNoteSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const text = noteInput.trim();
-    if (!text) return;
-    addNote(text);
-    setNoteInput("");
   }
 
   return (
@@ -116,45 +106,6 @@ export function LlmChat() {
         })}
         <div ref={bottomRef} />
       </div>
-
-      {/* Note thread section */}
-      {noteThread && (
-        <div className="mt-2 overflow-hidden rounded-lg border border-mm-border/40 bg-mm-bg">
-          <div className="flex items-center justify-between border-b border-mm-border/40 px-3 py-1.5">
-            <span className="text-[10px] font-semibold text-mm-accent">
-              {noteThread.cellKey.replace("-", " — ")} Notes
-            </span>
-            <button onClick={closeNoteThread} className="text-[10px] text-mm-text-dim hover:text-mm-text">✕</button>
-          </div>
-          <div className="max-h-32 overflow-y-auto">
-            {noteThread.notes.length === 0 && (
-              <p className="px-3 py-2 text-center text-[10px] text-mm-text-dim">No notes yet.</p>
-            )}
-            {noteThread.notes.map((note) => (
-              <div key={note.id} className="border-b border-mm-border/20 px-3 py-1.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-mm-accent/20 text-[7px] font-bold text-mm-accent">{note.authorInitials}</span>
-                    <span className="text-[10px] font-medium text-mm-text">{note.author}</span>
-                  </div>
-                  <span className="text-[9px] text-mm-text-dim">{formatUtcTime(note.timestamp)}</span>
-                </div>
-                <p className="mt-0.5 text-[10px] leading-relaxed text-mm-text-dim">{note.content}</p>
-              </div>
-            ))}
-          </div>
-          <form onSubmit={handleNoteSubmit} className="flex gap-1 border-t border-mm-border/40 p-1.5">
-            <input
-              type="text"
-              value={noteInput}
-              onChange={(e) => setNoteInput(e.target.value)}
-              placeholder="Add a note..."
-              className="flex-1 rounded-md border border-mm-border/40 bg-mm-surface px-2 py-1 text-[10px] text-mm-text outline-none placeholder:text-mm-text-dim transition-colors focus:border-mm-accent/60 focus:ring-1 focus:ring-mm-accent/20"
-            />
-            <button type="submit" className="rounded-md border border-mm-border/40 bg-mm-surface px-2 py-1 text-[10px] text-mm-accent transition-colors hover:bg-mm-accent/10">Post</button>
-          </form>
-        </div>
-      )}
 
       {/* Investigation context pill */}
       {investigation && (

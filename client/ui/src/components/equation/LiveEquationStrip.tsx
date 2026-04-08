@@ -69,25 +69,10 @@ function MdLgStrip({ size }: { size: "md" | "lg" }) {
   const positionSizing = useActivePositionSizing();
   const { bankroll } = useTransforms();
 
-  if (!positionSizing) {
-    return (
-      <StripShell size={size}>
-        <span className="text-mm-text-dim">Loading transforms…</span>
-      </StripShell>
-    );
-  }
-
-  if (!focused) {
-    return (
-      <StripShell size={size}>
-        <span className="text-mm-text-dim">
-          Click a cell to inspect the active{" "}
-          <span className="font-medium text-mm-accent">{positionSizing.name}</span>{" "}
-          sizing rule.
-        </span>
-      </StripShell>
-    );
-  }
+  // No focused cell → render nothing. Inspection is now driven exclusively
+  // by selections from elsewhere in the app (e.g. CommandPalette), not by
+  // clicks on the positions grid.
+  if (!positionSizing || !focused) return null;
 
   const rendered = renderFormula(positionSizing.formula, {
     edge: focused.position.smoothedEdge,

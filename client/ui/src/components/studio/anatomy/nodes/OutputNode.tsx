@@ -15,7 +15,7 @@ export interface OutputNodeData {
 export const OutputNode = memo(function OutputNode({ selected }: NodeProps) {
   return (
     <div
-      className={`flex w-[220px] flex-col items-center gap-1 rounded-xl border bg-mm-accent/10 p-3 shadow-sm transition-colors ${
+      className={`flex h-[140px] w-[220px] flex-col items-center justify-center gap-1 rounded-xl border bg-mm-accent/10 p-3 shadow-sm transition-colors ${
         selected
           ? "border-mm-accent/70 ring-2 ring-mm-accent/40"
           : "border-mm-accent/40 hover:border-mm-accent/60"
