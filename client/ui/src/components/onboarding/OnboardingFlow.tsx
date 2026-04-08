@@ -65,7 +65,7 @@ export function OnboardingFlow() {
   const isLast = index === CARDS.length - 1;
 
   const finish = () => {
-    setMode("floor");
+    setMode("studio");
     markCompleted();
   };
 
@@ -229,7 +229,7 @@ const CARDS: OnboardingCard[] = [
         <code className="rounded bg-mm-bg-deep px-1 text-mm-accent">⌘K</code>).
       </>
     ),
-    ctaLabel: "Drop me into Floor →",
+    ctaLabel: "Drop me into the Studio →",
     visual: (
       <div className="grid grid-cols-3 gap-2">
         {MODES.map((m) => (

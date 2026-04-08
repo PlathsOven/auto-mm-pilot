@@ -11,7 +11,7 @@ import {
 export type ModeId = "floor" | "studio" | "docs";
 
 const VALID_MODES: readonly ModeId[] = ["floor", "studio", "docs"] as const;
-const DEFAULT_MODE: ModeId = "floor";
+const DEFAULT_MODE: ModeId = "studio";
 
 export const MODE_LABELS: Record<ModeId, string> = {
   floor: "Floor",
