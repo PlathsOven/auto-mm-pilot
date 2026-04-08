@@ -2,12 +2,10 @@
  * HTTP client for the APT LLM server endpoints.
  *
  * - streamInvestigation(): SSE stream from POST /api/investigate
- * - fetchJustification(): JSON from POST /api/justify
  */
 
 import { API_BASE } from "../config";
-import type { InvestigatePayload, JustifyPayload, JustifyResponse } from "../types";
-import { apiFetch } from "./api";
+import type { InvestigatePayload } from "../types";
 
 // ---------------------------------------------------------------------------
 // Investigation — SSE streaming
@@ -110,24 +108,6 @@ export function streamInvestigation(
   })();
 
   return controller;
-}
-
-// ---------------------------------------------------------------------------
-// Justification — single JSON response
-// ---------------------------------------------------------------------------
-
-/**
- * Fetch a one-line justification for a position change.
- * Throws on any failure.
- */
-export async function fetchJustification(
-  payload: JustifyPayload,
-): Promise<string> {
-  const data = await apiFetch<JustifyResponse>("/api/justify", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-  return data.justification;
 }
 
 // ---------------------------------------------------------------------------

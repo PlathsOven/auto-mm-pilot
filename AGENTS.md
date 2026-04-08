@@ -65,12 +65,11 @@ The system is physically split to protect proprietary IP.
 | `client/ui/UI_SPEC.md` | UI design specification |
 | `server/api/config.py` | OpenRouter env config (API key, model fallback lists, generation params, snapshot buffer settings) |
 | `server/api/llm/client.py` | Async OpenRouter HTTP client (complete + stream + fallback wrappers) |
-| `server/api/llm/service.py` | LLM orchestration — investigation chat & justification narrator |
+| `server/api/llm/service.py` | LLM orchestration — investigation chat |
 | `server/api/llm/snapshot_buffer.py` | Pipeline snapshot ring buffer — stores time-series history, builds condensed delta tables for LLM context |
 | `server/api/llm/context_db.py` | Stream context database — metadata about each data stream (mock-initialized) |
 | `server/api/llm/prompts/preamble.py` | Shared prompt preamble (IP protection, language rules, epistemology) |
 | `server/api/llm/prompts/investigation.py` | System prompt for Zone E (read state + issue engine commands) |
-| `server/api/llm/prompts/justification.py` | System prompt for Zone D update card narration |
 | `server/api/llm/test_investigation.py` | Interactive CLI for testing Zone E investigation LLM with mock pipeline data |
 | `server/api/models.py` | Pydantic request/response models for stream, snapshot, market-pricing, and bankroll endpoints |
 | `server/api/stream_registry.py` | In-memory stream registry — CRUD, snapshot storage, validation, `StreamConfig` builder |

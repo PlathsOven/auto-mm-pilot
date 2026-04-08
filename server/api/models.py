@@ -24,18 +24,6 @@ class InvestigateRequest(BaseModel):
     )
 
 
-class JustifyRequest(BaseModel):
-    asset: str
-    expiry: str
-    old_pos: float
-    new_pos: float
-    delta: float
-
-
-class JustifyResponse(BaseModel):
-    justification: str
-
-
 # ---------------------------------------------------------------------------
 # Stream management
 # ---------------------------------------------------------------------------

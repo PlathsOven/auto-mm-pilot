@@ -107,7 +107,6 @@ def _updates_from_diff(
                 "oldPos": round(prev, 2),
                 "newPos": pos["desiredPos"],
                 "delta": round(delta, 2),
-                "reason": "",
                 "timestamp": pos["updatedAt"],
             })
     return updates

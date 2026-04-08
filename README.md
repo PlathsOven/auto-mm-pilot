@@ -123,7 +123,7 @@ The LLM intelligence layer sits between the engine and the trader. It reads the 
 | Data Adapters | Python | Ingest and standardise client data into a common format |
 | API Layer | FastAPI, WebSockets | Real-time bidirectional communication (position streaming + snapshot ingestion) |
 | Pricing Engine | Python, Polars | Stream-to-position pipeline: fair value, variance, aggregation, desired position |
-| Intelligence Layer | LLM via OpenRouter | Position explanations, justification narration, trader feedback incorporation |
+| Intelligence Layer | LLM via OpenRouter | Position explanations, trader feedback incorporation |
 
 ---
 
@@ -144,6 +144,6 @@ The LLM intelligence layer sits between the engine and the trader. It reads the 
 |-----------|--------|-------|
 | Pricing Engine (`server/core/`) | Production | Full pipeline operational, running on mock scenario data |
 | API + WebSocket Layer | Production | Real-time pipeline ticks, auth-gated client ingestion |
-| LLM Intelligence Layer | Production | Investigation chat (streaming) + justification narration |
+| LLM Intelligence Layer | Production | Investigation chat (streaming) |
 | Desktop Terminal UI | Production | Modular dashboard, live position grid, pipeline charts |
 | Data Adapters | Not built | Exchange-specific adapters pending |

@@ -718,21 +718,6 @@ data: [DONE]`}</CodeBlock>
             </p>
           </Endpoint>
 
-          <Endpoint method="POST" path="/api/justify" description="Generate a one-line justification for a position change.">
-            <p className="font-medium text-mm-text">Request body:</p>
-            <CodeBlock>{`{
-  "asset": "BTC",
-  "expiry": "28MAR25",
-  "old_pos": 100.0,
-  "new_pos": 150.0,
-  "delta": 50.0
-}`}</CodeBlock>
-            <p className="font-medium text-mm-text">Response:</p>
-            <CodeBlock>{`{
-  "justification": "Increased edge in near-term volatility surface..."
-}`}</CodeBlock>
-            <p>Returns <strong>502</strong> if the LLM call fails, <strong>503</strong> if unavailable.</p>
-          </Endpoint>
         </Section>
 
         <div className="pb-4" />

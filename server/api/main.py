@@ -5,7 +5,6 @@ Endpoints:
     WS    /ws                              — Real-time pipeline data stream (internal UI)
     WS    /ws/client                       — Authenticated client data exchange channel
     POST  /api/investigate                 — SSE investigation token stream
-    POST  /api/justify                     — JSON one-line justification
     GET   /api/health                      — Health check
     POST  /api/streams                     — Create a data stream
     GET   /api/streams                     — List all streams
@@ -47,8 +46,6 @@ from server.api.models import (
     BlockRowResponse,
     CreateStreamRequest,
     InvestigateRequest,
-    JustifyRequest,
-    JustifyResponse,
     ManualBlockRequest,
     MarketPricingRequest,
     UpdateBlockRequest,
@@ -189,32 +186,6 @@ async def investigate(req: InvestigateRequest) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
-
-
-@app.post("/api/justify", response_model=JustifyResponse)
-async def justify(req: JustifyRequest) -> JustifyResponse:
-    """Generate a one-line justification for a position change."""
-    try:
-        service = _get_llm_service()
-    except EnvironmentError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-    pipeline_snapshot = get_pipeline_snapshot()
-
-    try:
-        text = await service.justify(
-            asset=req.asset,
-            expiry=req.expiry,
-            old_pos=req.old_pos,
-            new_pos=req.new_pos,
-            delta=req.delta,
-            pipeline_snapshot=pipeline_snapshot,
-        )
-    except Exception as exc:
-        log.exception("Justification failed")
-        raise HTTPException(status_code=502, detail=f"LLM call failed: {exc}") from exc
-
-    return JustifyResponse(justification=text)
 
 
 # ---------------------------------------------------------------------------
