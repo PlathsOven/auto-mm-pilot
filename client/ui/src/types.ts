@@ -1,6 +1,3 @@
-/** Page routing for the main App shell */
-export type AppPage = "dashboard" | "apidocs";
-
 /** Status of an individual data stream adapter */
 export type StreamStatus = "ONLINE" | "DEGRADED" | "OFFLINE";
 
@@ -38,18 +35,8 @@ export interface RegisteredStream {
   block: BlockConfigPayload | null;
 }
 
-/** Engine operating mode */
-export type EngineState =
-  | "WAITING"
-  | "INITIALIZING"
-  | "STABILIZING"
-  | "OPTIMIZING"
-  | "DISRUPTED";
-
 /** Global context bar state */
 export interface GlobalContext {
-  engineState: EngineState;
-  operatingSpace: string;
   lastUpdateTimestamp: number;
 }
 
@@ -98,50 +85,9 @@ export type InvestigationContext =
 /** A single message in the LLM chat */
 export interface ChatMessage {
   id: string;
-  role: "user" | "assistant" | "team";
-  sender: string;
+  role: "user" | "assistant";
   content: string;
   timestamp: number;
-}
-
-/** Identity of the logged-in terminal user */
-export interface UserIdentity {
-  id: string;
-  name: string;
-  initials: string;
-  role: string;
-}
-
-/** A comment/note on a specific cell */
-export interface CellNote {
-  id: string;
-  cellKey: string;
-  author: string;
-  authorInitials: string;
-  content: string;
-  timestamp: number;
-}
-
-/** Daily trading wrap summary data */
-export interface DailyWrapData {
-  generatedAt: number;
-  largestPositionChanges: WrapPositionEntry[];
-  largestDesiredChanges: WrapPositionEntry[];
-  currentRisks: string[];
-  bestCaseScenarios: WrapScenario[];
-  worstCaseScenarios: WrapScenario[];
-}
-
-export interface WrapPositionEntry {
-  asset: string;
-  expiry: string;
-  delta: number;
-  driver: string;
-}
-
-export interface WrapScenario {
-  description: string;
-  trigger: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -292,6 +238,8 @@ export interface TransformInfo {
   name: string;
   description: string;
   params: TransformParam[];
+  /** Optional symbolic form, e.g. "P = E·B / (γ·V)". Empty string if unset. */
+  formula: string;
 }
 
 export interface TransformStep {

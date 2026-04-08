@@ -5,18 +5,28 @@ import { WebSocketProvider } from "./providers/WebSocketProvider";
 import { ChatProvider } from "./providers/ChatProvider";
 import { LayoutProvider } from "./providers/LayoutProvider";
 import { SelectionProvider } from "./providers/SelectionProvider";
+import { ModeProvider } from "./providers/ModeProvider";
+import { OnboardingProvider } from "./providers/OnboardingProvider";
+import { CommandPaletteProvider } from "./providers/CommandPaletteProvider";
+import { TransformsProvider } from "./providers/TransformsProvider";
+import { composeProviders } from "./providers/compose";
 import "./index.css";
+
+const AppProviders = composeProviders([
+  WebSocketProvider,
+  ChatProvider,
+  LayoutProvider,
+  SelectionProvider,
+  ModeProvider,
+  OnboardingProvider,
+  CommandPaletteProvider,
+  TransformsProvider,
+]);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <WebSocketProvider>
-      <ChatProvider>
-        <LayoutProvider>
-          <SelectionProvider>
-            <App />
-          </SelectionProvider>
-        </LayoutProvider>
-      </ChatProvider>
-    </WebSocketProvider>
+    <AppProviders>
+      <App />
+    </AppProviders>
   </React.StrictMode>,
 );

@@ -21,6 +21,7 @@ Both directions operate simultaneously — no request/response querying required
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -58,7 +59,7 @@ async def _process_inbound_frame(raw: str, websocket: WebSocket) -> None:
         pipeline_rerun = False
         if stream_configs:
             try:
-                rerun_pipeline(stream_configs)
+                await asyncio.to_thread(rerun_pipeline, stream_configs)
                 await restart_ticker()
                 pipeline_rerun = True
             except Exception as exc:

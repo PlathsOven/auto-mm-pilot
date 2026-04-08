@@ -14,8 +14,8 @@ Endpoints:
     DEL   /api/streams/{name}              — Delete a stream
     POST  /api/snapshots                   — Ingest snapshot rows
     POST  /api/market-pricing              — Update market pricing
+    GET   /api/config/bankroll             — Read current bankroll
     PATCH /api/config/bankroll             — Set bankroll
-    GET   /admin                           — Admin dashboard (server-side only)
 
 Run:
     uvicorn server.api.main:app --host 0.0.0.0 --port 8000 --reload
@@ -26,16 +26,17 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime as _dt
-from pathlib import Path
 from typing import Any
 
 import polars as pl
 
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse
+
+from server.api.config import APT_MODE
 
 from server.api.models import (
     AdminConfigureStreamRequest,
@@ -68,6 +69,7 @@ from server.api.client_ws import client_ws
 from server.api.ws import pipeline_ws, restart_ticker, get_current_tick_ts
 
 from server.api.engine_state import (
+    get_bankroll,
     get_engine_state,
     get_market_pricing,
     get_mock_now,
@@ -75,6 +77,7 @@ from server.api.engine_state import (
     get_pipeline_snapshot,
     get_snapshot_buffer,
     get_transform_config,
+    init_mock,
     rerun_pipeline,
     set_bankroll,
     set_market_pricing,
@@ -91,21 +94,21 @@ log = logging.getLogger(__name__)
 # App
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="APT Server", version="0.1.0")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Run mock pipeline init at startup before accepting requests.
 
-# ---------------------------------------------------------------------------
-# Admin dashboard — served from server/api/admin/
-# ---------------------------------------------------------------------------
-
-_ADMIN_DIR = Path(__file__).resolve().parent / "admin"
-
-
-@app.get("/admin", include_in_schema=False)
-async def admin_dashboard():
-    return FileResponse(_ADMIN_DIR / "index.html")
+    Init runs in a worker thread so the event loop stays responsive while
+    the (slow, sync) Polars pipeline executes. The ``yield`` only fires
+    after init returns, so by the time the first client request lands,
+    ``_pipeline_results`` is already populated and accessors are O(1).
+    """
+    if APT_MODE == "mock":
+        await asyncio.to_thread(init_mock)
+    yield
 
 
-app.mount("/admin/static", StaticFiles(directory=_ADMIN_DIR), name="admin-static")
+app = FastAPI(title="APT Server", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -401,6 +404,12 @@ async def update_market_pricing(req: MarketPricingRequest) -> MarketPricingRespo
 # Bankroll
 # ---------------------------------------------------------------------------
 
+@app.get("/api/config/bankroll", response_model=BankrollResponse)
+async def read_bankroll() -> BankrollResponse:
+    """Return the current portfolio bankroll."""
+    return BankrollResponse(bankroll=get_bankroll(), pipeline_rerun=False)
+
+
 @app.patch("/api/config/bankroll", response_model=BankrollResponse)
 async def update_bankroll(req: BankrollRequest) -> BankrollResponse:
     """User sets the portfolio bankroll and re-runs pipeline if streams are available."""
@@ -458,6 +467,7 @@ async def list_transforms() -> TransformListResponse:
             transforms.append(TransformResponse(
                 name=t.name,
                 description=t.description,
+                formula=t.formula,
                 params=[
                     TransformParamResponse(
                         name=p.name,
@@ -531,9 +541,8 @@ async def update_transforms(req: TransformConfigRequest) -> TransformListRespons
 # Pipeline time series (read-only, for charting)
 # ---------------------------------------------------------------------------
 
-@app.get("/api/pipeline/dimensions")
-async def pipeline_dimensions() -> dict:
-    """Return available (symbol, expiry) pairs from the current pipeline run."""
+def _pipeline_dimensions_sync() -> dict:
+    """Sync helper — runs in a worker thread via ``asyncio.to_thread``."""
     results = get_pipeline_results()
     if results is None:
         return {"dimensions": []}
@@ -553,18 +562,36 @@ async def pipeline_dimensions() -> dict:
     return {"dimensions": out}
 
 
-@app.get("/api/pipeline/timeseries")
-async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
-    """Return full block-level and aggregated time series for a symbol/expiry."""
+@app.get("/api/pipeline/dimensions")
+async def pipeline_dimensions() -> dict:
+    """Return available (symbol, expiry) pairs from the current pipeline run."""
+    return await asyncio.to_thread(_pipeline_dimensions_sync)
+
+
+def _parse_expiry(raw: str) -> _dt:
+    """Accept ISO 8601 (``2026-01-02``) or canonical DDMMMYY (``02JAN26``).
+
+    The WebSocket payload normalises expiries to DDMMMYY via ``_format_expiry``
+    in ``ws.py``, so the client often forwards that format verbatim. This
+    helper accepts both so callers never have to guess which one the server
+    wants.
+    """
+    try:
+        return _dt.fromisoformat(raw)
+    except ValueError:
+        return _dt.strptime(raw, "%d%b%y")
+
+
+def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
+    """Sync helper — runs in a worker thread via ``asyncio.to_thread``.
+
+    Returns ``None`` if no data exists for the requested dimension; the
+    async wrapper translates that into a 404. Returns the dict payload
+    otherwise.
+    """
     results = get_pipeline_results()
     if results is None:
-        raise HTTPException(status_code=404, detail="No pipeline results available")
-
-    # Parse expiry string
-    try:
-        expiry_dt = _dt.fromisoformat(expiry)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=f"Invalid expiry format: {exc}") from exc
+        return None
 
     block_var_df = results["block_var_df"]
     pos_df = results["desired_pos_df"]
@@ -590,7 +617,7 @@ async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
             pd = pd_sliced
 
     if bv.is_empty() and pd.is_empty():
-        raise HTTPException(status_code=404, detail=f"No data for {symbol}/{expiry}")
+        return None
 
     # Block-level time series
     block_names = sorted(bv["block_name"].unique().to_list())
@@ -652,7 +679,6 @@ async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
 
     return {
         "symbol": symbol,
-        "expiry": expiry,
         "blocks": blocks,
         "aggregated": aggregated,
         "current_decomposition": {
@@ -660,6 +686,25 @@ async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
             "aggregated": current_agg,
         },
     }
+
+
+@app.get("/api/pipeline/timeseries")
+async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
+    """Return full block-level and aggregated time series for a symbol/expiry."""
+    # Parse expiry string (tolerant of both ISO and DDMMMYY)
+    try:
+        expiry_dt = _parse_expiry(expiry)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid expiry format: {exc}") from exc
+
+    payload = await asyncio.to_thread(_pipeline_timeseries_sync, symbol, expiry_dt)
+    if payload is None:
+        results = get_pipeline_results()
+        if results is None:
+            raise HTTPException(status_code=404, detail="No pipeline results available")
+        raise HTTPException(status_code=404, detail=f"No data for {symbol}/{expiry}")
+    payload["expiry"] = expiry
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -753,7 +798,8 @@ def _blocks_from_pipeline() -> list[BlockRowResponse]:
 @app.get("/api/blocks", response_model=BlockListResponse)
 async def list_blocks() -> BlockListResponse:
     """Return all blocks from the current pipeline run."""
-    return BlockListResponse(blocks=_blocks_from_pipeline())
+    blocks = await asyncio.to_thread(_blocks_from_pipeline)
+    return BlockListResponse(blocks=blocks)
 
 
 @app.post("/api/blocks", response_model=BlockRowResponse, status_code=201)
@@ -810,19 +856,20 @@ async def create_manual_block(req: ManualBlockRequest) -> BlockRowResponse:
     # Track as manual
     _manual_streams[req.stream_name] = {"created_at": _dt.now().isoformat()}
 
-    # Fire-and-forget pipeline rerun — return the stub immediately so the
-    # client sees the block in the table within milliseconds.  Computed values
-    # (fair, market_fair, var) will populate on the next 5 s poll once the
-    # background pipeline finishes.
+    # Await the pipeline re-run synchronously so the caller's immediate
+    # refetch of /api/blocks sees the new row. The rerun takes a few hundred
+    # ms which the drawer's "Creating…" spinner already hides.
     stream_configs = registry.build_stream_configs()
     if stream_configs:
-        async def _bg_rerun() -> None:
-            try:
-                await asyncio.to_thread(rerun_pipeline, stream_configs)
-                await restart_ticker()
-            except Exception:
-                log.exception("Background pipeline re-run failed after manual block creation")
-        asyncio.create_task(_bg_rerun())
+        try:
+            await asyncio.to_thread(rerun_pipeline, stream_configs)
+            await restart_ticker()
+        except Exception as exc:
+            log.exception("Pipeline re-run failed after manual block creation")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Block registered but pipeline re-run failed: {exc}",
+            ) from exc
 
     # Extract snapshot fields for the stub response
     snap = req.snapshot_rows[0] if req.snapshot_rows else {}
@@ -908,7 +955,7 @@ async def update_block(stream_name: str, req: UpdateBlockRequest) -> BlockRowRes
             ) from exc
 
     # Return the updated block
-    all_blocks = _blocks_from_pipeline()
+    all_blocks = await asyncio.to_thread(_blocks_from_pipeline)
     for b in all_blocks:
         if b.stream_name == stream_name:
             return b

@@ -248,6 +248,33 @@ function DecompositionSidebar({
 }
 
 // ---------------------------------------------------------------------------
+// Module-level LRU cache for time series responses
+// ---------------------------------------------------------------------------
+//
+// Survives PipelineChart unmount/remount cycles so switching tabs back to
+// Brain re-displays the previous instrument synchronously instead of going
+// through "pipeline is loading". The polling effect refreshes cache entries
+// in the background so cached data never goes more than ~5s stale.
+
+const MAX_CACHE_ENTRIES = 12;
+const tsCache = new Map<string, PipelineTimeSeriesResponse>();
+
+function tsCacheKey(symbol: string, expiry: string): string {
+  return `${symbol}|${expiry}`;
+}
+
+function tsCacheSet(key: string, value: PipelineTimeSeriesResponse): void {
+  // Re-insert to mark as most-recently-used (Map preserves insertion order).
+  if (tsCache.has(key)) tsCache.delete(key);
+  tsCache.set(key, value);
+  while (tsCache.size > MAX_CACHE_ENTRIES) {
+    const oldest = tsCache.keys().next().value;
+    if (oldest === undefined) break;
+    tsCache.delete(oldest);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
 
@@ -256,11 +283,17 @@ export function PipelineChart() {
   const [dimensions, setDimensions] = useState<TimeSeriesDimension[]>([]);
   const [selected, setSelected] = useState<TimeSeriesDimension | null>(null);
   const [data, setData] = useState<PipelineTimeSeriesResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [decompositionMode, setDecompositionMode] = useState<DecompositionMode>("variance");
   const [sidebarWidth, setSidebarWidth] = useState(176); // default w-44 = 11rem = 176px
   const dragRef = useRef<{ startX: number; startW: number } | null>(null);
+  // Tracks the most-recently-requested cache key so out-of-order fetch
+  // responses can be discarded without leaving any "loading" flag stuck.
+  const lastRequestedKeyRef = useRef<string | null>(null);
+
+  // Loading is derived from state, not stored. With no explicit `loading`
+  // flag, there is nothing to leave stale when a fetch is aborted mid-flight.
+  const loading = data === null && error === null;
 
   // Fetch available dimensions on mount + poll every 5s
   useEffect(() => {
@@ -278,12 +311,10 @@ export function PipelineChart() {
             }
             return prev;
           });
-          if (dims.length === 0) setLoading(false);
         })
         .catch((err) => {
           if (controller.signal.aborted) return;
           setError(err instanceof Error ? err.message : String(err));
-          setLoading(false);
         });
     };
 
@@ -294,28 +325,38 @@ export function PipelineChart() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch time series on selection change + poll every 5s to track ticks.
-  // AbortController cancels in-flight requests when the instrument changes
-  // so switching is instant instead of waiting for the old response.
+  // Uses an LRU cache so re-selecting a previously-viewed instrument is
+  // instant. Uses a sequence ref so out-of-order responses are discarded
+  // — replacing the abort-guarded early return that previously left the
+  // loading state stuck when fetches were aborted mid-flight.
   useEffect(() => {
     if (!selected) return;
+    const key = tsCacheKey(selected.symbol, selected.expiry);
+    lastRequestedKeyRef.current = key;
+    setError(null);
+
+    // Cache hit: hydrate synchronously. Cache miss: clear data so the
+    // loading placeholder shows while the network request resolves.
+    const cached = tsCache.get(key);
+    setData(cached ?? null);
+
     const controller = new AbortController();
 
     const doFetch = () => {
       fetchTimeSeries(selected.symbol, selected.expiry, controller.signal)
         .then((res) => {
           if (controller.signal.aborted) return;
+          if (lastRequestedKeyRef.current !== key) return;
+          tsCacheSet(key, res);
           setData(res);
-          setLoading(false);
         })
         .catch((err) => {
           if (controller.signal.aborted) return;
+          if (lastRequestedKeyRef.current !== key) return;
           setError(err instanceof Error ? err.message : String(err));
-          setLoading(false);
         });
     };
 
-    setLoading(true);
-    setError(null);
     doFetch();
     const interval = setInterval(doFetch, 5000);
 

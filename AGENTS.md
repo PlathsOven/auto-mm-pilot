@@ -72,7 +72,6 @@ The system is physically split to protect proprietary IP.
 | `server/api/llm/prompts/investigation.py` | System prompt for Zone E (read state + issue engine commands) |
 | `server/api/llm/prompts/justification.py` | System prompt for Zone D update card narration |
 | `server/api/llm/test_investigation.py` | Interactive CLI for testing Zone E investigation LLM with mock pipeline data |
-| `server/api/admin/index.html` | Server-side admin dashboard — configure PENDING streams, market pricing, bankroll |
 | `server/api/models.py` | Pydantic request/response models for stream, snapshot, market-pricing, and bankroll endpoints |
 | `server/api/stream_registry.py` | In-memory stream registry — CRUD, snapshot storage, validation, `StreamConfig` builder |
 | `server/api/ws.py` | WebSocket endpoint — singleton ticker broadcasts pipeline ticks; `restart_ticker()` on re-run |

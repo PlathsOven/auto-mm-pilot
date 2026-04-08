@@ -1,18 +1,45 @@
 import type { DesiredPosition } from "../types";
 
-export type ViewMode = "position" | "rawPosition" | "change" | "edge" | "smoothedEdge" | "variance" | "smoothedVar" | "totalFair" | "totalMarketFair";
+export type ViewMode =
+  | "position"
+  | "rawPosition"
+  | "change"
+  | "edge"
+  | "smoothedEdge"
+  | "variance"
+  | "smoothedVar"
+  | "totalFair"
+  | "totalMarketFair";
 
-export const VIEW_MODE_META: Record<ViewMode, { label: string; unit: string; decimals: number }> = {
-  position: { label: "Desired Position", unit: "$vega", decimals: 2 },
-  rawPosition: { label: "Raw Desired Position", unit: "$vega", decimals: 2 },
-  change: { label: "Change", unit: "$vega", decimals: 2 },
-  edge: { label: "Edge", unit: "", decimals: 6 },
-  smoothedEdge: { label: "Smoothed Edge", unit: "", decimals: 6 },
-  variance: { label: "Variance", unit: "", decimals: 6 },
-  smoothedVar: { label: "Smoothed Variance", unit: "", decimals: 6 },
-  totalFair: { label: "Total Fair", unit: "", decimals: 6 },
-  totalMarketFair: { label: "Total Market Fair", unit: "", decimals: 6 },
+export type ViewModeGroup = "primary" | "secondary";
+
+export interface ViewModeMeta {
+  label: string;
+  unit: string;
+  decimals: number;
+  group: ViewModeGroup;
+}
+
+export const VIEW_MODE_META: Record<ViewMode, ViewModeMeta> = {
+  position: { label: "Position", unit: "$vega", decimals: 2, group: "primary" },
+  change: { label: "Change", unit: "$vega", decimals: 2, group: "primary" },
+  edge: { label: "Edge", unit: "", decimals: 6, group: "primary" },
+  variance: { label: "Variance", unit: "", decimals: 6, group: "primary" },
+  rawPosition: { label: "Raw Position", unit: "$vega", decimals: 2, group: "secondary" },
+  smoothedEdge: { label: "Smoothed Edge", unit: "", decimals: 6, group: "secondary" },
+  smoothedVar: { label: "Smoothed Variance", unit: "", decimals: 6, group: "secondary" },
+  totalFair: { label: "Total Fair", unit: "", decimals: 6, group: "secondary" },
+  totalMarketFair: { label: "Market Fair", unit: "", decimals: 6, group: "secondary" },
 };
+
+export const PRIMARY_VIEW_MODES: ViewMode[] = ["position", "change", "edge", "variance"];
+export const SECONDARY_VIEW_MODES: ViewMode[] = [
+  "rawPosition",
+  "smoothedEdge",
+  "smoothedVar",
+  "totalFair",
+  "totalMarketFair",
+];
 
 export const TIMEFRAME_OPTIONS = [
   { label: "Latest", ms: 0 },

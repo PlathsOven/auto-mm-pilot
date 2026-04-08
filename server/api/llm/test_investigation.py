@@ -257,7 +257,6 @@ def _build_mock_engine_state() -> dict[str, Any]:
             {"id": "stream-correlation", "status": "active", "lastUpdate": "2025-12-31T23:00:00Z"},
         ],
         "context": {
-            "operatingSpace": "BTC variance",
             "now": "2026-01-01T00:00:00Z",
             "riskDimensions": [{"symbol": "BTC", "expiry": "2026-01-02"}],
         },

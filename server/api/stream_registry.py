@@ -104,6 +104,19 @@ class StreamRegistration:
 _DATETIME_FIELDS = {"timestamp", "start_timestamp", "expiry"}
 
 
+def _parse_datetime_tolerant(raw: str) -> datetime:
+    """Accept ISO 8601 (``2026-03-27T00:00:00``) or DDMMMYY (``27MAR26``).
+
+    The WS payload normalises expiries to DDMMMYY via ``_format_expiry`` in
+    ``ws.py``, so users routinely paste that format into manual block forms.
+    Falling back to DDMMMYY here lets the server accept either form.
+    """
+    try:
+        return datetime.fromisoformat(raw)
+    except ValueError:
+        return datetime.strptime(raw, "%d%b%y")
+
+
 def _coerce_datetime_fields(
     rows: list[dict[str, Any]],
     key_cols: list[str],
@@ -121,7 +134,7 @@ def _coerce_datetime_fields(
         out: dict[str, Any] = {}
         for k, v in row.items():
             if k in dt_cols and isinstance(v, str):
-                dt = datetime.fromisoformat(v)
+                dt = _parse_datetime_tolerant(v)
                 if dt.tzinfo is not None:
                     dt = dt.replace(tzinfo=None)
                 out[k] = dt

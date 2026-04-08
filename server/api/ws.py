@@ -65,18 +65,22 @@ def _positions_at_tick(
         prev_desired = prev_positions.get(key, row["smoothed_desired_position"])
         change = row["smoothed_desired_position"] - prev_desired
 
+        # Send full-precision floats for edge/variance inputs so the client's
+        # LiveEquationStrip can reproduce the position-sizing math exactly.
+        # `desiredPos` / `rawDesiredPos` stay rounded at 2dp — that's display
+        # precision, and the UI uses it as the authoritative cell value.
         positions.append({
             "asset": row["symbol"],
             "expiry": _format_expiry(row["expiry"]),
-            "edge": round(row.get("edge", 0.0), 6),
-            "smoothedEdge": round(row.get("smoothed_edge", 0.0), 6),
-            "variance": round(row.get("var", 0.0), 6),
-            "smoothedVar": round(row.get("smoothed_var", 0.0), 6),
+            "edge": row.get("edge", 0.0),
+            "smoothedEdge": row.get("smoothed_edge", 0.0),
+            "variance": row.get("var", 0.0),
+            "smoothedVar": row.get("smoothed_var", 0.0),
             "desiredPos": round(row.get("smoothed_desired_position", 0.0), 2),
             "rawDesiredPos": round(row.get("raw_desired_position", 0.0), 2),
             "currentPos": 0.0,
-            "totalFair": round(row.get("total_fair", 0.0), 6),
-            "totalMarketFair": round(row.get("total_market_fair", 0.0), 6),
+            "totalFair": row.get("total_fair", 0.0),
+            "totalMarketFair": row.get("total_market_fair", 0.0),
             "changeMagnitude": round(change, 2),
             "updatedAt": int(timestamp.timestamp() * 1000),
         })
@@ -126,8 +130,6 @@ def _streams_from_blocks(blocks_df: pl.DataFrame, timestamp: datetime) -> list[d
 
 def _context_at_tick(timestamp: datetime) -> dict[str, Any]:
     return {
-        "engineState": "OPTIMIZING",
-        "operatingSpace": "VARIANCE",
         "lastUpdateTimestamp": int(timestamp.timestamp() * 1000),
     }
 
@@ -300,8 +302,6 @@ async def _run_heartbeat() -> None:
         payload_dict = {
             "streams": [],
             "context": {
-                "engineState": "WAITING",
-                "operatingSpace": "NONE",
                 "lastUpdateTimestamp": now_ms,
             },
             "positions": [],

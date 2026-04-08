@@ -119,3 +119,77 @@
   width: 7px !important;
   height: 7px !important;
 }
+
+/* React Flow (@xyflow/react) theme overrides */
+.react-flow__node {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+.react-flow__node.selected {
+  box-shadow: none !important;
+}
+.react-flow__controls {
+  background: rgba(24, 24, 27, 0.9) !important;
+  border: 1px solid rgba(63, 63, 70, 0.6) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(63, 63, 70, 0.4) !important;
+  color: #a1a1aa !important;
+  fill: #a1a1aa !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+.react-flow__controls-button:hover {
+  background: rgba(129, 140, 248, 0.15) !important;
+  color: #818cf8 !important;
+  fill: #818cf8 !important;
+}
+.react-flow__controls-button svg {
+  max-width: 14px;
+  max-height: 14px;
+}
+.react-flow__minimap {
+  background: rgba(24, 24, 27, 0.9) !important;
+  border: 1px solid rgba(63, 63, 70, 0.6) !important;
+  border-radius: 8px !important;
+}
+.react-flow__edge-text {
+  fill: #a1a1aa !important;
+  font-size: 10px !important;
+}
+.react-flow__edge-textbg {
+  fill: #18181b !important;
+}
+.react-flow__attribution {
+  background: transparent !important;
+}
+
+/* Animated data-flow pulse on live Anatomy edges.
+   React Flow's `animated: true` produces the dashed flow; we layer a gentle
+   stroke-opacity pulse on top so the whole DAG visibly breathes when the
+   pipeline is running. */
+@keyframes anatomy-flow-pulse {
+  0%, 100% { stroke-opacity: 0.45; }
+  50% { stroke-opacity: 0.95; }
+}
+.anatomy-live .react-flow__edge-path {
+  animation: anatomy-flow-pulse 2.2s ease-in-out infinite;
+}
+
+/* Highlight a stream node when its corresponding sidebar is open. ReactFlow
+   applies the node's `className` to its wrapper, not the inner card — the
+   `> div` selector reaches the inner content. The existing `selected` ring
+   from StreamNode (`ring-2 ring-mm-accent/40`) still wins visually when both
+   are true, which is the right priority. */
+.anatomy-node-highlighted > div {
+  background-color: rgba(99, 110, 250, 0.10) !important;
+  box-shadow: 0 0 0 2px rgba(99, 110, 250, 0.40);
+}

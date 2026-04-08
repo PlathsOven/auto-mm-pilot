@@ -116,7 +116,6 @@ def engine_state_from_pipeline(
 
     # --- context ---
     context = {
-        "operatingSpace": "variance",
         "now": _serialize_value(timestamp),
         "riskDimensions": [],
     }
