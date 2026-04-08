@@ -60,15 +60,16 @@ _transform_config: dict[str, Any] | None = None
 
 
 # ---------------------------------------------------------------------------
-# Mock initialization (development fallback)
+# Mock initialization
 # ---------------------------------------------------------------------------
 
-def _init_mock() -> None:
+def init_mock() -> None:
     """Seed mock streams into the registry and run the pipeline.
 
-    Uses ``rerun_pipeline()`` so the startup path and subsequent re-runs
-    share the exact same code — mock streams live in the registry and
-    are included in every future ``build_stream_configs()`` call.
+    Called once at server startup from the FastAPI lifespan handler. Uses
+    ``rerun_pipeline()`` so the startup path and subsequent re-runs share
+    the exact same code — mock streams live in the registry and are
+    included in every future ``build_stream_configs()`` call.
     """
     log.info("Seeding mock streams into registry…")
 
@@ -208,18 +209,11 @@ def set_market_pricing(pricing: dict[str, float]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Public API (unchanged signatures for existing consumers)
+# Public API
 # ---------------------------------------------------------------------------
-
-def _maybe_init() -> None:
-    """Trigger mock init if in mock mode and state is uninitialized."""
-    if APT_MODE == "mock" and _pipeline_results is None:
-        _init_mock()
-
 
 def get_engine_state() -> dict[str, Any]:
     """Return the current engine state dict."""
-    _maybe_init()
     if _engine_state is None:
         return {}
     return _engine_state
@@ -227,25 +221,21 @@ def get_engine_state() -> dict[str, Any]:
 
 def get_pipeline_snapshot() -> dict[str, Any] | None:
     """Return the current pipeline snapshot."""
-    _maybe_init()
     return _pipeline_snapshot
 
 
 def get_pipeline_results() -> dict[str, pl.DataFrame] | None:
     """Return the raw pipeline DataFrames (for WS/UI consumption)."""
-    _maybe_init()
     return _pipeline_results
 
 
 def get_snapshot_buffer() -> SnapshotRingBuffer | None:
     """Return the snapshot ring buffer."""
-    _maybe_init()
     return _snapshot_buffer
 
 
 def get_market_pricing() -> dict[str, float]:
     """Return a copy of the current market pricing dict."""
-    _maybe_init()
     return dict(_market_pricing)
 
 

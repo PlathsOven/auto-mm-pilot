@@ -17,7 +17,6 @@ interface OnboardingContextValue {
   openOnboarding: () => void;
   closeOnboarding: () => void;
   markCompleted: () => void;
-  resetOnboarding: () => void;
 }
 
 const OnboardingContext = createContext<OnboardingContextValue | null>(null);
@@ -52,19 +51,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     setOpen(false);
   }, []);
 
-  const resetOnboarding = useCallback(() => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore
-    }
-    setCompleted(false);
-    setOpen(true);
-  }, []);
-
   return (
     <OnboardingContext.Provider
-      value={{ completed, open, openOnboarding, closeOnboarding, markCompleted, resetOnboarding }}
+      value={{ completed, open, openOnboarding, closeOnboarding, markCompleted }}
     >
       {children}
     </OnboardingContext.Provider>

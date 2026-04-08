@@ -6,20 +6,22 @@ interface Props {
   expiry: string;
 }
 
-const TOP_N = 3;
-
 /**
- * Compact hover-card showing the top-3 stream contributions to fair value
- * and variance for a single (asset, expiry) cell.
+ * Hover-card showing every stream contribution to fair value and variance
+ * for a single (asset, expiry) cell.
  *
  * Backed by `GET /api/pipeline/timeseries` (`current_decomposition.blocks`)
  * via `useStreamContributions`. Cached for 5s so re-hovers are instant.
+ *
+ * The popup is a child of the parent `<td>`, so mouse-wheel scroll inside
+ * the popup does not fire `mouseleave` on the td and the hover state
+ * survives. Hence pointer events are enabled here.
  */
 export function StreamAttributionHoverCard({ asset, expiry }: Props) {
   const { loading, contributions, error } = useStreamContributions({ asset, expiry });
 
   return (
-    <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-1 w-64 -translate-x-1/2 rounded-lg border border-mm-border/60 bg-mm-surface/95 p-3 shadow-xl shadow-black/40 backdrop-blur-sm">
+    <div className="absolute left-1/2 top-full z-50 mt-1 w-64 -translate-x-1/2 rounded-lg border border-mm-border/60 bg-mm-surface/95 p-3 shadow-xl shadow-black/40 backdrop-blur-sm">
       <div className="mb-2 flex items-baseline justify-between border-b border-mm-border/40 pb-1.5">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-mm-accent">
           Stream Attribution
@@ -48,8 +50,8 @@ export function StreamAttributionHoverCard({ asset, expiry }: Props) {
       )}
 
       {contributions && contributions.length > 0 && (
-        <div className="flex flex-col gap-1.5">
-          {contributions.slice(0, TOP_N).map((c) => (
+        <div className="flex max-h-[60vh] flex-col gap-1.5 overflow-y-auto">
+          {contributions.map((c) => (
             <div
               key={c.blockName}
               className="flex items-baseline justify-between gap-2"
@@ -68,11 +70,6 @@ export function StreamAttributionHoverCard({ asset, expiry }: Props) {
               </div>
             </div>
           ))}
-          {contributions.length > TOP_N && (
-            <p className="mt-1 border-t border-mm-border/40 pt-1 text-[9px] text-mm-text-dim">
-              +{contributions.length - TOP_N} more — open Lens to inspect
-            </p>
-          )}
         </div>
       )}
     </div>

@@ -2,15 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { useChat } from "../providers/ChatProvider";
 
-function senderInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
-
 function investigationLabel(ctx: NonNullable<ReturnType<typeof useChat>["investigation"]>): string {
   if (ctx.type === "update") {
     return `${ctx.card.asset} ${ctx.card.expiry} — ${ctx.card.oldPos > 0 ? "+" : ""}${ctx.card.oldPos.toFixed(2)} → ${ctx.card.newPos > 0 ? "+" : ""}${ctx.card.newPos.toFixed(2)} $vega`;
@@ -40,22 +31,21 @@ export function LlmChat() {
     <div className="flex h-full flex-col p-4">
       <div className="mb-3 flex items-center justify-between border-b border-mm-border/40 pb-2">
         <div className="flex items-baseline gap-2">
-          <h2 className="zone-header">Team Chat</h2>
-          <span className="text-[9px] text-mm-text-dim">Tag @APT to query the engine</span>
+          <h2 className="zone-header">APT Chat</h2>
+          <span className="text-[9px] text-mm-text-dim">Ask the engine anything</span>
         </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         {messages.length === 0 && (
           <p className="text-xs text-mm-text-dim">
-            Chat with your team or tag <span className="font-semibold text-mm-accent">@APT</span> to investigate positions.
+            Ask <span className="font-semibold text-mm-accent">APT</span> about positions, edges, or pipeline state.
           </p>
         )}
 
         {messages.map((msg) => {
-          const isCurrentUser = msg.role === "user";
+          const isUser = msg.role === "user";
           const isApt = msg.role === "assistant";
-          const isTeam = msg.role === "team";
 
           return (
             <div
@@ -63,34 +53,26 @@ export function LlmChat() {
               className={`rounded-lg px-3 py-2 text-xs leading-relaxed ${
                 isApt
                   ? "border-l-2 border-mm-accent/50 bg-mm-accent/5"
-                  : isCurrentUser
-                    ? "bg-mm-bg/60"
-                    : "bg-mm-bg/30"
+                  : "bg-mm-bg/60"
               }`}
             >
               <div className="mb-1 flex items-center gap-1.5">
                 <span
-                  className={`flex h-4 w-4 items-center justify-center text-[7px] font-bold ${
+                  className={`flex h-4 w-4 items-center justify-center rounded-full text-[7px] font-bold ${
                     isApt
-                      ? "rounded-full bg-mm-accent/30 text-mm-accent"
-                      : isCurrentUser
-                        ? "rounded-full bg-mm-accent/20 text-mm-accent"
-                        : "rounded-full bg-mm-text-dim/20 text-mm-text-dim"
+                      ? "bg-mm-accent/30 text-mm-accent"
+                      : "bg-mm-accent/20 text-mm-accent"
                   }`}
                 >
-                  {isApt ? "AI" : senderInitials(msg.sender)}
+                  {isApt ? "AI" : "U"}
                 </span>
                 <span
                   className={`text-[10px] font-semibold ${
-                    isApt ? "text-mm-accent" : isCurrentUser ? "text-mm-text" : "text-mm-text-dim"
+                    isApt ? "text-mm-accent" : "text-mm-text"
                   }`}
                 >
-                  {isApt ? "APT" : msg.sender}
-                  {isCurrentUser && " (you)"}
+                  {isApt ? "APT" : "You"}
                 </span>
-                {isTeam && (
-                  <span className="text-[8px] text-mm-text-dim">• team</span>
-                )}
               </div>
               {isApt ? (
                 <div className="prose-apt text-mm-text">
@@ -122,7 +104,7 @@ export function LlmChat() {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={investigation ? "Ask about this context..." : "Message team or type @APT to ask the engine..."}
+          placeholder={investigation ? "Ask about this context..." : "Ask APT anything..."}
           className="flex-1 rounded-lg border border-mm-border/40 bg-mm-bg px-3 py-2 text-xs text-mm-text outline-none placeholder:text-mm-text-dim transition-colors focus:border-mm-accent/60 focus:ring-1 focus:ring-mm-accent/20"
           disabled={isStreaming}
         />

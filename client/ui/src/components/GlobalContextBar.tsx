@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import { useWebSocket } from "../providers/WebSocketProvider";
 import { useChat } from "../providers/ChatProvider";
 import { useCommandPalette } from "../providers/CommandPaletteProvider";
-import { useOnboarding } from "../providers/OnboardingProvider";
 import { formatUtcTime } from "../utils";
-import { CURRENT_USER } from "../providers/MockDataProvider";
 import { useMode } from "../providers/ModeProvider";
 import { ModeSwitcher } from "./shared/ModeSwitcher";
 
@@ -13,10 +11,8 @@ export function GlobalContextBar() {
   const { mode, setMode } = useMode();
   const { drawerOpen, toggleDrawer } = useChat();
   const { openPalette } = useCommandPalette();
-  const { resetOnboarding } = useOnboarding();
   const [now, setNow] = useState(Date.now());
   const [aptEnabled, setAptEnabled] = useState(true);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 47);
@@ -102,46 +98,12 @@ export function GlobalContextBar() {
         </div>
       </div>
 
-      <div className="flex items-center gap-6">
-        {/* System Time (UTC) */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-mm-text-dim">UTC:</span>
-          <span className="text-sm tabular-nums text-mm-text">
-            {formatUtcTime(now)}
-          </span>
-        </div>
-
-        {/* Logged-in User */}
-        <div className="relative pl-4">
-          <button
-            onClick={() => setUserMenuOpen((v) => !v)}
-            className="flex items-center gap-2"
-          >
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-mm-accent/20 text-[10px] font-bold text-mm-accent">
-              {CURRENT_USER.initials}
-            </span>
-            <div className="flex flex-col text-left">
-              <span className="text-[10px] font-medium text-mm-text">{CURRENT_USER.name}</span>
-              <span className="text-[9px] text-mm-text-dim">{CURRENT_USER.role}</span>
-            </div>
-          </button>
-          {userMenuOpen && (
-            <div
-              onMouseLeave={() => setUserMenuOpen(false)}
-              className="absolute right-0 top-full z-50 mt-2 min-w-[200px] overflow-hidden rounded-xl border border-mm-border/60 bg-mm-surface py-1 shadow-xl shadow-black/30"
-            >
-              <button
-                onClick={() => {
-                  resetOnboarding();
-                  setUserMenuOpen(false);
-                }}
-                className="flex w-full items-center px-3 py-2 text-left text-xs text-mm-text transition-colors hover:bg-mm-accent/10"
-              >
-                Replay onboarding tour
-              </button>
-            </div>
-          )}
-        </div>
+      {/* Right: System Time (UTC) */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-mm-text-dim">UTC:</span>
+        <span className="text-sm tabular-nums text-mm-text">
+          {formatUtcTime(now)}
+        </span>
       </div>
     </div>
   );
