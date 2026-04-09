@@ -131,3 +131,15 @@ Format per entry: **Date — Decision**. Then `Context:`, `Decision:`, `Rational
 **Rationale:** Codegen is ~1 day of work including the build-step plumbing. Until schema drift becomes a real pain again, the manual sync is cheap. The Phase 2 contract tightening reduces the churn rate on models.py, so drift is less likely in the near term.
 
 **Consequences:** Agents must continue to read `models.py` before any work that crosses the API boundary. This is already a `CLAUDE.md` rule. Revisit this decision if drift surfaces >2 bugs per quarter.
+
+---
+
+## 2026-04-10 — Open-framework platform: remove IP protection from LLM prompts
+
+**Context:** APT was originally positioned as a black-box vendor product — the epistemological framework (Edge × Bankroll / Variance, streams, blocks, spaces, aggregation, decay, var_fair_ratio, etc.) was hidden behind opaque LLM deflection. The LLM system prompts in `server/api/llm/prompts/` enforced heavy IP protection: forbidden internal terminology, no absolute numbers, opaque deflection when asked about methodology. Supersedes the IP-protection motivation in the "2025 — Physical client/server split" entry (the split itself remains for deployment reasons).
+
+**Decision:** Remove all IP protection constraints from the LLM prompts. The framework is now the product — the user sees it in plain sight and formalises data and opinions within it. Internal terminology (block, space, pipeline, var_fair_ratio, smoothing, etc.) is allowed when it is the clearest way to communicate. Absolute numbers are allowed. Opaque deflection is removed. Communication quality rules (directional neutrality, "desired position", epistemology over mechanics, no vacuous jargon) are retained.
+
+**Rationale:** The value of APT is not in hiding how it works — it is in providing the epistemological framework itself and the platform to use it. A user who understands blocks, spaces, and var_fair_ratio can configure their own streams more effectively and reason about position changes more precisely. Hiding the framework was creating friction without adding defensible value.
+
+**Consequences:** The LLM will now use framework terminology and quote exact values when helpful. The `server/core/` Manual Brain restriction is unchanged — that is about code authorship quality, not IP. The physical client/server split remains for deployment architecture, though its original IP motivation is no longer primary.
