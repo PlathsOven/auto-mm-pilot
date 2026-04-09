@@ -53,7 +53,7 @@
 | **Team Chat (LLM Chat)** | `client/ui/src/components/LlmChat.tsx` | `PROD` | Chat Provider | Zone E — streaming assistant messages |
 | ~~Daily Wrap~~ | ~~`client/ui/src/components/DailyWrap.tsx`~~ | — | — | Deleted — will be rebuilt when LLM-generated wrap is ready |
 | **Stream Status List** | `client/ui/src/components/floor/StreamStatusList.tsx` | `PROD` | WebSocket Provider, stream API | Floor read-only stream registry/health (replaces IngestionSidebar) |
-| **Stream Library / Canvas** | `client/ui/src/components/studio/StreamLibrary.tsx`, `StreamCanvas.tsx` | `PROD` | stream API, TransformsProvider, LLM API | Studio CRUD + activate flow with 7 sections + LLM co-pilot |
+| **Stream Library / Canvas** | `client/ui/src/components/studio/StreamLibrary.tsx`, `StreamCanvas.tsx` | `PROD` | stream API, TransformsProvider | Studio CRUD + activate flow with 7 sections |
 | **Global Context Bar** | `client/ui/src/components/GlobalContextBar.tsx` | `PROD` | WebSocket Provider | Zone B |
 
 ## Data Adapters (`client/adapter/`)

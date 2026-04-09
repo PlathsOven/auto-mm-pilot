@@ -63,7 +63,7 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `client/ui/src/components/GlobalContextBar.tsx` | Zone B — global context header |
 | `client/ui/src/components/floor/StreamStatusList.tsx` | Floor read-only stream registry/health |
 | `client/ui/src/components/studio/StreamLibrary.tsx` | Studio — stream CRUD |
-| `client/ui/src/components/studio/StreamCanvas.tsx` | Studio — 7-section config with LLM co-pilot |
+| `client/ui/src/components/studio/StreamCanvas.tsx` | Studio — 7-section stream config |
 | `client/ui/src/services/llmApi.ts` | HTTP client for LLM server endpoints (SSE streaming + JSON fetch) |
 | `client/ui/src/services/streamApi.ts` | HTTP client for stream CRUD, snapshot ingestion, market-pricing, bankroll endpoints |
 | `client/ui/src/services/pipelineApi.ts` | HTTP client for pipeline dimensions + time series endpoints |

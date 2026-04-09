@@ -43,7 +43,7 @@ export function IdentitySection({ value, onChange, state, dimmed }: Props) {
         />
         <Field
           type="textarea"
-          label="What's your idea? (used by the LLM co-pilot)"
+          label="What's your idea?"
           placeholder="One sentence describing what this stream is supposed to capture."
           rows={2}
           value={value.description}
