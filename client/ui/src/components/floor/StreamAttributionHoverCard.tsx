@@ -10,7 +10,7 @@ interface Props {
  * Hover-card showing every stream contribution to fair value and variance
  * for a single (symbol, expiry) cell.
  *
- * Backed by `GET /api/pipeline/timeseries` (`current_decomposition.blocks`)
+ * Backed by `GET /api/pipeline/timeseries` (`currentDecomposition.blocks`)
  * via `useStreamContributions`. Cached for 5s so re-hovers are instant.
  *
  * The popup is a child of the parent `<td>`, so mouse-wheel scroll inside

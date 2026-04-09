@@ -31,12 +31,12 @@ function buildContributions(
 ): StreamContribution[] {
   return blocks
     .map<StreamContribution>((b) => {
-      const edge = b.fair - b.market_fair;
+      const edge = b.fair - b.marketFair;
       return {
-        blockName: b.block_name,
-        spaceId: b.space_id,
+        blockName: b.blockName,
+        spaceId: b.spaceId,
         fair: b.fair,
-        marketFair: b.market_fair,
+        marketFair: b.marketFair,
         variance: b.var,
         edge,
         magnitude: Math.abs(edge),
@@ -93,7 +93,7 @@ export function useStreamContributions(
     fetchTimeSeries(cell.symbol, cell.expiry, controller.signal)
       .then((res) => {
         if (lastKeyRef.current !== key) return; // stale response
-        const contributions = buildContributions(res.current_decomposition.blocks);
+        const contributions = buildContributions(res.currentDecomposition.blocks);
         cache.set(key, { fetchedAt: Date.now(), contributions });
         setState({ loading: false, contributions, error: null });
       })

@@ -52,7 +52,9 @@ async def _process_inbound_frame(raw: str, websocket: WebSocket) -> None:
 
         # Ingest into the stream registry (same path as POST /api/snapshots)
         registry = get_stream_registry()
-        accepted = registry.ingest_snapshot(frame.stream_name, frame.rows)
+        accepted = registry.ingest_snapshot(
+            frame.stream_name, [r.model_dump() for r in frame.rows],
+        )
 
         # Re-run pipeline if streams are available
         stream_configs = registry.build_stream_configs()

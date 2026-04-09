@@ -15,9 +15,12 @@ Mid-session handoff notes. When a task is not finished at the end of a session, 
 
 **Discovered during Phase 1:** `client/ui/src/components/LlmChat.tsx:47` had a pre-existing unused `isUser` variable that failed `tsc --noEmit`. Not introduced by the refactor — verified against a clean stash of the baseline. Removed it inline to unblock Phase 1 verification (trivial 1-line fix); logged here as the single off-spec delta so reviewers are aware.
 
-**Current status:** Phase 1 edits staged in the working tree. Both `npm --prefix client/ui run typecheck` and `python -m compileall server/ -q` pass clean. Ready to commit Phase 1.
+**Steps done (continued):**
+- [x] Phase 2 — Tighten API boundary: `SnapshotRow` and `CellContext` Pydantic submodels replace `dict[str, Any]` at boundary; `ClientWsOutboundFrame` discriminated union added; central `@app.exception_handler(Exception)` installed; SSE error path sanitized (no stack traces reach the trader); client `ApiError` class in `api.ts`; pipeline-timeseries endpoint emits camelCase; client `types.ts` interfaces rewritten to match; all `PipelineChart.tsx` + `useStreamContributions.ts` field accesses updated; decision log entry appended.
 
-**Next step:** Commit Phase 1, then start Phase 2 (typed API boundary).
+**Current status:** Phase 2 committed. Both verification commands pass clean. Ready for Phase 3.
+
+**Next step:** Commit Phase 2, then start Phase 3 (server decomposition).
 
 
 ## Handoff Note Format

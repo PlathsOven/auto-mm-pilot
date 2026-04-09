@@ -82,10 +82,10 @@ function DecompositionSidebar({
   selectedBlocks: Set<string>;
   onBlockClick: (blockName: string) => void;
 }) {
-  const totalFair = aggregated.total_fair ?? 0;
-  const totalVar = aggregated.smoothed_var ?? aggregated.var ?? 0;
-  const rawDesPos = aggregated.raw_desired_position ?? aggregated.smoothed_desired_position ?? 0;
-  const smoothDesPos = aggregated.smoothed_desired_position ?? 0;
+  const totalFair = aggregated.totalFair ?? 0;
+  const totalVar = aggregated.smoothedVar ?? aggregated.var ?? 0;
+  const rawDesPos = aggregated.rawDesiredPosition ?? aggregated.smoothedDesiredPosition ?? 0;
+  const smoothDesPos = aggregated.smoothedDesiredPosition ?? 0;
 
   // Resolve the target scalar for the active mode
   const modeTarget = mode === "desired_position" ? rawDesPos
@@ -114,7 +114,7 @@ function DecompositionSidebar({
   // Pie chart data
   const pieOption = useMemo<EChartsOption>(() => {
     const pieData = sorted.map((b, i) => ({
-      name: b.block_name,
+      name: b.blockName,
       value: absTotal > 0 ? Math.abs(b.value) : 0,
       itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
     }));
@@ -206,16 +206,16 @@ function DecompositionSidebar({
           const color = BLOCK_COLORS[i % BLOCK_COLORS.length];
           const pctOfTotal = absTotal > 0 ? (Math.abs(b.value) / absTotal) * 100 : 0;
           const hasSelection = selectedBlocks.size > 0;
-          const dimmed = hasSelection && !selectedBlocks.has(b.block_name);
+          const dimmed = hasSelection && !selectedBlocks.has(b.blockName);
           return (
             <div
-              key={b.block_name}
+              key={b.blockName}
               className={`flex flex-col gap-0.5 cursor-pointer rounded px-1 -mx-1 transition-opacity ${dimmed ? "opacity-30" : ""} ${hasSelection && !dimmed ? "channel-highlight" : ""}`}
-              onClick={() => onBlockClick(b.block_name)}
+              onClick={() => onBlockClick(b.blockName)}
             >
               <div className="flex items-center justify-between">
                 <span className="truncate font-medium text-mm-text">
-                  {b.block_name}
+                  {b.blockName}
                 </span>
                 <span className="ml-1 shrink-0 font-mono text-mm-text-dim">
                   {sci(b.value)}{" "}
@@ -416,7 +416,7 @@ export function PipelineChart() {
         type: "line",
         xAxisIndex: 0,
         yAxisIndex: 0,
-        data: aggregated.raw_desired_position,
+        data: aggregated.rawDesiredPosition,
         showSymbol: false,
         lineStyle: { width: 1, color: RAW_COLOR },
         itemStyle: { color: RAW_COLOR },
@@ -427,7 +427,7 @@ export function PipelineChart() {
         type: "line",
         xAxisIndex: 0,
         yAxisIndex: 0,
-        data: aggregated.smoothed_desired_position,
+        data: aggregated.smoothedDesiredPosition,
         showSymbol: false,
         lineStyle: { width: 2, color: SMOOTHED_COLOR },
         itemStyle: { color: SMOOTHED_COLOR },
@@ -438,9 +438,9 @@ export function PipelineChart() {
     // --- Chart 2: Fair Value by Block (middle, stacked area) ---
     const hasSelection = selectedBlocks.size > 0;
     const fairSeries: EChartsOption["series"] = blocks.map((b, i) => {
-      const dimmed = hasSelection && !selectedBlocks.has(b.block_name);
+      const dimmed = hasSelection && !selectedBlocks.has(b.blockName);
       return {
-        name: `${b.block_name} (fair)`,
+        name: `${b.blockName} (fair)`,
         type: "line" as const,
         xAxisIndex: 1,
         yAxisIndex: 1,
@@ -460,7 +460,7 @@ export function PipelineChart() {
       type: "line" as const,
       xAxisIndex: 1,
       yAxisIndex: 1,
-      data: aggregated.total_fair,
+      data: aggregated.totalFair,
       showSymbol: false,
       lineStyle: { width: 2, color: FAIR_COLOR },
       itemStyle: { color: FAIR_COLOR },
@@ -473,7 +473,7 @@ export function PipelineChart() {
       type: "line" as const,
       xAxisIndex: 1,
       yAxisIndex: 1,
-      data: aggregated.total_market_fair,
+      data: aggregated.totalMarketFair,
       showSymbol: false,
       lineStyle: { width: 2, type: "dashed" as const, color: MARKET_FAIR_COLOR },
       itemStyle: { color: MARKET_FAIR_COLOR },
@@ -482,9 +482,9 @@ export function PipelineChart() {
 
     // --- Chart 3: Variance by Block (bottom, stacked area) ---
     const varSeries: EChartsOption["series"] = blocks.map((b, i) => {
-      const dimmed = hasSelection && !selectedBlocks.has(b.block_name);
+      const dimmed = hasSelection && !selectedBlocks.has(b.blockName);
       return {
-        name: `${b.block_name} (var)`,
+        name: `${b.blockName} (var)`,
         type: "line" as const,
         xAxisIndex: 2,
         yAxisIndex: 2,
@@ -734,8 +734,8 @@ export function PipelineChart() {
               style={{ width: sidebarWidth }}
             >
               <DecompositionSidebar
-                blocks={data.current_decomposition.blocks}
-                aggregated={data.current_decomposition.aggregated}
+                blocks={data.currentDecomposition.blocks}
+                aggregated={data.currentDecomposition.aggregated}
                 mode={decompositionMode}
                 onModeChange={setDecompositionMode}
                 selectedBlocks={selectedBlocks}

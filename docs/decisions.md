@@ -119,3 +119,15 @@ Format per entry: **Date — Decision**. Then `Context:`, `Decision:`, `Rational
 **Rationale:** Three root supplementary docs → one. Reduces cognitive load on the operator. The unique functions are preserved; only the organization changes.
 
 **Consequences:** Any external reference (e.g. bookmarks, Railway or Vercel READMEs) pointing at `DEPLOY.md` or root-level `STACK_STATUS.md` will break. The grep verification in the migration plan catches in-repo references.
+
+---
+
+## 2026-04-09 — Keep `types.ts` as a hand-maintained mirror of `models.py`
+
+**Context:** Phase 2 of the broad refactor tightened the API contract by replacing `dict[str, Any]` escape hatches with typed Pydantic submodels. The question of whether to auto-generate `client/ui/src/types.ts` from Pydantic (via `pydantic2ts` or equivalent) was raised and deferred.
+
+**Decision:** Continue hand-maintaining `types.ts`. When a Pydantic model in `server/api/models.py` changes, the authoring agent must update `types.ts` in the same commit. Enforcement is by convention and by /doc-sync review — no tooling.
+
+**Rationale:** Codegen is ~1 day of work including the build-step plumbing. Until schema drift becomes a real pain again, the manual sync is cheap. The Phase 2 contract tightening reduces the churn rate on models.py, so drift is less likely in the near term.
+
+**Consequences:** Agents must continue to read `models.py` before any work that crosses the API boundary. This is already a `CLAUDE.md` rule. Revisit this decision if drift surfaces >2 bugs per quarter.

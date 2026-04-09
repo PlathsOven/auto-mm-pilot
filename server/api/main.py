@@ -31,9 +31,10 @@ from typing import Any
 
 import polars as pl
 
-from fastapi import FastAPI, HTTPException, WebSocket
+from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
 
 from server.api.config import APT_MODE
 
@@ -115,6 +116,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+class ApiError(BaseModel):
+    """Canonical client-facing error envelope.
+
+    Never contains stack traces. Callers can rely on the shape:
+    ``{ "error": { "code": int, "message": str } }``.
+    """
+    code: int
+    message: str
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    log.exception("Unhandled exception in %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"error": {"code": 500, "message": "Internal server error"}},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Singleton LLM service — lazily initialized so startup doesn't fail if
 # OPENROUTER_API_KEY is missing (health check still works).
@@ -173,9 +194,9 @@ async def investigate(req: InvestigateRequest) -> StreamingResponse:
             ):
                 yield f"data: {json.dumps(delta)}\n\n"
             yield "data: [DONE]\n\n"
-        except Exception as exc:
+        except Exception:
             log.exception("Investigation stream failed")
-            yield f"event: error\ndata: {exc}\n\n"
+            yield "event: error\ndata: {\"code\": 500, \"message\": \"Investigation failed\"}\n\n"
 
     return StreamingResponse(
         event_generator(),
@@ -306,7 +327,9 @@ async def ingest_snapshot(req: SnapshotRequest) -> SnapshotResponse:
     """Ingest snapshot rows for a READY stream and re-run the pipeline."""
     registry = get_stream_registry()
     try:
-        accepted = registry.ingest_snapshot(req.stream_name, req.rows)
+        accepted = registry.ingest_snapshot(
+            req.stream_name, [r.model_dump() for r in req.rows],
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -590,47 +613,47 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
     if bv.is_empty() and pd.is_empty():
         return None
 
-    # Block-level time series
+    # Block-level time series (camelCase for the wire)
     block_names = sorted(bv["block_name"].unique().to_list())
     blocks = []
     for bn in block_names:
         bd = bv.filter(pl.col("block_name") == bn).sort("timestamp")
         blocks.append({
-            "block_name": bn,
-            "space_id": bd["space_id"][0] if bd.height > 0 else "",
-            "aggregation_logic": bd["aggregation_logic"][0] if bd.height > 0 else "",
+            "blockName": bn,
+            "spaceId": bd["space_id"][0] if bd.height > 0 else "",
+            "aggregationLogic": bd["aggregation_logic"][0] if bd.height > 0 else "",
             "timestamps": [t.isoformat() for t in bd["timestamp"].to_list()],
             "fair": bd["fair"].to_list(),
-            "market_fair": bd["market_fair"].to_list(),
+            "marketFair": bd["market_fair"].to_list(),
             "var": bd["var"].to_list(),
         })
 
-    # Aggregated time series
+    # Aggregated time series (camelCase for the wire)
     pd_sorted = pd.sort("timestamp")
     timestamps = [t.isoformat() for t in pd_sorted["timestamp"].to_list()]
     aggregated = {
         "timestamps": timestamps,
-        "total_fair": pd_sorted["total_fair"].to_list(),
-        "total_market_fair": pd_sorted["total_market_fair"].to_list(),
+        "totalFair": pd_sorted["total_fair"].to_list(),
+        "totalMarketFair": pd_sorted["total_market_fair"].to_list(),
         "edge": pd_sorted["edge"].to_list(),
-        "smoothed_edge": pd_sorted["smoothed_edge"].to_list(),
+        "smoothedEdge": pd_sorted["smoothed_edge"].to_list(),
         "var": pd_sorted["var"].to_list(),
-        "smoothed_var": pd_sorted["smoothed_var"].to_list(),
-        "raw_desired_position": pd_sorted["raw_desired_position"].to_list(),
-        "smoothed_desired_position": pd_sorted["smoothed_desired_position"].to_list(),
+        "smoothedVar": pd_sorted["smoothed_var"].to_list(),
+        "rawDesiredPosition": pd_sorted["raw_desired_position"].to_list(),
+        "smoothedDesiredPosition": pd_sorted["smoothed_desired_position"].to_list(),
     }
 
-    # Current decomposition (first timestamp = current tick)
+    # Current decomposition (first timestamp = current tick, camelCase)
     current_blocks = []
     if bv.height > 0:
         first_ts = bv["timestamp"].min()
         latest_bv = bv.filter(pl.col("timestamp") == first_ts)
         for row in latest_bv.iter_rows(named=True):
             current_blocks.append({
-                "block_name": row["block_name"],
-                "space_id": row["space_id"],
+                "blockName": row["block_name"],
+                "spaceId": row["space_id"],
                 "fair": row["fair"],
-                "market_fair": row["market_fair"],
+                "marketFair": row["market_fair"],
                 "var": row["var"],
             })
 
@@ -638,21 +661,21 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
     if pd_sorted.height > 0:
         last = pd_sorted.row(0, named=True)
         current_agg = {
-            "total_fair": last["total_fair"],
-            "total_market_fair": last["total_market_fair"],
+            "totalFair": last["total_fair"],
+            "totalMarketFair": last["total_market_fair"],
             "edge": last["edge"],
-            "smoothed_edge": last["smoothed_edge"],
+            "smoothedEdge": last["smoothed_edge"],
             "var": last["var"],
-            "smoothed_var": last["smoothed_var"],
-            "raw_desired_position": last["raw_desired_position"],
-            "smoothed_desired_position": last["smoothed_desired_position"],
+            "smoothedVar": last["smoothed_var"],
+            "rawDesiredPosition": last["raw_desired_position"],
+            "smoothedDesiredPosition": last["smoothed_desired_position"],
         }
 
     return {
         "symbol": symbol,
         "blocks": blocks,
         "aggregated": aggregated,
-        "current_decomposition": {
+        "currentDecomposition": {
             "blocks": current_blocks,
             "aggregated": current_agg,
         },
@@ -813,7 +836,9 @@ async def create_manual_block(req: ManualBlockRequest) -> BlockRowResponse:
 
     # Ingest snapshot rows
     try:
-        registry.ingest_snapshot(req.stream_name, req.snapshot_rows)
+        registry.ingest_snapshot(
+            req.stream_name, [r.model_dump() for r in req.snapshot_rows],
+        )
     except (KeyError, ValueError) as exc:
         registry.delete(req.stream_name)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -843,7 +868,7 @@ async def create_manual_block(req: ManualBlockRequest) -> BlockRowResponse:
             ) from exc
 
     # Extract snapshot fields for the stub response
-    snap = req.snapshot_rows[0] if req.snapshot_rows else {}
+    snap = req.snapshot_rows[0].model_dump() if req.snapshot_rows else {}
     raw_val = float(snap.get("raw_value", 0))
 
     return BlockRowResponse(
@@ -908,7 +933,9 @@ async def update_block(stream_name: str, req: UpdateBlockRequest) -> BlockRowRes
     # Update snapshot if provided
     if req.snapshot_rows is not None:
         try:
-            registry.ingest_snapshot(stream_name, req.snapshot_rows)
+            registry.ingest_snapshot(
+                stream_name, [r.model_dump() for r in req.snapshot_rows],
+            )
         except (KeyError, ValueError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
