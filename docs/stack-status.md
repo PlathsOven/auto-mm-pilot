@@ -3,6 +3,10 @@
 > **Purpose:** Single source of truth for which components are production-ready,
 > which are mocked, and how they connect. Update this file whenever a component
 > changes status.
+>
+> **Updated by `/doc-sync`** (see `.claude/commands/doc-sync.md` step 4).
+> **Rate of change:** frequent — every status transition. Contrast with
+> `docs/architecture.md`, which changes slowly (structural map only).
 
 ## Status Key
 
@@ -31,7 +35,7 @@
 | **Stream Context DB** | `server/api/llm/context_db.py` | `MOCK` | — | Hardcoded stream metadata; will be client-contributed via API |
 | **Engine State Provider** | `server/api/engine_state.py` | `PROD` | Core Pipeline | Runs `server/core` pipeline, serializes snapshots for LLM layer |
 | **Config** | `server/api/config.py` | `PROD` | `.env` | Model lists, generation params, buffer config |
-| **Core Pipeline** | `server/core/` | `PROD` | Polars | Steps 4–6: config, helpers, pipeline, serializers. Running on mock scenario data. |
+| **Core Pipeline** | `server/core/` (`config.py`, `helpers.py`, `transforms.py`, `pipeline.py`, `serializers.py`, `mock_scenario.py`) | `PROD` | Polars | Steps 4–6: config, helpers, block/space transforms (`transforms.py`, 726 LOC), orchestration pipeline, serializers. **HUMAN ONLY** — Manual Brain rule. Running on mock scenario data. |
 
 ## Client (`client/ui/`)
 

@@ -1,41 +1,20 @@
-# Auto-MM-Pilot — Cascade Operating Directives
-# This file dictates fundamental agent behavior in this workspace.
-# It follows Boris Cherny's "Claude Code" philosophy for compounding knowledge.
-# Update this file continuously as new conventions and corrections arise.
+# Auto-MM-Pilot — Windsurf Rules
 
-## 1. MASTER DOCUMENTS & SYSTEM CONTEXT (READ FIRST)
-Before beginning any task or answering architectural questions, you MUST consult `AGENTS.md` (architecture & context) and `README.md` (human workflow guide). 
-- This project is an advisory trading terminal ("Pilot" means navigational engine, not a trial).
-- It strictly enforces a Client/Server visibility barrier.
-- The client-side (UI/Adapter) handles standardizing local data.
-- The server-side (Backend) securely handles the proprietary calculations.
+All project rules, architecture, and conventions live in `AGENTS.md`.
+**Read `AGENTS.md` first, every session.** This file exists only to point
+Windsurf at the shared instructions.
 
-## 2. THE "MANUAL BRAIN" DIRECTIVE (RESTRICTED ZONE)
-The core mathematical and decision-making logic (the "Brain") is manually developed by the human.
-- You are strictly forbidden from writing, modifying, or refactoring the core Python trading logic (e.g., variance, fair value, and target position calculations).
-- Your role is infrastructure: UI, API transport, Data Adapters, and WebSockets.
-- When generating backend scripts that touch the core flow, you MUST create empty function stubs and leave the exact comment: `# HUMAN WRITES LOGIC HERE`.
+## Harness Sync
+Slash commands exist in both `.claude/commands/` (Claude Code, primary) and
+`.windsurf/workflows/` (Windsurf, secondary). Their bodies must match
+byte-for-byte. When editing any command, update **both** files in the same
+commit. A Stop hook in `.claude/settings.json` warns on drift.
 
-## 3. DEFAULT BEHAVIOR — AUTO-PLANNING (CRITICAL)
-Whenever I assign you a new task, feature, or directory, you MUST automatically enter "Plan Mode". 
-- You are strictly forbidden from writing or modifying any code initially. 
-- You must first output a step-by-step implementation plan.
-- You must end your response by pausing to ask for my explicit approval before executing.
-
-## 4. PARALLEL EXECUTION GUARDRAILS
-You are operating in a shared workspace with other active AI agents (Cascade tabs).
-
-### Strict Scoping
-Before starting execution, confirm your assigned "lane" (specific files/directories). NEVER modify files outside your approved scope.
-
-### Surgical Commits
-When committing work, you must ONLY stage and commit the exact file paths you specifically modified. Never use `git add .` or commit all tracked files.
-
-Whenever asked to commit and push, you must blindly execute:
-.cascade/commands/commit-push-pr.sh "<message>" <file1> <file2> ...
-
-### State Awareness
-If a file you are editing changes unexpectedly, assume another agent modified it. Stop and ask me for conflict resolution.
-
-## 5. CONTINUOUS LEARNING
-Anytime a mistake is made or I correct you on a codebase convention, you MUST immediately update this `.windsurfrules` file so the mistake is never repeated.
+## Windsurf-Specific
+- **Auto-plan mode:** enter Plan Mode on every non-trivial task. Output a
+  step-by-step plan and pause for explicit approval before editing files.
+- **Surgical commits:** list exact paths via `git add path1 path2`, never
+  `git add .` or `git add -A`.
+- **State awareness:** if a file you are editing changes unexpectedly
+  mid-edit, another agent may have touched it. Stop and ask for conflict
+  resolution.
