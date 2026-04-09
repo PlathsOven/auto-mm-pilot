@@ -4,9 +4,9 @@ import { useChat } from "../providers/ChatProvider";
 
 function investigationLabel(ctx: NonNullable<ReturnType<typeof useChat>["investigation"]>): string {
   if (ctx.type === "update") {
-    return `${ctx.card.asset} ${ctx.card.expiry} — ${ctx.card.oldPos > 0 ? "+" : ""}${ctx.card.oldPos.toFixed(2)} → ${ctx.card.newPos > 0 ? "+" : ""}${ctx.card.newPos.toFixed(2)} $vega`;
+    return `${ctx.card.symbol} ${ctx.card.expiry} — ${ctx.card.oldPos > 0 ? "+" : ""}${ctx.card.oldPos.toFixed(2)} → ${ctx.card.newPos > 0 ? "+" : ""}${ctx.card.newPos.toFixed(2)} $vega`;
   }
-  return `${ctx.asset} ${ctx.expiry} — Edge ${ctx.position.edge.toFixed(4)} vp, Desired ${ctx.position.desiredPos > 0 ? "+" : ""}${ctx.position.desiredPos.toFixed(2)} $vega`;
+  return `${ctx.symbol} ${ctx.expiry} — Edge ${ctx.position.edge.toFixed(4)} vp, Desired ${ctx.position.desiredPos > 0 ? "+" : ""}${ctx.position.desiredPos.toFixed(2)} $vega`;
 }
 
 export function LlmChat() {
@@ -44,7 +44,6 @@ export function LlmChat() {
         )}
 
         {messages.map((msg) => {
-          const isUser = msg.role === "user";
           const isApt = msg.role === "assistant";
 
           return (

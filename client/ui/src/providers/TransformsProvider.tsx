@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -61,8 +62,13 @@ export function TransformsProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [refresh]);
 
+  const value = useMemo(
+    () => ({ steps, bankroll, loading, error, refresh }),
+    [steps, bankroll, loading, error, refresh],
+  );
+
   return (
-    <TransformsContext.Provider value={{ steps, bankroll, loading, error, refresh }}>
+    <TransformsContext.Provider value={value}>
       {children}
     </TransformsContext.Provider>
   );

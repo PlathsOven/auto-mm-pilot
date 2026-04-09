@@ -81,13 +81,13 @@ export function CommandPalette() {
   const cellCommands = useMemo<Command[]>(() => {
     if (!payload) return [];
     return payload.positions.slice(0, 50).map((p) => ({
-      id: `cell-${p.asset}-${p.expiry}`,
+      id: `cell-${p.symbol}-${p.expiry}`,
       group: "cell" as const,
-      title: `${p.asset} ${p.expiry}`,
+      title: `${p.symbol} ${p.expiry}`,
       hint: `pos ${p.desiredPos > 0 ? "+" : ""}${p.desiredPos.toFixed(2)} $vega`,
       run: () => {
         setMode("floor");
-        selectDimension(p.asset, p.expiry);
+        selectDimension(p.symbol, p.expiry);
         closePalette();
       },
     }));

@@ -17,7 +17,7 @@ import { StreamAttributionHoverCard } from "./floor/StreamAttributionHoverCard";
 
 interface PendingEdit {
   key: string;
-  asset: string;
+  symbol: string;
   expiry: string;
   value: string;
   aptValue: number;
@@ -36,7 +36,7 @@ export function DesiredPositionGrid() {
   const [overrides, setOverrides] = useState<Map<string, number>>(new Map());
   const [pendingEdit, setPendingEdit] = useState<PendingEdit | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [hoverCell, setHoverCell] = useState<{ asset: string; expiry: string; key: string } | null>(null);
+  const [hoverCell, setHoverCell] = useState<{ symbol: string; expiry: string; key: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const prevEditKeyRef = useRef<string | null>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -69,7 +69,7 @@ export function DesiredPositionGrid() {
     };
   }, []);
 
-  const { assets, expiries, grid, recentKeys } = usePositionHistory(positions, timeframe);
+  const { symbols, expiries, grid, recentKeys } = usePositionHistory(positions, timeframe);
 
   const getDisplayValue = useCallback(
     (key: string, pos: DesiredPosition, mode: ViewMode, change: number): number => {
@@ -80,10 +80,10 @@ export function DesiredPositionGrid() {
   );
 
   const handleDoubleClick = useCallback(
-    (key: string, asset: string, expiry: string, pos: DesiredPosition) => {
+    (key: string, symbol: string, expiry: string, pos: DesiredPosition) => {
       if (viewMode !== "position") return;
       const current = overrides.has(key) ? overrides.get(key)! : pos.desiredPos;
-      setPendingEdit({ key, asset, expiry, value: String(current), aptValue: pos.desiredPos });
+      setPendingEdit({ key, symbol, expiry, value: String(current), aptValue: pos.desiredPos });
     },
     [viewMode, overrides],
   );
@@ -110,10 +110,10 @@ export function DesiredPositionGrid() {
     });
   }, []);
 
-  const handleMouseEnter = useCallback((asset: string, expiry: string, key: string) => {
+  const handleMouseEnter = useCallback((symbol: string, expiry: string, key: string) => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     hoverTimeoutRef.current = setTimeout(() => {
-      setHoverCell({ asset, expiry, key });
+      setHoverCell({ symbol, expiry, key });
     }, HOVER_DELAY_MS);
   }, []);
 
@@ -227,16 +227,16 @@ export function DesiredPositionGrid() {
               </tr>
             </thead>
             <tbody>
-              {assets.map((asset) => (
+              {symbols.map((symbol) => (
                 <tr
-                  key={asset}
+                  key={symbol}
                   className="border-b border-mm-border/20"
                 >
                   <td className="px-2 py-1.5 text-[11px] font-semibold text-mm-text">
-                    {asset}
+                    {symbol}
                   </td>
                   {expiries.map((exp) => {
-                    const key = `${asset}-${exp}`;
+                    const key = `${symbol}-${exp}`;
                     const cell = grid.get(key);
                     if (!cell) return <td key={exp} />;
                     const val = getDisplayValue(key, cell.pos, viewMode, cell.change);
@@ -248,11 +248,11 @@ export function DesiredPositionGrid() {
                     return (
                       <td
                         key={exp}
-                        onClick={() => investigate({ type: "position", asset, expiry: exp, position: cell.pos })}
-                        onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClick(key, asset, exp, cell.pos); }}
-                        onMouseEnter={() => handleMouseEnter(asset, exp, key)}
+                        onClick={() => investigate({ type: "position", symbol, expiry: exp, position: cell.pos })}
+                        onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClick(key, symbol, exp, cell.pos); }}
+                        onMouseEnter={() => handleMouseEnter(symbol, exp, key)}
                         onMouseLeave={handleMouseLeave}
-                        className={`relative cursor-pointer rounded px-2 py-1.5 text-center text-[11px] tabular-nums transition-colors hover:ring-1 hover:ring-mm-accent/30 ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${isDimensionSelected(asset, exp) ? "channel-highlight-cell" : ""}`}
+                        className={`relative cursor-pointer rounded px-2 py-1.5 text-center text-[11px] tabular-nums transition-colors hover:ring-1 hover:ring-mm-accent/30 ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${isDimensionSelected(symbol, exp) ? "channel-highlight-cell" : ""}`}
                         style={{ backgroundColor: cellBg(val) }}
                       >
                         {isEditing ? (
@@ -288,13 +288,13 @@ export function DesiredPositionGrid() {
                           </button>
                         )}
                         {showHover && (
-                          <StreamAttributionHoverCard asset={asset} expiry={exp} />
+                          <StreamAttributionHoverCard symbol={symbol} expiry={exp} />
                         )}
                       </td>
                     );
                   })}
                   <TotalCell
-                    value={computeRowTotal(asset, expiries, grid, getDisplayValue, viewMode)}
+                    value={computeRowTotal(symbol, expiries, grid, getDisplayValue, viewMode)}
                     decimals={meta.decimals}
                   />
                 </tr>
@@ -304,12 +304,12 @@ export function DesiredPositionGrid() {
                 {expiries.map((exp) => (
                   <TotalCell
                     key={exp}
-                    value={computeColTotal(exp, assets, grid, getDisplayValue, viewMode)}
+                    value={computeColTotal(exp, symbols, grid, getDisplayValue, viewMode)}
                     decimals={meta.decimals}
                   />
                 ))}
                 <TotalCell
-                  value={computeGrandTotal(assets, expiries, grid, getDisplayValue, viewMode)}
+                  value={computeGrandTotal(symbols, expiries, grid, getDisplayValue, viewMode)}
                   decimals={meta.decimals}
                 />
               </tr>
@@ -337,28 +337,28 @@ export function DesiredPositionGrid() {
 type DisplayValueFn = (key: string, pos: DesiredPosition, mode: ViewMode, change: number) => number;
 type GridMap = Map<string, { pos: DesiredPosition; change: number }>;
 
-function computeRowTotal(asset: string, expiries: string[], grid: GridMap, getVal: DisplayValueFn, mode: ViewMode): number {
+function computeRowTotal(symbol: string, expiries: string[], grid: GridMap, getVal: DisplayValueFn, mode: ViewMode): number {
   return expiries.reduce((sum, exp) => {
-    const k = `${asset}-${exp}`;
+    const k = `${symbol}-${exp}`;
     const cell = grid.get(k);
     return sum + (cell ? getVal(k, cell.pos, mode, cell.change) : 0);
   }, 0);
 }
 
-function computeColTotal(expiry: string, assets: string[], grid: GridMap, getVal: DisplayValueFn, mode: ViewMode): number {
-  return assets.reduce((sum, a) => {
-    const k = `${a}-${expiry}`;
+function computeColTotal(expiry: string, symbols: string[], grid: GridMap, getVal: DisplayValueFn, mode: ViewMode): number {
+  return symbols.reduce((sum, s) => {
+    const k = `${s}-${expiry}`;
     const cell = grid.get(k);
     return sum + (cell ? getVal(k, cell.pos, mode, cell.change) : 0);
   }, 0);
 }
 
-function computeGrandTotal(assets: string[], expiries: string[], grid: GridMap, getVal: DisplayValueFn, mode: ViewMode): number {
-  return assets.reduce((sum, a) =>
-    sum + expiries.reduce((s, exp) => {
-      const k = `${a}-${exp}`;
+function computeGrandTotal(symbols: string[], expiries: string[], grid: GridMap, getVal: DisplayValueFn, mode: ViewMode): number {
+  return symbols.reduce((sum, s) =>
+    sum + expiries.reduce((acc, exp) => {
+      const k = `${s}-${exp}`;
       const cell = grid.get(k);
-      return s + (cell ? getVal(k, cell.pos, mode, cell.change) : 0);
+      return acc + (cell ? getVal(k, cell.pos, mode, cell.change) : 0);
     }, 0), 0);
 }
 
@@ -398,7 +398,7 @@ function OverrideStatusBar({
       {pendingEdit && (
         <div className="mt-2 flex items-center justify-between rounded-lg border-t border-mm-border/40 bg-mm-bg/80 px-3 py-2">
           <span className="text-[10px] text-mm-text">
-            Override <span className="font-semibold">{pendingEdit.asset} {pendingEdit.expiry}</span>:
+            Override <span className="font-semibold">{pendingEdit.symbol} {pendingEdit.expiry}</span>:
             <span className="ml-1 text-mm-text-dim">{pendingEdit.aptValue > 0 ? "+" : ""}{pendingEdit.aptValue.toFixed(decimals)}</span>
             <span className="mx-1">→</span>
             <span className="font-semibold text-amber-400">{isNaN(parseFloat(pendingEdit.value)) ? "—" : (parseFloat(pendingEdit.value) > 0 ? "+" : "") + parseFloat(pendingEdit.value).toFixed(decimals)}</span>

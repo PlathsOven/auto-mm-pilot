@@ -241,7 +241,7 @@ def _build_mock_engine_state() -> dict[str, Any]:
     return {
         "positions": [
             {
-                "asset": "BTC",
+                "symbol": "BTC",
                 "expiry": "2026-01-02",
                 "desiredVega": 28897.82,
                 "previousDesiredVega": 28500.00,

@@ -33,8 +33,8 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 
 | File | Purpose |
 |------|---------|
-| `AGENTS.md` | Auto-loaded agent instructions for Claude Code + Windsurf |
-| `.windsurfrules` | Windsurf-specific thin pointer to `AGENTS.md` |
+| `CLAUDE.md` | Auto-loaded agent instructions for Claude Code + Windsurf |
+| `.windsurfrules` | Windsurf-specific thin pointer to `CLAUDE.md` |
 | `docs/architecture.md` | This file — system map |
 | `docs/conventions.md` | Patterns used, patterns avoided, schema sources of truth |
 | `docs/decisions.md` | Append-only decision log |
@@ -54,7 +54,6 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `client/ui/src/providers/WebSocketProvider.tsx` | Central WS state manager — connects to server `/ws`, auto-reconnects |
 | `client/ui/src/providers/MockDataProvider.ts` | Static seed data (users, cell notes, daily wrap) |
 | `client/ui/src/providers/ChatProvider.tsx` | Team chat + @APT LLM routing context |
-| `client/ui/src/components/DailyWrap.tsx` | Zone F — automated daily trading wrap summary (MOCK data) |
 | `client/ui/src/components/LlmChat.tsx` | Team Chat panel — messages, note threads, investigation context |
 | `client/ui/src/components/ApiDocs.tsx` | Client-facing API documentation panel — endpoints, WebSocket stream, integration workflow |
 | `client/ui/src/components/DesiredPositionGrid.tsx` | Zone C — clickable cells push context to LlmChat |

@@ -11,7 +11,7 @@ interface HistoryEntry {
 
 /**
  * Tracks per-cell position history in a ref and derives the grid data
- * (assets, expiries, cell map, recently-updated keys) on every tick.
+ * (symbols, expiries, cell map, recently-updated keys) on every tick.
  */
 export function usePositionHistory(
   positions: DesiredPosition[],
@@ -21,15 +21,15 @@ export function usePositionHistory(
 
   return useMemo(() => {
     const now = Date.now();
-    const assetSet = new Set<string>();
+    const symbolSet = new Set<string>();
     const expirySet = new Set<string>();
     const gridMap = new Map<string, { pos: DesiredPosition; change: number }>();
     const recent = new Set<string>();
 
     for (const p of positions) {
-      assetSet.add(p.asset);
+      symbolSet.add(p.symbol);
       expirySet.add(p.expiry);
-      const key = `${p.asset}-${p.expiry}`;
+      const key = `${p.symbol}-${p.expiry}`;
 
       const history = historyRef.current.get(key) ?? [];
       history.push({ value: p.desiredPos, timestamp: now });
@@ -54,7 +54,7 @@ export function usePositionHistory(
     }
 
     return {
-      assets: Array.from(assetSet).sort(),
+      symbols: Array.from(symbolSet).sort(),
       // Sort expiries chronologically so React's key-based reconciliation
       // keeps cell DOM nodes stable across WS ticks. Without this, the
       // 350 ms hover timer that drives the stream-attribution tooltip in

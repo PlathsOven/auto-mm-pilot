@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -102,10 +103,13 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
   }, [connect]);
 
+  const value = useMemo(
+    () => ({ payload, updateHistory, connectionStatus }),
+    [payload, updateHistory, connectionStatus],
+  );
+
   return (
-    <WebSocketContext.Provider
-      value={{ payload, updateHistory, connectionStatus }}
-    >
+    <WebSocketContext.Provider value={value}>
       {children}
     </WebSocketContext.Provider>
   );

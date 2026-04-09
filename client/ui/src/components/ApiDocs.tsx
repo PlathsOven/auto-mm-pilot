@@ -433,7 +433,7 @@ if __name__ == "__main__":
   },
   "positions": [
     {
-      "asset": "BTC",
+      "symbol": "BTC",
       "expiry": "28MAR25",
       "edge": 0.001234,
       "smoothedEdge": 0.001100,
@@ -451,7 +451,7 @@ if __name__ == "__main__":
   "updates": [
     {
       "id": "update-3-BTC-28MAR25",
-      "asset": "BTC",
+      "symbol": "BTC",
       "expiry": "28MAR25",
       "oldPos": 100.00,
       "newPos": 150.00,

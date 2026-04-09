@@ -35,13 +35,13 @@ Do this once per machine. Skip to §2 if you've already done it.
    - **Claude Code (primary):** install the CLI, open the repo directory, and confirm the `.claude/commands/` slash commands appear in the slash-command palette.
    - **Windsurf (secondary):** open the repo in Windsurf; the `.windsurf/workflows/` commands will load automatically.
 
-5. **Verify the Manual Brain hook is active (Claude Code only).** Open a Claude Code session in the repo and ask the agent to `Write` a file at a fake path like `/tmp/server/core/verify.txt`. The tool call must fail with `BLOCKED: server/core/ is HUMAN ONLY (Manual Brain rule). See AGENTS.md.` If it succeeds, the hook isn't loaded — restart the session and try again. **Do not proceed with agent coding until this verification passes.**
+5. **Verify the Manual Brain hook is active (Claude Code only).** Open a Claude Code session in the repo and ask the agent to `Write` a file at a fake path like `/tmp/server/core/verify.txt`. The tool call must fail with `BLOCKED: server/core/ is HUMAN ONLY (Manual Brain rule). See CLAUDE.md.` If it succeeds, the hook isn't loaded — restart the session and try again. **Do not proceed with agent coding until this verification passes.**
 
 ---
 
 ## 2. Every session starts the same way
 
-1. **Open the repo in your harness.** The agent auto-loads `AGENTS.md` as its top-level instructions.
+1. **Open the repo in your harness.** The agent auto-loads `CLAUDE.md` as its top-level instructions.
 
 2. **Run `/kickoff` with your task description.** For example:
    ```
@@ -62,23 +62,30 @@ Do this once per machine. Skip to §2 if you've already done it.
 
 ---
 
-## 3. Pick the command that matches the task
+## 3. Pick the right command after `/kickoff`
 
-After `/kickoff`, the agent (or you) selects the right follow-up command. Use this decision tree:
+Once the plan is approved, run **one** of these commands. Ask yourself one question: *what kind of task is this?*
 
-| If the task is… | Use | Notes |
-|---|---|---|
-| A new feature bigger than one file | `/spec` → `/implement` | `/spec` writes a full spec to `tasks/spec-<name>.md` before any code. |
-| Building an approved plan | `/implement` | Auto-invokes `/preflight` if the plan touches >3 files or crosses the client/server API boundary. |
-| Fixing a bug | `/debug` | Auto-invokes `/logic-audit` after 2 failed fix attempts (prevents patch-thrashing on structural bugs). |
-| Cleaning up drift in an area | `/refactor` | Preserves the 246-line vibe-code-rescue methodology. Runs a Phase 0 logic audit before any code changes. |
-| Auditing a PR or another agent's work | `/review` | 10-point checklist covering correctness, architecture, conventions, user journey, security, performance, logical simplicity, slop, test coverage, root cause. |
-| Periodic hygiene sweep | `/cleanup` | Dead code, unused imports, duplicate deps. Never removes `# HUMAN WRITES LOGIC HERE` stubs. |
-| About to touch >3 files or cross the API boundary | `/preflight` | Read-only: loads schemas, maps blast radius, checks lessons, identifies risks. Ends with a plan and a pause. |
-| Stuck, or an area feels too complicated | `/logic-audit` | 6-step structural review. Ends with findings; never modifies code. |
-| After a work session, before committing | `/doc-sync` | Walks every context doc and updates what changed. |
+1. **New feature, multi-file** → `/spec` → (approve the spec) → `/implement`
+2. **New feature or change, small (≤ 1–2 files)** → `/implement` directly
+3. **Bug fix** → `/debug`
+4. **Code quality / structural cleanup** → `/refactor`
+5. **Reviewing a PR or another agent's work** → `/review`
+6. **Periodic hygiene (dead code, unused imports, stale deps)** → `/cleanup`
 
-Rule of thumb: **start with `/kickoff` every time, then let the plan dictate which command comes next.** Don't jump straight into `/implement` or `/debug` without a plan.
+That's it. Pick the line that matches, run the command, done.
+
+### Support commands (auto-invoked — you rarely call these directly)
+
+These are called automatically by the primary commands above:
+
+- **`/preflight`** — auto-invoked by `/implement` when the plan touches >3 files or crosses the client/server API boundary. Loads schemas, maps blast radius, checks lessons. Read-only.
+- **`/logic-audit`** — auto-invoked by `/debug` after 2 failed fix attempts, and by `/refactor` as Phase 0. Structural review that ends with findings; never modifies code.
+- **`/doc-sync`** — auto-invoked at the end of `/implement` and `/refactor`. Walks every context doc and updates what changed.
+
+You *can* call them manually if you want (e.g., `/logic-audit` when an area just feels too complicated, or `/preflight` before a risky change), but the normal flow doesn't require it.
+
+**Rule of thumb:** always `/kickoff` first, then pick one primary command from the list above. Don't jump straight into `/implement` or `/debug` without a plan.
 
 ---
 
@@ -140,7 +147,7 @@ At the end of a productive session, skim the diff between `tasks/todo.md` at ses
 | Agent tries to edit `server/core/` and gets blocked | The hook is working. Don't work around it — investigate why the change seems necessary. If the Brain actually needs to change, that's a human task; open `tasks/progress.md` with the findings. |
 | `/debug` keeps failing on the same bug | Invoke `/logic-audit`. Two failed fixes = structural problem. Surface patches won't hold. |
 | Pydantic model and TypeScript interface have drifted | Pydantic is upstream. Update `client/ui/src/types.ts` to match `server/api/models.py`. See `docs/conventions.md` §Schemas. |
-| WebSocket stops updating after a server code change | Singleton WS ticker didn't restart. Call `restart_ticker()` via an admin request, or restart the server entirely. Documented in `AGENTS.md` §Known Gotchas. |
+| WebSocket stops updating after a server code change | Singleton WS ticker didn't restart. Call `restart_ticker()` via an admin request, or restart the server entirely. Documented in `CLAUDE.md` §Known Gotchas. |
 | Slash command body diverged between `.claude/commands/` and `.windsurf/workflows/` | The `Stop` hook's drift-check will print `DRIFT: <name> differs…`. Open both files; whichever was edited most recently is correct; make the other match byte-for-byte. Commit both together. |
 | Agent proposes to add a new dependency | Pause. Check `requirements.txt` / `package.json` — does something already cover the need? If not, justify the new dep explicitly before approving. |
 | Agent hallucinates an import or function that doesn't exist | Grep for the target before running the change. If the agent keeps doing this in one area, run `/cleanup` on that area to flag all hallucinated references at once. |
@@ -188,7 +195,7 @@ Everything else in this document is detail. These five are the spine.
 
 ## Reference
 
-- `AGENTS.md` — the rules the agents read (you should read it too)
+- `CLAUDE.md` — the rules the agents read (you should read it too)
 - `docs/architecture.md` — component map, MVP pipeline, Key Files table
 - `docs/conventions.md` — patterns used, patterns avoided, schema source-of-truth
 - `docs/decisions.md` — append-only decision log

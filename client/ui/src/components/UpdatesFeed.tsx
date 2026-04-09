@@ -46,7 +46,7 @@ export function UpdatesFeed() {
             >
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-mm-text">
-                  {card.asset} — {card.expiry}
+                  {card.symbol} — {card.expiry}
                 </span>
                 <span className="shrink-0 text-[10px] tabular-nums text-mm-text-dim">
                   {formatUtcTime(card.timestamp)}
@@ -70,7 +70,7 @@ export function UpdatesFeed() {
                 <span className="text-[10px] text-mm-text-dim">$vega</span>
               </div>
 
-              <CardAttribution asset={card.asset} expiry={card.expiry} />
+              <CardAttribution symbol={card.symbol} expiry={card.expiry} />
             </div>
           );
         })}
@@ -83,8 +83,8 @@ export function UpdatesFeed() {
  * Top-N stream contributions for an update card — shows WHICH stream
  * caused the position change without leaving the feed.
  */
-function CardAttribution({ asset, expiry }: { asset: string; expiry: string }) {
-  const { contributions } = useStreamContributions({ asset, expiry });
+function CardAttribution({ symbol, expiry }: { symbol: string; expiry: string }) {
+  const { contributions } = useStreamContributions({ symbol, expiry });
   if (!contributions || contributions.length === 0) return null;
 
   const top = contributions.slice(0, ATTRIBUTION_TOP_N);

@@ -70,7 +70,7 @@ def _positions_at_tick(
         # `desiredPos` / `rawDesiredPos` stay rounded at 2dp — that's display
         # precision, and the UI uses it as the authoritative cell value.
         positions.append({
-            "asset": row["symbol"],
+            "symbol": row["symbol"],
             "expiry": _format_expiry(row["expiry"]),
             "edge": row.get("edge", 0.0),
             "smoothedEdge": row.get("smoothed_edge", 0.0),
@@ -96,13 +96,13 @@ def _updates_from_diff(
     """Generate UpdateCards for positions whose desired changed significantly."""
     updates: list[dict[str, Any]] = []
     for pos in positions:
-        key = f"{pos['asset']}-{pos['expiry']}"
+        key = f"{pos['symbol']}-{pos['expiry']}"
         prev = prev_positions.get(key, pos["desiredPos"])
         delta = pos["desiredPos"] - prev
         if abs(delta) >= UPDATE_THRESHOLD:
             updates.append({
                 "id": f"update-{tick_index}-{key}",
-                "asset": pos["asset"],
+                "symbol": pos["symbol"],
                 "expiry": pos["expiry"],
                 "oldPos": round(prev, 2),
                 "newPos": pos["desiredPos"],
@@ -208,7 +208,7 @@ async def _run_ticker_mock(
         _latest_payload = json.dumps(payload_dict)
 
         for pos in positions:
-            key = f"{pos['asset']}-{pos['expiry']}"
+            key = f"{pos['symbol']}-{pos['expiry']}"
             prev_positions[key] = pos["desiredPos"]
 
         ts_ms = int(ts.timestamp() * 1000)
@@ -264,7 +264,7 @@ async def _run_ticker_prod(
         if ts_idx != last_ts_idx:
             updates = _updates_from_diff(positions, prev_positions, tick_count)
             for pos in positions:
-                key = f"{pos['asset']}-{pos['expiry']}"
+                key = f"{pos['symbol']}-{pos['expiry']}"
                 prev_positions[key] = pos["desiredPos"]
             last_ts_idx = ts_idx
 

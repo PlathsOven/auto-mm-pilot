@@ -89,7 +89,7 @@ function MdLgStrip({ size }: { size: "md" | "lg" }) {
     <StripShell size={size}>
       <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="text-[10px] uppercase tracking-wider text-mm-text-dim">
-          {focused.asset} {focused.expiry}
+          {focused.symbol} {focused.expiry}
         </span>
         <span className={`${symbolicSize} font-semibold text-mm-accent`}>
           {rendered.symbolic}

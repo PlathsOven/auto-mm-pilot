@@ -4,7 +4,7 @@ import { useWebSocket } from "../providers/WebSocketProvider";
 import type { DesiredPosition } from "../types";
 
 export interface FocusedCell {
-  asset: string;
+  symbol: string;
   expiry: string;
   position: DesiredPosition;
 }
@@ -25,9 +25,9 @@ export function useFocusedCell(): FocusedCell | null {
     if (!selectedDimension || !payload) return null;
     const { symbol, expiry } = selectedDimension;
     const position = payload.positions.find(
-      (p) => p.asset === symbol && p.expiry === expiry,
+      (p) => p.symbol === symbol && p.expiry === expiry,
     );
     if (!position) return null;
-    return { asset: symbol, expiry, position };
+    return { symbol, expiry, position };
   }, [selectedDimension, payload]);
 }

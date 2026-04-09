@@ -2,13 +2,13 @@ import { useStreamContributions } from "../../hooks/useStreamContributions";
 import { valColor } from "../../utils";
 
 interface Props {
-  asset: string;
+  symbol: string;
   expiry: string;
 }
 
 /**
  * Hover-card showing every stream contribution to fair value and variance
- * for a single (asset, expiry) cell.
+ * for a single (symbol, expiry) cell.
  *
  * Backed by `GET /api/pipeline/timeseries` (`current_decomposition.blocks`)
  * via `useStreamContributions`. Cached for 5s so re-hovers are instant.
@@ -17,8 +17,8 @@ interface Props {
  * the popup does not fire `mouseleave` on the td and the hover state
  * survives. Hence pointer events are enabled here.
  */
-export function StreamAttributionHoverCard({ asset, expiry }: Props) {
-  const { loading, contributions, error } = useStreamContributions({ asset, expiry });
+export function StreamAttributionHoverCard({ symbol, expiry }: Props) {
+  const { loading, contributions, error } = useStreamContributions({ symbol, expiry });
 
   return (
     <div className="absolute left-1/2 top-full z-50 mt-1 w-64 -translate-x-1/2 rounded-lg border border-mm-border/60 bg-mm-surface/95 p-3 shadow-xl shadow-black/40 backdrop-blur-sm">
@@ -27,7 +27,7 @@ export function StreamAttributionHoverCard({ asset, expiry }: Props) {
           Stream Attribution
         </span>
         <span className="text-[10px] tabular-nums text-mm-text-dim">
-          {asset} {expiry}
+          {symbol} {expiry}
         </span>
       </div>
 

@@ -42,7 +42,7 @@ export interface GlobalContext {
 
 /** A single row in the desired-position table (mirrors pipeline output) */
 export interface DesiredPosition {
-  asset: string;
+  symbol: string;
   expiry: string;
   edge: number;
   smoothedEdge: number;
@@ -60,7 +60,7 @@ export interface DesiredPosition {
 /** A position-change update card */
 export interface UpdateCard {
   id: string;
-  asset: string;
+  symbol: string;
   expiry: string;
   oldPos: number;
   newPos: number;
@@ -79,7 +79,7 @@ export interface ServerPayload {
 /** Context pushed to the LLM chat when a card or cell is clicked */
 export type InvestigationContext =
   | { type: "update"; card: UpdateCard }
-  | { type: "position"; asset: string; expiry: string; position: DesiredPosition };
+  | { type: "position"; symbol: string; expiry: string; position: DesiredPosition };
 
 /** A single message in the LLM chat */
 export interface ChatMessage {
