@@ -25,7 +25,7 @@
           },
           {
             "type": "command",
-            "command": "bash -c 'for f in .claude/commands/*.md; do name=$(basename \"$f\"); wf=\".windsurf/workflows/$name\"; [ -f \"$wf\" ] || { echo \"DRIFT: $wf missing\"; continue; }; diff <(sed '\"'\"'/^---$/,/^---$/d'\"'\"' \"$f\") <(sed '\"'\"'/^---$/,/^---$/d'\"'\"' \"$wf\") >/dev/null || echo \"DRIFT: $name differs between .claude/commands and .windsurf/workflows\"; done'"
+            "command": "bash -c 'for f in .claude/commands/*.md; do name=$(basename \"$f\"); wf=\".windsurf/workflows/$name\"; if [ ! -f \"$wf\" ]; then echo \"DRIFT: $wf missing\"; continue; fi; sed \"/^---$/,/^---$/d\" \"$f\" > /tmp/c1 && sed \"/^---$/,/^---$/d\" \"$wf\" > /tmp/c2 && diff /tmp/c1 /tmp/c2 >/dev/null || echo \"DRIFT: $name differs\"; done'"
           }
         ]
       }
