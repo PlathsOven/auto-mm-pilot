@@ -5,7 +5,7 @@ description: Code review audit for lane compliance, quality, conventions, user j
 ## /review — Code Review
 
 ### 1. Context Load
-Read `AGENTS.md` and `docs/conventions.md` to restore the canonical patterns. Skim `docs/architecture.md` to confirm which lanes the change should have stayed within.
+Read `CLAUDE.md` and `docs/conventions.md` to restore the canonical patterns. Skim `docs/architecture.md` to confirm which lanes the change should have stayed within.
 
 ### 2. Scope
 Identify the files/lane to review. This may be:

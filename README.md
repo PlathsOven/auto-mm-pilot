@@ -61,7 +61,6 @@ APT_MODE=mock
 - Client terminal: open `http://localhost:5173`
 - The connection indicator should show **CONNECTED** within a few seconds (WebSocket to `ws://localhost:8000/ws`)
 - Server health: `curl http://localhost:8000/api/health` returns `{"status": "ok"}`
-- Admin dashboard: `http://localhost:8000/admin`
 
 If any of the above fails, see **Troubleshooting** below.
 
@@ -112,7 +111,6 @@ Railway runs the FastAPI backend as a persistent process with WebSocket support.
 
 **1.5 Verify.**
 - `https://<railway-domain>/api/health` returns `{"status": "ok"}`
-- `https://<railway-domain>/admin` loads the admin dashboard
 
 ### Part 2: Deploy the Client UI to Vercel
 
@@ -160,7 +158,6 @@ allow_origins=["https://your-app.vercel.app"]
 | What | URL |
 |------|-----|
 | Client terminal | `https://<vercel-domain>` |
-| Admin dashboard | `https://<railway-domain>/admin` |
 | Health check | `https://<railway-domain>/api/health` |
 | WebSocket (pipeline) | `wss://<railway-domain>/ws` |
 | WebSocket (client ingest, auth-gated) | `wss://<railway-domain>/ws/client` |
@@ -202,10 +199,7 @@ allow_origins=["https://your-app.vercel.app"]
 - If using a virtualenv, activate it before running `./start.sh`. The script does not auto-activate.
 
 **WebSocket hot-reload stops working after server code changes.**
-- The server has a singleton background ticker (`server/api/ws.py`) that must be restarted after hot reloads. Call `restart_ticker()` from an admin request, or restart the server entirely. This is documented as a known gotcha in `AGENTS.md`.
-
-**DailyWrap component shows mock data in production.**
-- Expected — `client/ui/src/components/DailyWrap.tsx` is currently MOCK per `docs/stack-status.md`. An LLM-generated wrap is a pending item.
+- The server has a singleton background ticker (`server/api/ws.py`) that must be restarted after hot reloads. Restart the server to clear it. This is documented as a known gotcha in `CLAUDE.md`.
 
 ---
 
@@ -223,7 +217,7 @@ auto-mm-pilot/
 ├── tasks/               # todo, lessons, progress trackers
 ├── pitch/               # Investor/demo materials
 ├── prototyping/         # Scratch experiments
-├── AGENTS.md            # Auto-loaded agent instructions (Claude Code + Windsurf)
+├── CLAUDE.md            # Auto-loaded agent instructions (Claude Code + Windsurf)
 ├── .claude/             # Claude Code slash commands + hook settings
 ├── .windsurf/           # Windsurf workflows (sync partner for .claude/commands/)
 ├── start.sh             # Local dev launcher
@@ -238,4 +232,4 @@ See `docs/architecture.md` for the full component map, MVP pipeline, and Key Fil
 
 ## Contributing
 
-This repo uses a dual-harness agent setup. If you're making code changes through Claude Code or Windsurf, read `AGENTS.md` first — it enumerates the Manual Brain rule (`server/core/` is HUMAN ONLY), the schema source-of-truth (`server/api/models.py` for Pydantic, `client/ui/src/types.ts` for TypeScript), and the commit discipline. Slash commands live in `.claude/commands/` and `.windsurf/workflows/` and must stay byte-identical.
+This repo uses a dual-harness agent setup. If you're making code changes through Claude Code or Windsurf, read `CLAUDE.md` first — it enumerates the Manual Brain rule (`server/core/` is HUMAN ONLY), the schema source-of-truth (`server/api/models.py` for Pydantic, `client/ui/src/types.ts` for TypeScript), and the commit discipline. Slash commands live in `.claude/commands/` and `.windsurf/workflows/` and must stay byte-identical.

@@ -26,7 +26,7 @@ Mid-session handoff notes. When a task is not finished at the end of a session, 
 
 - [x] Phase 4 — Client decomposition: decomposed `PipelineChart.tsx` (779 → ~150 LOC container + 3 extracted modules), `DesiredPositionGrid.tsx` (425 → ~280 LOC + 2 hooks), narrowed `AnatomyCanvas.tsx` WS subscription via `useWebSocketPositionCount`, removed `localSteps` shadow state, exposed `setSteps` from `TransformsProvider`, fixed abort-signal race in `useStreamContributions`, fixed exhaustive-deps in `StreamTable`, hoisted all magic numbers to `constants.ts`, cancelled edit on timeframe switch.
 
-**Current status:** All 4 phases committed on `generalisation`. Ready for doc-sync and PR.
+**Current status:** All 4 phases committed on `generalisation`. Doc-sync completed 2026-04-10. Ready for PR.
 
 
 ## Handoff Note Format

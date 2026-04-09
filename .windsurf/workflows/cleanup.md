@@ -5,7 +5,7 @@ description: Periodic codebase hygiene sweep to reduce entropy and prevent bloat
 ## /cleanup — Codebase Hygiene
 
 ### 1. Context Load
-Read `AGENTS.md` and `docs/conventions.md` so you know which patterns are canonical and which are drift.
+Read `CLAUDE.md` and `docs/conventions.md` so you know which patterns are canonical and which are drift.
 
 ### 2. Scope
 Identify the lane or directory to sweep. Default to the full codebase excluding `server/core/` (Manual Brain rule — `server/core/` is HUMAN ONLY and must not be touched by a cleanup pass).

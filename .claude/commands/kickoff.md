@@ -10,8 +10,8 @@ Run at the top of any non-trivial session. Kickoff is the phase where you transi
 
 ### 1. Read the Instruction Layer
 
-- `AGENTS.md` is auto-loaded, but re-read it explicitly here so the hard rules (Manual Brain, harness sync, surgical commits, schema source-of-truth) are top-of-mind.
-- `.windsurfrules` if running under Windsurf (otherwise skip — it just points at `AGENTS.md`).
+- `CLAUDE.md` is auto-loaded, but re-read it explicitly here so the hard rules (Manual Brain, harness sync, surgical commits, schema source-of-truth) are top-of-mind.
+- `.windsurfrules` if running under Windsurf (otherwise skip — it just points at `CLAUDE.md`).
 
 ### 2. Restore Project State
 

@@ -26,7 +26,7 @@ A structured workflow for taming codebases built primarily through AI-assisted "
 ### 1. Context Load
 
 Read these files and internalize the constraints before touching anything:
-- `AGENTS.md` — harness rules, Manual Brain, code style, schema source-of-truth
+- `CLAUDE.md` — harness rules, Manual Brain, code style, schema source-of-truth
 - `docs/architecture.md` — component map, MVP pipeline, Key Files table, boundaries
 - `docs/conventions.md` — patterns used vs. avoided, file organization, commit format
 - `docs/stack-status.md` — which components are PROD / MOCK / STUB / OFF
@@ -231,7 +231,7 @@ Delegate to `/doc-sync`. Refactors frequently touch:
 - `docs/conventions.md` — newly canonicalized patterns (add), deprecated patterns (remove)
 - `docs/stack-status.md` — component status transitions
 - `tasks/lessons.md` — add any lesson surfaced by the audit
-- `AGENTS.md` — only if a load-bearing rule changed
+- `CLAUDE.md` — only if a load-bearing rule changed
 
 Skip categories where nothing changed.
 

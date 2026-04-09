@@ -5,7 +5,7 @@ description: Structured bug isolation restricted to transport and UI layers
 ## /debug — Bug Isolation & Fix
 
 ### 1. Context Load
-Read `AGENTS.md` and `docs/architecture.md` to understand the MVP pipeline and the client/server visibility barrier. Skim `tasks/lessons.md` for any entry that touches the area of the bug.
+Read `CLAUDE.md` and `docs/architecture.md` to understand the MVP pipeline and the client/server visibility barrier. Skim `tasks/lessons.md` for any entry that touches the area of the bug.
 
 ### 2. Reproduce
 Gather details about the bug:

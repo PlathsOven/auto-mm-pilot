@@ -5,7 +5,7 @@ description: Core feature implementation loop with built-in dependency gating an
 ## /implement — Feature Implementation
 
 ### 1. Context Load
-Read `AGENTS.md` and `docs/architecture.md` to restore project structure, lane ownership, and the MVP pipeline. If the task touches data that crosses the API boundary, also read `server/api/models.py` and `client/ui/src/types.ts`.
+Read `CLAUDE.md` and `docs/architecture.md` to restore project structure, lane ownership, and the MVP pipeline. If the task touches data that crosses the API boundary, also read `server/api/models.py` and `client/ui/src/types.ts`.
 
 ### 2. Confirm Lane
 Identify your assigned directory lane from the user's prompt (see Component Map in `docs/architecture.md`). If no lane is specified, ask before proceeding. You may ONLY create/modify files within this lane.
@@ -45,7 +45,7 @@ Before reporting completion, audit your own work:
 Report any issues found. If clean, proceed to step 7.
 
 ### 7. Doc Sync
-Delegate to `/doc-sync`. That workflow walks every context doc (`docs/architecture.md`, `docs/user-journey.md`, `README.md`, `docs/stack-status.md`, `docs/conventions.md`, `tasks/lessons.md`, `AGENTS.md`) and updates only what changed this session. Skip this step only if your changes made **zero** user-visible, architectural, dependency, or status changes.
+Delegate to `/doc-sync`. That workflow walks every context doc (`docs/architecture.md`, `docs/user-journey.md`, `README.md`, `docs/stack-status.md`, `docs/conventions.md`, `tasks/lessons.md`, `CLAUDE.md`) and updates only what changed this session. Skip this step only if your changes made **zero** user-visible, architectural, dependency, or status changes.
 
 ### 8. Verify
 Run available verification commands appropriate to the lane:

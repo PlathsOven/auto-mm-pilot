@@ -9,7 +9,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -c 'import json,sys; d=json.load(sys.stdin); p=d.get(\"tool_input\",{}).get(\"file_path\",\"\"); (sys.stderr.write(\"BLOCKED: server/core/ is HUMAN ONLY (Manual Brain rule). See AGENTS.md.\\n\"), sys.exit(2)) if \"server/core/\" in p else sys.exit(0)'"
+            "command": "python3 -c 'import json,sys; d=json.load(sys.stdin); p=d.get(\"tool_input\",{}).get(\"file_path\",\"\"); (sys.stderr.write(\"BLOCKED: server/core/ is HUMAN ONLY (Manual Brain rule). See CLAUDE.md.\\n\"), sys.exit(2)) if \"server/core/\" in p else sys.exit(0)'"
           }
         ]
       }

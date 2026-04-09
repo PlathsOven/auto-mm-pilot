@@ -52,14 +52,14 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `client/ui/src/components/PanelWindow.tsx` | Draggable/resizable panel wrapper with title bar |
 | `client/ui/src/types.ts` | **Canonical TypeScript interfaces for all client-side data shapes.** Read before any feature crossing the API boundary. |
 | `client/ui/src/providers/WebSocketProvider.tsx` | Central WS state manager — connects to server `/ws`, auto-reconnects |
-| `client/ui/src/providers/MockDataProvider.ts` | Static seed data (users, cell notes, daily wrap) |
+| `client/ui/src/constants.ts` | Shared UI constants — magic numbers hoisted from components (Phase 4) |
 | `client/ui/src/providers/ChatProvider.tsx` | Team chat + @APT LLM routing context |
 | `client/ui/src/components/LlmChat.tsx` | Team Chat panel — messages, note threads, investigation context |
 | `client/ui/src/components/ApiDocs.tsx` | Client-facing API documentation panel — endpoints, WebSocket stream, integration workflow |
 | `client/ui/src/components/DesiredPositionGrid.tsx` | Zone C — clickable cells push context to LlmChat |
 | `client/ui/src/components/UpdatesFeed.tsx` | Zone D — position-change cards with stream attribution |
-| `client/ui/src/components/PipelineChart.tsx` | Pipeline Analysis panel — ECharts time series (desired position, fair value decomposition, variance decomposition) with symbol/expiry selector |
-| `client/ui/src/components/BlockTable.tsx` | Block Configuration panel — TanStack Table with sorting, filtering, column visibility, manual block creation |
+| `client/ui/src/components/PipelineChart.tsx` | Pipeline Analysis container — delegates to `PipelineChart/chartOptions.ts` (ECharts config) and `PipelineChart/DecompositionSidebar.tsx` |
+| `client/ui/src/components/studio/brain/EditableBlockTable.tsx` | Block Configuration panel — TanStack Table with inline editing, manual block creation |
 | `client/ui/src/components/GlobalContextBar.tsx` | Zone B — global context header |
 | `client/ui/src/components/floor/StreamStatusList.tsx` | Floor read-only stream registry/health |
 | `client/ui/src/components/studio/StreamLibrary.tsx` | Studio — stream CRUD |
@@ -71,7 +71,8 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `client/ui/UI_SPEC.md` | UI design specification |
 | `server/api/config.py` | OpenRouter env config (API key, model fallback lists, generation params, snapshot buffer settings) |
 | `server/api/models.py` | **Canonical Pydantic request/response models for all API boundary data.** Read before any feature crossing the API boundary. |
-| `server/api/main.py` | FastAPI app — WS, LLM, stream CRUD, snapshot ingestion, market-pricing, bankroll endpoints |
+| `server/api/main.py` | FastAPI app factory — lifespan, CORS, error handler, router registration, health + WS mounts |
+| `server/api/routers/*.py` | Route modules (llm, streams, snapshots, market_pricing, bankroll, transforms, pipeline, blocks) extracted from main.py |
 | `server/api/stream_registry.py` | In-memory stream registry — CRUD, snapshot storage, validation, `StreamConfig` builder |
 | `server/api/ws.py` | WebSocket endpoint — singleton ticker broadcasts pipeline ticks; `restart_ticker()` on re-run |
 | `server/api/client_ws.py` | Client-facing WS endpoint (`/ws/client`) — auth-gated, inbound snapshot frames with ACK, joins broadcast for outbound positions |

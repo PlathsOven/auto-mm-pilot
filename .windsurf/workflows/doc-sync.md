@@ -24,7 +24,7 @@ Verify the listed patterns still match code reality. Flag any new pattern that a
 ### 6. `tasks/lessons.md`
 Add any new lesson learned from a correction or failed attempt this session. Prune entries that are no longer accurate (the code has changed).
 
-### 7. `AGENTS.md`
+### 7. `CLAUDE.md`
 Add any rule that would have prevented a mistake made this session. Remove any rule that is now obsolete. **Hard cap: under 100 lines.** If adding a rule would push it over, absorb an existing rule first.
 
 ### 8. Harness Sync Check
