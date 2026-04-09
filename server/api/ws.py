@@ -20,16 +20,10 @@ from typing import Any
 import polars as pl
 from fastapi import WebSocket, WebSocketDisconnect
 
-from server.api.config import APT_MODE
+from server.api.config import APT_MODE, TICK_INTERVAL_SECS, UPDATE_THRESHOLD
 from server.api.engine_state import get_pipeline_results
 
 log = logging.getLogger(__name__)
-
-# How often (in real seconds) we push a new tick to clients
-TICK_INTERVAL_SECS: float = 2.0
-
-# Minimum |delta| in smoothed_desired_position to emit an UpdateCard
-UPDATE_THRESHOLD: float = 50.0
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +169,10 @@ async def _broadcast(payload: str) -> None:
     for ws in _clients:
         try:
             await ws.send_text(payload)
-        except Exception:
+        except WebSocketDisconnect:
+            disconnected.append(ws)
+        except Exception as exc:
+            log.debug("WS broadcast error for client: %s", type(exc).__name__)
             disconnected.append(ws)
     for ws in disconnected:
         _clients.discard(ws)

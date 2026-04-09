@@ -13,6 +13,7 @@ Supports two modes:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -254,3 +255,39 @@ def set_transform_config(config: dict[str, Any]) -> None:
     global _transform_config
     _transform_config = config
     log.info("Transform config updated: %s", list(config.keys()))
+
+
+# ---------------------------------------------------------------------------
+# Atomic rerun + broadcast helper
+# ---------------------------------------------------------------------------
+
+async def rerun_and_broadcast(
+    stream_configs: list,
+    *,
+    bankroll: float | None = None,
+    market_pricing: dict[str, float] | None = None,
+    transform_config: dict | None = None,
+) -> None:
+    """Re-run the pipeline and restart the WS ticker as an atomic pair.
+
+    Every code path that previously called ``rerun_pipeline`` followed
+    by ``restart_ticker`` must call this instead.  Forgetting the
+    second call leaves the UI showing stale data.
+
+    The ticker restart import is done lazily to avoid circular imports
+    between ``engine_state`` and ``ws``.
+    """
+    # Lazy import — hoisting to module top triggers a circular import
+    # (engine_state → ws → engine_state).
+    from server.api.ws import restart_ticker
+
+    kwargs: dict[str, Any] = {}
+    if bankroll is not None:
+        kwargs["bankroll"] = bankroll
+    if market_pricing is not None:
+        kwargs["market_pricing"] = market_pricing
+    if transform_config is not None:
+        kwargs["transform_config"] = transform_config
+
+    await asyncio.to_thread(rerun_pipeline, stream_configs, **kwargs)
+    await restart_ticker()
