@@ -10,12 +10,13 @@ import {
 import type { TransformStep } from "../types";
 import { fetchTransforms } from "../services/transformApi";
 import { fetchBankroll } from "../services/streamApi";
-
-const POLL_INTERVAL_MS = 10000;
+import { POLL_INTERVAL_TRANSFORMS_MS } from "../constants";
 
 interface TransformsContextValue {
   /** Map of step key (e.g. "position_sizing") → step state, or null until first load. */
   steps: Record<string, TransformStep> | null;
+  /** Direct setter for optimistic UI updates (e.g. AnatomyCanvas). */
+  setSteps: React.Dispatch<React.SetStateAction<Record<string, TransformStep> | null>>;
   /** Current server bankroll, or NaN until first load. */
   bankroll: number;
   loading: boolean;
@@ -58,13 +59,13 @@ export function TransformsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, POLL_INTERVAL_MS);
+    const id = setInterval(refresh, POLL_INTERVAL_TRANSFORMS_MS);
     return () => clearInterval(id);
   }, [refresh]);
 
   const value = useMemo(
-    () => ({ steps, bankroll, loading, error, refresh }),
-    [steps, bankroll, loading, error, refresh],
+    () => ({ steps, setSteps, bankroll, loading, error, refresh }),
+    [steps, setSteps, bankroll, loading, error, refresh],
   );
 
   return (

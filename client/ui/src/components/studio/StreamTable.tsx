@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -55,20 +55,29 @@ export function StreamTable({ filter, onFilterChange, onOpenStream }: Props) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [mutationError, setMutationError] = useState<string | null>(null);
 
-  const openCanvas = (streamName: string) => onOpenStream?.(streamName);
+  const openCanvas = useCallback(
+    (streamName: string) => onOpenStream?.(streamName),
+    [onOpenStream],
+  );
 
-  const handleDelete = async (streamName: string) => {
-    try {
-      await deleteStream(streamName);
-      await refresh();
-      setMutationError(null);
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : String(err));
-    }
-  };
+  const handleDelete = useCallback(
+    async (streamName: string) => {
+      try {
+        await deleteStream(streamName);
+        await refresh();
+        setMutationError(null);
+      } catch (err) {
+        setMutationError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [refresh],
+  );
 
-  const toggleExpand = (streamName: string) =>
-    setExpanded((prev) => ({ ...prev, [streamName]: !prev[streamName] }));
+  const toggleExpand = useCallback(
+    (streamName: string) =>
+      setExpanded((prev) => ({ ...prev, [streamName]: !prev[streamName] })),
+    [],
+  );
 
   const columns = useMemo(
     () => [
@@ -205,8 +214,7 @@ export function StreamTable({ filter, onFilterChange, onOpenStream }: Props) {
         size: 90,
       }),
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [expanded],
+    [expanded, openCanvas, handleDelete, toggleExpand],
   );
 
   const table = useReactTable({

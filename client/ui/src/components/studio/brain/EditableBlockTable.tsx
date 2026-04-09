@@ -53,8 +53,7 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey }: Prop
   // Parent can force a refresh after a mutation
   useEffect(() => {
     if (refreshKey !== undefined) refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey]);
+  }, [refreshKey, refresh]);
 
   const sorted = useMemo(() => {
     const q = filter.trim().toLowerCase();

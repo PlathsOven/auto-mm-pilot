@@ -5,6 +5,7 @@ import { useCommandPalette } from "../providers/CommandPaletteProvider";
 import { formatUtcTime } from "../utils";
 import { useMode } from "../providers/ModeProvider";
 import { ModeSwitcher } from "./shared/ModeSwitcher";
+import { GLOBAL_CONTEXT_TICK_MS } from "../constants";
 
 export function GlobalContextBar() {
   const { connectionStatus } = useWebSocket();
@@ -15,7 +16,7 @@ export function GlobalContextBar() {
   const [aptEnabled, setAptEnabled] = useState(true);
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 47);
+    const id = setInterval(() => setNow(Date.now()), GLOBAL_CONTEXT_TICK_MS);
     return () => clearInterval(id);
   }, []);
 

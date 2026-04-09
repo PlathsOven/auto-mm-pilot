@@ -92,7 +92,8 @@ export function useStreamContributions(
 
     fetchTimeSeries(cell.symbol, cell.expiry, controller.signal)
       .then((res) => {
-        if (lastKeyRef.current !== key) return; // stale response
+        if (controller.signal.aborted) return;
+        if (lastKeyRef.current !== key) return;
         const contributions = buildContributions(res.currentDecomposition.blocks);
         cache.set(key, { fetchedAt: Date.now(), contributions });
         setState({ loading: false, contributions, error: null });

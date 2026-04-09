@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import type { BlockRow } from "../types";
 import { fetchBlocks } from "../services/blockApi";
 import { formatExpiry } from "../utils";
+import { POLL_INTERVAL_SELECTION_MS } from "../constants";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -37,7 +38,6 @@ interface SelectionContextValue extends SelectionState {
 }
 
 const EMPTY_SET = new Set<string>();
-const POLL_MS = 5_000;
 
 // ---------------------------------------------------------------------------
 // Context
@@ -97,7 +97,7 @@ export function SelectionProvider({ children }: { children: ReactNode }) {
       }
     };
     poll();
-    const id = setInterval(poll, POLL_MS);
+    const id = setInterval(poll, POLL_INTERVAL_SELECTION_MS);
     return () => { active = false; clearInterval(id); };
   }, []);
 

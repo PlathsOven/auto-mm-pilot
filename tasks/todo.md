@@ -24,5 +24,5 @@ _(Format example — always include the reason.)_
 ## Follow-ups (deferred items from the harness migration)
 
 - [ ] Install prettier + ruff; add post-edit formatter hooks to `.claude/settings.json`.
-- [ ] Source file decomposition per 300-line convention. Candidates: `server/api/main.py` (934), `client/ui/src/components/PipelineChart.tsx` (779), `client/ui/src/components/ApiDocs.tsx` (727), `server/api/ws.py` (406), plus others. `server/core/transforms.py` (726) stays exempt as HUMAN ONLY.
+- [x] Source file decomposition per 300-line convention — `server/api/main.py` (Phase 3), `PipelineChart.tsx` (Phase 4), `DesiredPositionGrid.tsx` (Phase 4) done. Remaining candidates: `client/ui/src/components/ApiDocs.tsx` (727, pure presentation — deferred), `server/core/transforms.py` (726, HUMAN ONLY — exempt).
 - [ ] Tune Stop-hook latency after one week of use — if `tsc --noEmit` at every agent turn becomes painful, demote from `Stop` to manual invocation.

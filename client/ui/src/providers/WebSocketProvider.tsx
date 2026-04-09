@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from "react";
 import type { ServerPayload, UpdateCard } from "../types";
 import { WS_URL } from "../config";
+import { UPDATE_HISTORY_MAX_LENGTH } from "../constants";
 
 const RECONNECT_DELAY_MS = 3000;
 
@@ -31,6 +32,12 @@ export function useWebSocket() {
   return useContext(WebSocketContext);
 }
 
+/** Narrow selector: only re-renders when the position count changes. */
+export function useWebSocketPositionCount(): number {
+  const { payload } = useWebSocket();
+  return payload?.positions.length ?? 0;
+}
+
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const [payload, setPayload] = useState<ServerPayload | null>(null);
   const [updateHistory, setUpdateHistory] = useState<UpdateCard[]>([]);
@@ -45,7 +52,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     if (data.updates.length > 0) {
       setUpdateHistory((prev) => {
         const merged = [...data.updates, ...prev];
-        return merged.slice(0, 100);
+        return merged.slice(0, UPDATE_HISTORY_MAX_LENGTH);
       });
     }
   }, []);
