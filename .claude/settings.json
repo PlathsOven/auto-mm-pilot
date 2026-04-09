@@ -22,10 +22,6 @@
           {
             "type": "command",
             "command": "python3 -m compileall server/ -q 2>&1 | tail -10"
-          },
-          {
-            "type": "command",
-            "command": "for f in $(find .claude/commands -name '*.md' -type f); do base=$(basename \"$f\"); wf=.windsurf/workflows/\"$base\"; if [ ! -f \"$wf\" ]; then echo \"DRIFT: $wf missing\"; fi; done"
           }
         ]
       }
