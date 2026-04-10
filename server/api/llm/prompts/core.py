@@ -131,6 +131,103 @@ corrects an inefficiency.
 additive layer.\
 """
 
+# ── Block decision flow — imported by opinion + configure ─────────────────
+BLOCK_DECISION_FLOW = """\
+
+## BLOCK DECISION FLOW
+
+Follow these four steps in order when translating a view or data stream \
+into a block configuration.
+
+**Step 1 — Identify target dimensions.**
+Determine which symbol(s) and expiry/expiries the opinion or data applies \
+to. Present available options from the engine state. A single block can \
+span multiple symbol/expiry combinations — each becomes a row in the \
+snapshot.
+
+**Step 2 — Quantify in vol-related units.**
+Ensure the view is expressed as a number in vol-related units. The exact \
+question depends on what they are describing:
+- "FOMC will be an upset" → "What absolute % move do you expect on average?"
+- "Vols will get bid" → "What vol level do you think vols will get bid to?"
+- "Realized vol is running hot" → "What annualized vol level?"
+
+For data streams, steps 1 and 2 are provided by the data itself — focus \
+on understanding the data's semantics.
+
+**Step 3 — Determine unit conversion.**
+Map the user's units into variance (the pipeline's internal unit) by \
+determining `scale`, `offset`, `exponent`, and `annualized`. Use the \
+UNIT CONVERSION REFERENCE for known patterns. For novel patterns, derive \
+from first principles: `target = (scale × raw + offset)^exponent`, where \
+target must be in variance units (σ²). If the data cannot be converted \
+to variance through any reasonable transform, reject with explanation \
+and suggestions.
+
+**Step 4 — Classify base vol vs event vol.**
+Determine the temporal nature using the BASE VS EVENT RULES. Also ask \
+about confidence (`var_fair_ratio`): how much does the trader trust this \
+view relative to others? Default 1.0; lower = more confident.\
+"""
+
+# ── Unit conversion reference — imported by opinion + configure ───────────
+UNIT_CONVERSION_REFERENCE = """\
+
+## UNIT CONVERSION REFERENCE
+
+Common data types with exact conversion parameters. The key identity: \
+`target = (scale × raw + offset)^exponent` must produce variance (σ²).
+
+| Data Type | User Says | raw_value | scale | offset | exponent | annualized |
+|-----------|-----------|-----------|-------|--------|----------|------------|
+| Annualized vol level (%) | "50 vol" | 50 | 0.01 | 0 | 2 | true |
+| Annualized vol level (decimal) | stream: 0.50 | 0.50 | 1.0 | 0 | 2 | true |
+| Expected absolute % move | "5% FOMC move" | 5 | √(π/2)/100 ≈ 0.01253 | 0 | 2 | false |
+| Expected absolute move (decimal) | stream: 0.05 | 0.05 | √(π/2) ≈ 1.2533 | 0 | 2 | false |
+| IV level (%) | "IV at 60%" | 60 | 0.01 | 0 | 2 | true |
+| Realized variance (decimal) | stream: 0.2025 | 0.2025 | 1.0 | 0 | 1 | true |
+
+Notes:
+- % → decimal → variance: scale converts percentage to decimal, exponent \
+squares to get variance.
+- E[|ret|] → σ → variance: scale includes √(π/2) correction factor \
+(half-normal distribution identity), exponent squares to get variance.
+- Already variance: exponent = 1, scale = 1.0 (passthrough).
+
+For novel patterns, derive from first principles. State your reasoning \
+to the trader before confirming.\
+"""
+
+# ── Base vs event classification rules — imported by opinion + configure ──
+BASE_VS_EVENT_RULES = """\
+
+## BASE VS EVENT RULES
+
+**Event vol** — discrete time window of higher realized vol:
+- Examples: FOMC, CPI, protocol upgrade, earnings, flash event
+- `annualized = false`
+- `aggregation_logic = "offset"` (stacks additively with other views)
+- `temporal_position = "static"` (anchored to event time)
+- `decay_end_size_mult = 0.0` (decays to nothing after event)
+- `decay_rate_prop_per_min` = proportion of remaining event vol that \
+realises per minute
+- Requires `start_timestamp` in each snapshot row
+- Typical decay rates:
+  - FOMC/CPI: ~0.03 (market prices in within ~30 min)
+  - Protocol upgrade: ~0.005 (slower, hours)
+  - Flash event: ~0.05 (very fast, ~15 min)
+
+**Base vol** — ongoing vol level, not a discrete event:
+- Examples: "vols will get bid", "realized vol is running hot", \
+mean-reversion IV view
+- `annualized = true`
+- `aggregation_logic = "average"` (blends with other base-vol views)
+- `temporal_position = "shifting"` (rolls forward with current time)
+- `decay_end_size_mult = 1.0` (no decay — persists at full size)
+- `decay_rate_prop_per_min = 0.0`
+- No `start_timestamp` needed\
+"""
+
 # ── Epistemic honesty — imported by investigation ────────────────────────
 EPISTEMIC_HONESTY = """\
 
