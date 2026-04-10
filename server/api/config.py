@@ -86,8 +86,9 @@ class OpenRouterConfig:
         )
     )
 
-    # Generation parameters
-    max_tokens_investigation: int = 2048
+    # Generation parameters — set high to accommodate models that spend
+    # tokens on internal <think> reasoning (stripped before display).
+    max_tokens_investigation: int = 16384
     temperature_investigation: float = 0.
 
     # Snapshot buffer — controls how much pipeline history the LLM sees.

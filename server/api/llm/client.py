@@ -21,6 +21,52 @@ _APP_REFERER = "https://auto-mm-pilot.app"
 _APP_TITLE = "APT"
 
 
+async def _strip_think_tags(stream: AsyncIterator[str]) -> AsyncIterator[str]:
+    """Strip <think>...</think> blocks from a streaming response.
+
+    Handles tags that span multiple chunks by buffering until the closing
+    tag is found.  Only content *outside* think blocks is yielded.
+    """
+    buf = ""
+    inside = False
+
+    async for chunk in stream:
+        buf += chunk
+
+        while buf:
+            if inside:
+                end = buf.find("</think>")
+                if end != -1:
+                    # Drop everything up to and including the closing tag
+                    buf = buf[end + len("</think>"):]
+                    inside = False
+                else:
+                    # Still waiting for the closing tag — keep the tail in
+                    # case "</think>" is arriving across chunks.
+                    break
+            else:
+                start = buf.find("<think>")
+                if start != -1:
+                    # Yield safe content before the opening tag
+                    if start > 0:
+                        yield buf[:start]
+                    buf = buf[start + len("<think>"):]
+                    inside = True
+                else:
+                    # No opening tag found.  Yield everything except the
+                    # last 6 chars (len("<think") - 1) which could be a
+                    # partial opening tag arriving across chunks.
+                    safe = len(buf) - 6
+                    if safe > 0:
+                        yield buf[:safe]
+                        buf = buf[safe:]
+                    break
+
+    # Flush remaining content (only if we're not stuck inside a tag)
+    if buf and not inside:
+        yield buf
+
+
 class OpenRouterClient:
     """Async HTTP client for the OpenRouter chat-completions endpoint."""
 
@@ -59,7 +105,7 @@ class OpenRouterClient:
             resp.raise_for_status()
             return resp.json()
 
-    async def stream(
+    async def _raw_stream(
         self,
         *,
         model: str,
@@ -67,7 +113,7 @@ class OpenRouterClient:
         max_tokens: int = 1024,
         temperature: float = 0.4,
     ) -> AsyncIterator[str]:
-        """Send a streaming chat-completion request. Yields content delta strings."""
+        """Send a streaming chat-completion request. Yields raw content deltas."""
         payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
@@ -97,6 +143,24 @@ class OpenRouterClient:
                     )
                     if delta:
                         yield delta
+
+    async def stream(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, str]],
+        max_tokens: int = 1024,
+        temperature: float = 0.4,
+    ) -> AsyncIterator[str]:
+        """Send a streaming chat-completion request. Yields content deltas with <think> blocks stripped."""
+        raw = self._raw_stream(
+            model=model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        async for delta in _strip_think_tags(raw):
+            yield delta
 
     # ------------------------------------------------------------------
     # Fallback wrappers — try models in priority order

@@ -1,35 +1,192 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+  type VisibilityState,
+} from "@tanstack/react-table";
 import { fetchBlocks } from "../../../services/blockApi";
 import type { BlockRow } from "../../../types";
 import { valColor } from "../../../utils";
+import { POLL_INTERVAL_BLOCKS_MS } from "../../../constants";
 
-const POLL_INTERVAL_MS = 5000;
+const col = createColumnHelper<BlockRow>();
 
-type SortKey = "block" | "fair" | "var" | "edge";
+/** Format a number to fixed decimals, or "—" if null/undefined. */
+function fmt(v: number | null | undefined, dp = 4): string {
+  if (v == null) return "—";
+  return v.toFixed(dp);
+}
+
+/** All column definitions. The `id` doubles as the visibility key. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TanStack column helper produces heterogeneous accessor types
+const ALL_COLUMNS: ColumnDef<BlockRow, any>[] = [
+  col.accessor("block_name", {
+    header: "Block",
+    cell: (info) => <span className="font-medium text-mm-text">{info.getValue()}</span>,
+  }),
+  col.accessor("source", {
+    header: "Source",
+    cell: (info) => {
+      const v = info.getValue();
+      return (
+        <span
+          className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${
+            v === "manual" ? "bg-mm-warn/15 text-mm-warn" : "bg-mm-accent/10 text-mm-accent"
+          }`}
+        >
+          {v}
+        </span>
+      );
+    },
+    enableSorting: false,
+  }),
+  col.accessor("stream_name", { header: "Stream" }),
+  col.accessor("symbol", { header: "Symbol" }),
+  col.accessor("expiry", { header: "Expiry" }),
+  col.accessor("space_id", { header: "Space" }),
+  col.accessor("fair", {
+    header: "Fair",
+    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+    sortingFn: "basic",
+  }),
+  col.accessor("market_fair", {
+    header: "Mkt Fair",
+    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+    sortingFn: "basic",
+  }),
+  col.display({
+    id: "edge",
+    header: "Edge",
+    cell: ({ row }) => {
+      const edge = (row.original.fair ?? 0) - (row.original.market_fair ?? 0);
+      return (
+        <span className={`font-mono tabular-nums ${valColor(edge)}`}>
+          {edge >= 0 ? "+" : ""}
+          {edge.toFixed(4)}
+        </span>
+      );
+    },
+    sortingFn: (a, b) => {
+      const ae = (a.original.fair ?? 0) - (a.original.market_fair ?? 0);
+      const be = (b.original.fair ?? 0) - (b.original.market_fair ?? 0);
+      return Math.abs(ae) - Math.abs(be);
+    },
+  }),
+  col.accessor("var", {
+    header: "Variance",
+    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+    sortingFn: "basic",
+  }),
+  // Engine parameters (hidden by default)
+  col.accessor("annualized", {
+    header: "Annualized",
+    cell: (info) => (info.getValue() ? "yes" : "no"),
+  }),
+  col.accessor("size_type", { header: "Size Type" }),
+  col.accessor("aggregation_logic", { header: "Aggregation" }),
+  col.accessor("temporal_position", { header: "Temporal Pos" }),
+  col.accessor("decay_end_size_mult", {
+    header: "Decay End",
+    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+  }),
+  col.accessor("decay_rate_prop_per_min", {
+    header: "Decay Rate",
+    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue(), 6)}</span>,
+  }),
+  col.accessor("var_fair_ratio", {
+    header: "Var/Fair Ratio",
+    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+  }),
+  col.accessor("scale", {
+    header: "Scale",
+    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+  }),
+  col.accessor("offset", {
+    header: "Offset",
+    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+  }),
+  col.accessor("exponent", {
+    header: "Exponent",
+    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+  }),
+  // Output values (hidden by default)
+  col.accessor("target_value", {
+    header: "Target Value",
+    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+  }),
+  col.accessor("raw_value", {
+    header: "Raw Value",
+    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+  }),
+  col.accessor("market_value", {
+    header: "Market Value",
+    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+  }),
+  col.accessor("target_market_value", {
+    header: "Target Mkt Value",
+    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+  }),
+  // Timing (hidden by default)
+  col.accessor("start_timestamp", { header: "Start TS" }),
+  col.accessor("updated_at", { header: "Updated" }),
+];
+
+/** Columns visible by default — everything else starts hidden. */
+const DEFAULT_VISIBLE = new Set([
+  "block_name",
+  "source",
+  "stream_name",
+  "symbol",
+  "expiry",
+  "space_id",
+  "fair",
+  "market_fair",
+  "edge",
+  "var",
+]);
+
+function buildDefaultVisibility(): VisibilityState {
+  const vis: VisibilityState = {};
+  for (const c of ALL_COLUMNS) {
+    // TanStack column defs store the accessor key or an explicit id
+    const raw = c as unknown as Record<string, unknown>;
+    const id = (raw.accessorKey as string | undefined) ?? (raw.id as string | undefined);
+    if (id) vis[id] = DEFAULT_VISIBLE.has(id);
+  }
+  return vis;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 interface Props {
-  /** Slot rendered on the right of the header — used by BrainPage to host the "Add manual block" button. */
   headerAction?: React.ReactNode;
-  /** Fires whenever the block list refreshes so parents can chain actions. */
   onRefresh?: () => void;
-  /** Forces a refresh when this key changes (parent incrementing it after a mutation). */
   refreshKey?: number;
+  onRowClick?: (block: BlockRow) => void;
 }
 
 /**
- * Block inspector for Studio → Brain.
+ * Block Inspector for Studio -> Brain.
  *
- * Read-only today; Group E will add inline editing for `source === "manual"`
- * rows and wire the "Add manual block" button via `headerAction`. Stream-
- * sourced blocks stay read-only because they'll be overwritten on the next
- * stream snapshot.
+ * TanStack Table with column visibility toggle, multi-column sort,
+ * global filter, and row click to open the detail drawer.
  */
-export function EditableBlockTable({ headerAction, onRefresh, refreshKey }: Props) {
+export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowClick }: Props) {
   const [blocks, setBlocks] = useState<BlockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("fair");
+  const [globalFilter, setGlobalFilter] = useState("");
+  const [sorting, setSorting] = useState<SortingState>([{ id: "fair", desc: true }]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(buildDefaultVisibility);
+  const [colMenuOpen, setColMenuOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -46,68 +203,87 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey }: Prop
 
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, POLL_INTERVAL_MS);
+    const id = setInterval(refresh, POLL_INTERVAL_BLOCKS_MS);
     return () => clearInterval(id);
   }, [refresh]);
 
-  // Parent can force a refresh after a mutation
   useEffect(() => {
     if (refreshKey !== undefined) refresh();
   }, [refreshKey, refresh]);
 
-  const sorted = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    let list = blocks;
-    if (q) {
-      list = list.filter(
-        (b) =>
-          b.block_name.toLowerCase().includes(q) ||
-          b.stream_name.toLowerCase().includes(q) ||
-          b.symbol.toLowerCase().includes(q),
+  const columns = useMemo(() => ALL_COLUMNS, []);
+
+  const table = useReactTable({
+    data: blocks,
+    columns,
+    state: { globalFilter, sorting, columnVisibility },
+    onGlobalFilterChange: setGlobalFilter,
+    onSortingChange: setSorting,
+    onColumnVisibilityChange: setColumnVisibility,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    globalFilterFn: (row, _colId, filterValue: string) => {
+      const q = filterValue.toLowerCase();
+      const o = row.original;
+      return (
+        o.block_name.toLowerCase().includes(q) ||
+        o.stream_name.toLowerCase().includes(q) ||
+        o.symbol.toLowerCase().includes(q) ||
+        o.expiry.toLowerCase().includes(q) ||
+        o.space_id.toLowerCase().includes(q)
       );
-    }
-    return [...list].sort((a, b) => {
-      const af = a.fair ?? 0;
-      const bf = b.fair ?? 0;
-      const av = a.var ?? 0;
-      const bv = b.var ?? 0;
-      const ae = (a.fair ?? 0) - (a.market_fair ?? 0);
-      const be = (b.fair ?? 0) - (b.market_fair ?? 0);
-      switch (sortKey) {
-        case "block":
-          return a.block_name.localeCompare(b.block_name);
-        case "fair":
-          return Math.abs(bf) - Math.abs(af);
-        case "var":
-          return bv - av;
-        case "edge":
-          return Math.abs(be) - Math.abs(ae);
-      }
-    });
-  }, [blocks, filter, sortKey]);
+    },
+  });
 
   return (
     <section className="rounded-xl border border-black/[0.08] bg-black/[0.03] p-4">
+      {/* Header row */}
       <div className="mb-3 flex items-center gap-2">
         <h3 className="zone-header">Block Inspector</h3>
         <span className="text-[10px] text-mm-text-dim">({blocks.length} total)</span>
+
         <input
           type="text"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter…"
+          value={globalFilter}
+          onChange={(e) => setGlobalFilter(e.target.value)}
+          placeholder="Filter..."
           className="form-input ml-auto max-w-xs"
         />
-        <select
-          value={sortKey}
-          onChange={(e) => setSortKey(e.target.value as SortKey)}
-          className="form-input max-w-[120px]"
-        >
-          <option value="fair">|fair|</option>
-          <option value="edge">|edge|</option>
-          <option value="var">variance</option>
-          <option value="block">name</option>
-        </select>
+
+        {/* Column visibility toggle */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setColMenuOpen((o) => !o)}
+            className="form-input flex items-center gap-1 text-[10px]"
+            title="Toggle columns"
+          >
+            Columns
+            <span className="text-[8px]">{colMenuOpen ? "\u25B2" : "\u25BC"}</span>
+          </button>
+          {colMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setColMenuOpen(false)} />
+              <div className="absolute right-0 top-full z-50 mt-1 max-h-64 w-48 overflow-y-auto rounded-lg border border-black/[0.08] bg-white p-2 shadow-lg">
+                {table.getAllLeafColumns().map((column) => (
+                  <label key={column.id} className="flex items-center gap-2 py-0.5 text-[10px]">
+                    <input
+                      type="checkbox"
+                      checked={column.getIsVisible()}
+                      onChange={column.getToggleVisibilityHandler()}
+                      className="accent-mm-accent"
+                    />
+                    {typeof column.columnDef.header === "string"
+                      ? column.columnDef.header
+                      : column.id}
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
         {headerAction}
       </div>
 
@@ -118,89 +294,52 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey }: Prop
       )}
 
       {loading && blocks.length === 0 ? (
-        <p className="text-[11px] text-mm-text-dim">Loading blocks…</p>
+        <p className="text-[11px] text-mm-text-dim">Loading blocks...</p>
       ) : (
         <div className="overflow-auto rounded-lg border border-black/[0.06]">
           <table className="w-full border-collapse text-[10px]">
             <thead className="bg-black/[0.03] text-mm-text-dim">
-              <tr>
-                <Th>Block</Th>
-                <Th>Source</Th>
-                <Th>Stream</Th>
-                <Th>Symbol</Th>
-                <Th>Expiry</Th>
-                <Th>Space</Th>
-                <Th align="right">Fair</Th>
-                <Th align="right">Market Fair</Th>
-                <Th align="right">Edge</Th>
-                <Th align="right">Variance</Th>
-              </tr>
+              {table.getHeaderGroups().map((hg) => (
+                <tr key={hg.id}>
+                  {hg.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className={`cursor-pointer select-none px-2 py-1.5 font-medium text-left ${
+                        header.column.getCanSort() ? "hover:text-mm-text" : ""
+                      }`}
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      <span className="flex items-center gap-1">
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {{ asc: " \u2191", desc: " \u2193" }[
+                          header.column.getIsSorted() as string
+                        ] ?? ""}
+                      </span>
+                    </th>
+                  ))}
+                </tr>
+              ))}
             </thead>
             <tbody>
-              {sorted.map((b) => {
-                const fair = b.fair ?? 0;
-                const marketFair = b.market_fair ?? 0;
-                const edge = fair - marketFair;
-                const variance = b.var ?? 0;
-                return (
-                  <tr
-                    key={b.block_name}
-                    className="border-t border-black/[0.03] transition-colors hover:bg-mm-accent/5"
-                  >
-                    <Td className="font-medium text-mm-text">{b.block_name}</Td>
-                    <Td>
-                      <span
-                        className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${
-                          b.source === "manual"
-                            ? "bg-mm-warn/15 text-mm-warn"
-                            : "bg-mm-accent/10 text-mm-accent"
-                        }`}
-                      >
-                        {b.source}
-                      </span>
-                    </Td>
-                    <Td>{b.stream_name}</Td>
-                    <Td>{b.symbol}</Td>
-                    <Td>{b.expiry}</Td>
-                    <Td>{b.space_id}</Td>
-                    <Td align="right" className="font-mono tabular-nums">{fair.toFixed(4)}</Td>
-                    <Td align="right" className="font-mono tabular-nums">{marketFair.toFixed(4)}</Td>
-                    <Td align="right" className={`font-mono tabular-nums ${valColor(edge)}`}>
-                      {edge >= 0 ? "+" : ""}
-                      {edge.toFixed(4)}
-                    </Td>
-                    <Td align="right" className="font-mono tabular-nums">{variance.toFixed(4)}</Td>
-                  </tr>
-                );
-              })}
+              {table.getRowModel().rows.map((row) => (
+                <tr
+                  key={row.original.block_name}
+                  className={`border-t border-black/[0.03] transition-colors hover:bg-mm-accent/5 ${
+                    onRowClick ? "cursor-pointer" : ""
+                  }`}
+                  onClick={() => onRowClick?.(row.original)}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="px-2 py-1.5">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
     </section>
-  );
-}
-
-function Th({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" }) {
-  return (
-    <th className={`px-2 py-1.5 font-medium ${align === "right" ? "text-right" : "text-left"}`}>
-      {children}
-    </th>
-  );
-}
-
-function Td({
-  children,
-  className = "",
-  align = "left",
-}: {
-  children: React.ReactNode;
-  className?: string;
-  align?: "left" | "right";
-}) {
-  return (
-    <td className={`px-2 py-1.5 ${align === "right" ? "text-right" : "text-left"} ${className}`}>
-      {children}
-    </td>
   );
 }

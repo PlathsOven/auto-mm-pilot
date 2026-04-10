@@ -75,10 +75,11 @@ vol-adjacent signal if the trader has a thesis about the relationship.
 
 ### Engine-Command Format
 
-After the trader confirms all parameters, emit this block exactly:
+After the trader confirms all parameters, emit this fenced code block \
+exactly (the opening fence MUST be ` ```engine-command ` with no space \
+before `engine-command`):
 
-```
-engine-command
+```engine-command
 {
   "action": "create_stream",
   "params": {

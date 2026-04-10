@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { ChatMessage, ChatMode, InvestigationContext } from "../types";
+import type { ChatMessage, ChatMode, InvestigationContext, PendingBlockCommand } from "../types";
 import { streamInvestigation } from "../services/llmApi";
+import { parseAndStripCommands, executeNonInteractiveCommands } from "../services/engineCommands";
 import { createIdGenerator } from "../utils";
 
 interface ChatState {
@@ -11,6 +12,8 @@ interface ChatState {
   /** Whether the global ChatDrawer is currently visible. */
   drawerOpen: boolean;
   chatMode: ChatMode;
+  /** Pending manual-block command awaiting review in BlockDrawer. */
+  pendingBlockCommand: PendingBlockCommand | null;
   setChatMode: (mode: ChatMode) => void;
   sendMessage: (content: string) => void;
   investigate: (ctx: InvestigationContext) => void;
@@ -19,6 +22,7 @@ interface ChatState {
   openDrawer: () => void;
   closeDrawer: () => void;
   toggleDrawer: () => void;
+  clearPendingBlockCommand: () => void;
 }
 
 const ChatContext = createContext<ChatState>({
@@ -27,6 +31,7 @@ const ChatContext = createContext<ChatState>({
   isStreaming: false,
   drawerOpen: false,
   chatMode: "investigate",
+  pendingBlockCommand: null,
   setChatMode: () => {},
   sendMessage: () => {},
   investigate: () => {},
@@ -35,6 +40,7 @@ const ChatContext = createContext<ChatState>({
   openDrawer: () => {},
   closeDrawer: () => {},
   toggleDrawer: () => {},
+  clearPendingBlockCommand: () => {},
 });
 
 export function useChat() {
@@ -50,6 +56,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [chatMode, setChatMode] = useState<ChatMode>("investigate");
+  const [pendingBlockCommand, setPendingBlockCommand] =
+    useState<PendingBlockCommand | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatMessage[]>(messages);
   messagesRef.current = messages;
@@ -57,6 +65,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const toggleDrawer = useCallback(() => setDrawerOpen((v) => !v), []);
+  const clearPendingBlockCommand = useCallback(() => setPendingBlockCommand(null), []);
 
   const pushMessage = useCallback(
     (role: ChatMessage["role"], content: string): string => {
@@ -85,6 +94,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         { id: "", role: "user" as const, content, timestamp: Date.now() },
       ];
       const conversation = recentMessages
+        .filter((m) => m.role !== "system")
         .slice(-20)
         .map((m) => ({
           role: m.role === "assistant" ? "assistant" : "user",
@@ -108,6 +118,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             abortRef.current = null;
             if (!accumulated) {
               updateMessage(assistantId, "No response received from the engine.");
+            } else {
+              const { cleanText, commands } = parseAndStripCommands(accumulated);
+
+              // If commands were stripped, update the displayed message
+              if (commands.length > 0 && cleanText !== accumulated) {
+                const suffix = commands.some((c) => c.action === "create_manual_block")
+                  ? "\n\nReview the pre-filled form and submit when ready."
+                  : "";
+                updateMessage(assistantId, (cleanText || "Preparing your block.") + suffix);
+              }
+
+              // Route create_manual_block → BlockDrawer
+              const blockCmd = commands.find((c) => c.action === "create_manual_block");
+              if (blockCmd) {
+                setPendingBlockCommand({ params: blockCmd.params });
+              }
+
+              // Auto-execute non-interactive commands (create_stream, etc.)
+              executeNonInteractiveCommands(commands).then((results) => {
+                for (const msg of results) {
+                  pushMessage("system", msg);
+                }
+              });
             }
           },
           onError: (error) => {
@@ -155,6 +188,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         isStreaming,
         drawerOpen,
         chatMode,
+        pendingBlockCommand,
         setChatMode,
         sendMessage,
         investigate,
@@ -163,6 +197,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         openDrawer,
         closeDrawer,
         toggleDrawer,
+        clearPendingBlockCommand,
       }}
     >
       {children}

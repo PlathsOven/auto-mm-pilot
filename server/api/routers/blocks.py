@@ -188,6 +188,11 @@ async def create_manual_block(req: ManualBlockRequest) -> BlockRowResponse:
             await rerun_and_broadcast(stream_configs)
         except Exception as exc:
             log.exception("Pipeline re-run failed after manual block creation")
+            # Clean up the partially-created stream so a retry doesn't 409.
+            try:
+                registry.delete(req.stream_name)
+            except KeyError:
+                pass
             raise HTTPException(
                 status_code=500,
                 detail=f"Block registered but pipeline re-run failed: {exc}",

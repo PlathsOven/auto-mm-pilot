@@ -62,6 +62,17 @@ export function LlmChat() {
         )}
 
         {messages.map((msg) => {
+          if (msg.role === "system") {
+            return (
+              <div
+                key={msg.id}
+                className="rounded-md bg-black/[0.02] px-3 py-1.5 text-[10px] leading-relaxed text-mm-text-subtle"
+              >
+                {msg.content}
+              </div>
+            );
+          }
+
           const isApt = msg.role === "assistant";
 
           return (

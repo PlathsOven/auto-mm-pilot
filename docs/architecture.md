@@ -59,7 +59,9 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `client/ui/src/components/DesiredPositionGrid.tsx` | Zone C — clickable cells push context to LlmChat |
 | `client/ui/src/components/UpdatesFeed.tsx` | Zone D — position-change cards with stream attribution |
 | `client/ui/src/components/PipelineChart.tsx` | Pipeline Analysis container — delegates to `PipelineChart/chartOptions.ts` (ECharts config) and `PipelineChart/DecompositionSidebar.tsx` |
-| `client/ui/src/components/studio/brain/EditableBlockTable.tsx` | Block Configuration panel — TanStack Table with inline editing, manual block creation |
+| `client/ui/src/components/studio/brain/EditableBlockTable.tsx` | Block Inspector — TanStack Table with column visibility, multi-sort, global filter, row click to open detail drawer |
+| `client/ui/src/components/studio/brain/BlockDrawer.tsx` | Unified block drawer — create (empty or LLM-prefilled), edit (manual blocks), inspect (stream blocks) |
+| `client/ui/src/services/engineCommands.ts` | Engine-command parser + executor — strips `engine-command` fenced blocks from LLM text, routes to BlockDrawer or auto-executes |
 | `client/ui/src/components/GlobalContextBar.tsx` | Zone B — global context header |
 | `client/ui/src/components/floor/StreamStatusList.tsx` | Floor read-only stream registry/health |
 | `client/ui/src/components/studio/StreamLibrary.tsx` | Studio — stream CRUD |
@@ -86,8 +88,8 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `server/api/llm/prompts/core.py` | Shared core: role, framework, language rules, hard constraints, response discipline |
 | `server/api/llm/prompts/investigation.py` | Investigation mode: reasoning protocol, data sections, engine commands |
 | `server/api/llm/prompts/general.py` | General mode: catch-all conversational, minimal engine summary |
-| `server/api/llm/prompts/configure.py` | Configure mode: stream onboarding guidance (stub) |
-| `server/api/llm/prompts/opinion.py` | Opinion mode: discretionary view → manual block (stub) |
+| `server/api/llm/prompts/configure.py` | Configure mode: stream onboarding guidance, engine-command emit format |
+| `server/api/llm/prompts/opinion.py` | Opinion mode: discretionary view → manual block via engine-command |
 | `server/api/llm/test_investigation.py` | **CLI harness, not prod code** — interactive test for Zone E investigation LLM with mock pipeline data |
 | `server/core/__init__.py` | Core pipeline package — re-exports public API (HUMAN ONLY) |
 | `server/core/config.py` | `BlockConfig`, `StreamConfig` dataclasses, `SECONDS_PER_YEAR` (HUMAN ONLY) |

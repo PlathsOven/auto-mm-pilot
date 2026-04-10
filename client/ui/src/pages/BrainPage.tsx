@@ -1,36 +1,49 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { PipelineChart } from "../components/PipelineChart";
 import { EditableBlockTable } from "../components/studio/brain/EditableBlockTable";
-import { AddBlockDrawer } from "../components/studio/brain/AddBlockDrawer";
+import { BlockDrawer, type DrawerMode } from "../components/studio/brain/BlockDrawer";
+import type { BlockRow } from "../types";
 
 /**
- * Studio → Brain.
+ * Studio -> Brain.
  *
  * "What is the pipeline currently thinking?" — two stacked sections
  * showing the output of the currently-configured pipeline:
  *
  *   1. **Pipeline time series** — the existing PipelineChart (edge, variance,
  *      smoothed position over time) for the focused dimension.
- *   2. **Block inspector** — every block in the pipeline. The "Add manual
- *      block" button opens a drawer that calls `createManualBlock` for
- *      architects who want to drop a one-off block into the pipeline.
- *
- * The previous top-level Decomposition section was removed because the
- * same information is already available as a hover-card on Floor cells
- * (`StreamAttributionHoverCard`) for quick inspection, and the full
- * breakdown lives inside `PipelineChart`'s left sidebar.
+ *   2. **Block inspector** — every block in the pipeline with column
+ *      visibility, sorting, and filtering via TanStack Table. Clicking a
+ *      row opens a detail drawer (editable for manual blocks, read-only
+ *      for stream blocks). The "Add manual block" button opens the drawer
+ *      in create mode.
  */
 export function BrainPage() {
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const openDrawer = () => setDrawerOpen(true);
-  const closeDrawer = () => setDrawerOpen(false);
-  const onBlockCreated = () => setRefreshKey((k) => k + 1);
+  // Drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
+  const [selectedBlock, setSelectedBlock] = useState<BlockRow | null>(null);
+
+  const openCreate = useCallback(() => {
+    setDrawerMode("create");
+    setSelectedBlock(null);
+    setDrawerOpen(true);
+  }, []);
+
+  const onRowClick = useCallback((block: BlockRow) => {
+    setSelectedBlock(block);
+    setDrawerMode(block.source === "manual" ? "edit" : "inspect");
+    setDrawerOpen(true);
+  }, []);
+
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const onSaved = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   // ECharts (inside PipelineChart) measures its container at mount-time.
   // When BrainPage mounts as a sub-tab — without a full page reload — the
-  // chart sometimes captures a transitional 0×0 layout from React's render
+  // chart sometimes captures a transitional 0x0 layout from React's render
   // batch and stays stuck there. Dispatch a synthetic resize twice (once
   // after the next paint, once after a short delay) to nudge ECharts and
   // any other ResizeObserver consumers to remeasure once the real layout
@@ -66,10 +79,11 @@ export function BrainPage() {
 
       <EditableBlockTable
         refreshKey={refreshKey}
+        onRowClick={onRowClick}
         headerAction={
           <button
             type="button"
-            onClick={openDrawer}
+            onClick={openCreate}
             className="rounded-lg bg-mm-accent px-3 py-1 text-[10px] font-semibold text-white transition-colors hover:bg-mm-accent/90"
           >
             + Add manual block
@@ -77,7 +91,13 @@ export function BrainPage() {
         }
       />
 
-      <AddBlockDrawer open={drawerOpen} onClose={closeDrawer} onCreated={onBlockCreated} />
+      <BlockDrawer
+        open={drawerOpen}
+        mode={drawerMode}
+        block={selectedBlock}
+        onClose={closeDrawer}
+        onSaved={onSaved}
+      />
     </div>
   );
 }

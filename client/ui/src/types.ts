@@ -84,9 +84,20 @@ export type InvestigationContext =
 /** A single message in the LLM chat */
 export interface ChatMessage {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   timestamp: number;
+}
+
+/** Parsed engine command from LLM response */
+export interface EngineCommand {
+  action: "create_manual_block" | "create_stream";
+  params: Record<string, unknown>;
+}
+
+/** Pending manual-block command awaiting user review in the BlockDrawer */
+export interface PendingBlockCommand {
+  params: Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------

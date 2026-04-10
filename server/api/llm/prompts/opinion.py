@@ -65,10 +65,11 @@ average). Want to proceed, or update the existing one?"
 
 ### Engine-Command Format
 
-After the trader confirms all parameters, emit this block exactly:
+After the trader confirms all parameters, emit this fenced code block \
+exactly (the opening fence MUST be ` ```engine-command ` with no space \
+before `engine-command`):
 
-```
-engine-command
+```engine-command
 {
   "action": "create_manual_block",
   "params": {

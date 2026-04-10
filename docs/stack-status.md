@@ -27,9 +27,11 @@
 | **WS Ticker** | `server/api/ws.py` | `PROD` | Engine State Provider | Singleton background ticker broadcasts pipeline ticks to WS clients |
 | **Client WS Endpoint** | `server/api/client_ws.py` | `PROD` | WS Ticker, Stream Registry, Client WS Auth | Auth-gated `/ws/client` — inbound snapshots with ACK, outbound positions via broadcast |
 | **Client WS Auth** | `server/api/client_ws_auth.py` | `PROD` | `CLIENT_WS_API_KEY`, `CLIENT_WS_ALLOWED_IPS` env vars | API key + IP whitelist gate |
-| **OpenRouter Client** | `server/api/llm/client.py` | `PROD` | `OPENROUTER_API_KEY` env var | Async httpx, fallback model chain |
+| **OpenRouter Client** | `server/api/llm/client.py` | `PROD` | `OPENROUTER_API_KEY` env var | Async httpx, fallback model chain, `<think>` tag stripping |
 | **LLM Service** | `server/api/llm/service.py` | `PROD` | OpenRouter Client, Prompts, Engine State | Investigation (stream) |
 | **Investigation Prompt** | `server/api/llm/prompts/investigation.py` | `PROD` | — | System prompt for Zone E |
+| **Configure Prompt** | `server/api/llm/prompts/configure.py` | `PROD` | — | Stream onboarding guidance, engine-command emit format |
+| **Opinion Prompt** | `server/api/llm/prompts/opinion.py` | `PROD` | — | Discretionary view → manual block via engine-command |
 | **Shared Preamble** | `server/api/llm/prompts/preamble.py` | `PROD` | — | IP protection, language rules |
 | **Snapshot Buffer** | `server/api/llm/snapshot_buffer.py` | `PROD` | — | Ring buffer + delta table builder |
 | **Stream Context DB** | `server/api/llm/context_db.py` | `MOCK` | — | Hardcoded stream metadata; will be client-contributed via API |
@@ -50,7 +52,9 @@
 | **LLM API Client** | `client/ui/src/services/llmApi.ts` | `PROD` | FastAPI App | HTTP client for `/api/investigate` |
 | **Desired Position Grid** | `client/ui/src/components/DesiredPositionGrid.tsx` | `PROD` | WebSocket Provider, Chat Provider | Zone C — clickable cells push context |
 | **Updates Feed** | `client/ui/src/components/UpdatesFeed.tsx` | `PROD` | WebSocket Provider | Zone D — position-change cards with stream attribution |
-| **Team Chat (LLM Chat)** | `client/ui/src/components/LlmChat.tsx` | `PROD` | Chat Provider | Zone E — streaming assistant messages |
+| **Team Chat (LLM Chat)** | `client/ui/src/components/LlmChat.tsx` | `PROD` | Chat Provider | Zone E — streaming assistant + system messages |
+| **Block Drawer** | `client/ui/src/components/studio/brain/BlockDrawer.tsx` | `PROD` | Block API | Unified create/edit/inspect drawer, replaces AddBlockDrawer |
+| **Engine Commands** | `client/ui/src/services/engineCommands.ts` | `PROD` | Stream API, Block API | Parses + executes engine-command fenced blocks from LLM responses |
 | ~~Daily Wrap~~ | ~~`client/ui/src/components/DailyWrap.tsx`~~ | — | — | Deleted — will be rebuilt when LLM-generated wrap is ready |
 | **Stream Status List** | `client/ui/src/components/floor/StreamStatusList.tsx` | `PROD` | WebSocket Provider, stream API | Floor read-only stream registry/health (replaces IngestionSidebar) |
 | **Stream Library / Canvas** | `client/ui/src/components/studio/StreamLibrary.tsx`, `StreamCanvas.tsx` | `PROD` | stream API, TransformsProvider | Studio CRUD + activate flow with 7 sections |
