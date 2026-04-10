@@ -9,7 +9,6 @@ import { BlockShapeSection } from "./sections/BlockShapeSection";
 import { AggregationSection } from "./sections/AggregationSection";
 import { ConfidenceSection } from "./sections/ConfidenceSection";
 import { PreviewSection } from "./sections/PreviewSection";
-import { StreamCanvasCopilot } from "./StreamCanvasCopilot";
 import {
   EMPTY_DRAFT,
   validateAll,
@@ -29,7 +28,7 @@ interface Props {
 const WALK_THROUGH_KEY = "apt.studio.walkthrough";
 
 /**
- * The Studio Stream Canvas. Hosts all 7 sections + the LLM co-pilot.
+ * The Studio Stream Canvas. Hosts all 7 sections.
  *
  * State model: a single `StreamDraft` lives in this component. Each section
  * receives its slice + an updater. The Activate button (in PreviewSection)
@@ -51,7 +50,6 @@ export function StreamCanvas({ streamName, templateId }: Props) {
   const [focusedSection, setFocusedSection] = useState<SectionId>("identity");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [copilotOpen, setCopilotOpen] = useState(false);
 
   // Sync stream name draft → registry status
   useEffect(() => {
@@ -82,17 +80,6 @@ export function StreamCanvas({ streamName, templateId }: Props) {
     setDraft((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  const handleCopilotSuggestion = useCallback((partial: Partial<StreamDraft>) => {
-    setDraft((prev) => ({
-      ...prev,
-      ...partial,
-      identity: { ...prev.identity, ...(partial.identity ?? {}) },
-      target_mapping: { ...prev.target_mapping, ...(partial.target_mapping ?? {}) },
-      block_shape: { ...prev.block_shape, ...(partial.block_shape ?? {}) },
-      aggregation: { ...prev.aggregation, ...(partial.aggregation ?? {}) },
-      confidence: { ...prev.confidence, ...(partial.confidence ?? {}) },
-    }));
-  }, []);
 
   const handleCreateStream = async () => {
     if (!draft.identity.stream_name) return;
@@ -139,17 +126,6 @@ export function StreamCanvas({ streamName, templateId }: Props) {
               />
               Walk me through this
             </label>
-            <button
-              type="button"
-              onClick={() => setCopilotOpen((v) => !v)}
-              className={`rounded-md border px-2 py-1 text-[10px] transition-colors ${
-                copilotOpen
-                  ? "border-mm-accent/60 bg-mm-accent/15 text-mm-accent"
-                  : "border-mm-border/40 text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
-              }`}
-            >
-              ✨ Co-pilot
-            </button>
           </div>
         </div>
 
@@ -239,16 +215,6 @@ export function StreamCanvas({ streamName, templateId }: Props) {
           </div>
         </div>
       </div>
-
-      {/* Co-pilot — opt-in pop-out, hidden by default */}
-      {copilotOpen && (
-        <aside className="flex w-[340px] shrink-0 flex-col border-l border-mm-border/60 bg-mm-surface/60">
-          <StreamCanvasCopilot
-            seed={draft.identity.description}
-            onSuggestion={handleCopilotSuggestion}
-          />
-        </aside>
-      )}
     </div>
   );
 }

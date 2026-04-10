@@ -29,10 +29,10 @@ export const TransformNode = memo(function TransformNode({
       // pipeline nodes — without this, narrative text with different line
       // counts shifts the vertical center of each node, and edges fan out
       // at slight angles instead of running straight across the row.
-      className={`flex h-[140px] w-[240px] flex-col gap-1.5 rounded-xl border bg-mm-bg/80 p-3 shadow-sm transition-colors ${
+      className={`flex h-[140px] w-[240px] flex-col gap-1.5 rounded-xl border bg-black/[0.05] p-3 shadow-sm transition-colors ${
         selected
           ? "border-mm-accent/70 ring-2 ring-mm-accent/40 ring-offset-2 ring-offset-mm-bg-deep"
-          : "border-mm-border/60 hover:border-mm-accent/50"
+          : "border-black/[0.08] hover:border-mm-accent/50"
       }`}
     >
       <div className="flex items-center gap-2">
@@ -43,7 +43,7 @@ export const TransformNode = memo(function TransformNode({
         {saving && <span className="ml-auto text-[9px] text-mm-text-dim">saving…</span>}
       </div>
       <div>
-        <span className="inline-block rounded bg-mm-accent/15 px-1.5 py-0.5 font-mono text-[9px] text-mm-accent">
+        <span className="inline-block rounded bg-mm-accent/10 px-1.5 py-0.5 font-mono text-[9px] text-mm-accent">
           {selectedImpl}
         </span>
       </div>

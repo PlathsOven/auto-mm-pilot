@@ -56,6 +56,19 @@ CLIENT_WS_ALLOWED_IPS: str = os.environ.get("CLIENT_WS_ALLOWED_IPS", "")
 # ── Application mode ─────────────────────────────────────────────────────
 APT_MODE: str = os.environ.get("APT_MODE", "mock").lower()
 
+# ── WebSocket ticker ─────────────────────────────────────────────────────
+
+# How often (in real seconds) we push a new tick to clients
+TICK_INTERVAL_SECS: float = 2.0
+
+# Minimum |delta| in smoothed_desired_position required to emit an UpdateCard
+UPDATE_THRESHOLD: float = 50.0
+
+# ── OpenRouter HTTP timeouts ─────────────────────────────────────────────
+
+OPENROUTER_TIMEOUT_SECS: float = 30.0
+OPENROUTER_STREAM_TIMEOUT_SECS: float = 60.0
+
 
 @dataclass(frozen=True)
 class OpenRouterConfig:
@@ -74,7 +87,7 @@ class OpenRouterConfig:
     )
 
     # Generation parameters
-    max_tokens_investigation: int = 8196
+    max_tokens_investigation: int = 2048
     temperature_investigation: float = 0.
 
     # Snapshot buffer — controls how much pipeline history the LLM sees.

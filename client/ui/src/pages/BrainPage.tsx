@@ -60,7 +60,7 @@ export function BrainPage() {
       {/* Explicit height so PipelineChart's h-full has something to resolve
           against. Without this the chart renders at 0px on initial mount and
           only recovers on a window resize or full page reload. */}
-      <section className="h-[520px] shrink-0 overflow-hidden rounded-xl border border-mm-border/60 bg-mm-bg/40">
+      <section className="h-[520px] shrink-0 overflow-hidden rounded-xl border border-black/[0.08] bg-black/[0.03]">
         <PipelineChart />
       </section>
 

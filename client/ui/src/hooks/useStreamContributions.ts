@@ -31,12 +31,12 @@ function buildContributions(
 ): StreamContribution[] {
   return blocks
     .map<StreamContribution>((b) => {
-      const edge = b.fair - b.market_fair;
+      const edge = b.fair - b.marketFair;
       return {
-        blockName: b.block_name,
-        spaceId: b.space_id,
+        blockName: b.blockName,
+        spaceId: b.spaceId,
         fair: b.fair,
-        marketFair: b.market_fair,
+        marketFair: b.marketFair,
         variance: b.var,
         edge,
         magnitude: Math.abs(edge),
@@ -63,7 +63,7 @@ const INITIAL: State = { loading: false, contributions: null, error: null };
  * in-flight request when the cell changes or component unmounts.
  */
 export function useStreamContributions(
-  cell: { asset: string; expiry: string } | null,
+  cell: { symbol: string; expiry: string } | null,
 ): State {
   const [state, setState] = useState<State>(INITIAL);
   const lastKeyRef = useRef<string | null>(null);
@@ -75,7 +75,7 @@ export function useStreamContributions(
       return;
     }
 
-    const key = cacheKey(cell.asset, cell.expiry);
+    const key = cacheKey(cell.symbol, cell.expiry);
     const now = Date.now();
 
     // Cache hit
@@ -90,10 +90,11 @@ export function useStreamContributions(
     const controller = new AbortController();
     setState({ loading: true, contributions: null, error: null });
 
-    fetchTimeSeries(cell.asset, cell.expiry, controller.signal)
+    fetchTimeSeries(cell.symbol, cell.expiry, controller.signal)
       .then((res) => {
-        if (lastKeyRef.current !== key) return; // stale response
-        const contributions = buildContributions(res.current_decomposition.blocks);
+        if (controller.signal.aborted) return;
+        if (lastKeyRef.current !== key) return;
+        const contributions = buildContributions(res.currentDecomposition.blocks);
         cache.set(key, { fetchedAt: Date.now(), contributions });
         setState({ loading: false, contributions, error: null });
       })
@@ -108,7 +109,7 @@ export function useStreamContributions(
       });
 
     return () => controller.abort();
-  }, [cell?.asset, cell?.expiry]);
+  }, [cell?.symbol, cell?.expiry]);
 
   return state;
 }

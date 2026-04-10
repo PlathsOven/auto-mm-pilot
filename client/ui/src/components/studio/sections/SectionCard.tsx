@@ -48,8 +48,8 @@ export function SectionCard({
 
   return (
     <section
-      className={`rounded-xl border bg-mm-bg/40 transition-opacity ${
-        dimmed ? "border-mm-border/20 opacity-30" : "border-mm-border/60 opacity-100"
+      className={`rounded-xl border bg-black/[0.03] transition-opacity ${
+        dimmed ? "border-black/[0.03] opacity-30" : "border-black/[0.08] opacity-100"
       }`}
     >
       <header
@@ -72,13 +72,13 @@ export function SectionCard({
       </header>
 
       {open && (
-        <div className="border-t border-mm-border/30 px-4 pb-4 pt-3">
+        <div className="border-t border-black/[0.04] px-4 pb-4 pt-3">
           {message && status !== "valid" && (
             <p className="mb-2 text-[10px] text-mm-warn">{message}</p>
           )}
           {children}
           {mathDisclosure && (
-            <div className="mt-3 border-t border-mm-border/30 pt-2">
+            <div className="mt-3 border-t border-black/[0.04] pt-2">
               <button
                 type="button"
                 onClick={() => setMathOpen((v) => !v)}
@@ -87,7 +87,7 @@ export function SectionCard({
                 {mathOpen ? "Hide math" : "Show me the math"}
               </button>
               {mathOpen && (
-                <div className="mt-2 rounded-md bg-mm-bg-deep/80 p-2 text-[10px] text-mm-text-dim">
+                <div className="mt-2 rounded-md bg-black/[0.04] p-2 text-[10px] text-mm-text-dim">
                   {mathDisclosure}
                 </div>
               )}

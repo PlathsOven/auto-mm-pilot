@@ -52,8 +52,8 @@ export function OnboardingFlow() {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="relative w-[600px] max-w-[90vw] overflow-hidden rounded-2xl border border-mm-border/60 bg-mm-surface shadow-2xl shadow-black/60">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/20 backdrop-blur-sm">
+      <div className="relative w-[600px] max-w-[90vw] overflow-hidden rounded-xl border border-white/50 bg-white/85 shadow-xl shadow-black/[0.08] ring-1 ring-black/[0.06]" style={{ backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)" }}>
         <div className="flex flex-col px-8 py-8">
           <h2 className="text-base font-semibold text-mm-accent">{card.heading}</h2>
           <div className="mt-2 text-xs leading-relaxed text-mm-text-dim">{card.body}</div>
@@ -84,12 +84,12 @@ export function OnboardingFlow() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-mm-border/40 bg-mm-bg/40 px-4 py-2 text-[10px] text-mm-text-dim">
+        <div className="flex items-center justify-between border-t border-black/[0.06] bg-black/[0.03] px-4 py-2 text-[10px] text-mm-text-dim">
           <span>{card.label}</span>
           <button
             type="button"
             onClick={finish}
-            className="rounded px-2 py-0.5 transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+            className="rounded px-2 py-0.5 transition-colors hover:bg-black/[0.04] hover:text-mm-text"
           >
             Skip onboarding
           </button>
@@ -103,7 +103,7 @@ export function OnboardingFlow() {
 // Pipeline diagram (shared visual)
 // ---------------------------------------------------------------------------
 
-const ACCENT = "#818cf8"; // mm-accent
+const ACCENT = "#4f5bd5"; // mm-accent
 const DIM = "#3f3f46"; // mm-border, slightly lifted for visibility
 
 /**
@@ -219,8 +219,8 @@ function DiagramBox({
   dashed?: boolean;
 }) {
   const borderStyle = dashed ? "border-dashed" : "border-solid";
-  const litCls = "border-mm-accent bg-mm-accent/10 text-mm-accent shadow-[0_0_16px_-4px_rgba(129,140,248,0.45)]";
-  const dimCls = "border-mm-border bg-mm-bg-deep/50 text-mm-text-dim opacity-40";
+  const litCls = "border-mm-accent bg-mm-accent/10 text-mm-accent shadow-[0_0_16px_-4px_rgba(79,91,213,0.30)]";
+  const dimCls = "border-black/[0.06] bg-black/[0.03] text-mm-text-dim opacity-40";
   return (
     <div
       className={`absolute flex h-[60px] w-[120px] flex-col items-center justify-center rounded-lg border transition-all duration-300 ${borderStyle} ${

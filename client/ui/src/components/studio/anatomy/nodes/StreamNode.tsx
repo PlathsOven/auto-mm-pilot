@@ -34,10 +34,10 @@ export const StreamNode = memo(function StreamNode({
   const { streamName, status, keyCols } = data as StreamNodeData;
   return (
     <div
-      className={`flex w-[200px] flex-col gap-1 rounded-xl border bg-mm-bg/80 p-3 shadow-sm transition-colors ${
+      className={`flex w-[200px] flex-col gap-1 rounded-xl border bg-black/[0.05] p-3 shadow-sm transition-colors ${
         selected
           ? "border-mm-accent/70 ring-2 ring-mm-accent/40"
-          : "border-mm-border/60 hover:border-mm-accent/50"
+          : "border-black/[0.08] hover:border-mm-accent/50"
       }`}
     >
       <div className="flex items-center gap-2">

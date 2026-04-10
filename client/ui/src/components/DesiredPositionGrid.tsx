@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useWebSocket } from "../providers/WebSocketProvider";
 import { useChat } from "../providers/ChatProvider";
 import { valColor, cellBg } from "../utils";
@@ -8,22 +8,20 @@ import {
   TIMEFRAME_OPTIONS,
   PRIMARY_VIEW_MODES,
   SECONDARY_VIEW_MODES,
-  getCellValue,
+  type ViewMode,
+  type TimeframeLabel,
 } from "./grid-config";
-import type { ViewMode, TimeframeLabel } from "./grid-config";
-import type { DesiredPosition } from "../types";
 import { usePositionHistory } from "../hooks/usePositionHistory";
+import { usePositionEdit } from "../hooks/usePositionEdit";
+import { usePositionHover } from "../hooks/usePositionHover";
 import { StreamAttributionHoverCard } from "./floor/StreamAttributionHoverCard";
-
-interface PendingEdit {
-  key: string;
-  asset: string;
-  expiry: string;
-  value: string;
-  aptValue: number;
-}
-
-const HOVER_DELAY_MS = 350;
+import {
+  computeRowTotal,
+  computeColTotal,
+  computeGrandTotal,
+  TotalCell,
+  OverrideStatusBar,
+} from "./grid-helpers";
 
 export function DesiredPositionGrid() {
   const { payload } = useWebSocket();
@@ -33,22 +31,19 @@ export function DesiredPositionGrid() {
 
   const [viewMode, setViewMode] = useState<ViewMode>("position");
   const [timeframe, setTimeframe] = useState<TimeframeLabel>("Latest");
-  const [overrides, setOverrides] = useState<Map<string, number>>(new Map());
-  const [pendingEdit, setPendingEdit] = useState<PendingEdit | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [hoverCell, setHoverCell] = useState<{ asset: string; expiry: string; key: string } | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const prevEditKeyRef = useRef<string | null>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
-  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (pendingEdit && inputRef.current && prevEditKeyRef.current !== pendingEdit.key) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-    prevEditKeyRef.current = pendingEdit?.key ?? null;
-  }, [pendingEdit]);
+  const {
+    pendingEdit, setPendingEdit, overrides, inputRef,
+    startEdit, confirmEdit, cancelEdit, removeOverride,
+    getDisplayValue,
+  } = usePositionEdit();
+
+  const { hoverCell, onMouseEnter, onMouseLeave } = usePositionHover();
+
+  // Cancel pending edit when timeframe changes
+  useEffect(() => cancelEdit(), [timeframe, cancelEdit]);
 
   // Close "More" dropdown on outside click
   useEffect(() => {
@@ -62,72 +57,14 @@ export function DesiredPositionGrid() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [moreOpen]);
 
-  // Cleanup hover timer on unmount
-  useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    };
-  }, []);
-
-  const { assets, expiries, grid, recentKeys } = usePositionHistory(positions, timeframe);
-
-  const getDisplayValue = useCallback(
-    (key: string, pos: DesiredPosition, mode: ViewMode, change: number): number => {
-      if (mode === "position" && overrides.has(key)) return overrides.get(key)!;
-      return getCellValue(pos, mode, change);
-    },
-    [overrides],
-  );
-
-  const handleDoubleClick = useCallback(
-    (key: string, asset: string, expiry: string, pos: DesiredPosition) => {
-      if (viewMode !== "position") return;
-      const current = overrides.has(key) ? overrides.get(key)! : pos.desiredPos;
-      setPendingEdit({ key, asset, expiry, value: String(current), aptValue: pos.desiredPos });
-    },
-    [viewMode, overrides],
-  );
-
-  const confirmOverride = useCallback(() => {
-    if (!pendingEdit) return;
-    const parsed = parseFloat(pendingEdit.value);
-    if (isNaN(parsed)) { setPendingEdit(null); return; }
-    setOverrides((prev) => {
-      const next = new Map(prev);
-      next.set(pendingEdit.key, parsed);
-      return next;
-    });
-    setPendingEdit(null);
-  }, [pendingEdit]);
-
-  const cancelEdit = useCallback(() => setPendingEdit(null), []);
-
-  const removeOverride = useCallback((key: string) => {
-    setOverrides((prev) => {
-      const next = new Map(prev);
-      next.delete(key);
-      return next;
-    });
-  }, []);
-
-  const handleMouseEnter = useCallback((asset: string, expiry: string, key: string) => {
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    hoverTimeoutRef.current = setTimeout(() => {
-      setHoverCell({ asset, expiry, key });
-    }, HOVER_DELAY_MS);
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    setHoverCell(null);
-  }, []);
+  const { symbols, expiries, grid, recentKeys } = usePositionHistory(positions, timeframe);
 
   const meta = VIEW_MODE_META[viewMode];
   const secondaryActive = SECONDARY_VIEW_MODES.includes(viewMode);
 
   return (
     <div className="flex h-full flex-col p-4">
-      <div className="mb-3 flex items-center justify-between border-b border-mm-border/40 pb-2">
+      <div className="mb-3 flex items-center justify-between border-b border-black/[0.06] pb-2">
         <div className="flex items-baseline gap-2">
           <h2 className="zone-header">Desired Positions</h2>
           {meta.unit && (
@@ -143,8 +80,8 @@ export function DesiredPositionGrid() {
                   onClick={() => setTimeframe(tf.label)}
                   className={`px-2 py-0.5 text-[10px] transition-colors ${
                     timeframe === tf.label
-                      ? "rounded-md bg-mm-accent/20 text-mm-accent"
-                      : "rounded-md text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+                      ? "rounded-md bg-mm-accent/10 text-mm-accent"
+                      : "rounded-md text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
                   }`}
                 >
                   {tf.label}
@@ -154,15 +91,15 @@ export function DesiredPositionGrid() {
           )}
 
           {/* Primary 4 view modes as a tab strip */}
-          <div className="flex items-center gap-0.5 rounded-lg border border-mm-border/60 bg-mm-bg/60 p-0.5">
+          <div className="flex items-center gap-0.5 rounded-lg border border-black/[0.06] bg-black/[0.03] p-0.5">
             {PRIMARY_VIEW_MODES.map((m) => (
               <button
                 key={m}
                 onClick={() => setViewMode(m)}
                 className={`rounded-md px-2 py-1 text-[10px] font-medium transition-colors ${
                   viewMode === m
-                    ? "bg-mm-accent/15 text-mm-accent"
-                    : "text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+                    ? "bg-mm-accent/10 text-mm-accent"
+                    : "text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
                 }`}
               >
                 {VIEW_MODE_META[m].label}
@@ -176,15 +113,15 @@ export function DesiredPositionGrid() {
               onClick={() => setMoreOpen((v) => !v)}
               className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-medium transition-colors ${
                 secondaryActive
-                  ? "border-mm-accent/40 bg-mm-accent/15 text-mm-accent"
-                  : "border-mm-border/60 bg-mm-bg/60 text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+                  ? "border-mm-accent/30 bg-mm-accent/10 text-mm-accent"
+                  : "border-black/[0.06] bg-black/[0.03] text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
               }`}
             >
               <span>{secondaryActive ? VIEW_MODE_META[viewMode].label : "More"}</span>
-              <span className="text-[8px]">{moreOpen ? "▲" : "▼"}</span>
+              <span className="text-[8px]">{moreOpen ? "\u25B2" : "\u25BC"}</span>
             </button>
             {moreOpen && (
-              <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-lg border border-mm-border/60 bg-mm-surface py-1 shadow-xl shadow-black/30">
+              <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-lg border border-black/[0.06] bg-mm-surface-solid py-1 shadow-lg shadow-black/[0.08]">
                 {SECONDARY_VIEW_MODES.map((m) => (
                   <button
                     key={m}
@@ -213,7 +150,7 @@ export function DesiredPositionGrid() {
         ) : (
           <table className="w-full border-collapse text-[11px]">
             <thead>
-              <tr className="border-b border-mm-border/40 text-[10px] text-mm-text-dim">
+              <tr className="border-b border-black/[0.06] text-[10px] text-mm-text-subtle">
                 <th className="px-2 py-1.5 text-left font-medium" />
                 {expiries.map((exp) => (
                   <th
@@ -227,16 +164,16 @@ export function DesiredPositionGrid() {
               </tr>
             </thead>
             <tbody>
-              {assets.map((asset) => (
+              {symbols.map((symbol) => (
                 <tr
-                  key={asset}
-                  className="border-b border-mm-border/20"
+                  key={symbol}
+                  className="border-b border-black/[0.04]"
                 >
-                  <td className="px-2 py-1.5 text-[11px] font-semibold text-mm-text">
-                    {asset}
+                  <td className="px-3 py-2.5 text-[12px] font-medium text-mm-text">
+                    {symbol}
                   </td>
                   {expiries.map((exp) => {
-                    const key = `${asset}-${exp}`;
+                    const key = `${symbol}-${exp}`;
                     const cell = grid.get(key);
                     if (!cell) return <td key={exp} />;
                     const val = getDisplayValue(key, cell.pos, viewMode, cell.change);
@@ -248,11 +185,11 @@ export function DesiredPositionGrid() {
                     return (
                       <td
                         key={exp}
-                        onClick={() => investigate({ type: "position", asset, expiry: exp, position: cell.pos })}
-                        onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClick(key, asset, exp, cell.pos); }}
-                        onMouseEnter={() => handleMouseEnter(asset, exp, key)}
-                        onMouseLeave={handleMouseLeave}
-                        className={`relative cursor-pointer rounded px-2 py-1.5 text-center text-[11px] tabular-nums transition-colors hover:ring-1 hover:ring-mm-accent/30 ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${isDimensionSelected(asset, exp) ? "channel-highlight-cell" : ""}`}
+                        onClick={() => investigate({ type: "position", symbol, expiry: exp, position: cell.pos })}
+                        onDoubleClick={(e) => { e.stopPropagation(); startEdit(key, symbol, exp, cell.pos, viewMode); }}
+                        onMouseEnter={() => onMouseEnter(symbol, exp, key)}
+                        onMouseLeave={onMouseLeave}
+                        className={`relative cursor-pointer rounded-md px-3 py-2.5 text-center text-[12px] font-medium tabular-nums transition-colors hover:bg-white/80 hover:ring-1 hover:ring-mm-accent/20 ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${isDimensionSelected(symbol, exp) ? "channel-highlight-cell" : ""}`}
                         style={{ backgroundColor: cellBg(val) }}
                       >
                         {isEditing ? (
@@ -262,11 +199,11 @@ export function DesiredPositionGrid() {
                             value={pendingEdit.value}
                             onChange={(e) => setPendingEdit({ ...pendingEdit, value: e.target.value })}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter") confirmOverride();
+                              if (e.key === "Enter") confirmEdit();
                               if (e.key === "Escape") cancelEdit();
                             }}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-full rounded-md bg-mm-bg border border-mm-accent/60 px-1 py-0.5 text-center text-[11px] text-mm-text outline-none tabular-nums focus:ring-1 focus:ring-mm-accent/30"
+                            className="w-full rounded-md border border-mm-accent/30 bg-mm-surface-solid px-1 py-0.5 text-center text-[12px] text-mm-text outline-none tabular-nums focus:ring-1 focus:ring-mm-accent/20"
                           />
                         ) : (
                           <>
@@ -281,35 +218,35 @@ export function DesiredPositionGrid() {
                         {hasOverride && !isEditing && (
                           <button
                             onClick={(e) => { e.stopPropagation(); removeOverride(key); }}
-                            className="absolute left-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-amber-500/30 text-[8px] font-bold text-amber-400 hover:bg-amber-500/50 transition-colors cursor-pointer"
+                            className="absolute left-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-mm-warn/15 text-[8px] font-bold text-mm-warn hover:bg-mm-warn/25 transition-colors cursor-pointer"
                             title="Undo override"
                           >
                             ✕
                           </button>
                         )}
                         {showHover && (
-                          <StreamAttributionHoverCard asset={asset} expiry={exp} />
+                          <StreamAttributionHoverCard symbol={symbol} expiry={exp} />
                         )}
                       </td>
                     );
                   })}
                   <TotalCell
-                    value={computeRowTotal(asset, expiries, grid, getDisplayValue, viewMode)}
+                    value={computeRowTotal(symbol, expiries, grid, getDisplayValue, viewMode)}
                     decimals={meta.decimals}
                   />
                 </tr>
               ))}
-              <tr className="border-t border-mm-border/40">
-                <td className="px-2 py-1.5 text-[11px] font-semibold text-mm-text-dim">Total</td>
+              <tr className="border-t border-black/[0.06]">
+                <td className="px-3 py-2.5 text-[11px] font-medium text-mm-text-dim">Total</td>
                 {expiries.map((exp) => (
                   <TotalCell
                     key={exp}
-                    value={computeColTotal(exp, assets, grid, getDisplayValue, viewMode)}
+                    value={computeColTotal(exp, symbols, grid, getDisplayValue, viewMode)}
                     decimals={meta.decimals}
                   />
                 ))}
                 <TotalCell
-                  value={computeGrandTotal(assets, expiries, grid, getDisplayValue, viewMode)}
+                  value={computeGrandTotal(symbols, expiries, grid, getDisplayValue, viewMode)}
                   decimals={meta.decimals}
                 />
               </tr>
@@ -324,101 +261,8 @@ export function DesiredPositionGrid() {
         decimals={meta.decimals}
         viewMode={viewMode}
         onCancel={cancelEdit}
-        onConfirm={confirmOverride}
+        onConfirm={confirmEdit}
       />
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Totals helpers
-// ---------------------------------------------------------------------------
-
-type DisplayValueFn = (key: string, pos: DesiredPosition, mode: ViewMode, change: number) => number;
-type GridMap = Map<string, { pos: DesiredPosition; change: number }>;
-
-function computeRowTotal(asset: string, expiries: string[], grid: GridMap, getVal: DisplayValueFn, mode: ViewMode): number {
-  return expiries.reduce((sum, exp) => {
-    const k = `${asset}-${exp}`;
-    const cell = grid.get(k);
-    return sum + (cell ? getVal(k, cell.pos, mode, cell.change) : 0);
-  }, 0);
-}
-
-function computeColTotal(expiry: string, assets: string[], grid: GridMap, getVal: DisplayValueFn, mode: ViewMode): number {
-  return assets.reduce((sum, a) => {
-    const k = `${a}-${expiry}`;
-    const cell = grid.get(k);
-    return sum + (cell ? getVal(k, cell.pos, mode, cell.change) : 0);
-  }, 0);
-}
-
-function computeGrandTotal(assets: string[], expiries: string[], grid: GridMap, getVal: DisplayValueFn, mode: ViewMode): number {
-  return assets.reduce((sum, a) =>
-    sum + expiries.reduce((s, exp) => {
-      const k = `${a}-${exp}`;
-      const cell = grid.get(k);
-      return s + (cell ? getVal(k, cell.pos, mode, cell.change) : 0);
-    }, 0), 0);
-}
-
-function TotalCell({ value, decimals }: { value: number; decimals: number }) {
-  return (
-    <td
-      className={`px-2 py-1.5 text-center text-[11px] tabular-nums font-semibold ${valColor(value)}`}
-      style={{ backgroundColor: cellBg(value) }}
-    >
-      {value > 0 ? "+" : ""}
-      {value.toFixed(decimals)}
-    </td>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Override status bar
-// ---------------------------------------------------------------------------
-
-function OverrideStatusBar({
-  pendingEdit,
-  overrideCount,
-  decimals,
-  viewMode,
-  onCancel,
-  onConfirm,
-}: {
-  pendingEdit: PendingEdit | null;
-  overrideCount: number;
-  decimals: number;
-  viewMode: ViewMode;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <>
-      {pendingEdit && (
-        <div className="mt-2 flex items-center justify-between rounded-lg border-t border-mm-border/40 bg-mm-bg/80 px-3 py-2">
-          <span className="text-[10px] text-mm-text">
-            Override <span className="font-semibold">{pendingEdit.asset} {pendingEdit.expiry}</span>:
-            <span className="ml-1 text-mm-text-dim">{pendingEdit.aptValue > 0 ? "+" : ""}{pendingEdit.aptValue.toFixed(decimals)}</span>
-            <span className="mx-1">→</span>
-            <span className="font-semibold text-amber-400">{isNaN(parseFloat(pendingEdit.value)) ? "—" : (parseFloat(pendingEdit.value) > 0 ? "+" : "") + parseFloat(pendingEdit.value).toFixed(decimals)}</span>
-          </span>
-          <div className="flex gap-2">
-            <button onClick={onCancel} className="rounded-md px-2 py-0.5 text-[10px] text-mm-text-dim hover:text-mm-text transition-colors">Cancel</button>
-            <button onClick={onConfirm} className="rounded-md px-2 py-0.5 text-[10px] bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors font-medium">Confirm</button>
-          </div>
-        </div>
-      )}
-
-      {overrideCount > 0 && !pendingEdit && (
-        <p className="mt-1 text-[9px] text-amber-400/70">
-          {overrideCount} override{overrideCount > 1 ? "s" : ""} active — double-click to edit, ✕ to undo.
-        </p>
-      )}
-
-      <p className="mt-1 text-[9px] text-mm-text-dim">
-        {viewMode === "position" ? "Double-click a cell to override. " : ""}Hover for stream attribution.
-      </p>
-    </>
   );
 }

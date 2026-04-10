@@ -21,7 +21,6 @@ Both directions operate simultaneously — no request/response querying required
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 
@@ -31,8 +30,8 @@ from pydantic import ValidationError
 from server.api.client_ws_auth import authenticate_client_ws
 from server.api.models import ClientWsAck, ClientWsError, ClientWsInboundFrame
 from server.api.stream_registry import get_stream_registry
-from server.api.engine_state import rerun_pipeline
-from server.api.ws import get_latest_payload, register_client, restart_ticker, unregister_client
+from server.api.engine_state import rerun_and_broadcast
+from server.api.ws import get_latest_payload, register_client, unregister_client
 
 log = logging.getLogger(__name__)
 
@@ -52,15 +51,16 @@ async def _process_inbound_frame(raw: str, websocket: WebSocket) -> None:
 
         # Ingest into the stream registry (same path as POST /api/snapshots)
         registry = get_stream_registry()
-        accepted = registry.ingest_snapshot(frame.stream_name, frame.rows)
+        accepted = registry.ingest_snapshot(
+            frame.stream_name, [r.model_dump() for r in frame.rows],
+        )
 
         # Re-run pipeline if streams are available
         stream_configs = registry.build_stream_configs()
         pipeline_rerun = False
         if stream_configs:
             try:
-                await asyncio.to_thread(rerun_pipeline, stream_configs)
-                await restart_ticker()
+                await rerun_and_broadcast(stream_configs)
                 pipeline_rerun = True
             except Exception as exc:
                 log.exception("Pipeline re-run failed after client WS snapshot")

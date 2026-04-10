@@ -20,7 +20,7 @@ export default function App() {
   const Page = MODE_PAGES[mode];
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-mm-bg-deep">
+    <div className="flex h-screen flex-col overflow-hidden bg-mm-bg">
       <header className="relative z-50 shrink-0">
         <GlobalContextBar />
       </header>

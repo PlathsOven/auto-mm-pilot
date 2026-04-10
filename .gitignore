@@ -44,5 +44,10 @@ server/api/llm/test_data/
 *.log
 npm-debug.log*
 
-# LLM
-.claude/
+# LLM harness — version-controlled config only; session state stays ignored
+.claude/*
+!.claude/commands/
+!.claude/commands/*.md
+!.claude/hooks/
+!.claude/hooks/*.sh
+!.claude/settings.json

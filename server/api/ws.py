@@ -20,16 +20,10 @@ from typing import Any
 import polars as pl
 from fastapi import WebSocket, WebSocketDisconnect
 
-from server.api.config import APT_MODE
+from server.api.config import APT_MODE, TICK_INTERVAL_SECS, UPDATE_THRESHOLD
 from server.api.engine_state import get_pipeline_results
 
 log = logging.getLogger(__name__)
-
-# How often (in real seconds) we push a new tick to clients
-TICK_INTERVAL_SECS: float = 2.0
-
-# Minimum |delta| in smoothed_desired_position to emit an UpdateCard
-UPDATE_THRESHOLD: float = 50.0
 
 
 # ---------------------------------------------------------------------------
@@ -70,7 +64,7 @@ def _positions_at_tick(
         # `desiredPos` / `rawDesiredPos` stay rounded at 2dp — that's display
         # precision, and the UI uses it as the authoritative cell value.
         positions.append({
-            "asset": row["symbol"],
+            "symbol": row["symbol"],
             "expiry": _format_expiry(row["expiry"]),
             "edge": row.get("edge", 0.0),
             "smoothedEdge": row.get("smoothed_edge", 0.0),
@@ -96,13 +90,13 @@ def _updates_from_diff(
     """Generate UpdateCards for positions whose desired changed significantly."""
     updates: list[dict[str, Any]] = []
     for pos in positions:
-        key = f"{pos['asset']}-{pos['expiry']}"
+        key = f"{pos['symbol']}-{pos['expiry']}"
         prev = prev_positions.get(key, pos["desiredPos"])
         delta = pos["desiredPos"] - prev
         if abs(delta) >= UPDATE_THRESHOLD:
             updates.append({
                 "id": f"update-{tick_index}-{key}",
-                "asset": pos["asset"],
+                "symbol": pos["symbol"],
                 "expiry": pos["expiry"],
                 "oldPos": round(prev, 2),
                 "newPos": pos["desiredPos"],
@@ -175,7 +169,10 @@ async def _broadcast(payload: str) -> None:
     for ws in _clients:
         try:
             await ws.send_text(payload)
-        except Exception:
+        except WebSocketDisconnect:
+            disconnected.append(ws)
+        except Exception as exc:
+            log.debug("WS broadcast error for client: %s", type(exc).__name__)
             disconnected.append(ws)
     for ws in disconnected:
         _clients.discard(ws)
@@ -208,7 +205,7 @@ async def _run_ticker_mock(
         _latest_payload = json.dumps(payload_dict)
 
         for pos in positions:
-            key = f"{pos['asset']}-{pos['expiry']}"
+            key = f"{pos['symbol']}-{pos['expiry']}"
             prev_positions[key] = pos["desiredPos"]
 
         ts_ms = int(ts.timestamp() * 1000)
@@ -264,7 +261,7 @@ async def _run_ticker_prod(
         if ts_idx != last_ts_idx:
             updates = _updates_from_diff(positions, prev_positions, tick_count)
             for pos in positions:
-                key = f"{pos['asset']}-{pos['expiry']}"
+                key = f"{pos['symbol']}-{pos['expiry']}"
                 prev_positions[key] = pos["desiredPos"]
             last_ts_idx = ts_idx
 

@@ -4,9 +4,43 @@ Pydantic request / response models for the stream & snapshot ingestion API.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal, Union
+
+# Re-usable type alias — also defined in prompts/__init__.py for internal use.
+ChatMode = Literal["investigate", "configure", "opinion", "general"]
 
 from pydantic import BaseModel, Field
+
+
+# ---------------------------------------------------------------------------
+# Shared submodels (used across endpoints)
+# ---------------------------------------------------------------------------
+
+class SnapshotRow(BaseModel):
+    """One row of a snapshot ingestion payload.
+
+    Extra keys are permitted because the set of ``key_cols`` varies per
+    stream — the server validates the required set at ingestion time in
+    ``stream_registry.ingest_snapshot``. Everything else (timestamp,
+    raw_value) is statically required.
+    """
+    model_config = {"extra": "allow"}
+
+    timestamp: str = Field(..., description="ISO 8601 timestamp")
+    raw_value: float = Field(..., description="Raw measurement value")
+
+
+class CellContext(BaseModel):
+    """Cell context forwarded to the LLM investigation endpoint.
+
+    Mirrors ``InvestigationContext`` in ``client/ui/src/types.ts``. The
+    discriminated ``type`` field distinguishes between a card click and a
+    cell click; the remaining shape is passed through unchanged because
+    it duplicates fields already validated on the client side.
+    """
+    model_config = {"extra": "allow"}
+
+    type: Literal["update", "position"]
 
 
 # ---------------------------------------------------------------------------
@@ -18,9 +52,13 @@ class InvestigateRequest(BaseModel):
         ...,
         description="OpenAI-style message array: [{role, content}, ...]",
     )
-    cell_context: dict[str, Any] | None = Field(
+    cell_context: CellContext | None = Field(
         default=None,
         description="Optional cell/card context clicked by the user",
+    )
+    mode: ChatMode = Field(
+        default="investigate",
+        description="Chat mode — controls which prompt modules the server uses",
     )
 
 
@@ -82,7 +120,7 @@ class StreamListResponse(BaseModel):
 class SnapshotRequest(BaseModel):
     """Client pushes new snapshot rows for a READY stream."""
     stream_name: str = Field(..., min_length=1)
-    rows: list[dict[str, Any]] = Field(
+    rows: list[SnapshotRow] = Field(
         ...,
         min_length=1,
         description=(
@@ -181,7 +219,7 @@ class ManualBlockRequest(BaseModel):
     offset: float = Field(0.0, description="Additive offset")
     exponent: float = Field(1.0, description="Power exponent")
     block: BlockConfigPayload = Field(default_factory=BlockConfigPayload)
-    snapshot_rows: list[dict[str, Any]] = Field(
+    snapshot_rows: list[SnapshotRow] = Field(
         ...,
         min_length=1,
         description="Snapshot rows with timestamp, raw_value, and all key_cols",
@@ -198,7 +236,7 @@ class UpdateBlockRequest(BaseModel):
     offset: float | None = None
     exponent: float | None = None
     block: BlockConfigPayload | None = None
-    snapshot_rows: list[dict[str, Any]] | None = None
+    snapshot_rows: list[SnapshotRow] | None = None
 
 
 class ClientWsInboundFrame(BaseModel):
@@ -209,7 +247,7 @@ class ClientWsInboundFrame(BaseModel):
     """
     seq: int = Field(..., description="Sequence number — echoed back in ACK")
     stream_name: str = Field(..., min_length=1)
-    rows: list[dict[str, Any]] = Field(
+    rows: list[SnapshotRow] = Field(
         ...,
         min_length=1,
         description=(
@@ -232,6 +270,16 @@ class ClientWsError(BaseModel):
     type: Literal["error"] = "error"
     seq: int | None = Field(None, description="Sequence number if parseable, else null")
     detail: str
+
+
+# Discriminated union for everything the server can send back on /ws/client.
+# The ``type`` literal on each member doubles as the runtime discriminator
+# for any parser that wants to decode an outbound frame without trial-and-
+# error matching (e.g. the client-side adapter, for future use).
+ClientWsOutboundFrame = Annotated[
+    Union[ClientWsAck, ClientWsError],
+    Field(discriminator="type"),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +313,8 @@ class TransformStepResponse(BaseModel):
     label: str
     contract: str
     selected: str
+    # Dynamic shape discovered at runtime from server/core/transforms.py
+    # parameter definitions; cannot be statically typed.
     params: dict[str, Any]
     transforms: list[TransformResponse]
 
@@ -275,7 +325,14 @@ class TransformListResponse(BaseModel):
 
 
 class TransformConfigRequest(BaseModel):
-    """Update transform selections and/or parameter values."""
+    """Update transform selections and/or parameter values.
+
+    The ``*_params`` fields stay as ``dict[str, Any]`` because the valid
+    key set is discovered at runtime from ``server/core/transforms.py``
+    introspection — each transform exposes its own ``params`` schema, and
+    there is no static Python type that covers every possible shape. The
+    runtime validation happens in ``TransformLibrary.set_param_values``.
+    """
     unit_conversion: str | None = None
     unit_conversion_params: dict[str, Any] | None = None
     decay_profile: str | None = None

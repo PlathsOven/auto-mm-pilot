@@ -13,7 +13,7 @@ from typing import Any, AsyncIterator
 from server.api.config import OpenRouterConfig, get_openrouter_config
 from server.api.llm.client import OpenRouterClient
 from server.api.llm.context_db import serialize_stream_contexts
-from server.api.llm.prompts import get_investigation_prompt
+from server.api.llm.prompts import ChatMode, build_system_prompt
 from server.api.llm.snapshot_buffer import SnapshotRingBuffer
 
 
@@ -37,12 +37,17 @@ class LlmService:
         pipeline_snapshot: dict[str, Any] | None = None,
         snapshot_buffer: SnapshotRingBuffer | None = None,
         now: datetime | None = None,
+        mode: ChatMode = "investigate",
     ) -> str:
-        """Non-streaming investigation response."""
+        """Non-streaming response for any chat mode."""
         stream_contexts = serialize_stream_contexts()
         history_context = self._extract_history(snapshot_buffer, now)
-        system_prompt = get_investigation_prompt(
-            engine_state, stream_contexts, pipeline_snapshot, history_context,
+        system_prompt = build_system_prompt(
+            mode,
+            engine_state=engine_state,
+            stream_contexts_json=stream_contexts,
+            pipeline_snapshot=pipeline_snapshot,
+            history_context=history_context,
         )
         messages = [{"role": "system", "content": system_prompt}, *conversation]
         resp = await self._client.complete_with_fallback(
@@ -61,12 +66,17 @@ class LlmService:
         pipeline_snapshot: dict[str, Any] | None = None,
         snapshot_buffer: SnapshotRingBuffer | None = None,
         now: datetime | None = None,
+        mode: ChatMode = "investigate",
     ) -> AsyncIterator[str]:
-        """Streaming investigation response — yields content deltas."""
+        """Streaming response for any chat mode — yields content deltas."""
         stream_contexts = serialize_stream_contexts()
         history_context = self._extract_history(snapshot_buffer, now)
-        system_prompt = get_investigation_prompt(
-            engine_state, stream_contexts, pipeline_snapshot, history_context,
+        system_prompt = build_system_prompt(
+            mode,
+            engine_state=engine_state,
+            stream_contexts_json=stream_contexts,
+            pipeline_snapshot=pipeline_snapshot,
+            history_context=history_context,
         )
         messages = [{"role": "system", "content": system_prompt}, *conversation]
         async for delta in self._client.stream_with_fallback(

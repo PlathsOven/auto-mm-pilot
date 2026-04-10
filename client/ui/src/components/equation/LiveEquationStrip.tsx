@@ -51,7 +51,7 @@ function XsGlyph({ onClick }: { onClick?: () => void }) {
       <button
         type="button"
         onClick={onClick}
-        className="rounded px-1.5 py-0.5 text-[11px] transition-colors hover:bg-mm-border/30"
+        className="rounded px-1.5 py-0.5 text-[11px] transition-colors hover:bg-black/[0.04]"
       >
         {content}
       </button>
@@ -89,7 +89,7 @@ function MdLgStrip({ size }: { size: "md" | "lg" }) {
     <StripShell size={size}>
       <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="text-[10px] uppercase tracking-wider text-mm-text-dim">
-          {focused.asset} {focused.expiry}
+          {focused.symbol} {focused.expiry}
         </span>
         <span className={`${symbolicSize} font-semibold text-mm-accent`}>
           {rendered.symbolic}
@@ -113,7 +113,7 @@ function StripShell({
   const padding = size === "lg" ? "px-4 py-3" : "px-3 py-2";
   return (
     <div
-      className={`mt-2 flex items-center justify-between gap-3 rounded-lg border border-mm-border/40 bg-mm-bg/60 ${padding}`}
+      className={`mt-2 flex items-center justify-between gap-3 rounded-lg border border-black/[0.06] bg-black/[0.04] ${padding}`}
     >
       {children}
     </div>

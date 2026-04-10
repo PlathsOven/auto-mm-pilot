@@ -43,10 +43,10 @@ export function StreamSidebar({ mode, onOpenList, onOpenCanvas, onClose }: Props
 
   return (
     <aside
-      className="flex h-full shrink-0 flex-col border-r border-mm-border/60 bg-mm-surface/95"
+      className="flex h-full shrink-0 flex-col border-r border-black/[0.08] bg-white/85"
       style={{ width }}
     >
-      <header className="flex shrink-0 items-center justify-between border-b border-mm-border/40 px-4 py-3">
+      <header className="flex shrink-0 items-center justify-between border-b border-black/[0.06] px-4 py-3">
         {mode.kind === "list" && (
           <>
             <div>
@@ -60,7 +60,7 @@ export function StreamSidebar({ mode, onOpenList, onOpenCanvas, onClose }: Props
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+                className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-black/[0.04] hover:text-mm-text"
                 title="Close (Esc)"
               >
                 ✕
@@ -74,7 +74,7 @@ export function StreamSidebar({ mode, onOpenList, onOpenCanvas, onClose }: Props
               <button
                 type="button"
                 onClick={onOpenList}
-                className="rounded-md border border-mm-border/40 px-2 py-1 text-[10px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+                className="rounded-md border border-black/[0.06] px-2 py-1 text-[10px] text-mm-text-dim transition-colors hover:bg-black/[0.04] hover:text-mm-text"
               >
                 ← Streams list
               </button>
@@ -88,7 +88,7 @@ export function StreamSidebar({ mode, onOpenList, onOpenCanvas, onClose }: Props
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+              className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-black/[0.04] hover:text-mm-text"
               title="Close (Esc)"
             >
               ✕
@@ -99,7 +99,7 @@ export function StreamSidebar({ mode, onOpenList, onOpenCanvas, onClose }: Props
 
       {mode.kind === "list" && (
         <>
-          <div className="border-b border-mm-border/40 px-4 py-3">
+          <div className="border-b border-black/[0.06] px-4 py-3">
             <input
               type="text"
               value={filter}

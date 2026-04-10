@@ -37,7 +37,7 @@ export function NodeDetailPanel({
   if (!step) return null;
 
   return (
-    <aside className="flex w-[340px] shrink-0 flex-col gap-3 overflow-y-auto border-l border-mm-border/60 bg-mm-surface/40 p-4">
+    <aside className="flex w-[340px] shrink-0 flex-col gap-3 overflow-y-auto border-l border-black/[0.08] bg-white/45 p-4">
       <TransformDetail
         stepKey={selection.stepKey}
         step={step}
@@ -72,7 +72,7 @@ function TransformDetail({
   const selected = step.transforms.find((t) => t.name === step.selected);
 
   return (
-    <section className="rounded-xl border border-mm-border/60 bg-mm-bg/40 p-4">
+    <section className="rounded-xl border border-black/[0.08] bg-black/[0.03] p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-mm-text">{step.label}</h3>
         <div className="flex items-center gap-2">
@@ -80,7 +80,7 @@ function TransformDetail({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+            className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-black/[0.04] hover:text-mm-text"
             title="Close"
           >
             ✕
@@ -114,7 +114,7 @@ function TransformDetail({
       )}
 
       {selected && selected.params.length > 0 && (
-        <div className="mb-3 flex flex-col gap-2 border-t border-mm-border/30 pt-3">
+        <div className="mb-3 flex flex-col gap-2 border-t border-black/[0.04] pt-3">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-mm-text-dim">
             Parameters
           </span>
@@ -132,14 +132,14 @@ function TransformDetail({
       )}
 
       {selected?.formula && (
-        <div className="mt-2 rounded-md border border-mm-border/40 bg-mm-bg-deep/60 p-2">
+        <div className="mt-2 rounded-md border border-black/[0.06] bg-black/[0.03] p-2">
           <div className="text-[9px] uppercase tracking-wider text-mm-text-dim">Formula</div>
           <div className="mt-0.5 font-mono text-xs text-mm-accent">{selected.formula}</div>
         </div>
       )}
 
       <p
-        className="mt-3 truncate border-t border-mm-border/30 pt-2 font-mono text-[9px] text-mm-text-dim"
+        className="mt-3 truncate border-t border-black/[0.04] pt-2 font-mono text-[9px] text-mm-text-dim"
         title={step.contract}
       >
         {step.contract}
@@ -163,7 +163,7 @@ function ParamInput({
 }) {
   if (param.type === "bool") {
     return (
-      <label className="flex items-center gap-2 rounded-md border border-mm-border/40 bg-mm-bg/40 px-2 py-1.5">
+      <label className="flex items-center gap-2 rounded-md border border-black/[0.06] bg-black/[0.03] px-2 py-1.5">
         <input
           type="checkbox"
           checked={Boolean(value)}

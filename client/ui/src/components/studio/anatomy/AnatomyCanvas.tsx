@@ -6,8 +6,6 @@ import {
   Controls,
   MiniMap,
   useReactFlow,
-  type Node,
-  type Edge,
   type NodeTypes,
   type NodeMouseHandler,
 } from "@xyflow/react";
@@ -15,7 +13,7 @@ import "@xyflow/react/dist/style.css";
 
 import { useTransforms } from "../../../providers/TransformsProvider";
 import { useMode } from "../../../providers/ModeProvider";
-import { useWebSocket } from "../../../providers/WebSocketProvider";
+import { useWebSocketPositionCount } from "../../../providers/WebSocketProvider";
 import { useRegisteredStreams } from "../../../hooks/useRegisteredStreams";
 import { updateTransforms } from "../../../services/transformApi";
 import type { TransformStep } from "../../../types";
@@ -26,31 +24,13 @@ import { OutputNode } from "./nodes/OutputNode";
 import { NodeDetailPanel, type AnatomySelection } from "./NodeDetailPanel";
 import { StreamSidebar, type StreamSidebarMode } from "./StreamSidebar";
 import { PipelineConfigPopover } from "./PipelineConfigPopover";
-import {
-  PIPELINE_ORDER,
-  PIPELINE_EDGES,
-  PIPELINE_NARRATIVE,
-  STEP_NODE_POSITIONS,
-  OUTPUT_NODE_POSITION,
-  STREAM_COLUMN_X,
-  STREAM_ROW_HEIGHT,
-  type StepKey,
-} from "./anatomyGraph";
+import { PIPELINE_ORDER, type StepKey } from "./anatomyGraph";
+import { buildAnatomyGraph } from "./buildAnatomyGraph";
 
 const NODE_TYPES: NodeTypes = {
   stream: StreamNode,
   transform: TransformNode,
   output: OutputNode,
-};
-
-const STEP_LABELS: Record<StepKey, string> = {
-  unit_conversion: "Unit Conversion",
-  decay_profile: "Decay Profile",
-  temporal_fair_value: "Temporal Fair Value",
-  variance: "Variance",
-  aggregation: "Aggregation",
-  position_sizing: "Position Sizing",
-  smoothing: "Smoothing",
 };
 
 /**
@@ -82,22 +62,16 @@ export function AnatomyCanvas() {
 }
 
 function AnatomyCanvasInner() {
-  const { steps, loading, error, refresh } = useTransforms();
+  const { steps, setSteps, loading, error, refresh } = useTransforms();
   const { streams } = useRegisteredStreams();
   const { query, setMode } = useMode();
-  const { payload } = useWebSocket();
+  const positionCount = useWebSocketPositionCount();
   const reactFlowInstance = useReactFlow();
 
-  const [localSteps, setLocalSteps] = useState<Record<string, TransformStep> | null>(steps);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [selection, setSelection] = useState<AnatomySelection>({ kind: "none" });
   const [configOpen, setConfigOpen] = useState(false);
-
-  // Sync provider → local state
-  useEffect(() => {
-    setLocalSteps(steps);
-  }, [steps]);
 
   // Sidebar mode is driven by URL query so it's shareable and survives nav:
   //   #studio/anatomy                       → sidebar closed
@@ -146,7 +120,7 @@ function AnatomyCanvasInner() {
 
   // Is the system "live"? Use the WS payload as the signal — when positions
   // are flowing, the DAG edges animate.
-  const live = (payload?.positions.length ?? 0) > 0;
+  const live = positionCount > 0;
 
   // Which stream nodes should the DAG highlight?
   //   - sidebar in "list" mode → every stream
@@ -175,7 +149,7 @@ function AnatomyCanvasInner() {
           [`${stepKey}_params`]: nextStep.params,
         };
         const res = await updateTransforms(config);
-        setLocalSteps(res.steps);
+        setSteps(res.steps);
         refresh();
       } catch (err) {
         setSaveError(err instanceof Error ? err.message : String(err));
@@ -183,12 +157,12 @@ function AnatomyCanvasInner() {
         setSavingKey(null);
       }
     },
-    [refresh],
+    [refresh, setSteps],
   );
 
   const onSelectTransform = useCallback(
     (stepKey: string, name: string) => {
-      setLocalSteps((prev) => {
+      setSteps((prev) => {
         if (!prev) return prev;
         const step = prev[stepKey];
         if (!step) return prev;
@@ -200,12 +174,12 @@ function AnatomyCanvasInner() {
         return { ...prev, [stepKey]: nextStep };
       });
     },
-    [persist],
+    [persist, setSteps],
   );
 
   const onParamChange = useCallback(
     (stepKey: string, paramName: string, value: unknown) => {
-      setLocalSteps((prev) => {
+      setSteps((prev) => {
         if (!prev) return prev;
         const step = prev[stepKey];
         if (!step) return prev;
@@ -217,97 +191,16 @@ function AnatomyCanvasInner() {
         return { ...prev, [stepKey]: nextStep };
       });
     },
-    [persist],
+    [persist, setSteps],
   );
 
   // ---------------------------------------------------------------------
   // Build React Flow nodes + edges
   // ---------------------------------------------------------------------
   const { nodes, edges } = useMemo(() => {
-    if (!localSteps) return { nodes: [], edges: [] };
-
-    const out: Node[] = [];
-    const es: Edge[] = [];
-
-    // Stream nodes stacked on the left
-    const totalStreams = streams.length;
-    const verticalCenter = 300 - (totalStreams * STREAM_ROW_HEIGHT) / 2;
-    streams.forEach((s, i) => {
-      out.push({
-        id: `stream-${s.stream_name}`,
-        type: "stream",
-        position: {
-          x: STREAM_COLUMN_X,
-          y: verticalCenter + i * STREAM_ROW_HEIGHT,
-        },
-        data: {
-          streamName: s.stream_name,
-          status: s.status,
-          keyCols: s.key_cols,
-        },
-        draggable: true,
-        className: highlightedStreamNames.has(s.stream_name)
-          ? "anatomy-node-highlighted"
-          : undefined,
-      });
-      es.push({
-        id: `e-stream-${s.stream_name}-uc`,
-        source: `stream-${s.stream_name}`,
-        target: "unit_conversion",
-        type: "default",
-        animated: live,
-        style: { stroke: "rgba(129,140,248,0.5)", strokeWidth: 1.5 },
-      });
-    });
-
-    // Transform step nodes
-    for (let i = 0; i < PIPELINE_ORDER.length; i++) {
-      const key = PIPELINE_ORDER[i];
-      const step = localSteps[key];
-      if (!step) continue;
-      out.push({
-        id: key,
-        type: "transform",
-        position: STEP_NODE_POSITIONS[key],
-        data: {
-          stepNumber: i + 1,
-          label: STEP_LABELS[key],
-          selectedImpl: step.selected,
-          subtitle: PIPELINE_NARRATIVE[key],
-          saving: savingKey === key,
-        },
-        draggable: true,
-      });
-    }
-
-    // Output node
-    out.push({
-      id: "output",
-      type: "output",
-      position: OUTPUT_NODE_POSITION,
-      data: {},
-      draggable: true,
-    });
-
-    // Pipeline edges (between transforms)
-    for (const edge of PIPELINE_EDGES) {
-      es.push({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        label: edge.label,
-        type: "default",
-        animated: live,
-        style: { stroke: "rgba(129,140,248,0.6)", strokeWidth: 1.5 },
-        labelStyle: { fill: "#a1a1aa", fontSize: 10, fontWeight: 500 },
-        labelBgStyle: { fill: "#18181b", fillOpacity: 0.9 },
-        labelBgPadding: [6, 3],
-        labelBgBorderRadius: 4,
-      });
-    }
-
-    return { nodes: out, edges: es };
-  }, [localSteps, streams, savingKey, live, highlightedStreamNames]);
+    if (!steps) return { nodes: [], edges: [] };
+    return buildAnatomyGraph(steps, streams, savingKey, live, highlightedStreamNames);
+  }, [steps, streams, savingKey, live, highlightedStreamNames]);
 
   // ---------------------------------------------------------------------
   // Node click handling
@@ -333,7 +226,7 @@ function AnatomyCanvasInner() {
   // ---------------------------------------------------------------------
   // Early returns
   // ---------------------------------------------------------------------
-  if (loading && !localSteps) {
+  if (loading && !steps) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <p className="text-xs text-mm-text-dim">Loading transforms…</p>
@@ -349,9 +242,9 @@ function AnatomyCanvasInner() {
     );
   }
 
-  if (!localSteps) return null;
+  if (!steps) return null;
 
-  const allPresent = PIPELINE_ORDER.every((k) => localSteps[k]);
+  const allPresent = PIPELINE_ORDER.every((k) => steps[k]);
   if (!allPresent) return null;
 
   const showDetailPanel = selection.kind !== "none";
@@ -368,7 +261,7 @@ function AnatomyCanvasInner() {
       )}
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        <header className="flex shrink-0 items-center justify-between border-b border-mm-border/40 bg-mm-surface/40 px-4 py-2">
+        <header className="flex shrink-0 items-center justify-between border-b border-black/[0.06] bg-white/45 px-4 py-2">
           <div>
             <h2 className="zone-header">Anatomy</h2>
             <p className="mt-0.5 text-[10px] text-mm-text-dim">
@@ -381,8 +274,8 @@ function AnatomyCanvasInner() {
               onClick={() => setConfigOpen((v) => !v)}
               className={`rounded-md border px-2 py-1 text-[10px] transition-colors ${
                 configOpen
-                  ? "border-mm-accent/60 bg-mm-accent/15 text-mm-accent"
-                  : "border-mm-border/40 text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+                  ? "border-mm-accent/60 bg-mm-accent/10 text-mm-accent"
+                  : "border-black/[0.06] text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
               }`}
               title="Pipeline configuration (bankroll, market pricing)"
             >
@@ -395,8 +288,8 @@ function AnatomyCanvasInner() {
               }
               className={`rounded-md border px-2 py-1 text-[10px] transition-colors ${
                 sidebarMode.kind !== "closed"
-                  ? "border-mm-accent/60 bg-mm-accent/15 text-mm-accent"
-                  : "border-mm-border/40 text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+                  ? "border-mm-accent/60 bg-mm-accent/10 text-mm-accent"
+                  : "border-black/[0.06] text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
               }`}
             >
               {sidebarMode.kind === "closed" ? "Streams list" : "Hide streams"}
@@ -412,7 +305,7 @@ function AnatomyCanvasInner() {
           </p>
         )}
 
-        <div className={`relative min-h-0 flex-1 bg-mm-bg-deep/40 ${live ? "anatomy-live" : ""}`}>
+        <div className={`relative min-h-0 flex-1 bg-black/[0.03] ${live ? "anatomy-live" : ""}`}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -425,14 +318,14 @@ function AnatomyCanvasInner() {
             maxZoom={1.5}
             proOptions={{ hideAttribution: true }}
           >
-            <Background color="#27272a" gap={24} />
+            <Background color="rgba(0,0,0,0.06)" gap={24} />
             <Controls position="bottom-right" />
             <MiniMap
               position="bottom-left"
               pannable
               zoomable
-              nodeColor="#818cf8"
-              maskColor="rgba(9,9,11,0.7)"
+              nodeColor="#4f5bd5"
+              maskColor="rgba(244,244,247,0.7)"
             />
           </ReactFlow>
         </div>
@@ -441,7 +334,7 @@ function AnatomyCanvasInner() {
       {showDetailPanel && (
         <NodeDetailPanel
           selection={selection}
-          steps={localSteps}
+          steps={steps}
           savingKey={savingKey}
           onSelectTransform={onSelectTransform}
           onParamChange={onParamChange}

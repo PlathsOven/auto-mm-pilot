@@ -95,7 +95,7 @@ export function PreviewSection({
       <div className="grid gap-3">
         <LiveEquationStrip size="lg" />
 
-        <div className="rounded-md border border-mm-border/40 bg-mm-bg-deep/60 p-3">
+        <div className="rounded-md border border-black/[0.06] bg-black/[0.03] p-3">
           <div className="mb-2 text-[10px] uppercase tracking-wider text-mm-text-dim">
             Draft summary
           </div>

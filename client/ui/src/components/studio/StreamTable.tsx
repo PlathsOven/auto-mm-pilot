@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -55,20 +55,29 @@ export function StreamTable({ filter, onFilterChange, onOpenStream }: Props) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [mutationError, setMutationError] = useState<string | null>(null);
 
-  const openCanvas = (streamName: string) => onOpenStream?.(streamName);
+  const openCanvas = useCallback(
+    (streamName: string) => onOpenStream?.(streamName),
+    [onOpenStream],
+  );
 
-  const handleDelete = async (streamName: string) => {
-    try {
-      await deleteStream(streamName);
-      await refresh();
-      setMutationError(null);
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : String(err));
-    }
-  };
+  const handleDelete = useCallback(
+    async (streamName: string) => {
+      try {
+        await deleteStream(streamName);
+        await refresh();
+        setMutationError(null);
+      } catch (err) {
+        setMutationError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [refresh],
+  );
 
-  const toggleExpand = (streamName: string) =>
-    setExpanded((prev) => ({ ...prev, [streamName]: !prev[streamName] }));
+  const toggleExpand = useCallback(
+    (streamName: string) =>
+      setExpanded((prev) => ({ ...prev, [streamName]: !prev[streamName] })),
+    [],
+  );
 
   const columns = useMemo(
     () => [
@@ -86,7 +95,7 @@ export function StreamTable({ filter, onFilterChange, onOpenStream }: Props) {
                   e.stopPropagation();
                   toggleExpand(s.stream_name);
                 }}
-                className="rounded p-0.5 text-[8px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+                className="rounded p-0.5 text-[8px] text-mm-text-dim transition-colors hover:bg-black/[0.04] hover:text-mm-text"
                 title={isExpanded ? "Collapse" : "Expand"}
               >
                 {isExpanded ? "▾" : "▸"}
@@ -106,7 +115,7 @@ export function StreamTable({ filter, onFilterChange, onOpenStream }: Props) {
             <span
               className={`rounded-full px-2 py-0.5 text-[9px] font-medium uppercase ${
                 status === "READY"
-                  ? "bg-mm-accent/15 text-mm-accent"
+                  ? "bg-mm-accent/10 text-mm-accent"
                   : "bg-mm-warn/15 text-mm-warn"
               }`}
             >
@@ -205,8 +214,7 @@ export function StreamTable({ filter, onFilterChange, onOpenStream }: Props) {
         size: 90,
       }),
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [expanded],
+    [expanded, openCanvas, handleDelete, toggleExpand],
   );
 
   const table = useReactTable({
@@ -235,7 +243,7 @@ export function StreamTable({ filter, onFilterChange, onOpenStream }: Props) {
 
   if (streams.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-mm-border/60 p-6 text-center">
+      <div className="rounded-xl border border-dashed border-black/[0.08] p-6 text-center">
         <p className="text-[11px] text-mm-text-dim">
           No streams yet. Use <strong>+ New stream</strong> to create one.
         </p>
@@ -253,9 +261,9 @@ export function StreamTable({ filter, onFilterChange, onOpenStream }: Props) {
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-mm-border/40">
+      <div className="overflow-x-auto rounded-lg border border-black/[0.06]">
         <table className="w-full border-collapse text-[11px]">
-          <thead className="bg-mm-bg-deep/60 text-mm-text-dim">
+          <thead className="bg-black/[0.03] text-mm-text-dim">
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {hg.headers.map((header) => {
@@ -292,7 +300,7 @@ export function StreamTable({ filter, onFilterChange, onOpenStream }: Props) {
                 <Fragment key={row.id}>
                   <tr
                     onClick={() => openCanvas(s.stream_name)}
-                    className="cursor-pointer border-t border-mm-border/20 transition-colors hover:bg-mm-accent/5"
+                    className="cursor-pointer border-t border-black/[0.03] transition-colors hover:bg-mm-accent/5"
                   >
                     {row.getVisibleCells().map((cell) => (
                       <td
@@ -305,7 +313,7 @@ export function StreamTable({ filter, onFilterChange, onOpenStream }: Props) {
                     ))}
                   </tr>
                   {isExpanded && (
-                    <tr className="border-t border-mm-border/10 bg-mm-bg-deep/30">
+                    <tr className="border-t border-black/[0.02] bg-black/[0.02]">
                       <td colSpan={row.getVisibleCells().length} className="px-6 py-3">
                         <ExpandedRow stream={s} />
                       </td>

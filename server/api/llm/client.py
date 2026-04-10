@@ -13,7 +13,7 @@ from typing import Any, AsyncIterator
 
 import httpx
 
-from server.api.config import OpenRouterConfig
+from server.api.config import OPENROUTER_TIMEOUT_SECS, OPENROUTER_STREAM_TIMEOUT_SECS, OpenRouterConfig
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class OpenRouterClient:
             "temperature": temperature,
             "stream": False,
         }
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=OPENROUTER_TIMEOUT_SECS) as client:
             resp = await client.post(
                 self._endpoint,
                 headers=self._headers,
@@ -75,7 +75,7 @@ class OpenRouterClient:
             "temperature": temperature,
             "stream": True,
         }
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=OPENROUTER_STREAM_TIMEOUT_SECS) as client:
             async with client.stream(
                 "POST",
                 self._endpoint,

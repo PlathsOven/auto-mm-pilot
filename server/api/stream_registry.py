@@ -25,6 +25,45 @@ from server.core.config import BlockConfig, StreamConfig
 
 log = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# Manual-block metadata store
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ManualBlockMetadata:
+    """Tracks manually-created blocks for source attribution."""
+    created_at: str
+
+
+class _ManualBlockStore:
+    def __init__(self) -> None:
+        self._entries: dict[str, ManualBlockMetadata] = {}
+        self._lock = threading.Lock()
+
+    def mark(self, stream_name: str, created_at: str) -> None:
+        with self._lock:
+            self._entries[stream_name] = ManualBlockMetadata(created_at=created_at)
+
+    def unmark(self, stream_name: str) -> None:
+        with self._lock:
+            self._entries.pop(stream_name, None)
+
+    def is_manual(self, stream_name: str) -> bool:
+        with self._lock:
+            return stream_name in self._entries
+
+
+_manual_block_store: _ManualBlockStore | None = None
+
+
+def get_manual_block_store() -> _ManualBlockStore:
+    global _manual_block_store
+    if _manual_block_store is None:
+        _manual_block_store = _ManualBlockStore()
+    return _manual_block_store
+
+
 # Required columns in every snapshot row (in addition to key_cols)
 _REQUIRED_SNAPSHOT_COLS = {"timestamp", "raw_value"}
 
@@ -281,6 +320,7 @@ class StreamRegistry:
             if stream_name not in self._streams:
                 raise KeyError(f"Stream '{stream_name}' not found")
             del self._streams[stream_name]
+            get_manual_block_store().unmark(stream_name)
             log.info("Stream deleted: %s", stream_name)
 
     # -- Snapshot ingestion -------------------------------------------------

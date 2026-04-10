@@ -5,6 +5,7 @@ import { useCommandPalette } from "../providers/CommandPaletteProvider";
 import { formatUtcTime } from "../utils";
 import { useMode } from "../providers/ModeProvider";
 import { ModeSwitcher } from "./shared/ModeSwitcher";
+import { GLOBAL_CONTEXT_TICK_MS } from "../constants";
 
 export function GlobalContextBar() {
   const { connectionStatus } = useWebSocket();
@@ -15,15 +16,15 @@ export function GlobalContextBar() {
   const [aptEnabled, setAptEnabled] = useState(true);
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 47);
+    const id = setInterval(() => setNow(Date.now()), GLOBAL_CONTEXT_TICK_MS);
     return () => clearInterval(id);
   }, []);
 
   const inDocs = mode === "docs";
 
   return (
-    <div className="flex h-[60px] items-center justify-between border-b border-mm-border/40 bg-mm-surface/80 px-6 backdrop-blur-sm">
-      {/* Left: brand + connection */}
+    <div className="glass-bar flex h-[56px] items-center justify-between px-6">
+      {/* Left: brand + connection dot */}
       <div className="flex items-center gap-3">
         <span className="text-base font-bold tracking-wide text-mm-accent">
           APT
@@ -31,46 +32,53 @@ export function GlobalContextBar() {
         <span className="text-[10px] text-mm-text-dim">
           Automated Positional Trader
         </span>
-        <span className="text-[10px] text-mm-text-dim">
-          [{connectionStatus}]
-        </span>
+        <span
+          className={`h-2 w-2 rounded-full ${
+            connectionStatus === "CONNECTED"
+              ? "bg-mm-accent"
+              : connectionStatus === "CONNECTING"
+                ? "bg-mm-warn"
+                : "bg-mm-error"
+          }`}
+          title={connectionStatus}
+        />
       </div>
 
-      {/* Middle: mode switcher + per-mode controls */}
+      {/* Centre: mode switcher + controls */}
       <div className="flex items-center gap-4">
         <ModeSwitcher />
 
-        {/* Cmd+K hint */}
+        {/* Cmd+K — keyboard-only, small hint */}
         <button
           onClick={openPalette}
-          className="flex items-center gap-1.5 rounded-lg border border-mm-border/40 px-2.5 py-1 text-[10px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+          className="flex items-center gap-1.5 rounded-md border border-black/[0.06] px-2.5 py-1 text-[10px] text-mm-text-dim transition-colors hover:bg-black/[0.04] hover:text-mm-text"
           title="Open command palette"
         >
           <span>Search</span>
-          <span className="text-[9px]">⌘K</span>
+          <span className="text-[9px] text-mm-text-subtle">⌘K</span>
         </button>
 
         {/* Chat drawer toggle */}
         <button
           onClick={toggleDrawer}
-          className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition-colors ${
+          className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ${
             drawerOpen
-              ? "bg-mm-accent/15 font-medium text-mm-accent"
-              : "text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+              ? "bg-mm-accent/10 font-medium text-mm-accent"
+              : "text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
           }`}
           title="Toggle APT Chat (⌘\\)"
         >
           <span>Chat</span>
-          <span className="text-[9px] text-mm-text-dim">⌘\</span>
+          <span className="text-[9px] text-mm-text-subtle">⌘\</span>
         </button>
 
         {/* Docs toggle */}
         <button
           onClick={() => setMode(inDocs ? "floor" : "docs")}
-          className={`rounded-lg px-2.5 py-1 text-xs transition-colors ${
+          className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
             inDocs
-              ? "bg-mm-accent/15 font-medium text-mm-accent"
-              : "text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+              ? "bg-mm-accent/10 font-medium text-mm-accent"
+              : "text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
           }`}
         >
           {inDocs ? "← Back" : "API Docs"}
@@ -82,12 +90,12 @@ export function GlobalContextBar() {
           <button
             onClick={() => setAptEnabled((v) => !v)}
             className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-              aptEnabled ? "bg-mm-accent" : "bg-mm-border"
+              aptEnabled ? "bg-mm-accent" : "bg-black/10"
             }`}
             title={aptEnabled ? "APT is allowed to move parameters" : "APT parameter moves are paused"}
           >
             <span
-              className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+              className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
                 aptEnabled ? "translate-x-[18px]" : "translate-x-[3px]"
               }`}
             />
@@ -100,7 +108,7 @@ export function GlobalContextBar() {
 
       {/* Right: System Time (UTC) */}
       <div className="flex items-center gap-2">
-        <span className="text-xs text-mm-text-dim">UTC:</span>
+        <span className="text-xs text-mm-text-dim">UTC</span>
         <span className="text-sm tabular-nums text-mm-text">
           {formatUtcTime(now)}
         </span>

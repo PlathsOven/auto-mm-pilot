@@ -1,21 +1,17 @@
 import type { TransformListResponse } from "../types";
+import { apiFetch } from "./api";
 
-const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
-
-export async function fetchTransforms(): Promise<TransformListResponse> {
-  const res = await fetch(`${BASE}/api/transforms`);
-  if (!res.ok) throw new Error(`Failed to fetch transforms: ${res.status}`);
-  return res.json();
+export async function fetchTransforms(signal?: AbortSignal): Promise<TransformListResponse> {
+  return apiFetch<TransformListResponse>("/api/transforms", { signal });
 }
 
 export async function updateTransforms(
   config: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<TransformListResponse> {
-  const res = await fetch(`${BASE}/api/transforms`, {
+  return apiFetch<TransformListResponse>("/api/transforms", {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(config),
+    signal,
   });
-  if (!res.ok) throw new Error(`Failed to update transforms: ${res.status}`);
-  return res.json();
 }

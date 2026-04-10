@@ -3,32 +3,40 @@
 @tailwind utilities;
 
 @layer base {
+  /* Subtle background gradient — gives glass panels something to refract */
+  body {
+    background: linear-gradient(160deg, #eaeaef 0%, #f4f4f7 40%, #f0f0f5 100%);
+    min-height: 100vh;
+  }
+
   ::-webkit-scrollbar {
     width: 6px;
   }
   ::-webkit-scrollbar-track {
-    background: #09090b;
+    background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #27272a;
+    background: rgba(0, 0, 0, 0.12);
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #3f3f46;
+    background: rgba(0, 0, 0, 0.20);
   }
 }
 
 @layer components {
   .zone-header {
-    @apply text-xs font-semibold tracking-normal text-mm-accent;
+    @apply text-[13px] font-medium tracking-tight text-mm-text;
   }
 
   @keyframes fade-highlight {
     0% {
-      background-color: rgba(129, 140, 248, 0.15);
+      border-left: 2px solid #4f5bd5;
+      background-color: rgba(79, 91, 213, 0.08);
     }
     100% {
-      background-color: #18181b;
+      border-left: 2px solid transparent;
+      background-color: transparent;
     }
   }
   .row-highlight {
@@ -36,15 +44,32 @@
   }
 
   .channel-highlight {
-    background-color: rgba(129, 140, 248, 0.08);
-    border-left: 2.5px solid #818cf8;
+    background-color: rgba(79, 91, 213, 0.06);
+    border-left: 2.5px solid #4f5bd5;
   }
   .channel-highlight-cell {
-    box-shadow: inset 0 0 0 1.5px rgba(129, 140, 248, 0.4);
+    box-shadow: inset 0 0 0 1.5px rgba(79, 91, 213, 0.3);
   }
 
   .form-input {
-    @apply w-full rounded-md border border-mm-border/60 bg-mm-bg px-2 py-1 text-[10px] text-mm-text outline-none transition-colors placeholder:text-mm-text-dim/50 focus:border-mm-accent/60 focus:ring-1 focus:ring-mm-accent/20;
+    @apply w-full rounded-md border border-black/[0.08] bg-mm-surface-solid px-2 py-1 text-[10px] text-mm-text outline-none transition-colors placeholder:text-mm-text-subtle focus:border-mm-accent/40 focus:ring-1 focus:ring-mm-accent/15;
+  }
+
+  /* Glass surface utility */
+  .glass-panel {
+    @apply rounded-lg border border-white/45 bg-white/55 ring-1 ring-black/[0.06];
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+  .glass-bar {
+    @apply border-b border-black/[0.08] bg-white/65;
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+  }
+  .glass-card {
+    @apply rounded-md border border-white/50 bg-white/40;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
   }
 }
 
@@ -65,18 +90,19 @@
   margin: 0.1em 0;
 }
 .prose-apt strong {
-  color: #818cf8; /* mm-accent */
+  color: #4f5bd5; /* mm-accent */
   font-weight: 600;
 }
 .prose-apt code {
   font-size: 0.7rem;
-  background: rgba(39, 39, 42, 0.6);
+  background: rgba(0, 0, 0, 0.05);
   padding: 0.1em 0.35em;
   border-radius: 4px;
+  color: #1a1a2e;
 }
 .prose-apt pre {
-  background: rgba(9, 9, 11, 0.8);
-  border: 1px solid rgba(39, 39, 42, 0.6);
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 8px;
   padding: 0.5em 0.75em;
   margin: 0.5em 0;
@@ -89,14 +115,14 @@
 .prose-apt h1, .prose-apt h2, .prose-apt h3 {
   font-size: 0.75rem;
   font-weight: 700;
-  color: #818cf8;
+  color: #4f5bd5;
   margin: 0.5em 0 0.25em;
 }
 .prose-apt blockquote {
-  border-left: 2px solid rgba(129, 140, 248, 0.4);
+  border-left: 2px solid rgba(79, 91, 213, 0.3);
   padding-left: 0.75em;
   margin: 0.25em 0;
-  color: rgba(161, 161, 170, 1);
+  color: #6e6e82;
 }
 
 /* react-grid-layout theme overrides */
@@ -104,16 +130,16 @@
   min-height: 100% !important;
 }
 .react-grid-placeholder {
-  background: #818cf8 !important;
+  background: #4f5bd5 !important;
   opacity: 0.08 !important;
-  border: 1px solid #818cf8 !important;
-  border-radius: 12px !important;
+  border: 1px solid #4f5bd5 !important;
+  border-radius: 8px !important;
 }
 .react-resizable-handle {
   z-index: 10;
 }
 .react-resizable-handle::after {
-  border-color: #27272a !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
 }
 .react-grid-item > .react-resizable-handle::after {
   width: 7px !important;
@@ -130,17 +156,19 @@
   box-shadow: none !important;
 }
 .react-flow__controls {
-  background: rgba(24, 24, 27, 0.9) !important;
-  border: 1px solid rgba(63, 63, 70, 0.6) !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
   border-radius: 8px !important;
   overflow: hidden;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 .react-flow__controls-button {
   background: transparent !important;
   border: none !important;
-  border-bottom: 1px solid rgba(63, 63, 70, 0.4) !important;
-  color: #a1a1aa !important;
-  fill: #a1a1aa !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+  color: #6e6e82 !important;
+  fill: #6e6e82 !important;
   width: 28px !important;
   height: 28px !important;
 }
@@ -148,48 +176,43 @@
   border-bottom: none !important;
 }
 .react-flow__controls-button:hover {
-  background: rgba(129, 140, 248, 0.15) !important;
-  color: #818cf8 !important;
-  fill: #818cf8 !important;
+  background: rgba(79, 91, 213, 0.08) !important;
+  color: #4f5bd5 !important;
+  fill: #4f5bd5 !important;
 }
 .react-flow__controls-button svg {
   max-width: 14px;
   max-height: 14px;
 }
 .react-flow__minimap {
-  background: rgba(24, 24, 27, 0.9) !important;
-  border: 1px solid rgba(63, 63, 70, 0.6) !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
   border-radius: 8px !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 .react-flow__edge-text {
-  fill: #a1a1aa !important;
+  fill: #6e6e82 !important;
   font-size: 10px !important;
 }
 .react-flow__edge-textbg {
-  fill: #18181b !important;
+  fill: #f4f4f7 !important;
 }
 .react-flow__attribution {
   background: transparent !important;
 }
 
-/* Animated data-flow pulse on live Anatomy edges.
-   React Flow's `animated: true` produces the dashed flow; we layer a gentle
-   stroke-opacity pulse on top so the whole DAG visibly breathes when the
-   pipeline is running. */
+/* Animated data-flow pulse on live Anatomy edges */
 @keyframes anatomy-flow-pulse {
-  0%, 100% { stroke-opacity: 0.45; }
-  50% { stroke-opacity: 0.95; }
+  0%, 100% { stroke-opacity: 0.35; }
+  50% { stroke-opacity: 0.85; }
 }
 .anatomy-live .react-flow__edge-path {
   animation: anatomy-flow-pulse 2.2s ease-in-out infinite;
 }
 
-/* Highlight a stream node when its corresponding sidebar is open. ReactFlow
-   applies the node's `className` to its wrapper, not the inner card — the
-   `> div` selector reaches the inner content. The existing `selected` ring
-   from StreamNode (`ring-2 ring-mm-accent/40`) still wins visually when both
-   are true, which is the right priority. */
+/* Highlight a stream node when its corresponding sidebar is open */
 .anatomy-node-highlighted > div {
-  background-color: rgba(99, 110, 250, 0.10) !important;
-  box-shadow: 0 0 0 2px rgba(99, 110, 250, 0.40);
+  background-color: rgba(79, 91, 213, 0.06) !important;
+  box-shadow: 0 0 0 2px rgba(79, 91, 213, 0.30);
 }

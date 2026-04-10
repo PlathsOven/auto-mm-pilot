@@ -81,13 +81,13 @@ export function CommandPalette() {
   const cellCommands = useMemo<Command[]>(() => {
     if (!payload) return [];
     return payload.positions.slice(0, 50).map((p) => ({
-      id: `cell-${p.asset}-${p.expiry}`,
+      id: `cell-${p.symbol}-${p.expiry}`,
       group: "cell" as const,
-      title: `${p.asset} ${p.expiry}`,
+      title: `${p.symbol} ${p.expiry}`,
       hint: `pos ${p.desiredPos > 0 ? "+" : ""}${p.desiredPos.toFixed(2)} $vega`,
       run: () => {
         setMode("floor");
-        selectDimension(p.asset, p.expiry);
+        selectDimension(p.symbol, p.expiry);
         closePalette();
       },
     }));
@@ -111,9 +111,9 @@ export function CommandPalette() {
 
   return (
     <>
-      <div className="fixed inset-0 z-[100] bg-black/40" onClick={closePalette} aria-hidden />
-      <div className="fixed inset-x-0 top-[15vh] z-[101] mx-auto w-[560px] max-w-[90vw] overflow-hidden rounded-xl border border-mm-border/60 bg-mm-surface shadow-2xl shadow-black/50">
-        <div className="border-b border-mm-border/40 px-3 py-2">
+      <div className="fixed inset-0 z-[100] bg-black/20" onClick={closePalette} aria-hidden />
+      <div className="fixed inset-x-0 top-[15vh] z-[101] mx-auto w-[560px] max-w-[90vw] overflow-hidden rounded-lg border border-white/50 bg-white/80 shadow-xl shadow-black/[0.08] ring-1 ring-black/[0.06]" style={{ backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)" }}>
+        <div className="border-b border-black/[0.06] px-3 py-2">
           <input
             ref={inputRef}
             type="text"
@@ -132,7 +132,7 @@ export function CommandPalette() {
               }
             }}
             placeholder="Type a command, mode, or symbol…"
-            className="w-full bg-transparent text-sm text-mm-text placeholder:text-mm-text-dim focus:outline-none"
+            className="w-full bg-transparent text-sm text-mm-text placeholder:text-mm-text-subtle focus:outline-none"
           />
         </div>
 
@@ -149,24 +149,24 @@ export function CommandPalette() {
               onClick={cmd.run}
               className={`flex w-full items-center justify-between gap-3 rounded-md px-3 py-1.5 text-left text-xs transition-colors ${
                 i === activeIdx
-                  ? "bg-mm-accent/15 text-mm-accent"
-                  : "text-mm-text hover:bg-mm-border/30"
+                  ? "bg-mm-accent/10 text-mm-accent"
+                  : "text-mm-text hover:bg-black/[0.04]"
               }`}
             >
               <span className="flex items-baseline gap-2">
-                <span className="rounded bg-mm-bg/60 px-1.5 py-0.5 text-[8px] uppercase text-mm-text-dim">
+                <span className="rounded bg-black/[0.04] px-1.5 py-0.5 text-[8px] uppercase text-mm-text-dim">
                   {cmd.group}
                 </span>
                 <span className="font-medium">{cmd.title}</span>
               </span>
               {cmd.hint && (
-                <span className="shrink-0 text-[10px] text-mm-text-dim">{cmd.hint}</span>
+                <span className="shrink-0 text-[10px] text-mm-text-subtle">{cmd.hint}</span>
               )}
             </button>
           ))}
         </div>
 
-        <div className="flex items-center justify-between border-t border-mm-border/40 bg-mm-bg/40 px-3 py-1.5 text-[9px] text-mm-text-dim">
+        <div className="flex items-center justify-between border-t border-black/[0.06] bg-black/[0.02] px-3 py-1.5 text-[9px] text-mm-text-dim">
           <span>↑↓ to move · ↵ to select · esc to close</span>
           <span>⌘K</span>
         </div>

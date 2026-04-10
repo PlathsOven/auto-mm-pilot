@@ -1,33 +1,41 @@
 # UI Frontend Specification: APT — Automated Positional Trader
 
 ## 1. Visual Identity & Brand Philosophy
-* **Persona:** Modern, sleek trading terminal. Precise, minimal, and refined.
-* **Color Palette:**
-    * **Background:** Zinc Black (`#0f0f12`) or Deep Zinc (`#09090b`).
-    * **Surface/Cards:** Zinc 900 (`#18181b`) with soft borders (`#27272a` at 40-60% opacity), rounded corners (`rounded-xl` panels, `rounded-lg` cards/inputs).
-    * **Accents:** Indigo (`#818cf8`) for data highlights; Clean White (`#fafafa`) for text.
-    * **Alerts:** Amber (`#fbbf24`) for warnings; Soft Red (`#f87171`) for errors. Avoid bright "Retail Green."
-* **Surfaces:** Subtle shadows (`shadow-lg shadow-black/20`) replace hard borders. Backdrop blur on context bar. Transition animations on interactive elements.
+* **Persona:** Intellectual research interface. Clarity, transparency, and flow around ideas — not a conventional dark trading terminal.
+* **Design Metaphor:** Glass. The framework is the product; the UI lets you see through to the ideas underneath. Nothing hidden, nothing opaque.
+* **Color Palette (Light Glassmorphism):**
+    * **Background:** Warm light gray (`#f4f4f7`) with a subtle gradient (`#eaeaef` → `#f4f4f7` → `#f0f0f5`) to give glass something to refract.
+    * **Surface/Glass Panels:** Semi-transparent white (`rgba(255,255,255,0.55)`) with `backdrop-blur-xl` (24px), `border-white/45` inner edge, `ring-1 ring-black/[0.06]` outer definition. `rounded-lg` panels, `rounded-md` cards/inputs.
+    * **Solid surfaces (inputs, dropdowns):** Pure white (`#ffffff`).
+    * **Accents:** Deep indigo (`#4f5bd5`) for data highlights, interactive elements, positive values.
+    * **Text:** Near-black with blue undertone (`#1a1a2e`), secondary `#6e6e82`, tertiary/subtle `#a0a0b2`.
+    * **Alerts:** Muted amber (`#c48a12`) for warnings; Rose-red (`#d4405c`) for errors and negative values.
+* **Surfaces:** No box shadows on panels — glass catches light, not shadow. Floating overlays (popovers, drawers) use `bg-white/85 backdrop-blur-2xl ring-1 ring-black/[0.06] shadow-lg shadow-black/[0.06]`.
+* **Glass utility classes:** `.glass-panel` (panels), `.glass-bar` (top bar), `.glass-card` (cards within panels).
 * **Typography:**
-    * **All text** (including numbers, timestamps, and data values) uses clean sans-serif (`Inter`). No monospaced fonts anywhere. Use `tabular-nums` for numeric alignment.
-    * Use proper casing for headers and labels (e.g., "Desired Positions", not `DESIRED_POS`).
-* **Sign-based coloring:** All numeric values are colored by sign — positive = Indigo (`#818cf8`), negative = Soft Red (`#f87171`), zero = dim neutral (`#a1a1aa`).
+    * **All text** uses clean sans-serif (`Inter`). `tabular-nums` for numeric alignment.
+    * **Panel titles:** `text-[13px] font-medium tracking-tight text-mm-text` — sentence case, not uppercase. Dark text on glass.
+    * **Section headers:** `text-[11px] font-semibold text-mm-text-dim`.
+    * **Data values:** `text-[12px] font-medium tabular-nums` — numbers are the hero, slightly larger and bolder.
+    * **Secondary/timestamps:** `text-[10px] text-mm-text-subtle` — recedes unless searched for.
+* **Sign-based coloring:** Positive = deep indigo (`#4f5bd5`), negative = rose-red (`#d4405c`), zero = subtle neutral (`#a0a0b2`). Cell backgrounds tinted at 6% opacity.
 
 ## 2. Layout Structure
 The UI is a fixed-height, single-page application (SPA) divided into four primary zones using CSS Grid.
 
-### A. Data Streams Sidebar (Left — 15% Width)
-* **Header:** "Data Streams"
-* **Component:** A list of active adapters (e.g., `KDB_CLIENT_PROD`, `SQL_LOCAL_BTC`).
-* **Per-stream display:** Status pip (colored dot) + status label + last update time (e.g., "3s ago"). No waveforms or heartbeat animations.
+### A. Data Streams Sidebar (Left — 2/12 Width)
+* **Header:** "Data Streams" — sentence case, `zone-header` class.
+* **Component:** A list of registered + live streams. Status pip (colored dot) + status label + last update time.
+* **Cards:** `.glass-card` treatment — `bg-white/40 backdrop-blur-lg border-white/50 rounded-md`.
+* **Narrower than before** (was 3 cols, now 2) — it's a status list, not a workspace.
 
-### B. Global Context Bar (Top — 60px Height)
-* **Left:** Static logo and app name — **APT** (Automated Positional Trader) with connection status badge. No engine state display (OPTIMIZING/STABILIZING removed).
-* **Center:** Operating Space as a **dropdown menu** (e.g., "D50 VOLATILITY"), even if only one option exists.
-* **Right:** UTC clock with millisecond precision.
-* **Last Update** has been moved to the Updates section (Zone D).
+### B. Global Context Bar (Top — 56px Height)
+* **Treatment:** `.glass-bar` — `bg-white/65 backdrop-blur-2xl border-b border-black/[0.08]`. Content slides under this frosted strip.
+* **Left:** Static logo "APT" in `mm-accent` + connection status as a colored dot only (green/amber/red), tooltip on hover for details. No `[CONNECTED]` text.
+* **Centre:** Mode switcher (Floor / Studio) + search (`⌘K`) + chat toggle (`⌘\`).
+* **Right:** APT Control toggle + UTC clock.
 
-### C. Desired Positions (Center Top — 55% Width, 55% Height)
+### C. Desired Positions (Centre — 7/12 Width, Full Height)
 * **Header:** "Desired Positions" with a dropdown toggle between nine view modes and a unit label.
 * **Assets:** BTC and ETH only.
 * **Layout:** Pivoted table — rows are **coins** (BTC, ETH), columns are **expiries** (27MAR26, 25APR26, etc.), values are the selected metric.
@@ -43,25 +51,27 @@ The UI is a fixed-height, single-page application (SPA) divided into four primar
     9. **Uncertainty Factor** — unitless uncertainty/variance factor per cell
 * **Formula:** `desiredPos = (edge / uncertaintyFactor) × bankroll`. Bankroll is configured on the backend only, not displayed in the UI.
 * **Timeframe selector** (visible in Change mode): Latest / 1 min / 5 min / 15 min.
-* **Cell coloring:** Cell **background** is tinted by sign (blue for positive, red for negative), with text also colored by sign.
-* **Highlighting:** Cells updated in the latest tick receive a fading blue highlight (~2s fade-out).
+* **Cell coloring:** Cell **background** is tinted by sign at 6% opacity (indigo for positive, rose for negative), with text colored by sign. Cells use `text-[12px] font-medium tabular-nums`.
+* **Highlighting:** Cells updated in the latest tick receive a fading left-border accent in `mm-accent` (~2s fade-out).
 * **Clickable cells:** Clicking any cell pushes its context (asset, expiry, edge, UF, desired position) to the LLM Chat (Zone E) for investigation.
 * **Cell notes:** Right-clicking any cell opens a popover showing per-cell notes/comments from team members. Users can read existing notes and post new ones. Cells with notes show a small count badge.
 * **Data behavior:** Position values are derived from edge and uncertainty factor. Each position has a low probability (~15%) of updating on any given tick, reducing noise.
 
-### D. Updates Feed (Right Top — 30% Width, 40% Height)
+### D. Updates Feed (Right — 3/12 Width, Full Height)
 * **Header:** "Updates" with a subtle **Last Update** elapsed-time indicator on the right.
 * **Component:** A vertical scrollable feed of position-change cards, newest at top.
 * **Card contents:**
     * Asset + Expiry label and timestamp
     * Old value → new value with signed delta, all in **$vega** units (all numbers colored by sign)
     * **Stream attribution** — top contributing streams and their edge, shown inline on the card
-* **Highlighting:** New cards receive a fading blue highlight (~2.5s) on arrival.
+* **Card treatment:** `.glass-card` — `bg-white/40 backdrop-blur-lg border-white/50 rounded-md`. Stream attribution on a second line in `text-mm-text-subtle`.
+* **Highlighting:** New cards receive a fading left-border accent (~2.5s) on arrival.
 * **Clickable cards:** Clicking any card pushes its context (asset, expiry, old/new position, delta) to the LLM Chat (Zone E) for investigation.
 
-### E. Team Chat (Right Bottom — 30% Width, 60% Height)
-* **Header:** "Team Chat" with hint "Tag @APT to query the engine" and a "Clear context" button when investigation context is active.
-* **Component:** A scrollable message feed with a text input at the bottom. Combined team + LLM chat.
+### E. APT Chat (Right-side Drawer — 420px Width)
+* **Trigger:** `⌘\` keyboard shortcut or Chat button in context bar.
+* **Treatment:** Glass drawer — `bg-white/70 backdrop-blur-2xl border-l border-black/[0.06] shadow-xl shadow-black/[0.06]`.
+* **Component:** A scrollable message feed with a text input at the bottom.
 * **Message types:**
     * **System** — auto-generated when a cell or card is clicked, summarizing the investigation context (blue left-border accent).
     * **User** — typed by the current logged-in operator, shown with initials badge and "(you)" suffix.
@@ -91,8 +101,9 @@ The UI is a fixed-height, single-page application (SPA) divided into four primar
 
 ## 4. Build Instructions
 1. Electron + React (Vite) + TypeScript boilerplate.
-2. TailwindCSS for styling.
-3. CSS Grid layout for the five zones.
+2. TailwindCSS for styling with custom `mm-*` color tokens.
+3. `react-grid-layout` for the operator dashboard (Floor). Panels use `.glass-panel` surfaces.
 4. Mock WebSocket provider for immediate testing before the server is live.
-5. Sharp edges (no rounded corners), no gradients, high contrast.
+5. `rounded-lg` panels, `rounded-md` controls. Subtle gradient background. No box shadows on panels — glass surfaces with `backdrop-blur` and `ring-1 ring-black/[0.06]` for edge definition.
 6. ChatProvider context for shared investigation state across components.
+7. Grid margin `[6, 6]` with `[6, 6]` container padding for breathing room between glass panels.

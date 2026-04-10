@@ -42,7 +42,7 @@ export interface GlobalContext {
 
 /** A single row in the desired-position table (mirrors pipeline output) */
 export interface DesiredPosition {
-  asset: string;
+  symbol: string;
   expiry: string;
   edge: number;
   smoothedEdge: number;
@@ -60,7 +60,7 @@ export interface DesiredPosition {
 /** A position-change update card */
 export interface UpdateCard {
   id: string;
-  asset: string;
+  symbol: string;
   expiry: string;
   oldPos: number;
   newPos: number;
@@ -79,7 +79,7 @@ export interface ServerPayload {
 /** Context pushed to the LLM chat when a card or cell is clicked */
 export type InvestigationContext =
   | { type: "update"; card: UpdateCard }
-  | { type: "position"; asset: string; expiry: string; position: DesiredPosition };
+  | { type: "position"; symbol: string; expiry: string; position: DesiredPosition };
 
 /** A single message in the LLM chat */
 export interface ChatMessage {
@@ -93,10 +93,14 @@ export interface ChatMessage {
 // API request / response types
 // ---------------------------------------------------------------------------
 
+/** Chat mode — controls which prompt modules the server uses */
+export type ChatMode = "investigate" | "configure" | "opinion" | "general";
+
 /** POST /api/investigate — request payload */
 export interface InvestigatePayload {
   conversation: { role: string; content: string }[];
   cell_context?: Record<string, unknown> | null;
+  mode: ChatMode;
 }
 
 /** POST /api/snapshots — response */
@@ -130,34 +134,34 @@ export interface TimeSeriesDimension {
 
 /** Block-level time series for one block */
 export interface BlockTimeSeries {
-  block_name: string;
-  space_id: string;
-  aggregation_logic: string;
+  blockName: string;
+  spaceId: string;
+  aggregationLogic: string;
   timestamps: string[];
   fair: number[];
-  market_fair: number[];
+  marketFair: number[];
   var: number[];
 }
 
 /** Aggregated time series across all blocks */
 export interface AggregatedTimeSeries {
   timestamps: string[];
-  total_fair: number[];
-  total_market_fair: number[];
+  totalFair: number[];
+  totalMarketFair: number[];
   edge: number[];
-  smoothed_edge: number[];
+  smoothedEdge: number[];
   var: number[];
-  smoothed_var: number[];
-  raw_desired_position: number[];
-  smoothed_desired_position: number[];
+  smoothedVar: number[];
+  rawDesiredPosition: number[];
+  smoothedDesiredPosition: number[];
 }
 
 /** Current decomposition snapshot for the latest timestamp */
 export interface CurrentBlockDecomposition {
-  block_name: string;
-  space_id: string;
+  blockName: string;
+  spaceId: string;
   fair: number;
-  market_fair: number;
+  marketFair: number;
   var: number;
 }
 
@@ -199,7 +203,7 @@ export interface PipelineTimeSeriesResponse {
   expiry: string;
   blocks: BlockTimeSeries[];
   aggregated: AggregatedTimeSeries;
-  current_decomposition: {
+  currentDecomposition: {
     blocks: CurrentBlockDecomposition[];
     aggregated: Record<string, number>;
   };

@@ -58,10 +58,10 @@ export function TargetMappingSection({ value, onChange, state, dimmed }: Props) 
         <Field type="number" label="exponent" value={value.exponent} onChange={(v) => patch("exponent", v)} />
       </div>
 
-      <div className="mt-3 rounded-md border border-mm-border/40 bg-mm-bg-deep/60 p-2">
+      <div className="mt-3 rounded-md border border-black/[0.06] bg-black/[0.03] p-2">
         <div className="mb-1 text-[10px] text-mm-text-dim">target = f(raw)</div>
         <svg viewBox="0 0 100 50" preserveAspectRatio="none" className="h-12 w-full">
-          <polyline points={points} fill="none" stroke="#818cf8" strokeWidth="0.6" />
+          <polyline points={points} fill="none" stroke="#4f5bd5" strokeWidth="0.6" />
         </svg>
       </div>
     </SectionCard>

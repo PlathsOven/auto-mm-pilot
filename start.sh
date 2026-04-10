@@ -3,8 +3,8 @@
 # APT — Start all required services
 #
 # Services:
-#   1. FastAPI backend   (server/api)  → http://localhost:8000
-#   2. Vite dev server   (client/ui)   → http://localhost:5173
+#   1. FastAPI backend   (server/api)  → http://localhost:8001
+#   2. Vite dev server   (client/ui)   → http://localhost:5174
 #
 # Usage:
 #   ./start.sh          Start all services (mock pipeline data)
@@ -51,7 +51,7 @@ trap cleanup SIGINT SIGTERM
 # --stop flag: kill anything on known ports
 if [[ "${1:-}" == "--stop" ]]; then
   echo -e "${YELLOW}Stopping APT services…${NC}"
-  for port in 8000 5173; do
+  for port in 8001 5174; do
     pid=$(lsof -ti :"$port" 2>/dev/null || true)
     if [[ -n "$pid" ]]; then
       echo -e "  Killing PID $pid on port $port"
@@ -89,14 +89,14 @@ echo -e "${CYAN}[4/4]${NC} Starting services…"
 echo ""
 
 # FastAPI backend
-echo -e "  ${GREEN}▶${NC} FastAPI backend  → http://localhost:8000"
+echo -e "  ${GREEN}▶${NC} FastAPI backend  → http://localhost:8001"
 APT_MODE="$APT_MODE" PYTHONPATH="$ROOT_DIR" "$VENV_DIR/bin/uvicorn" server.api.main:app \
-  --host 0.0.0.0 --port 8000 --reload \
+  --host 0.0.0.0 --port 8001 --reload \
   > "$LOG_DIR/server.log" 2>&1 &
 PIDS+=($!)
 
 # Vite dev server
-echo -e "  ${GREEN}▶${NC} Vite dev server  → http://localhost:5173"
+echo -e "  ${GREEN}▶${NC} Vite dev server  → http://localhost:5174"
 (cd "$ROOT_DIR/client/ui" && npm run dev) \
   > "$LOG_DIR/client.log" 2>&1 &
 PIDS+=($!)
@@ -107,9 +107,9 @@ echo ""
 echo -e "${GREEN}══════════════════════════════════════════════${NC}"
 echo -e "${GREEN}  APT is running  (mode: ${APT_MODE})${NC}"
 echo -e "${GREEN}══════════════════════════════════════════════${NC}"
-echo -e "  Backend:  ${CYAN}http://localhost:8000${NC}"
-echo -e "  Client:   ${CYAN}http://localhost:5173${NC}"
-echo -e "  Admin:    ${CYAN}http://localhost:8000/admin${NC}"
+echo -e "  Backend:  ${CYAN}http://localhost:8001${NC}"
+echo -e "  Client:   ${CYAN}http://localhost:5174${NC}"
+echo -e "  Admin:    ${CYAN}http://localhost:8001/admin${NC}"
 echo -e "  Logs:     ${CYAN}.logs/server.log${NC}, ${CYAN}.logs/client.log${NC}"
 echo ""
 echo -e "  Press ${YELLOW}Ctrl+C${NC} to stop all services."

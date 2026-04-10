@@ -36,14 +36,15 @@ export function PipelineConfigPopover({ open, onClose }: Props) {
   return (
     <div
       ref={ref}
-      className="absolute right-4 top-12 z-20 flex w-[340px] flex-col gap-3 rounded-xl border border-mm-border/60 bg-mm-surface p-3 shadow-xl shadow-black/40"
+      className="absolute right-4 top-12 z-20 flex w-[340px] flex-col gap-3 rounded-lg border border-white/50 bg-white/85 p-3 shadow-lg shadow-black/[0.06] ring-1 ring-black/[0.06]"
+      style={{ backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }}
     >
       <div className="flex items-center justify-between">
         <h3 className="zone-header">Pipeline config</h3>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+          className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-black/[0.04] hover:text-mm-text"
           title="Close (Esc)"
         >
           ✕

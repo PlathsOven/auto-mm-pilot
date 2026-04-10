@@ -53,8 +53,7 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey }: Prop
   // Parent can force a refresh after a mutation
   useEffect(() => {
     if (refreshKey !== undefined) refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey]);
+  }, [refreshKey, refresh]);
 
   const sorted = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -88,7 +87,7 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey }: Prop
   }, [blocks, filter, sortKey]);
 
   return (
-    <section className="rounded-xl border border-mm-border/60 bg-mm-bg/40 p-4">
+    <section className="rounded-xl border border-black/[0.08] bg-black/[0.03] p-4">
       <div className="mb-3 flex items-center gap-2">
         <h3 className="zone-header">Block Inspector</h3>
         <span className="text-[10px] text-mm-text-dim">({blocks.length} total)</span>
@@ -121,9 +120,9 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey }: Prop
       {loading && blocks.length === 0 ? (
         <p className="text-[11px] text-mm-text-dim">Loading blocks…</p>
       ) : (
-        <div className="overflow-auto rounded-lg border border-mm-border/40">
+        <div className="overflow-auto rounded-lg border border-black/[0.06]">
           <table className="w-full border-collapse text-[10px]">
-            <thead className="bg-mm-bg-deep/60 text-mm-text-dim">
+            <thead className="bg-black/[0.03] text-mm-text-dim">
               <tr>
                 <Th>Block</Th>
                 <Th>Source</Th>
@@ -146,7 +145,7 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey }: Prop
                 return (
                   <tr
                     key={b.block_name}
-                    className="border-t border-mm-border/20 transition-colors hover:bg-mm-accent/5"
+                    className="border-t border-black/[0.03] transition-colors hover:bg-mm-accent/5"
                   >
                     <Td className="font-medium text-mm-text">{b.block_name}</Td>
                     <Td>

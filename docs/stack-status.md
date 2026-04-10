@@ -3,6 +3,10 @@
 > **Purpose:** Single source of truth for which components are production-ready,
 > which are mocked, and how they connect. Update this file whenever a component
 > changes status.
+>
+> **Updated by `/doc-sync`** (see `.claude/commands/doc-sync.md` step 4).
+> **Rate of change:** frequent — every status transition. Contrast with
+> `docs/architecture.md`, which changes slowly (structural map only).
 
 ## Status Key
 
@@ -31,7 +35,7 @@
 | **Stream Context DB** | `server/api/llm/context_db.py` | `MOCK` | — | Hardcoded stream metadata; will be client-contributed via API |
 | **Engine State Provider** | `server/api/engine_state.py` | `PROD` | Core Pipeline | Runs `server/core` pipeline, serializes snapshots for LLM layer |
 | **Config** | `server/api/config.py` | `PROD` | `.env` | Model lists, generation params, buffer config |
-| **Core Pipeline** | `server/core/` | `PROD` | Polars | Steps 4–6: config, helpers, pipeline, serializers. Running on mock scenario data. |
+| **Core Pipeline** | `server/core/` (`config.py`, `helpers.py`, `transforms.py`, `pipeline.py`, `serializers.py`, `mock_scenario.py`) | `PROD` | Polars | Steps 4–6: config, helpers, block/space transforms (`transforms.py`, 726 LOC), orchestration pipeline, serializers. **HUMAN ONLY** — Manual Brain rule. Running on mock scenario data. |
 
 ## Client (`client/ui/`)
 
@@ -41,15 +45,15 @@
 | **React App** | `client/ui/src/App.tsx` | `PROD` | All providers | react-grid-layout dashboard |
 | **Layout Provider** | `client/ui/src/providers/LayoutProvider.tsx` | `PROD` | — | Panel state, localStorage persistence |
 | **WebSocket Provider** | `client/ui/src/providers/WebSocketProvider.tsx` | `PROD` | Server WS `/ws` endpoint | Connects to real pipeline WS, auto-reconnects |
-| **Mock Data Generator** | `client/ui/src/providers/MockDataProvider.ts` | `MOCK` | — | Users, cell notes, daily wrap (position generation removed) |
+| ~~Mock Data Generator~~ | ~~`client/ui/src/providers/MockDataProvider.ts`~~ | — | — | Deleted — remaining mock seeds inlined where needed |
 | **Chat Provider** | `client/ui/src/providers/ChatProvider.tsx` | `PROD` | LLM API Client | Routes @APT to server `/api/investigate` (SSE stream) |
 | **LLM API Client** | `client/ui/src/services/llmApi.ts` | `PROD` | FastAPI App | HTTP client for `/api/investigate` |
 | **Desired Position Grid** | `client/ui/src/components/DesiredPositionGrid.tsx` | `PROD` | WebSocket Provider, Chat Provider | Zone C — clickable cells push context |
 | **Updates Feed** | `client/ui/src/components/UpdatesFeed.tsx` | `PROD` | WebSocket Provider | Zone D — position-change cards with stream attribution |
 | **Team Chat (LLM Chat)** | `client/ui/src/components/LlmChat.tsx` | `PROD` | Chat Provider | Zone E — streaming assistant messages |
-| **Daily Wrap** | `client/ui/src/components/DailyWrap.tsx` | `MOCK` | — | Static mock data; **needs LLM-generated wrap** |
+| ~~Daily Wrap~~ | ~~`client/ui/src/components/DailyWrap.tsx`~~ | — | — | Deleted — will be rebuilt when LLM-generated wrap is ready |
 | **Stream Status List** | `client/ui/src/components/floor/StreamStatusList.tsx` | `PROD` | WebSocket Provider, stream API | Floor read-only stream registry/health (replaces IngestionSidebar) |
-| **Stream Library / Canvas** | `client/ui/src/components/studio/StreamLibrary.tsx`, `StreamCanvas.tsx` | `PROD` | stream API, TransformsProvider, LLM API | Studio CRUD + activate flow with 7 sections + LLM co-pilot |
+| **Stream Library / Canvas** | `client/ui/src/components/studio/StreamLibrary.tsx`, `StreamCanvas.tsx` | `PROD` | stream API, TransformsProvider | Studio CRUD + activate flow with 7 sections |
 | **Global Context Bar** | `client/ui/src/components/GlobalContextBar.tsx` | `PROD` | WebSocket Provider | Zone B |
 
 ## Data Adapters (`client/adapter/`)
