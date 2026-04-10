@@ -6,6 +6,9 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, Union
 
+# Re-usable type alias — also defined in prompts/__init__.py for internal use.
+ChatMode = Literal["investigate", "configure", "opinion", "general"]
+
 from pydantic import BaseModel, Field
 
 
@@ -52,6 +55,10 @@ class InvestigateRequest(BaseModel):
     cell_context: CellContext | None = Field(
         default=None,
         description="Optional cell/card context clicked by the user",
+    )
+    mode: ChatMode = Field(
+        default="investigate",
+        description="Chat mode — controls which prompt modules the server uses",
     )
 
 

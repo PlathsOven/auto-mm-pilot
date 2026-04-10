@@ -93,10 +93,14 @@ export interface ChatMessage {
 // API request / response types
 // ---------------------------------------------------------------------------
 
+/** Chat mode — controls which prompt modules the server uses */
+export type ChatMode = "investigate" | "configure" | "opinion" | "general";
+
 /** POST /api/investigate — request payload */
 export interface InvestigatePayload {
   conversation: { role: string; content: string }[];
   cell_context?: Record<string, unknown> | null;
+  mode: ChatMode;
 }
 
 /** POST /api/snapshots — response */

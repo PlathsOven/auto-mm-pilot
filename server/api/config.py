@@ -87,7 +87,7 @@ class OpenRouterConfig:
     )
 
     # Generation parameters
-    max_tokens_investigation: int = 8196
+    max_tokens_investigation: int = 2048
     temperature_investigation: float = 0.
 
     # Snapshot buffer — controls how much pipeline history the LLM sees.

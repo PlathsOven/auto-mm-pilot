@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { ChatMessage, InvestigationContext } from "../types";
+import type { ChatMessage, ChatMode, InvestigationContext } from "../types";
 import { streamInvestigation } from "../services/llmApi";
 import { createIdGenerator } from "../utils";
 
@@ -10,6 +10,8 @@ interface ChatState {
   isStreaming: boolean;
   /** Whether the global ChatDrawer is currently visible. */
   drawerOpen: boolean;
+  chatMode: ChatMode;
+  setChatMode: (mode: ChatMode) => void;
   sendMessage: (content: string) => void;
   investigate: (ctx: InvestigationContext) => void;
   clearInvestigation: () => void;
@@ -24,6 +26,8 @@ const ChatContext = createContext<ChatState>({
   investigation: null,
   isStreaming: false,
   drawerOpen: false,
+  chatMode: "investigate",
+  setChatMode: () => {},
   sendMessage: () => {},
   investigate: () => {},
   clearInvestigation: () => {},
@@ -45,6 +49,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     useState<InvestigationContext | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [chatMode, setChatMode] = useState<ChatMode>("investigate");
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatMessage[]>(messages);
   messagesRef.current = messages;
@@ -92,7 +97,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       let accumulated = "";
 
       const controller = streamInvestigation(
-        { conversation },
+        { conversation, mode: chatMode },
         {
           onDelta: (text) => {
             accumulated += text;
@@ -119,7 +124,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       );
       abortRef.current = controller;
     },
-    [pushMessage, updateMessage],
+    [pushMessage, updateMessage, chatMode],
   );
 
   const cancelStream = useCallback(() => {
@@ -149,6 +154,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         investigation,
         isStreaming,
         drawerOpen,
+        chatMode,
+        setChatMode,
         sendMessage,
         investigate,
         clearInvestigation,

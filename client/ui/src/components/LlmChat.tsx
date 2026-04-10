@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { useChat } from "../providers/ChatProvider";
+import type { ChatMode } from "../types";
+
+const MODE_LABELS: Record<ChatMode, string> = {
+  investigate: "Investigate",
+  configure: "Configure",
+  opinion: "Opinion",
+  general: "General",
+};
 
 function investigationLabel(ctx: NonNullable<ReturnType<typeof useChat>["investigation"]>): string {
   if (ctx.type === "update") {
@@ -10,7 +18,7 @@ function investigationLabel(ctx: NonNullable<ReturnType<typeof useChat>["investi
 }
 
 export function LlmChat() {
-  const { messages, investigation, isStreaming, sendMessage, clearInvestigation, cancelStream } = useChat();
+  const { messages, investigation, isStreaming, sendMessage, clearInvestigation, cancelStream, chatMode, setChatMode } = useChat();
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -34,6 +42,16 @@ export function LlmChat() {
           <h2 className="zone-header">APT Chat</h2>
           <span className="text-[9px] text-mm-text-dim">Ask the engine anything</span>
         </div>
+        <select
+          value={chatMode}
+          onChange={(e) => setChatMode(e.target.value as ChatMode)}
+          disabled={isStreaming}
+          className="rounded border border-mm-border/40 bg-mm-surface px-2 py-0.5 text-[10px] text-mm-text outline-none transition-colors focus:border-mm-accent/60"
+        >
+          {(Object.keys(MODE_LABELS) as ChatMode[]).map((m) => (
+            <option key={m} value={m}>{MODE_LABELS[m]}</option>
+          ))}
+        </select>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">

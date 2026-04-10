@@ -40,7 +40,7 @@ if _PROJECT_ROOT not in sys.path:
 from server.api.config import get_openrouter_config
 from server.api.llm.client import OpenRouterClient
 from server.api.llm.context_db import serialize_stream_contexts
-from server.api.llm.prompts import get_investigation_prompt
+from server.api.llm.prompts import build_system_prompt
 from server.api.llm.snapshot_buffer import SnapshotBufferConfig, SnapshotRingBuffer
 
 
@@ -297,8 +297,12 @@ async def _run_cli() -> None:
 
     history_context = snapshot_buffer.build_history_context(mock_now)
 
-    system_prompt = get_investigation_prompt(
-        engine_state, stream_contexts, pipeline_snapshot, history_context,
+    system_prompt = build_system_prompt(
+        "investigate",
+        engine_state=engine_state,
+        stream_contexts_json=stream_contexts,
+        pipeline_snapshot=pipeline_snapshot,
+        history_context=history_context,
     )
 
     print("=" * 70)

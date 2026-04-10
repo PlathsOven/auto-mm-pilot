@@ -143,3 +143,15 @@ Format per entry: **Date — Decision**. Then `Context:`, `Decision:`, `Rational
 **Rationale:** The value of APT is not in hiding how it works — it is in providing the epistemological framework itself and the platform to use it. A user who understands blocks, spaces, and var_fair_ratio can configure their own streams more effectively and reason about position changes more precisely. Hiding the framework was creating friction without adding defensible value.
 
 **Consequences:** The LLM will now use framework terminology and quote exact values when helpful. The `server/core/` Manual Brain restriction is unchanged — that is about code authorship quality, not IP. The physical client/server split remains for deployment architecture, though its original IP motivation is no longer primary.
+
+---
+
+## 2026-04-10 — Modular LLM prompt architecture
+
+**Context:** The monolithic investigation prompt (~15KB static) was used for all LLM interactions — from deep position-change analysis to simple "got it" acknowledgements. This wasted tokens and caused verbose responses to simple questions. The stream co-pilot (removed in a prior commit) had been a separate panel; its functionality needed to merge into the same chat interface.
+
+**Decision:** Replace the monolithic prompt with a modular composition pipeline. The client sends a `mode` field (`investigate | configure | opinion | general`) on every `/api/investigate` request. The server composes a system prompt from shared core + mode-specific extension + mode-appropriate data. Shared content (role, framework summary, hard constraints, language rules, response discipline) lives in `core.py` and is stated once. Each mode extension adds only what it needs. `max_tokens` reduced from 8196 to 2048 to enforce proportional responses.
+
+**Rationale:** (1) Token efficiency — general mode is ~3.9KB vs. 15KB before. Investigation mode is ~7.8KB, a 48% reduction. (2) Proportional responses — the LLM no longer receives reasoning protocol instructions when answering a casual question. (3) Extensibility — configure and opinion modes are stubs that can be filled in when Flows 2 and 3 are built, without touching the core or investigation code. (4) Intent clarity — the client declares intent explicitly, so the LLM can flag mismatches rather than guessing.
+
+**Consequences:** `preamble.py` is deleted; its content is in `core.py`. `investigation.py` is investigation-only. New files: `core.py`, `general.py`, `configure.py`, `opinion.py`. The `__init__.py` dispatcher exposes `build_system_prompt(mode, ...)` instead of `get_investigation_prompt`. Client gains a mode selector dropdown in the chat header.

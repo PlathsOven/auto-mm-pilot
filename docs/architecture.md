@@ -82,8 +82,12 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `server/api/llm/service.py` | LLM orchestration — investigation chat |
 | `server/api/llm/snapshot_buffer.py` | Pipeline snapshot ring buffer — stores time-series history, builds condensed delta tables for LLM context |
 | `server/api/llm/context_db.py` | Stream context database — metadata about each data stream (MOCK-initialized) |
-| `server/api/llm/prompts/preamble.py` | Shared prompt preamble (IP protection, language rules, epistemology) |
-| `server/api/llm/prompts/investigation.py` | System prompt for Zone E (read state + issue engine commands) |
+| `server/api/llm/prompts/__init__.py` | `build_system_prompt(mode, ...)` dispatcher — routes to mode-specific builders |
+| `server/api/llm/prompts/core.py` | Shared core: role, framework, language rules, hard constraints, response discipline |
+| `server/api/llm/prompts/investigation.py` | Investigation mode: reasoning protocol, data sections, engine commands |
+| `server/api/llm/prompts/general.py` | General mode: catch-all conversational, minimal engine summary |
+| `server/api/llm/prompts/configure.py` | Configure mode: stream onboarding guidance (stub) |
+| `server/api/llm/prompts/opinion.py` | Opinion mode: discretionary view → manual block (stub) |
 | `server/api/llm/test_investigation.py` | **CLI harness, not prod code** — interactive test for Zone E investigation LLM with mock pipeline data |
 | `server/core/__init__.py` | Core pipeline package — re-exports public API (HUMAN ONLY) |
 | `server/core/config.py` | `BlockConfig`, `StreamConfig` dataclasses, `SECONDS_PER_YEAR` (HUMAN ONLY) |

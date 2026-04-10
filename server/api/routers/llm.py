@@ -61,6 +61,7 @@ async def investigate(req: InvestigateRequest) -> StreamingResponse:
                 pipeline_snapshot=pipeline_snapshot,
                 snapshot_buffer=snapshot_buffer,
                 now=now,
+                mode=req.mode,
             ):
                 yield f"data: {json.dumps(delta)}\n\n"
             yield "data: [DONE]\n\n"
