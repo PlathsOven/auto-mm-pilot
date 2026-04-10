@@ -24,7 +24,7 @@ function Badge({ method }: { method: string }) {
 
 function CodeBlock({ children }: { children: string }) {
   return (
-    <pre className="overflow-x-auto rounded-lg border border-mm-border/40 bg-mm-bg-deep p-3 text-[11px] leading-relaxed text-mm-text-dim">
+    <pre className="overflow-x-auto rounded-lg border border-black/[0.06] bg-mm-bg-deep p-3 text-[11px] leading-relaxed text-mm-text-dim">
       {children.trim()}
     </pre>
   );
@@ -41,7 +41,7 @@ function Section({
 }) {
   return (
     <section id={id} className="scroll-mt-4">
-      <h2 className="mb-3 border-b border-mm-border/30 pb-1.5 text-sm font-semibold text-mm-accent">
+      <h2 className="mb-3 border-b border-black/[0.04] pb-1.5 text-sm font-semibold text-mm-accent">
         {title}
       </h2>
       <div className="space-y-3 text-xs leading-relaxed text-mm-text-dim">
@@ -60,7 +60,7 @@ function Collapsible({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-lg border border-mm-border/30 bg-mm-surface/60">
+    <div className="rounded-lg border border-black/[0.04] bg-white/50">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-mm-border/10"
@@ -69,7 +69,7 @@ function Collapsible({
         <span className="ml-auto text-[10px] text-mm-text-dim">{open ? "▲" : "▼"}</span>
       </button>
       {open && (
-        <div className="border-t border-mm-border/20 px-3 py-2.5 text-[11px] text-mm-text-dim">
+        <div className="border-t border-black/[0.03] px-3 py-2.5 text-[11px] text-mm-text-dim">
           {children}
         </div>
       )}
@@ -90,7 +90,7 @@ function Endpoint({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-lg border border-mm-border/30 bg-mm-surface/60">
+    <div className="rounded-lg border border-black/[0.04] bg-white/50">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-mm-border/10"
@@ -103,7 +103,7 @@ function Endpoint({
         <p className="px-3 pb-2 text-[11px] text-mm-text-dim">{description}</p>
       )}
       {open && (
-        <div className="space-y-2 border-t border-mm-border/20 px-3 py-2.5 text-[11px] text-mm-text-dim">
+        <div className="space-y-2 border-t border-black/[0.03] px-3 py-2.5 text-[11px] text-mm-text-dim">
           <p>{description}</p>
           {children}
         </div>
@@ -138,7 +138,7 @@ export function ApiDocs() {
   return (
     <div className="flex h-full overflow-hidden text-mm-text">
       {/* Sidebar nav */}
-      <nav className="hidden w-36 shrink-0 overflow-y-auto border-r border-mm-border/30 py-3 pr-2 pl-3 md:block">
+      <nav className="hidden w-36 shrink-0 overflow-y-auto border-r border-black/[0.04] py-3 pr-2 pl-3 md:block">
         <ul className="space-y-1">
           {NAV.map((item) => (
             <li key={item.id}>

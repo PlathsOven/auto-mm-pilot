@@ -108,13 +108,13 @@ export function BlockShapeSection({ value, onChange, state, dimmed }: Props) {
         />
       </div>
 
-      <div className="mt-3 rounded-md border border-mm-border/40 bg-mm-bg-deep/60 p-2">
+      <div className="mt-3 rounded-md border border-black/[0.06] bg-black/[0.03] p-2">
         <div className="mb-1 flex items-baseline justify-between text-[10px] text-mm-text-dim">
           <span>Block decay over the next hour</span>
           <span className="text-mm-accent">{decayProfile}</span>
         </div>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-16 w-full">
-          <polyline points={polyline} fill="none" stroke="#818cf8" strokeWidth="1" />
+          <polyline points={polyline} fill="none" stroke="#4f5bd5" strokeWidth="1" />
         </svg>
       </div>
     </SectionCard>

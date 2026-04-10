@@ -51,7 +51,7 @@ export function AggregationSection({ value, onChange, state, dimmed }: Props) {
             className={`rounded-md border p-3 text-left transition-colors ${
               value.aggregation_logic === opt
                 ? "border-mm-accent/60 bg-mm-accent/10"
-                : "border-mm-border/40 bg-mm-bg/40 hover:border-mm-border/80"
+                : "border-black/[0.06] bg-black/[0.03] hover:border-black/[0.12]"
             } ${isSumAll ? "cursor-not-allowed opacity-50" : ""}`}
           >
             <div className="text-xs font-semibold text-mm-text capitalize">{opt}</div>

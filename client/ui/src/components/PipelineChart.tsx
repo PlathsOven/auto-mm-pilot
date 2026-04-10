@@ -77,12 +77,12 @@ export function PipelineChart() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Selector bar */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-mm-border/40 bg-mm-bg/60 px-3 py-1.5">
+      <div className="flex shrink-0 items-center gap-3 border-b border-black/[0.06] bg-black/[0.04] px-3 py-1.5">
         <label className="text-[10px] font-semibold uppercase tracking-wider text-mm-text-dim">
           Instrument
         </label>
         <select
-          className="rounded border border-mm-border/60 bg-mm-surface px-2 py-0.5 text-[11px] text-mm-text focus:border-mm-accent focus:outline-none"
+          className="rounded-md border border-black/[0.06] bg-mm-surface-solid px-2 py-0.5 text-[11px] text-mm-text focus:border-mm-accent/40 focus:outline-none"
           value={selected ? `${selected.symbol}|${selected.expiry}` : ""}
           onChange={handleDimChange}
         >
@@ -103,7 +103,7 @@ export function PipelineChart() {
         {data && (
           <>
             <div
-              className="shrink-0 border-r border-mm-border/40 bg-mm-bg/40"
+              className="shrink-0 border-r border-black/[0.06] bg-black/[0.03]"
               style={{ width: sidebarWidth }}
             >
               <DecompositionSidebar

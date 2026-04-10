@@ -19,7 +19,7 @@ export function StudioPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <nav className="flex shrink-0 items-center gap-1 border-b border-mm-border/40 bg-mm-surface/40 px-6">
+      <nav className="flex shrink-0 items-center gap-1 border-b border-black/[0.06] bg-white/45 px-6">
         <SectionTab
           label="Anatomy"
           active={section === "anatomy"}
@@ -54,7 +54,7 @@ function SectionTab({
       className={`border-b-2 px-4 py-3 text-xs font-medium transition-colors ${
         active
           ? "border-mm-accent text-mm-accent"
-          : "border-transparent text-mm-text-dim hover:border-mm-border hover:text-mm-text"
+          : "border-transparent text-mm-text-dim hover:border-black/10 hover:text-mm-text"
       }`}
     >
       {label}

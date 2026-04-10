@@ -1,14 +1,14 @@
 /** Returns a Tailwind text-color class based on the sign of the value. */
 export function valColor(val: number): string {
-  if (val > 0) return "text-mm-accent";
-  if (val < 0) return "text-mm-error";
-  return "text-mm-text-dim";
+  if (val > 0) return "text-mm-positive";
+  if (val < 0) return "text-mm-negative";
+  return "text-mm-neutral";
 }
 
-/** Returns an rgba background color tinted by sign. */
+/** Returns an rgba background color tinted by sign (light glass palette). */
 export function cellBg(val: number): string {
-  if (val > 0) return "rgba(129, 140, 248, 0.10)";
-  if (val < 0) return "rgba(248, 113, 113, 0.10)";
+  if (val > 0) return "rgba(79, 91, 213, 0.06)";
+  if (val < 0) return "rgba(212, 64, 92, 0.06)";
   return "transparent";
 }
 

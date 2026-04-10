@@ -32,19 +32,20 @@ export function ChatDrawer() {
       />
 
       <aside
-        className="fixed right-0 top-[60px] z-50 flex h-[calc(100vh-60px)] w-[420px] flex-col border-l border-mm-border/60 bg-mm-surface shadow-2xl shadow-black/40"
+        className="fixed right-0 top-[56px] z-50 flex h-[calc(100vh-56px)] w-[420px] flex-col border-l border-black/[0.06] bg-white/70 shadow-xl shadow-black/[0.06]"
+        style={{ backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-mm-border/40 px-3 py-2">
+        <div className="flex items-center justify-between border-b border-black/[0.06] px-3 py-2">
           <span className="zone-header">APT Chat</span>
           <div className="flex items-center gap-2">
-            <span className="hidden text-[9px] tabular-nums text-mm-text-dim sm:inline">
+            <span className="hidden text-[9px] tabular-nums text-mm-text-subtle sm:inline">
               ⌘\
             </span>
             <button
               type="button"
               onClick={closeDrawer}
-              className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+              className="rounded-md p-1 text-[12px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
               title="Close (Esc)"
             >
               ✕

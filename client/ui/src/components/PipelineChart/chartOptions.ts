@@ -8,7 +8,7 @@ import type {
 // ---------------------------------------------------------------------------
 export const BLOCK_COLORS = [
   "#00cc96", // green
-  "#636efa", // indigo
+  "#4f5bd5", // indigo
   "#ef553b", // red
   "#ab63fa", // purple
   "#ffa15a", // orange
@@ -19,12 +19,12 @@ export const BLOCK_COLORS = [
   "#fecb52", // yellow
 ];
 
-export const SMOOTHED_COLOR = "#ffffff";
-export const RAW_COLOR = "rgba(255,255,255,0.3)";
-export const FAIR_COLOR = "#ffffff";
-export const VARIANCE_COLOR = "#ffffff";
-export const MARKET_FAIR_COLOR = "rgba(255,255,255,0.35)";
-export const SIDEBAR_POSITION_COLOR = "#636efa";
+export const SMOOTHED_COLOR = "#1a1a2e";
+export const RAW_COLOR = "rgba(26,26,46,0.3)";
+export const FAIR_COLOR = "#1a1a2e";
+export const VARIANCE_COLOR = "#1a1a2e";
+export const MARKET_FAIR_COLOR = "rgba(26,26,46,0.35)";
+export const SIDEBAR_POSITION_COLOR = "#4f5bd5";
 export const SIDEBAR_FAIR_COLOR = "#00cc96";
 export const SIDEBAR_VARIANCE_COLOR = "#ef553b";
 
@@ -38,9 +38,9 @@ export const MODE_LABELS: Record<DecompositionMode, string> = {
 };
 
 export const TOOLTIP_STYLE = {
-  backgroundColor: "rgba(20,20,30,0.95)",
-  borderColor: "rgba(255,255,255,0.1)",
-  textStyle: { color: "#ccc", fontSize: 10 },
+  backgroundColor: "rgba(255,255,255,0.92)",
+  borderColor: "rgba(0,0,0,0.08)",
+  textStyle: { color: "#1a1a2e", fontSize: 10 },
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ export function buildPipelineChartOptions(
           (groups[idx] ??= []).push(p);
         }
 
-        let html = `<div style="font-size:10px;margin-bottom:4px;color:#8a8f9a">${tsLabel}</div>`;
+        let html = `<div style="font-size:10px;margin-bottom:4px;color:#6e6e82">${tsLabel}</div>`;
 
         for (const axisIdx of Object.keys(groups).map(Number).sort()) {
           const items = groups[axisIdx];
@@ -213,7 +213,7 @@ export function buildPipelineChartOptions(
             const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:4px"></span>`;
             const isBlock = suffix && name.endsWith(suffix);
             const pctStr = isBlock && blockAbsSum > 0
-              ? ` <span style="color:#8a8f9a">(${((Math.abs(v) / blockAbsSum) * 100).toFixed(1)}%)</span>`
+              ? ` <span style="color:#6e6e82">(${((Math.abs(v) / blockAbsSum) * 100).toFixed(1)}%)</span>`
               : "";
             html += `<div>${dot}${name}: <b>${sci(v)}</b>${pctStr}</div>`;
           }
@@ -227,8 +227,8 @@ export function buildPipelineChartOptions(
       right: 0,
       top: 30,
       bottom: 40,
-      textStyle: { color: "#8a8f9a", fontSize: 9 },
-      pageTextStyle: { color: "#8a8f9a" },
+      textStyle: { color: "#6e6e82", fontSize: 9 },
+      pageTextStyle: { color: "#6e6e82" },
       itemWidth: 10,
       itemHeight: 8,
       itemGap: 4,
@@ -246,10 +246,10 @@ export function buildPipelineChartOptions(
         bottom: 24,
         height: 14,
         borderColor: "transparent",
-        backgroundColor: "rgba(255,255,255,0.03)",
-        fillerColor: "rgba(99,110,250,0.15)",
-        handleStyle: { color: "#636efa" },
-        textStyle: { color: "#8a8f9a", fontSize: 9 },
+        backgroundColor: "rgba(0,0,0,0.03)",
+        fillerColor: "rgba(79,91,213,0.12)",
+        handleStyle: { color: "#4f5bd5" },
+        textStyle: { color: "#6e6e82", fontSize: 9 },
       },
     ],
     grid: [
@@ -264,7 +264,7 @@ export function buildPipelineChartOptions(
         gridIndex: 0,
         axisLabel: { show: false },
         axisTick: { show: false },
-        axisLine: { lineStyle: { color: "rgba(255,255,255,0.08)" } },
+        axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
         splitLine: { show: false },
       },
       {
@@ -273,7 +273,7 @@ export function buildPipelineChartOptions(
         gridIndex: 1,
         axisLabel: { show: false },
         axisTick: { show: false },
-        axisLine: { lineStyle: { color: "rgba(255,255,255,0.08)" } },
+        axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
         splitLine: { show: false },
       },
       {
@@ -281,7 +281,7 @@ export function buildPipelineChartOptions(
         data: timestamps,
         gridIndex: 2,
         axisLabel: {
-          color: "#8a8f9a",
+          color: "#6e6e82",
           fontSize: 9,
           formatter: (v: string) => {
             try {
@@ -292,8 +292,8 @@ export function buildPipelineChartOptions(
             }
           },
         },
-        axisTick: { lineStyle: { color: "rgba(255,255,255,0.08)" } },
-        axisLine: { lineStyle: { color: "rgba(255,255,255,0.08)" } },
+        axisTick: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
+        axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
         splitLine: { show: false },
       },
     ],
@@ -302,27 +302,27 @@ export function buildPipelineChartOptions(
         type: "value",
         gridIndex: 0,
         name: "Position ($)",
-        nameTextStyle: { color: "#8a8f9a", fontSize: 9, padding: [0, 0, 0, -10] },
-        axisLabel: { color: "#8a8f9a", fontSize: 9, formatter: (v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v)) },
-        splitLine: { lineStyle: { color: "rgba(255,255,255,0.04)" } },
+        nameTextStyle: { color: "#6e6e82", fontSize: 9, padding: [0, 0, 0, -10] },
+        axisLabel: { color: "#6e6e82", fontSize: 9, formatter: (v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v)) },
+        splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
         axisLine: { show: false },
       },
       {
         type: "value",
         gridIndex: 1,
         name: "Fair Value",
-        nameTextStyle: { color: "#8a8f9a", fontSize: 9, padding: [0, 0, 0, -10] },
-        axisLabel: { color: "#8a8f9a", fontSize: 9, formatter: (v: number) => sci(v) },
-        splitLine: { lineStyle: { color: "rgba(255,255,255,0.04)" } },
+        nameTextStyle: { color: "#6e6e82", fontSize: 9, padding: [0, 0, 0, -10] },
+        axisLabel: { color: "#6e6e82", fontSize: 9, formatter: (v: number) => sci(v) },
+        splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
         axisLine: { show: false },
       },
       {
         type: "value",
         gridIndex: 2,
         name: "Variance",
-        nameTextStyle: { color: "#8a8f9a", fontSize: 9, padding: [0, 0, 0, -10] },
-        axisLabel: { color: "#8a8f9a", fontSize: 9, formatter: (v: number) => sci(v) },
-        splitLine: { lineStyle: { color: "rgba(255,255,255,0.04)" } },
+        nameTextStyle: { color: "#6e6e82", fontSize: 9, padding: [0, 0, 0, -10] },
+        axisLabel: { color: "#6e6e82", fontSize: 9, formatter: (v: number) => sci(v) },
+        splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
         axisLine: { show: false },
       },
     ],

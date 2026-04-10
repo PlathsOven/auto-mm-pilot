@@ -64,7 +64,7 @@ export function DesiredPositionGrid() {
 
   return (
     <div className="flex h-full flex-col p-4">
-      <div className="mb-3 flex items-center justify-between border-b border-mm-border/40 pb-2">
+      <div className="mb-3 flex items-center justify-between border-b border-black/[0.06] pb-2">
         <div className="flex items-baseline gap-2">
           <h2 className="zone-header">Desired Positions</h2>
           {meta.unit && (
@@ -80,8 +80,8 @@ export function DesiredPositionGrid() {
                   onClick={() => setTimeframe(tf.label)}
                   className={`px-2 py-0.5 text-[10px] transition-colors ${
                     timeframe === tf.label
-                      ? "rounded-md bg-mm-accent/20 text-mm-accent"
-                      : "rounded-md text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+                      ? "rounded-md bg-mm-accent/10 text-mm-accent"
+                      : "rounded-md text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
                   }`}
                 >
                   {tf.label}
@@ -91,15 +91,15 @@ export function DesiredPositionGrid() {
           )}
 
           {/* Primary 4 view modes as a tab strip */}
-          <div className="flex items-center gap-0.5 rounded-lg border border-mm-border/60 bg-mm-bg/60 p-0.5">
+          <div className="flex items-center gap-0.5 rounded-lg border border-black/[0.06] bg-black/[0.03] p-0.5">
             {PRIMARY_VIEW_MODES.map((m) => (
               <button
                 key={m}
                 onClick={() => setViewMode(m)}
                 className={`rounded-md px-2 py-1 text-[10px] font-medium transition-colors ${
                   viewMode === m
-                    ? "bg-mm-accent/15 text-mm-accent"
-                    : "text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+                    ? "bg-mm-accent/10 text-mm-accent"
+                    : "text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
                 }`}
               >
                 {VIEW_MODE_META[m].label}
@@ -113,15 +113,15 @@ export function DesiredPositionGrid() {
               onClick={() => setMoreOpen((v) => !v)}
               className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-medium transition-colors ${
                 secondaryActive
-                  ? "border-mm-accent/40 bg-mm-accent/15 text-mm-accent"
-                  : "border-mm-border/60 bg-mm-bg/60 text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+                  ? "border-mm-accent/30 bg-mm-accent/10 text-mm-accent"
+                  : "border-black/[0.06] bg-black/[0.03] text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
               }`}
             >
               <span>{secondaryActive ? VIEW_MODE_META[viewMode].label : "More"}</span>
               <span className="text-[8px]">{moreOpen ? "\u25B2" : "\u25BC"}</span>
             </button>
             {moreOpen && (
-              <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-lg border border-mm-border/60 bg-mm-surface py-1 shadow-xl shadow-black/30">
+              <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-lg border border-black/[0.06] bg-mm-surface-solid py-1 shadow-lg shadow-black/[0.08]">
                 {SECONDARY_VIEW_MODES.map((m) => (
                   <button
                     key={m}
@@ -150,7 +150,7 @@ export function DesiredPositionGrid() {
         ) : (
           <table className="w-full border-collapse text-[11px]">
             <thead>
-              <tr className="border-b border-mm-border/40 text-[10px] text-mm-text-dim">
+              <tr className="border-b border-black/[0.06] text-[10px] text-mm-text-subtle">
                 <th className="px-2 py-1.5 text-left font-medium" />
                 {expiries.map((exp) => (
                   <th
@@ -167,9 +167,9 @@ export function DesiredPositionGrid() {
               {symbols.map((symbol) => (
                 <tr
                   key={symbol}
-                  className="border-b border-mm-border/20"
+                  className="border-b border-black/[0.04]"
                 >
-                  <td className="px-2 py-1.5 text-[11px] font-semibold text-mm-text">
+                  <td className="px-3 py-2.5 text-[12px] font-medium text-mm-text">
                     {symbol}
                   </td>
                   {expiries.map((exp) => {
@@ -189,7 +189,7 @@ export function DesiredPositionGrid() {
                         onDoubleClick={(e) => { e.stopPropagation(); startEdit(key, symbol, exp, cell.pos, viewMode); }}
                         onMouseEnter={() => onMouseEnter(symbol, exp, key)}
                         onMouseLeave={onMouseLeave}
-                        className={`relative cursor-pointer rounded px-2 py-1.5 text-center text-[11px] tabular-nums transition-colors hover:ring-1 hover:ring-mm-accent/30 ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${isDimensionSelected(symbol, exp) ? "channel-highlight-cell" : ""}`}
+                        className={`relative cursor-pointer rounded-md px-3 py-2.5 text-center text-[12px] font-medium tabular-nums transition-colors hover:bg-white/80 hover:ring-1 hover:ring-mm-accent/20 ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${isDimensionSelected(symbol, exp) ? "channel-highlight-cell" : ""}`}
                         style={{ backgroundColor: cellBg(val) }}
                       >
                         {isEditing ? (
@@ -203,7 +203,7 @@ export function DesiredPositionGrid() {
                               if (e.key === "Escape") cancelEdit();
                             }}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-full rounded-md bg-mm-bg border border-mm-accent/60 px-1 py-0.5 text-center text-[11px] text-mm-text outline-none tabular-nums focus:ring-1 focus:ring-mm-accent/30"
+                            className="w-full rounded-md border border-mm-accent/30 bg-mm-surface-solid px-1 py-0.5 text-center text-[12px] text-mm-text outline-none tabular-nums focus:ring-1 focus:ring-mm-accent/20"
                           />
                         ) : (
                           <>
@@ -218,7 +218,7 @@ export function DesiredPositionGrid() {
                         {hasOverride && !isEditing && (
                           <button
                             onClick={(e) => { e.stopPropagation(); removeOverride(key); }}
-                            className="absolute left-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-amber-500/30 text-[8px] font-bold text-amber-400 hover:bg-amber-500/50 transition-colors cursor-pointer"
+                            className="absolute left-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-mm-warn/15 text-[8px] font-bold text-mm-warn hover:bg-mm-warn/25 transition-colors cursor-pointer"
                             title="Undo override"
                           >
                             ✕
@@ -236,8 +236,8 @@ export function DesiredPositionGrid() {
                   />
                 </tr>
               ))}
-              <tr className="border-t border-mm-border/40">
-                <td className="px-2 py-1.5 text-[11px] font-semibold text-mm-text-dim">Total</td>
+              <tr className="border-t border-black/[0.06]">
+                <td className="px-3 py-2.5 text-[11px] font-medium text-mm-text-dim">Total</td>
                 {expiries.map((exp) => (
                   <TotalCell
                     key={exp}

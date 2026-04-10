@@ -51,7 +51,7 @@ function XsGlyph({ onClick }: { onClick?: () => void }) {
       <button
         type="button"
         onClick={onClick}
-        className="rounded px-1.5 py-0.5 text-[11px] transition-colors hover:bg-mm-border/30"
+        className="rounded px-1.5 py-0.5 text-[11px] transition-colors hover:bg-black/[0.04]"
       >
         {content}
       </button>
@@ -113,7 +113,7 @@ function StripShell({
   const padding = size === "lg" ? "px-4 py-3" : "px-3 py-2";
   return (
     <div
-      className={`mt-2 flex items-center justify-between gap-3 rounded-lg border border-mm-border/40 bg-mm-bg/60 ${padding}`}
+      className={`mt-2 flex items-center justify-between gap-3 rounded-lg border border-black/[0.06] bg-black/[0.04] ${padding}`}
     >
       {children}
     </div>

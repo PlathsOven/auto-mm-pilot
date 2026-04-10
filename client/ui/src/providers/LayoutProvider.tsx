@@ -15,8 +15,8 @@ export const PANEL_LABELS: Record<PanelType, string> = {
 };
 
 const DEFAULT_SIZES: Record<PanelType, { w: number; h: number }> = {
-  streams: { w: 3, h: 6 },
-  positions: { w: 6, h: 6 },
+  streams: { w: 2, h: 6 },
+  positions: { w: 7, h: 6 },
   updates: { w: 3, h: 4 },
 };
 
@@ -27,8 +27,8 @@ const DEFAULT_PANELS: PanelInstance[] = [
 ];
 
 const DEFAULT_LAYOUT: LayoutItem[] = [
-  { i: "streams-0", x: 0, y: 0, w: 3, h: 10, minW: 2, minH: 3 },
-  { i: "positions-0", x: 3, y: 0, w: 6, h: 10, minW: 4, minH: 3 },
+  { i: "streams-0", x: 0, y: 0, w: 2, h: 10, minW: 2, minH: 3 },
+  { i: "positions-0", x: 2, y: 0, w: 7, h: 10, minW: 4, minH: 3 },
   { i: "updates-0", x: 9, y: 0, w: 3, h: 10, minW: 2, minH: 3 },
 ] as LayoutItem[];
 

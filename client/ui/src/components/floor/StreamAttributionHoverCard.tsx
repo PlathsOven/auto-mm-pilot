@@ -21,8 +21,8 @@ export function StreamAttributionHoverCard({ symbol, expiry }: Props) {
   const { loading, contributions, error } = useStreamContributions({ symbol, expiry });
 
   return (
-    <div className="absolute left-1/2 top-full z-50 mt-1 w-64 -translate-x-1/2 rounded-lg border border-mm-border/60 bg-mm-surface/95 p-3 shadow-xl shadow-black/40 backdrop-blur-sm">
-      <div className="mb-2 flex items-baseline justify-between border-b border-mm-border/40 pb-1.5">
+    <div className="absolute left-1/2 top-full z-50 mt-1 w-64 -translate-x-1/2 rounded-lg border border-white/50 bg-white/85 p-3 shadow-lg shadow-black/[0.08] ring-1 ring-black/[0.06]" style={{ backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }}>
+      <div className="mb-2 flex items-baseline justify-between border-b border-black/[0.06] pb-1.5">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-mm-accent">
           Stream Attribution
         </span>

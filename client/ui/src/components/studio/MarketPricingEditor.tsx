@@ -72,7 +72,7 @@ export function MarketPricingEditor() {
   };
 
   return (
-    <section className="rounded-xl border border-mm-border/60 bg-mm-bg/40 p-3">
+    <section className="rounded-xl border border-black/[0.08] bg-black/[0.03] p-3">
       <h3 className="mb-2 text-xs font-semibold text-mm-text">Market Pricing</h3>
       <p className="mb-3 text-[10px] text-mm-text-dim">
         Per-space-id reference price used to compute fair-vs-market edge.
@@ -118,7 +118,7 @@ export function MarketPricingEditor() {
         <button
           type="button"
           onClick={addRow}
-          className="rounded-md border border-mm-border/40 px-2 py-1 text-[10px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+          className="rounded-md border border-black/[0.06] px-2 py-1 text-[10px] text-mm-text-dim transition-colors hover:bg-black/[0.04] hover:text-mm-text"
         >
           + Add space
         </button>

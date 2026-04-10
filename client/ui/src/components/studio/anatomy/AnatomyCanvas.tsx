@@ -261,7 +261,7 @@ function AnatomyCanvasInner() {
       )}
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        <header className="flex shrink-0 items-center justify-between border-b border-mm-border/40 bg-mm-surface/40 px-4 py-2">
+        <header className="flex shrink-0 items-center justify-between border-b border-black/[0.06] bg-white/45 px-4 py-2">
           <div>
             <h2 className="zone-header">Anatomy</h2>
             <p className="mt-0.5 text-[10px] text-mm-text-dim">
@@ -274,8 +274,8 @@ function AnatomyCanvasInner() {
               onClick={() => setConfigOpen((v) => !v)}
               className={`rounded-md border px-2 py-1 text-[10px] transition-colors ${
                 configOpen
-                  ? "border-mm-accent/60 bg-mm-accent/15 text-mm-accent"
-                  : "border-mm-border/40 text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+                  ? "border-mm-accent/60 bg-mm-accent/10 text-mm-accent"
+                  : "border-black/[0.06] text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
               }`}
               title="Pipeline configuration (bankroll, market pricing)"
             >
@@ -288,8 +288,8 @@ function AnatomyCanvasInner() {
               }
               className={`rounded-md border px-2 py-1 text-[10px] transition-colors ${
                 sidebarMode.kind !== "closed"
-                  ? "border-mm-accent/60 bg-mm-accent/15 text-mm-accent"
-                  : "border-mm-border/40 text-mm-text-dim hover:bg-mm-border/30 hover:text-mm-text"
+                  ? "border-mm-accent/60 bg-mm-accent/10 text-mm-accent"
+                  : "border-black/[0.06] text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
               }`}
             >
               {sidebarMode.kind === "closed" ? "Streams list" : "Hide streams"}
@@ -305,7 +305,7 @@ function AnatomyCanvasInner() {
           </p>
         )}
 
-        <div className={`relative min-h-0 flex-1 bg-mm-bg-deep/40 ${live ? "anatomy-live" : ""}`}>
+        <div className={`relative min-h-0 flex-1 bg-black/[0.03] ${live ? "anatomy-live" : ""}`}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -318,14 +318,14 @@ function AnatomyCanvasInner() {
             maxZoom={1.5}
             proOptions={{ hideAttribution: true }}
           >
-            <Background color="#27272a" gap={24} />
+            <Background color="rgba(0,0,0,0.06)" gap={24} />
             <Controls position="bottom-right" />
             <MiniMap
               position="bottom-left"
               pannable
               zoomable
-              nodeColor="#818cf8"
-              maskColor="rgba(9,9,11,0.7)"
+              nodeColor="#4f5bd5"
+              maskColor="rgba(244,244,247,0.7)"
             />
           </ReactFlow>
         </div>

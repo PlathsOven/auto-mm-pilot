@@ -38,7 +38,7 @@ export function computeGrandTotal(symbols: string[], expiries: string[], grid: G
 export function TotalCell({ value, decimals }: { value: number; decimals: number }) {
   return (
     <td
-      className={`px-2 py-1.5 text-center text-[11px] tabular-nums font-semibold ${valColor(value)}`}
+      className={`px-3 py-2.5 text-center text-[12px] tabular-nums font-semibold ${valColor(value)}`}
       style={{ backgroundColor: cellBg(value) }}
     >
       {value > 0 ? "+" : ""}
@@ -69,22 +69,22 @@ export function OverrideStatusBar({
   return (
     <>
       {pendingEdit && (
-        <div className="mt-2 flex items-center justify-between rounded-lg border-t border-mm-border/40 bg-mm-bg/80 px-3 py-2">
+        <div className="mt-2 flex items-center justify-between rounded-lg border-t border-black/[0.06] bg-black/[0.03] px-3 py-2">
           <span className="text-[10px] text-mm-text">
             Override <span className="font-semibold">{pendingEdit.symbol} {pendingEdit.expiry}</span>:
             <span className="ml-1 text-mm-text-dim">{pendingEdit.aptValue > 0 ? "+" : ""}{pendingEdit.aptValue.toFixed(decimals)}</span>
             <span className="mx-1">{"\u2192"}</span>
-            <span className="font-semibold text-amber-400">{isNaN(parseFloat(pendingEdit.value)) ? "\u2014" : (parseFloat(pendingEdit.value) > 0 ? "+" : "") + parseFloat(pendingEdit.value).toFixed(decimals)}</span>
+            <span className="font-semibold text-mm-warn">{isNaN(parseFloat(pendingEdit.value)) ? "\u2014" : (parseFloat(pendingEdit.value) > 0 ? "+" : "") + parseFloat(pendingEdit.value).toFixed(decimals)}</span>
           </span>
           <div className="flex gap-2">
             <button onClick={onCancel} className="rounded-md px-2 py-0.5 text-[10px] text-mm-text-dim hover:text-mm-text transition-colors">Cancel</button>
-            <button onClick={onConfirm} className="rounded-md px-2 py-0.5 text-[10px] bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors font-medium">Confirm</button>
+            <button onClick={onConfirm} className="rounded-md px-2 py-0.5 text-[10px] bg-mm-warn/15 text-mm-warn hover:bg-mm-warn/25 transition-colors font-medium">Confirm</button>
           </div>
         </div>
       )}
 
       {overrideCount > 0 && !pendingEdit && (
-        <p className="mt-1 text-[9px] text-amber-400/70">
+        <p className="mt-1 text-[9px] text-mm-warn">
           {overrideCount} override{overrideCount > 1 ? "s" : ""} active {"\u2014"} double-click to edit, ✕ to undo.
         </p>
       )}

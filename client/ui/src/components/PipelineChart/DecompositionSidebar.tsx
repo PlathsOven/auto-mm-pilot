@@ -115,7 +115,7 @@ export function DecompositionSidebar({
             className={`group relative w-full rounded-lg border px-2.5 py-1.5 text-left transition-all duration-150 ${
               active
                 ? "border-l-2 bg-mm-surface/80 shadow-[0_0_8px_rgba(99,110,250,0.12)]"
-                : "border-mm-border/30 bg-mm-bg/50 hover:bg-mm-bg/80 hover:border-mm-border/60"
+                : "border-black/[0.04] bg-black/[0.03] hover:bg-black/[0.05] hover:border-black/[0.08]"
             }`}
             style={{ borderLeftColor: active ? c.color : undefined }}
           >

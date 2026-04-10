@@ -163,10 +163,11 @@ export function AddBlockDrawer({ open, onClose, onCreated }: Props) {
         aria-hidden
       />
       <aside
-        className="fixed right-0 top-[60px] z-50 flex h-[calc(100vh-60px)] w-[520px] flex-col border-l border-mm-border/60 bg-mm-surface shadow-2xl shadow-black/40"
+        className="fixed right-0 top-[56px] z-50 flex h-[calc(100vh-56px)] w-[520px] flex-col border-l border-black/[0.06] bg-white/80 shadow-xl shadow-black/[0.06]"
+        style={{ backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center justify-between border-b border-mm-border/40 px-4 py-3">
+        <header className="flex items-center justify-between border-b border-black/[0.06] px-4 py-3">
           <div>
             <h3 className="zone-header">Add Manual Block</h3>
             <p className="mt-0.5 text-[10px] text-mm-text-dim">
@@ -176,7 +177,7 @@ export function AddBlockDrawer({ open, onClose, onCreated }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+            className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-black/[0.04] hover:text-mm-text"
             title="Close (Esc)"
           >
             ✕
@@ -208,7 +209,7 @@ export function AddBlockDrawer({ open, onClose, onCreated }: Props) {
             />
           </section>
 
-          <section className="flex flex-col gap-3 border-t border-mm-border/30 pt-3">
+          <section className="flex flex-col gap-3 border-t border-black/[0.04] pt-3">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-mm-text-dim">
               Target mapping
             </span>
@@ -219,7 +220,7 @@ export function AddBlockDrawer({ open, onClose, onCreated }: Props) {
             </div>
           </section>
 
-          <section className="flex flex-col gap-3 border-t border-mm-border/30 pt-3">
+          <section className="flex flex-col gap-3 border-t border-black/[0.04] pt-3">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-mm-text-dim">
               Block shape
             </span>
@@ -272,7 +273,7 @@ export function AddBlockDrawer({ open, onClose, onCreated }: Props) {
             </div>
           </section>
 
-          <section className="flex flex-col gap-2 border-t border-mm-border/30 pt-3">
+          <section className="flex flex-col gap-2 border-t border-black/[0.04] pt-3">
             <Field
               type="textarea"
               label="Snapshot rows (CSV with header)"
@@ -291,11 +292,11 @@ export function AddBlockDrawer({ open, onClose, onCreated }: Props) {
           )}
         </div>
 
-        <footer className="flex items-center justify-end gap-2 border-t border-mm-border/40 px-4 py-3">
+        <footer className="flex items-center justify-end gap-2 border-t border-black/[0.06] px-4 py-3">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-3 py-1.5 text-xs text-mm-text-dim transition-colors hover:bg-mm-border/30 hover:text-mm-text"
+            className="rounded-md px-3 py-1.5 text-xs text-mm-text-dim transition-colors hover:bg-black/[0.04] hover:text-mm-text"
           >
             Cancel
           </button>

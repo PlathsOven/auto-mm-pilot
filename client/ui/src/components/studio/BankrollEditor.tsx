@@ -40,13 +40,13 @@ export function BankrollEditor() {
   };
 
   return (
-    <section className="rounded-xl border border-mm-border/60 bg-mm-bg/40 p-3">
+    <section className="rounded-xl border border-black/[0.08] bg-black/[0.03] p-3">
       <h3 className="mb-2 text-xs font-semibold text-mm-text">Bankroll</h3>
       <p className="mb-3 text-[10px] text-mm-text-dim">
         Portfolio capital fed to the active position-sizing transform.
       </p>
 
-      <div className="mb-2 rounded-md border border-mm-border/40 bg-mm-bg-deep/60 px-3 py-2 text-[10px]">
+      <div className="mb-2 rounded-md border border-black/[0.06] bg-black/[0.03] px-3 py-2 text-[10px]">
         <div className="flex items-baseline justify-between">
           <span className="text-mm-text-dim">Current</span>
           <span className="font-mono text-mm-text">

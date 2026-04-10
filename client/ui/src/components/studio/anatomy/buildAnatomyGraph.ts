@@ -104,8 +104,8 @@ export function buildAnatomyGraph(
       type: "default",
       animated: live,
       style: PIPELINE_EDGE_STYLE,
-      labelStyle: { fill: "#a1a1aa", fontSize: 10, fontWeight: 500 },
-      labelBgStyle: { fill: "#18181b", fillOpacity: 0.9 },
+      labelStyle: { fill: "#6e6e82", fontSize: 10, fontWeight: 500 },
+      labelBgStyle: { fill: "#f4f4f7", fillOpacity: 0.9 },
       labelBgPadding: [6, 3],
       labelBgBorderRadius: 4,
     });

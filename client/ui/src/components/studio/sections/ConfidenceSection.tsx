@@ -86,11 +86,11 @@ export function ConfidenceSection({ value, onChange, state, dimmed }: Props) {
           ))}
         </div>
 
-        <div className="flex items-baseline justify-between rounded-md border border-mm-border/40 bg-mm-bg-deep/60 px-3 py-2 text-[10px]">
+        <div className="flex items-baseline justify-between rounded-md border border-black/[0.06] bg-black/[0.03] px-3 py-2 text-[10px]">
           <span className="text-mm-text-dim">Current var_fair_ratio</span>
           <span className="font-mono text-mm-text">{value.var_fair_ratio.toFixed(3)}</span>
         </div>
-        <div className="flex items-baseline justify-between rounded-md border border-mm-border/40 bg-mm-bg-deep/60 px-3 py-2 text-[10px]">
+        <div className="flex items-baseline justify-between rounded-md border border-black/[0.06] bg-black/[0.03] px-3 py-2 text-[10px]">
           <span className="text-mm-text-dim">Implied position multiplier</span>
           <span className="font-mono text-mm-accent">
             {Number.isFinite(multiplier) ? `${multiplier.toFixed(3)}×` : "—"}

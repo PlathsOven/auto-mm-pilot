@@ -64,14 +64,14 @@ export function NewStreamMenu({ onOpenBlank, onOpenTemplate }: Props) {
       </div>
 
       {open && (
-        <div className="absolute right-0 top-full z-40 mt-2 w-[320px] overflow-hidden rounded-xl border border-mm-border/60 bg-mm-surface py-1 shadow-xl shadow-black/40">
+        <div className="absolute right-0 top-full z-40 mt-2 w-[320px] overflow-hidden rounded-lg border border-white/50 bg-white/85 py-1 shadow-lg shadow-black/[0.06] ring-1 ring-black/[0.06]" style={{ backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }}>
           <button
             type="button"
             onClick={() => {
               onOpenBlank();
               setOpen(false);
             }}
-            className="flex w-full flex-col items-start gap-0.5 border-b border-mm-border/30 px-3 py-2 text-left transition-colors hover:bg-mm-accent/10"
+            className="flex w-full flex-col items-start gap-0.5 border-b border-black/[0.04] px-3 py-2 text-left transition-colors hover:bg-mm-accent/10"
           >
             <span className="text-xs font-semibold text-mm-text">Blank stream</span>
             <span className="text-[10px] text-mm-text-dim">

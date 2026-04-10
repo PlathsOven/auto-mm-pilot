@@ -40,8 +40,8 @@ export function FloorPage() {
           dragConfig={{ handle: ".panel-drag-handle" }}
           compactor={verticalCompactor}
           onLayoutChange={(current: Layout) => onLayoutChange([...current] as LayoutItem[])}
-          margin={[1, 1] as [number, number]}
-          containerPadding={[0, 0] as [number, number]}
+          margin={[6, 6] as [number, number]}
+          containerPadding={[6, 6] as [number, number]}
         >
           {panels.map((panel) => {
             const Component = PANEL_COMPONENT[panel.type];

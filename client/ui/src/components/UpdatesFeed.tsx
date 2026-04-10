@@ -22,9 +22,9 @@ export function UpdatesFeed() {
 
   return (
     <div className="flex h-full flex-col p-4">
-      <div className="mb-3 flex items-center justify-between border-b border-mm-border/40 pb-2">
+      <div className="mb-3 flex items-center justify-between border-b border-black/[0.06] pb-2">
         <h2 className="zone-header">Updates</h2>
-        <span className="text-[10px] tabular-nums text-mm-text-dim">
+        <span className="text-[10px] tabular-nums text-mm-text-subtle">
           {lastUpdate > 0 ? `Last update: +${elapsed}ms` : "—"}
         </span>
       </div>
@@ -42,13 +42,13 @@ export function UpdatesFeed() {
             <div
               key={card.id}
               onClick={() => investigate({ type: "update", card })}
-              className={`cursor-pointer rounded-lg border border-mm-border/40 bg-mm-bg/50 p-3 transition-colors hover:bg-mm-bg/80 hover:ring-1 hover:ring-mm-accent/30 ${isRecent ? "row-highlight" : ""}`}
+              className={`glass-card cursor-pointer p-3 transition-colors hover:bg-white/60 hover:ring-1 hover:ring-mm-accent/20 ${isRecent ? "row-highlight" : ""}`}
             >
               <div className="mb-1 flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-mm-text">
+                <span className="text-xs font-medium text-mm-text">
                   {card.symbol} — {card.expiry}
                 </span>
-                <span className="shrink-0 text-[10px] tabular-nums text-mm-text-dim">
+                <span className="shrink-0 text-[10px] tabular-nums text-mm-text-subtle">
                   {formatUtcTime(card.timestamp)}
                 </span>
               </div>
@@ -90,14 +90,14 @@ function CardAttribution({ symbol, expiry }: { symbol: string; expiry: string })
   const top = contributions.slice(0, ATTRIBUTION_TOP_N);
 
   return (
-    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 border-t border-mm-border/30 pt-1.5">
-      <span className="text-[9px] uppercase tracking-wider text-mm-text-dim">
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 border-t border-black/[0.04] pt-1.5">
+      <span className="text-[9px] uppercase tracking-wider text-mm-text-subtle">
         Streams
       </span>
       {top.map((c) => (
         <span
           key={c.blockName}
-          className="rounded border border-mm-border/40 bg-mm-bg/40 px-1.5 py-0.5 text-[9px] tabular-nums"
+          className="rounded border border-black/[0.06] bg-white/30 px-1.5 py-0.5 text-[9px] tabular-nums"
         >
           <span className="text-mm-text">{c.blockName}</span>
           <span className={`ml-1 ${valColor(c.edge)}`}>

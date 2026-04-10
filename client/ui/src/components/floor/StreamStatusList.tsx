@@ -42,11 +42,11 @@ export function StreamStatusList() {
 
   return (
     <div className="flex h-full flex-col p-4">
-      <div className="mb-3 flex items-center justify-between border-b border-mm-border/40 pb-2">
+      <div className="mb-3 flex items-center justify-between border-b border-black/[0.06] pb-2">
         <h2 className="zone-header">Data Streams</h2>
         <button
           onClick={() => setMode("studio", "streams")}
-          className="rounded bg-mm-accent/10 px-2 py-0.5 text-[10px] font-medium text-mm-accent transition-colors hover:bg-mm-accent/20"
+          className="rounded-md bg-mm-accent/8 px-2 py-0.5 text-[10px] font-medium text-mm-accent transition-colors hover:bg-mm-accent/10"
           title="Open Studio to create or edit streams"
         >
           Manage in Studio →
@@ -62,7 +62,7 @@ export function StreamStatusList() {
             {registeredStreams.map((stream) => (
               <div
                 key={stream.stream_name}
-                className="flex items-center gap-3 rounded-lg border border-mm-border/40 bg-mm-bg/50 p-3"
+                className="glass-card flex items-center gap-3 p-3"
               >
                 <span
                   className={`inline-block h-2 w-2 shrink-0 rounded-full ${REG_STATUS_DOT[stream.status]}`}
@@ -93,7 +93,7 @@ export function StreamStatusList() {
             {liveStreams.map((stream) => (
               <div
                 key={stream.id}
-                className="flex items-center gap-3 rounded-lg border border-mm-border/40 bg-mm-bg/50 p-3"
+                className="glass-card flex items-center gap-3 p-3"
               >
                 <span
                   className={`inline-block h-2 w-2 shrink-0 rounded-full ${LIVE_STATUS_DOT[stream.status]}`}

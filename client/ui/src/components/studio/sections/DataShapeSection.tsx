@@ -57,7 +57,7 @@ export function DataShapeSection({ value, onChange, state, dimmed }: Props) {
         />
 
         {schema && (
-          <div className="rounded-md border border-mm-border/40 bg-mm-bg-deep/60 p-2 text-[10px]">
+          <div className="rounded-md border border-black/[0.06] bg-black/[0.03] p-2 text-[10px]">
             <div className="mb-1 flex items-center justify-between">
               <span className="text-mm-text-dim">Schema preview</span>
               <span className="text-mm-text-dim">{schema.rowCount} row{schema.rowCount === 1 ? "" : "s"}</span>
@@ -69,7 +69,7 @@ export function DataShapeSection({ value, onChange, state, dimmed }: Props) {
                   className={`rounded border px-1.5 py-0.5 ${
                     schema.numericColumns.includes(h)
                       ? "border-mm-accent/40 bg-mm-accent/10 text-mm-accent"
-                      : "border-mm-border/40 text-mm-text-dim"
+                      : "border-black/[0.06] text-mm-text-dim"
                   }`}
                 >
                   {h}

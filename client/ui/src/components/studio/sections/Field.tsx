@@ -53,7 +53,7 @@ export type FieldProps =
  */
 export function Field(props: FieldProps) {
   return (
-    <label className={`flex ${props.type === "toggle" ? "items-center justify-between rounded-md border border-mm-border/40 bg-mm-bg/40 px-2 py-1.5" : "flex-col gap-1"}`}>
+    <label className={`flex ${props.type === "toggle" ? "items-center justify-between rounded-md border border-black/[0.06] bg-black/[0.03] px-2 py-1.5" : "flex-col gap-1"}`}>
       <span className="text-[10px] font-medium text-mm-text-dim">{props.label}</span>
       <FieldInput {...props} />
       {props.hint && !props.error && (
