@@ -1,24 +1,14 @@
-import { useEffect, useState } from "react";
+import { useState, useCallback } from "react";
 import { PipelineChart } from "../components/PipelineChart";
 import { EditableBlockTable } from "../components/studio/brain/EditableBlockTable";
 import { AddBlockDrawer } from "../components/studio/brain/AddBlockDrawer";
 
 /**
- * Studio → Brain.
+ * Studio -> Brain.
  *
- * "What is the pipeline currently thinking?" — two stacked sections
- * showing the output of the currently-configured pipeline:
- *
- *   1. **Pipeline time series** — the existing PipelineChart (edge, variance,
- *      smoothed position over time) for the focused dimension.
- *   2. **Block inspector** — every block in the pipeline. The "Add manual
- *      block" button opens a drawer that calls `createManualBlock` for
- *      architects who want to drop a one-off block into the pipeline.
- *
- * The previous top-level Decomposition section was removed because the
- * same information is already available as a hover-card on Floor cells
- * (`StreamAttributionHoverCard`) for quick inspection, and the full
- * breakdown lives inside `PipelineChart`'s left sidebar.
+ * Two stacked sections showing the pipeline's current output:
+ *   1. Block Canvas — interactive SVG time-axis block editor (fair + variance lanes)
+ *   2. Block Inspector — editable table of every block in the pipeline
  */
 export function BrainPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -28,24 +18,9 @@ export function BrainPage() {
   const closeDrawer = () => setDrawerOpen(false);
   const onBlockCreated = () => setRefreshKey((k) => k + 1);
 
-  // ECharts (inside PipelineChart) measures its container at mount-time.
-  // When BrainPage mounts as a sub-tab — without a full page reload — the
-  // chart sometimes captures a transitional 0×0 layout from React's render
-  // batch and stays stuck there. Dispatch a synthetic resize twice (once
-  // after the next paint, once after a short delay) to nudge ECharts and
-  // any other ResizeObserver consumers to remeasure once the real layout
-  // has settled.
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => {
-      window.dispatchEvent(new Event("resize"));
-    });
-    const t = setTimeout(() => {
-      window.dispatchEvent(new Event("resize"));
-    }, 120);
-    return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(t);
-    };
+  // Canvas click-to-edit: open drawer for a specific block
+  const handleEditBlock = useCallback((_streamName: string) => {
+    setDrawerOpen(true);
   }, []);
 
   return (
@@ -57,11 +32,9 @@ export function BrainPage() {
         </p>
       </header>
 
-      {/* Explicit height so PipelineChart's h-full has something to resolve
-          against. Without this the chart renders at 0px on initial mount and
-          only recovers on a window resize or full page reload. */}
-      <section className="h-[520px] shrink-0 overflow-hidden rounded-xl border border-black/[0.08] bg-black/[0.03]">
-        <PipelineChart />
+      {/* Block Canvas — flex to fill available space */}
+      <section className="min-h-[400px] flex-1 overflow-hidden rounded-xl border border-black/[0.08] bg-black/[0.03]">
+        <PipelineChart onEditBlock={handleEditBlock} />
       </section>
 
       <EditableBlockTable
@@ -77,7 +50,11 @@ export function BrainPage() {
         }
       />
 
-      <AddBlockDrawer open={drawerOpen} onClose={closeDrawer} onCreated={onBlockCreated} />
+      <AddBlockDrawer
+        open={drawerOpen}
+        onClose={closeDrawer}
+        onCreated={onBlockCreated}
+      />
     </div>
   );
 }

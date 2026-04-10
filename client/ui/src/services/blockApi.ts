@@ -52,6 +52,16 @@ export async function createManualBlock(
 }
 
 // ---------------------------------------------------------------------------
+// Delete manual block
+// ---------------------------------------------------------------------------
+
+export async function deleteBlock(streamName: string): Promise<void> {
+  await apiFetch<void>(`/api/blocks/${encodeURIComponent(streamName)}`, {
+    method: "DELETE",
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Update existing block
 // ---------------------------------------------------------------------------
 

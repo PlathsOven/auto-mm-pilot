@@ -220,6 +220,35 @@ async def create_manual_block(req: ManualBlockRequest) -> BlockRowResponse:
     )
 
 
+@router.delete("/api/blocks/{stream_name}", status_code=204)
+async def delete_block(stream_name: str) -> None:
+    """Delete a manual block. Stream-driven blocks cannot be deleted."""
+    store = get_manual_block_store()
+    if not store.is_manual(stream_name):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Block '{stream_name}' is stream-driven and cannot be deleted",
+        )
+
+    registry = get_stream_registry()
+    try:
+        registry.delete(stream_name)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    # Re-run pipeline so downstream consumers see the removal
+    stream_configs = registry.build_stream_configs()
+    if stream_configs:
+        try:
+            await rerun_and_broadcast(stream_configs)
+        except Exception as exc:
+            log.exception("Pipeline re-run failed after block deletion")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Block deleted but pipeline re-run failed: {exc}",
+            ) from exc
+
+
 @router.patch("/api/blocks/{stream_name}", response_model=BlockRowResponse)
 async def update_block(stream_name: str, req: UpdateBlockRequest) -> BlockRowResponse:
     """Update an existing block's configuration and/or snapshot, then re-run pipeline."""

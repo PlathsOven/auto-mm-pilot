@@ -58,7 +58,11 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `client/ui/src/components/ApiDocs.tsx` | Client-facing API documentation panel — endpoints, WebSocket stream, integration workflow |
 | `client/ui/src/components/DesiredPositionGrid.tsx` | Zone C — clickable cells push context to LlmChat |
 | `client/ui/src/components/UpdatesFeed.tsx` | Zone D — position-change cards with stream attribution |
-| `client/ui/src/components/PipelineChart.tsx` | Pipeline Analysis container — delegates to `PipelineChart/chartOptions.ts` (ECharts config) and `PipelineChart/DecompositionSidebar.tsx` |
+| `client/ui/src/components/PipelineChart.tsx` | Pipeline Analysis container — delegates to `BlockCanvas/` (interactive SVG block editor) |
+| `client/ui/src/components/BlockCanvas/BlockCanvas.tsx` | Block Canvas — two-lane SVG time-axis editor (fair value + variance), zoom/pan, drag/resize/delete interactions |
+| `client/ui/src/components/BlockCanvas/BlockShape.tsx` | SVG `<path>` renderer for a single block: area fill, drag/resize handles, delete affordance |
+| `client/ui/src/components/BlockCanvas/TimeAxis.tsx` | SVG time axis: tick marks, time labels, "now" marker, gridlines |
+| `client/ui/src/components/BlockCanvas/useBlockCanvas.ts` | Hook: merges fetchBlocks + fetchTimeSeries, computes stacking layout, time↔pixel mapping |
 | `client/ui/src/components/studio/brain/EditableBlockTable.tsx` | Block Configuration panel — TanStack Table with inline editing, manual block creation |
 | `client/ui/src/components/GlobalContextBar.tsx` | Zone B — global context header |
 | `client/ui/src/components/floor/StreamStatusList.tsx` | Floor read-only stream registry/health |
