@@ -6,7 +6,7 @@
  *   POST  /api/blocks  — Create a manual block
  */
 
-import type { BlockRow } from "../types";
+import type { BlockConfigPayload, BlockRow } from "../types";
 import { apiFetch } from "./api";
 
 // ---------------------------------------------------------------------------
@@ -28,16 +28,7 @@ export interface ManualBlockPayload {
   scale: number;
   offset: number;
   exponent: number;
-  block: {
-    annualized: boolean;
-    size_type: "fixed" | "relative";
-    aggregation_logic: "average" | "offset";
-    temporal_position: "static" | "shifting";
-    decay_end_size_mult: number;
-    decay_rate_prop_per_min: number;
-    decay_profile: "linear";
-    var_fair_ratio: number;
-  };
+  block: BlockConfigPayload;
   snapshot_rows: Record<string, unknown>[];
   space_id?: string;
 }
@@ -59,16 +50,7 @@ export interface UpdateBlockPayload {
   scale?: number;
   offset?: number;
   exponent?: number;
-  block?: {
-    annualized: boolean;
-    size_type: "fixed" | "relative";
-    aggregation_logic: "average" | "offset";
-    temporal_position: "static" | "shifting";
-    decay_end_size_mult: number;
-    decay_rate_prop_per_min: number;
-    decay_profile: "linear";
-    var_fair_ratio: number;
-  };
+  block?: BlockConfigPayload;
   snapshot_rows?: Record<string, unknown>[];
 }
 

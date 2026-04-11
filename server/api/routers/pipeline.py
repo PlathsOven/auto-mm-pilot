@@ -33,13 +33,11 @@ def _pipeline_dimensions_sync() -> dict:
         .unique()
         .sort(RISK_DIMENSION_COLS)
     )
-    out = []
-    for row in dims.iter_rows(named=True):
-        out.append({
-            "symbol": row["symbol"],
-            "expiry": row["expiry"].isoformat() if hasattr(row["expiry"], "isoformat") else str(row["expiry"]),
-        })
-    return {"dimensions": out}
+    dim_rows = dims.to_dicts()
+    for d in dim_rows:
+        exp = d["expiry"]
+        d["expiry"] = exp.isoformat() if hasattr(exp, "isoformat") else str(exp)
+    return {"dimensions": dim_rows}
 
 
 def _parse_expiry(raw: str) -> _dt:
@@ -74,30 +72,30 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
     current_ts = get_current_tick_ts()
 
     # Filter to requested dimension
-    bv = block_var_df.filter(
+    block_var_filtered = block_var_df.filter(
         (pl.col("symbol") == symbol) & (pl.col("expiry") == expiry_dt)
     ).drop_nulls(subset=["fair"])
-    pd = pos_df.filter(
+    pos_filtered = pos_df.filter(
         (pl.col("symbol") == symbol) & (pl.col("expiry") == expiry_dt)
     ).drop_nulls(subset=["raw_desired_position"])
 
     if current_ts is not None:
-        bv_sliced = bv.filter(pl.col("timestamp") >= current_ts)
-        pd_sliced = pd.filter(pl.col("timestamp") >= current_ts)
+        bv_sliced = block_var_filtered.filter(pl.col("timestamp") >= current_ts)
+        pos_sliced = pos_filtered.filter(pl.col("timestamp") >= current_ts)
         # If the ticker has advanced past this instrument's last timestamp,
         # fall back to the full (unfiltered) data instead of returning 404.
-        if not bv_sliced.is_empty() or not pd_sliced.is_empty():
-            bv = bv_sliced
-            pd = pd_sliced
+        if not bv_sliced.is_empty() or not pos_sliced.is_empty():
+            block_var_filtered = bv_sliced
+            pos_filtered = pos_sliced
 
-    if bv.is_empty() and pd.is_empty():
+    if block_var_filtered.is_empty() and pos_filtered.is_empty():
         return None
 
     # Block-level time series (camelCase for the wire)
-    block_names = sorted(bv["block_name"].unique().to_list())
+    block_names = sorted(block_var_filtered["block_name"].unique().to_list())
     blocks = []
     for bn in block_names:
-        bd = bv.filter(pl.col("block_name") == bn).sort("timestamp")
+        bd = block_var_filtered.filter(pl.col("block_name") == bn).sort("timestamp")
         blocks.append({
             "blockName": bn,
             "spaceId": bd["space_id"][0] if bd.height > 0 else "",
@@ -109,26 +107,26 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
         })
 
     # Aggregated time series (camelCase for the wire)
-    pd_sorted = pd.sort("timestamp")
-    timestamps = [t.isoformat() for t in pd_sorted["timestamp"].to_list()]
+    pos_sorted = pos_filtered.sort("timestamp")
+    timestamps = [t.isoformat() for t in pos_sorted["timestamp"].to_list()]
     aggregated = {
         "timestamps": timestamps,
-        "totalFair": pd_sorted["total_fair"].to_list(),
-        "totalMarketFair": pd_sorted["total_market_fair"].to_list(),
-        "edge": pd_sorted["edge"].to_list(),
-        "smoothedEdge": pd_sorted["smoothed_edge"].to_list(),
-        "var": pd_sorted["var"].to_list(),
-        "smoothedVar": pd_sorted["smoothed_var"].to_list(),
-        "rawDesiredPosition": pd_sorted["raw_desired_position"].to_list(),
-        "smoothedDesiredPosition": pd_sorted["smoothed_desired_position"].to_list(),
+        "totalFair": pos_sorted["total_fair"].to_list(),
+        "totalMarketFair": pos_sorted["total_market_fair"].to_list(),
+        "edge": pos_sorted["edge"].to_list(),
+        "smoothedEdge": pos_sorted["smoothed_edge"].to_list(),
+        "var": pos_sorted["var"].to_list(),
+        "smoothedVar": pos_sorted["smoothed_var"].to_list(),
+        "rawDesiredPosition": pos_sorted["raw_desired_position"].to_list(),
+        "smoothedDesiredPosition": pos_sorted["smoothed_desired_position"].to_list(),
     }
 
     # Current decomposition (first timestamp = current tick, camelCase)
     current_blocks = []
-    if bv.height > 0:
-        first_ts = bv["timestamp"].min()
-        latest_bv = bv.filter(pl.col("timestamp") == first_ts)
-        for row in latest_bv.iter_rows(named=True):
+    if block_var_filtered.height > 0:
+        first_ts = block_var_filtered["timestamp"].min()
+        latest_block_var = block_var_filtered.filter(pl.col("timestamp") == first_ts)
+        for row in latest_block_var.iter_rows(named=True):
             current_blocks.append({
                 "blockName": row["block_name"],
                 "spaceId": row["space_id"],
@@ -138,8 +136,8 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
             })
 
     current_agg = {}
-    if pd_sorted.height > 0:
-        last = pd_sorted.row(0, named=True)
+    if pos_sorted.height > 0:
+        last = pos_sorted.row(0, named=True)
         current_agg = {
             "totalFair": last["total_fair"],
             "totalMarketFair": last["total_market_fair"],

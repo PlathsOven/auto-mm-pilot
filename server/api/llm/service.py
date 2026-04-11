@@ -29,35 +29,6 @@ class LlmService:
     # parameter change commands back to the engine.
     # ------------------------------------------------------------------
 
-    async def investigate(
-        self,
-        *,
-        conversation: list[dict[str, str]],
-        engine_state: dict[str, Any],
-        pipeline_snapshot: dict[str, Any] | None = None,
-        snapshot_buffer: SnapshotRingBuffer | None = None,
-        now: datetime | None = None,
-        mode: ChatMode = "investigate",
-    ) -> str:
-        """Non-streaming response for any chat mode."""
-        stream_contexts = serialize_stream_contexts()
-        history_context = self._extract_history(snapshot_buffer, now)
-        system_prompt = build_system_prompt(
-            mode,
-            engine_state=engine_state,
-            stream_contexts_json=stream_contexts,
-            pipeline_snapshot=pipeline_snapshot,
-            history_context=history_context,
-        )
-        messages = [{"role": "system", "content": system_prompt}, *conversation]
-        resp = await self._client.complete_with_fallback(
-            models=self._config.investigation_models,
-            messages=messages,
-            max_tokens=self._config.max_tokens_investigation,
-            temperature=self._config.temperature_investigation,
-        )
-        return resp["choices"][0]["message"]["content"]
-
     async def investigate_stream(
         self,
         *,

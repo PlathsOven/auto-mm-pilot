@@ -14,9 +14,11 @@ from typing import Any
 from server.api.llm.prompts.core import (
     BASE_VS_EVENT_RULES,
     BLOCK_DECISION_FLOW,
+    MODE_DIRECTORY,
     PARAMETER_MAPPING,
     SHARED_CORE,
     UNIT_CONVERSION_REFERENCE,
+    extract_risk_dims,
 )
 
 CONFIGURE_EXT = """\
@@ -40,6 +42,13 @@ Start by asking the trader to describe the data stream:
 
 From this description, determine whether the data is vol-related and \
 can enter the variance pipeline.
+
+**Conversation continuity:** The trader may have described the data \
+stream in a previous mode (e.g., General) and then switched to \
+Configure mode. If the latest message is a short acknowledgement \
+rather than a new description, scan the conversation history for \
+details about the data stream. Extract what it measures, its units, \
+and update frequency, then confirm what you found before proceeding.
 
 Ask batched questions when answers are independent. Ask sequential \
 questions when one answer determines the next.
@@ -144,11 +153,7 @@ def build_configure_prompt(
 ) -> str:
     """Build the configure mode system prompt with stream registry context."""
     streams = engine_state.get("streams", [])
-
-    # Derive available symbols and expiries from riskDimensions
-    risk_dims = engine_state.get("context", {}).get("riskDimensions", [])
-    symbols = sorted({d["symbol"] for d in risk_dims if "symbol" in d})
-    expiries = sorted({d["expiry"] for d in risk_dims if "expiry" in d})
+    symbols, expiries = extract_risk_dims(engine_state)
 
     dynamic = json.dumps(
         {
@@ -162,6 +167,7 @@ def build_configure_prompt(
 
     return f"""\
 {SHARED_CORE}
+{MODE_DIRECTORY}
 {PARAMETER_MAPPING}
 {BLOCK_DECISION_FLOW}
 {UNIT_CONVERSION_REFERENCE}

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, Union
 
-# Re-usable type alias — also defined in prompts/__init__.py for internal use.
+# Single source of truth — imported by prompts/__init__.py and service.py.
 ChatMode = Literal["investigate", "configure", "opinion", "general"]
 
 from pydantic import BaseModel, Field

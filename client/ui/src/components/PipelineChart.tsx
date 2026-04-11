@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from "react";
+import type { ECElementEvent } from "echarts/types/dist/echarts";
 import ReactECharts from "echarts-for-react";
 import { formatExpiry } from "../utils";
 import { useSelection } from "../providers/SelectionProvider";
@@ -54,8 +55,7 @@ export function PipelineChart() {
   }, [data, selectedBlocks]);
 
   // Chart click → select block
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleChartClick = useCallback((params: any) => {
+  const handleChartClick = useCallback((params: ECElementEvent) => {
     const seriesName: string = params.seriesName ?? "";
     const match = seriesName.match(/^(.+?)\s*\((fair|var)\)$/);
     if (match && selected) {

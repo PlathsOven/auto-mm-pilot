@@ -15,116 +15,19 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any
-
 import polars as pl
 from fastapi import WebSocket, WebSocketDisconnect
 
-from server.api.config import APT_MODE, TICK_INTERVAL_SECS, UPDATE_THRESHOLD
+from server.api.config import APT_MODE, TICK_INTERVAL_SECS
 from server.api.engine_state import get_pipeline_results
+from server.api.ws_serializers import (
+    context_at_tick,
+    positions_at_tick,
+    streams_from_blocks,
+    updates_from_diff,
+)
 
 log = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Serialization helpers  (pipeline DataFrame → JSON-safe dicts)
-# ---------------------------------------------------------------------------
-
-def _format_expiry(val: Any) -> str:
-    if isinstance(val, datetime):
-        return val.strftime("%d%b%y").upper()
-    return str(val)
-
-
-def _positions_at_tick(
-    desired_pos_df: pl.DataFrame,
-    timestamp: datetime,
-    prev_positions: dict[str, float],
-) -> list[dict[str, Any]]:
-    """Build the ``positions`` array for a single tick.
-
-    Uses "latest at or before" semantics per risk dimension so that
-    dimensions with different time grids always have data.
-    """
-    at_or_before = desired_pos_df.filter(pl.col("timestamp") <= timestamp)
-    if at_or_before.is_empty():
-        return []
-
-    # Per (symbol, expiry), take the row with the latest timestamp
-    rows = at_or_before.sort("timestamp").group_by(["symbol", "expiry"]).agg(pl.all().last())
-
-    positions: list[dict[str, Any]] = []
-    for row in rows.iter_rows(named=True):
-        key = f"{row['symbol']}-{_format_expiry(row['expiry'])}"
-        prev_desired = prev_positions.get(key, row["smoothed_desired_position"])
-        change = row["smoothed_desired_position"] - prev_desired
-
-        # Send full-precision floats for edge/variance inputs so the client's
-        # LiveEquationStrip can reproduce the position-sizing math exactly.
-        # `desiredPos` / `rawDesiredPos` stay rounded at 2dp — that's display
-        # precision, and the UI uses it as the authoritative cell value.
-        positions.append({
-            "symbol": row["symbol"],
-            "expiry": _format_expiry(row["expiry"]),
-            "edge": row.get("edge", 0.0),
-            "smoothedEdge": row.get("smoothed_edge", 0.0),
-            "variance": row.get("var", 0.0),
-            "smoothedVar": row.get("smoothed_var", 0.0),
-            "desiredPos": round(row.get("smoothed_desired_position", 0.0), 2),
-            "rawDesiredPos": round(row.get("raw_desired_position", 0.0), 2),
-            "currentPos": 0.0,
-            "totalFair": row.get("total_fair", 0.0),
-            "totalMarketFair": row.get("total_market_fair", 0.0),
-            "changeMagnitude": round(change, 2),
-            "updatedAt": int(timestamp.timestamp() * 1000),
-        })
-
-    return positions
-
-
-def _updates_from_diff(
-    positions: list[dict[str, Any]],
-    prev_positions: dict[str, float],
-    tick_index: int,
-) -> list[dict[str, Any]]:
-    """Generate UpdateCards for positions whose desired changed significantly."""
-    updates: list[dict[str, Any]] = []
-    for pos in positions:
-        key = f"{pos['symbol']}-{pos['expiry']}"
-        prev = prev_positions.get(key, pos["desiredPos"])
-        delta = pos["desiredPos"] - prev
-        if abs(delta) >= UPDATE_THRESHOLD:
-            updates.append({
-                "id": f"update-{tick_index}-{key}",
-                "symbol": pos["symbol"],
-                "expiry": pos["expiry"],
-                "oldPos": round(prev, 2),
-                "newPos": pos["desiredPos"],
-                "delta": round(delta, 2),
-                "timestamp": pos["updatedAt"],
-            })
-    return updates
-
-
-def _streams_from_blocks(blocks_df: pl.DataFrame, timestamp: datetime) -> list[dict[str, Any]]:
-    """Derive DataStream entries from block stream names."""
-    names = sorted(blocks_df["stream_name"].unique().to_list())
-    ts_ms = int(timestamp.timestamp() * 1000)
-    return [
-        {
-            "id": f"stream-{i}",
-            "name": name,
-            "status": "ONLINE",
-            "lastHeartbeat": ts_ms,
-        }
-        for i, name in enumerate(names)
-    ]
-
-
-def _context_at_tick(timestamp: datetime) -> dict[str, Any]:
-    return {
-        "lastUpdateTimestamp": int(timestamp.timestamp() * 1000),
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -189,16 +92,16 @@ async def _run_ticker_mock(
     log.info("Mock ticker started: %d pipeline ticks at %.1fs interval", len(timestamps), TICK_INTERVAL_SECS)
 
     prev_positions: dict[str, float] = {}
-    streams = _streams_from_blocks(blocks_df, timestamps[0])
+    streams = streams_from_blocks(blocks_df, timestamps[0])
 
     for i, ts in enumerate(timestamps):
         _current_tick_ts = ts
-        positions = _positions_at_tick(desired_pos_df, ts, prev_positions)
-        updates = _updates_from_diff(positions, prev_positions, i)
+        positions = positions_at_tick(desired_pos_df, ts, prev_positions)
+        updates = updates_from_diff(positions, prev_positions, i)
 
         payload_dict = {
             "streams": streams,
-            "context": _context_at_tick(ts),
+            "context": context_at_tick(ts),
             "positions": positions,
             "updates": updates,
         }
@@ -233,7 +136,7 @@ async def _run_ticker_prod(
     log.info("Prod ticker started: %d pipeline timestamps, %.1fs heartbeat", len(timestamps), TICK_INTERVAL_SECS)
 
     prev_positions: dict[str, float] = {}
-    streams = _streams_from_blocks(blocks_df, timestamps[0])
+    streams = streams_from_blocks(blocks_df, timestamps[0])
     last_ts_idx: int = -1
     tick_count: int = 0
 
@@ -254,12 +157,12 @@ async def _run_ticker_prod(
 
         ts = timestamps[ts_idx]
         _current_tick_ts = ts
-        positions = _positions_at_tick(desired_pos_df, ts, prev_positions)
+        positions = positions_at_tick(desired_pos_df, ts, prev_positions)
 
         # Only emit update cards when the active timestamp advances
         updates = []
         if ts_idx != last_ts_idx:
-            updates = _updates_from_diff(positions, prev_positions, tick_count)
+            updates = updates_from_diff(positions, prev_positions, tick_count)
             for pos in positions:
                 key = f"{pos['symbol']}-{pos['expiry']}"
                 prev_positions[key] = pos["desiredPos"]
@@ -271,7 +174,7 @@ async def _run_ticker_prod(
 
         payload_dict = {
             "streams": streams,
-            "context": _context_at_tick(ts),
+            "context": context_at_tick(ts),
             "positions": positions,
             "updates": updates,
         }

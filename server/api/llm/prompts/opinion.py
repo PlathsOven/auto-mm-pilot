@@ -14,9 +14,11 @@ from typing import Any
 from server.api.llm.prompts.core import (
     BASE_VS_EVENT_RULES,
     BLOCK_DECISION_FLOW,
+    MODE_DIRECTORY,
     PARAMETER_MAPPING,
     SHARED_CORE,
     UNIT_CONVERSION_REFERENCE,
+    extract_risk_dims,
 )
 
 OPINION_EXT = """\
@@ -35,6 +37,15 @@ The conversation starts with the trader's view. Listen for clues about \
 base vs event in their initial statement before entering the decision \
 flow. If they have already specified symbol, expiry, or magnitude in \
 their opening message, acknowledge what you have and skip those steps.
+
+**Conversation continuity:** The trader may have stated their view in a \
+previous mode (e.g., General) and then switched to Opinion mode. If the \
+latest message is a short acknowledgement ("ok", "yes", "done", "switched") \
+rather than a new opinion, scan the conversation history for the original \
+view. Extract symbol, direction, magnitude, and any other clues, then \
+confirm what you found before entering the decision flow. Example: \
+"I see from earlier that you think BTC will realise higher — let me \
+help turn that into a block. Which expiry are you thinking of?"
 
 Ask batched questions when answers are independent (e.g., symbol + \
 expiry together). Ask sequential questions when one answer determines \
@@ -137,11 +148,7 @@ def build_opinion_prompt(
     """Build the opinion mode system prompt with position + stream context."""
     positions = engine_state.get("positions", [])
     streams = engine_state.get("streams", [])
-
-    # Derive available symbols and expiries from riskDimensions
-    risk_dims = engine_state.get("context", {}).get("riskDimensions", [])
-    symbols = sorted({d["symbol"] for d in risk_dims if "symbol" in d})
-    expiries = sorted({d["expiry"] for d in risk_dims if "expiry" in d})
+    symbols, expiries = extract_risk_dims(engine_state)
 
     dynamic = json.dumps(
         {
@@ -156,6 +163,7 @@ def build_opinion_prompt(
 
     return f"""\
 {SHARED_CORE}
+{MODE_DIRECTORY}
 {PARAMETER_MAPPING}
 {BLOCK_DECISION_FLOW}
 {UNIT_CONVERSION_REFERENCE}

@@ -11,6 +11,8 @@ as separate constants so modes can opt in to only what they need.
 
 from __future__ import annotations
 
+from typing import Any
+
 # ── Minimal shared core — included in EVERY mode ────────────────────────
 SHARED_CORE = """\
 # SYSTEM DIRECTIVE: APT INTELLIGENCE LAYER
@@ -85,8 +87,31 @@ look into...?", "Let me know if...").
 - **Ambiguous messages:** Ask ONE short clarifying question.
 - **Non-questions** (corrections, acknowledgements): Respond briefly. \
 Match register.
-- **Intent mismatch:** If the question belongs to a different mode, flag it \
-and suggest switching.\
+- **Intent mismatch:** If the message clearly belongs to a different mode \
+(see MODE DIRECTORY), say so and name the mode: "That sounds like an \
+opinion — switch to Opinion mode to turn it into a manual block." Do not \
+attempt to handle it in the current mode.\
+"""
+
+# ── Mode directory — included in every mode for cross-mode awareness ─────
+MODE_DIRECTORY = """\
+
+## MODE DIRECTORY
+The trader selects a mode before chatting. If their message fits a \
+different mode better, flag it and suggest switching.
+
+| Mode | Purpose | Typical triggers |
+|------|---------|------------------|
+| **Investigate** | Explain desired position changes using pipeline data. | "Why did BTC move?", "What's driving ETH edge?", clicking a cell. |
+| **Opinion** | Translate a discretionary view into a manual block. | "I think BTC will realise higher", "Vols will get bid", "FOMC will be an upset". |
+| **Configure** | Onboard a new data stream into the pipeline. | "I have a realized vol feed", "How do I connect funding rate data?" |
+| **General** | Factual questions about the framework, positions, or trading concepts. | "What is var_fair_ratio?", "How does decay work?", casual remarks. |
+
+**Detection heuristic:** If the message expresses a directional view or \
+expectation about a market variable (vol level, move size, event impact), \
+it is almost certainly an **Opinion**. If it asks *why* something changed, \
+it is **Investigate**. If it describes a new data source, it is \
+**Configure**.\
 """
 
 # ── Full framework detail — imported by investigation + configure ────────
@@ -248,3 +273,15 @@ changes. Ground reasoning in actual table values.
 time. Say you only have the current snapshot.
 - Never guess. Never fabricate. Say what you lack rather than speculate.\
 """
+
+
+# ── Shared helpers ────────────────────────────────────────────────────────
+
+def extract_risk_dims(
+    engine_state: dict[str, Any],
+) -> tuple[list[str], list[str]]:
+    """Extract sorted symbols and expiries from engine_state riskDimensions."""
+    risk_dims = engine_state.get("context", {}).get("riskDimensions", [])
+    symbols = sorted({d["symbol"] for d in risk_dims if "symbol" in d})
+    expiries = sorted({d["expiry"] for d in risk_dims if "expiry" in d})
+    return symbols, expiries

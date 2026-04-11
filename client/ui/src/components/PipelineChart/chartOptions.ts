@@ -1,4 +1,5 @@
 import type { EChartsOption } from "echarts";
+import type { DefaultLabelFormatterCallbackParams as CallbackDataParams } from "echarts/types/dist/echarts";
 import type {
   PipelineTimeSeriesResponse,
 } from "../../types";
@@ -175,10 +176,10 @@ export function buildPipelineChartOptions(
       axisPointer: { type: "cross", crossStyle: { color: "#666" } },
       ...TOOLTIP_STYLE,
       confine: true,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      formatter: (params: any) => {
-        if (!Array.isArray(params) || params.length === 0) return "";
-        const ts = params[0].axisValue ?? "";
+      formatter: (params: CallbackDataParams | CallbackDataParams[]) => {
+        const items = Array.isArray(params) ? params : [params];
+        if (items.length === 0) return "";
+        const ts = (items[0] as CallbackDataParams & { axisValue?: string }).axisValue ?? "";
         let tsLabel = ts;
         try {
           const d = new Date(ts);
@@ -186,29 +187,29 @@ export function buildPipelineChartOptions(
         } catch { /* keep raw */ }
 
         // Group items by chart (axisIndex)
-        const groups: Record<number, typeof params> = {};
-        for (const p of params) {
-          const idx = p.axisIndex ?? 0;
+        const groups: Record<number, CallbackDataParams[]> = {};
+        for (const p of items) {
+          const idx = (p as CallbackDataParams & { axisIndex?: number }).axisIndex ?? 0;
           (groups[idx] ??= []).push(p);
         }
 
         let html = `<div style="font-size:10px;margin-bottom:4px;color:#6e6e82">${tsLabel}</div>`;
 
         for (const axisIdx of Object.keys(groups).map(Number).sort()) {
-          const items = groups[axisIdx];
+          const groupItems = groups[axisIdx];
           // Compute block total for % (exclude aggregate lines)
           const isFair = axisIdx === 1;
           const isVar = axisIdx === 2;
           const suffix = isFair ? " (fair)" : isVar ? " (var)" : "";
           const blockItems = suffix
-            ? items.filter((p: any) => (p.seriesName ?? "").endsWith(suffix))
+            ? groupItems.filter((p) => (p.seriesName ?? "").endsWith(suffix))
             : [];
           const blockAbsSum = blockItems.reduce(
-            (s: number, p: any) => s + Math.abs(p.value ?? 0), 0,
+            (s: number, p) => s + Math.abs((p.value as number) ?? 0), 0,
           );
 
-          for (const p of items) {
-            const v = p.value ?? 0;
+          for (const p of groupItems) {
+            const v = (p.value as number) ?? 0;
             const name: string = p.seriesName ?? "";
             const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:4px"></span>`;
             const isBlock = suffix && name.endsWith(suffix);

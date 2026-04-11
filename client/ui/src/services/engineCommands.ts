@@ -160,8 +160,7 @@ async function executeCommand(cmd: EngineCommand): Promise<string> {
       }
     }
     default:
-      console.warn(`Unknown engine-command action: ${cmd.action}`);
-      return "";
+      return `Unknown engine-command action: ${cmd.action}`;
   }
 }
 

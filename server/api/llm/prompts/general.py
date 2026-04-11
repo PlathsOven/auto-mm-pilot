@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from server.api.llm.prompts.core import SHARED_CORE
+from server.api.llm.prompts.core import MODE_DIRECTORY, SHARED_CORE
 
 GENERAL_EXT = """\
 
@@ -41,6 +41,7 @@ def build_general_prompt(
 
     return f"""\
 {SHARED_CORE}
+{MODE_DIRECTORY}
 {GENERAL_EXT}
 
 ---

@@ -45,45 +45,62 @@ def _blocks_from_pipeline() -> list[BlockRowResponse]:
     latest_vars: dict[str, dict[str, float]] = {}
     if block_var_df is not None and block_var_df.height > 0:
         current_ts = get_current_tick_ts()
-        for bn in block_var_df["block_name"].unique().to_list():
-            block_slice = block_var_df.filter(pl.col("block_name") == bn)
-            if current_ts is not None:
-                at_or_before = block_slice.filter(pl.col("timestamp") <= current_ts)
-                if at_or_before.height > 0:
-                    best_ts = at_or_before["timestamp"].max()
-                    at_tick = at_or_before.filter(pl.col("timestamp") == best_ts)
-                else:
-                    first_ts = block_slice["timestamp"].min()
-                    at_tick = block_slice.filter(pl.col("timestamp") == first_ts)
-            else:
-                first_ts = block_slice["timestamp"].min()
-                at_tick = block_slice.filter(pl.col("timestamp") == first_ts)
-            for row in at_tick.iter_rows(named=True):
-                latest_vars[row["block_name"]] = {
-                    "fair": row.get("fair"),
-                    "market_fair": row.get("market_fair"),
-                    "var": row.get("var"),
-                }
+
+        # Vectorised: for each block, pick the best timestamp (latest <= current_ts,
+        # or earliest if current_ts is None / all timestamps are in the future).
+        if current_ts is not None:
+            at_or_before = block_var_df.filter(pl.col("timestamp") <= current_ts)
+            # Blocks with no rows at-or-before fall back to their earliest timestamp
+            missing_blocks = (
+                block_var_df.filter(
+                    ~pl.col("block_name").is_in(at_or_before["block_name"].unique())
+                )
+                .sort("timestamp")
+                .group_by("block_name")
+                .first()
+            )
+            best_rows = (
+                at_or_before
+                .sort("timestamp")
+                .group_by("block_name")
+                .last()
+            )
+            if missing_blocks.height > 0:
+                best_rows = pl.concat([best_rows, missing_blocks])
+        else:
+            best_rows = (
+                block_var_df
+                .sort("timestamp")
+                .group_by("block_name")
+                .first()
+            )
+
+        for row_dict in best_rows.select("block_name", "fair", "market_fair", "var").to_dicts():
+            latest_vars[row_dict["block_name"]] = {
+                "fair": row_dict["fair"],
+                "market_fair": row_dict["market_fair"],
+                "var": row_dict["var"],
+            }
 
     store = get_manual_block_store()
     rows: list[BlockRowResponse] = []
     for row in blocks_df.iter_rows(named=True):
-        bn = row["block_name"]
-        sn = row["stream_name"]
-        lv = latest_vars.get(bn, {})
+        block_name = row["block_name"]
+        stream_name = row["stream_name"]
+        block_latest_var = latest_vars.get(block_name, {})
 
         start_ts = row.get("start_timestamp")
         start_str = start_ts.isoformat() if hasattr(start_ts, "isoformat") and start_ts is not None else None
 
-        source = "manual" if store.is_manual(sn) else "stream"
+        source = "manual" if store.is_manual(stream_name) else "stream"
 
         # Serialize expiry (may be datetime or string)
         raw_expiry = row.get("expiry")
         expiry_str = raw_expiry.isoformat() if hasattr(raw_expiry, "isoformat") and raw_expiry is not None else str(raw_expiry) if raw_expiry is not None else ""
 
         rows.append(BlockRowResponse(
-            block_name=bn,
-            stream_name=sn,
+            block_name=block_name,
+            stream_name=stream_name,
             symbol=row.get("symbol", ""),
             expiry=expiry_str,
             space_id=row["space_id"],
@@ -102,9 +119,9 @@ def _blocks_from_pipeline() -> list[BlockRowResponse]:
             raw_value=row["raw_value"],
             market_value=row.get("market_value"),
             target_market_value=row.get("target_market_value"),
-            fair=lv.get("fair"),
-            market_fair=lv.get("market_fair"),
-            var=lv.get("var"),
+            fair=block_latest_var.get("fair"),
+            market_fair=block_latest_var.get("market_fair"),
+            var=block_latest_var.get("var"),
             start_timestamp=start_str,
             updated_at=_dt.now().isoformat(),
         ))

@@ -7,14 +7,13 @@ shared-core + mode-extension + dynamic-data prompt for a given chat mode.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
+from server.api.models import ChatMode
 from server.api.llm.prompts.configure import build_configure_prompt
 from server.api.llm.prompts.general import build_general_prompt
 from server.api.llm.prompts.investigation import build_investigation_prompt
 from server.api.llm.prompts.opinion import build_opinion_prompt
-
-ChatMode = Literal["investigate", "configure", "opinion", "general"]
 
 
 def build_system_prompt(

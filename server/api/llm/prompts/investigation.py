@@ -15,6 +15,7 @@ from typing import Any
 from server.api.llm.prompts.core import (
     EPISTEMIC_HONESTY,
     FRAMEWORK_DETAIL,
+    MODE_DIRECTORY,
     PARAMETER_MAPPING,
     SHARED_CORE,
 )
@@ -146,6 +147,7 @@ timestamp — not "started at".
 
     return f"""\
 {SHARED_CORE}
+{MODE_DIRECTORY}
 {FRAMEWORK_DETAIL}
 {PARAMETER_MAPPING}
 {EPISTEMIC_HONESTY}

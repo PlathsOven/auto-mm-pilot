@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
+import type { DefaultLabelFormatterCallbackParams as CallbackDataParams } from "echarts/types/dist/echarts";
 import type { CurrentBlockDecomposition } from "../../types";
 import {
   BLOCK_COLORS,
@@ -70,9 +71,10 @@ export function DecompositionSidebar({
       tooltip: {
         trigger: "item",
         ...TOOLTIP_STYLE,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        formatter: (p: any) =>
-          `${p.name}: ${(p.percent ?? 0).toFixed(1)}%`,
+        formatter: (p: CallbackDataParams | CallbackDataParams[]) => {
+          const item = Array.isArray(p) ? p[0] : p;
+          return `${item.name}: ${((item as CallbackDataParams & { percent?: number }).percent ?? 0).toFixed(1)}%`;
+        },
       },
       series: [
         {
@@ -85,8 +87,10 @@ export function DecompositionSidebar({
             position: "inside",
             fontSize: 8,
             color: "#fff",
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            formatter: (p: any) => (p.percent ?? 0) > 12 ? `${Math.round(p.percent)}%` : "",
+            formatter: (p: CallbackDataParams) => {
+              const pct = (p as CallbackDataParams & { percent?: number }).percent ?? 0;
+              return pct > 12 ? `${Math.round(pct)}%` : "";
+            },
           },
           emphasis: {
             itemStyle: { shadowBlur: 6, shadowColor: "rgba(0,0,0,0.4)" },
