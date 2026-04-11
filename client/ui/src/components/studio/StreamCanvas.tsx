@@ -19,9 +19,9 @@ import {
 import { STREAM_TEMPLATES } from "./templates";
 
 interface Props {
-  /** Stream name from the URL (#studio/streams/{name}) — empty for a new draft. */
+  /** Stream name from the URL (#anatomy?stream={name}) — empty for a new draft. */
   streamName: string | null;
-  /** Optional template id from URL query, e.g. #studio/streams/new?template=fomc_event */
+  /** Optional template id from URL query, e.g. #anatomy?stream=new&template=fomc_event */
   templateId: string | null;
 }
 
@@ -35,7 +35,7 @@ const WALK_THROUGH_KEY = "apt.studio.walkthrough";
  * commits via `POST /api/streams/{name}/configure` and `POST /api/snapshots`.
  */
 export function StreamCanvas({ streamName, templateId }: Props) {
-  const { setMode } = useMode();
+  const { navigate } = useMode();
   const { streams: registry, refresh: refreshRegistry, addStream } = useRegisteredStreams();
   const [draft, setDraft] = useState<StreamDraft>(() => initialDraft(streamName, templateId));
   const [pendingStreamName, setPendingStreamName] = useState<string | null>(streamName);
@@ -95,7 +95,7 @@ export function StreamCanvas({ streamName, templateId }: Props) {
       addStream(created);
       // Update URL so refresh keeps the canvas pinned to this stream inside
       // the Anatomy streams sidebar.
-      setMode("studio", `anatomy?stream=${encodeURIComponent(created.stream_name)}`);
+      navigate(`anatomy?stream=${encodeURIComponent(created.stream_name)}`);
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : String(err));
     } finally {

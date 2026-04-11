@@ -8,14 +8,15 @@ import {
   type ReactNode,
 } from "react";
 
-export type ModeId = "floor" | "studio" | "docs";
+export type ModeId = "eyes" | "brain" | "anatomy" | "docs";
 
-const VALID_MODES: readonly ModeId[] = ["floor", "studio", "docs"] as const;
-const DEFAULT_MODE: ModeId = "studio";
+const VALID_MODES: readonly ModeId[] = ["eyes", "brain", "anatomy", "docs"] as const;
+const DEFAULT_MODE: ModeId = "eyes";
 
 export const MODE_LABELS: Record<ModeId, string> = {
-  floor: "Floor",
-  studio: "Studio",
+  eyes: "Eyes",
+  brain: "Brain",
+  anatomy: "Anatomy",
   docs: "Docs",
 };
 
@@ -23,8 +24,8 @@ export const MODE_LABELS: Record<ModeId, string> = {
  * Parsed route state.
  *
  * `segments` are the slash-separated parts of everything after the mode, and
- * `query` holds any `?k=v` pairs. For example, `#studio/streams/btc?template=fomc`
- * yields `{ mode: "studio", segments: ["streams", "btc"], query: { template: "fomc" } }`.
+ * `query` holds any `?k=v` pairs. For example, `#anatomy?stream=btc&template=fomc`
+ * yields `{ mode: "anatomy", segments: [], query: { stream: "btc", template: "fomc" } }`.
  */
 interface ParsedRoute {
   mode: ModeId;

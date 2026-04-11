@@ -64,7 +64,7 @@ export function AnatomyCanvas() {
 function AnatomyCanvasInner() {
   const { steps, setSteps, loading, error, refresh } = useTransforms();
   const { streams } = useRegisteredStreams();
-  const { query, setMode } = useMode();
+  const { query, setMode, navigate } = useMode();
   const positionCount = useWebSocketPositionCount();
   const reactFlowInstance = useReactFlow();
 
@@ -74,9 +74,9 @@ function AnatomyCanvasInner() {
   const [configOpen, setConfigOpen] = useState(false);
 
   // Sidebar mode is driven by URL query so it's shareable and survives nav:
-  //   #studio/anatomy                       → sidebar closed
-  //   #studio/anatomy?streams=list          → sidebar in list mode
-  //   #studio/anatomy?stream=<name>         → sidebar in canvas mode
+  //   #anatomy                       → sidebar closed
+  //   #anatomy?streams=list          → sidebar in list mode
+  //   #anatomy?stream=<name>         → sidebar in canvas mode
   const sidebarMode: StreamSidebarMode = useMemo(() => {
     if (query.stream) {
       return {
@@ -90,20 +90,20 @@ function AnatomyCanvasInner() {
   }, [query.stream, query.template, query.streams]);
 
   const openSidebarList = useCallback(
-    () => setMode("studio", "anatomy?streams=list"),
-    [setMode],
+    () => navigate("anatomy?streams=list"),
+    [navigate],
   );
   const openSidebarCanvas = useCallback(
     (name: string | null, templateId: string | null) => {
       const params = new URLSearchParams();
       params.set("stream", name ?? "new");
       if (templateId) params.set("template", templateId);
-      setMode("studio", `anatomy?${params.toString()}`);
+      navigate(`anatomy?${params.toString()}`);
     },
-    [setMode],
+    [navigate],
   );
   const closeSidebar = useCallback(
-    () => setMode("studio", "anatomy"),
+    () => setMode("anatomy"),
     [setMode],
   );
 
@@ -213,7 +213,7 @@ function AnatomyCanvasInner() {
       } else if (node.type === "transform") {
         setSelection({ kind: "transform", stepKey: node.id as StepKey });
       } else if (node.type === "output") {
-        setMode("floor");
+        setMode("eyes");
       }
     },
     [setMode, openSidebarList],

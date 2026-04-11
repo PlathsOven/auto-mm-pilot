@@ -42,7 +42,7 @@ export function OnboardingFlow() {
   const isLast = index === CARDS.length - 1;
 
   const finish = () => {
-    setMode("studio");
+    setMode("anatomy");
     markCompleted();
   };
 

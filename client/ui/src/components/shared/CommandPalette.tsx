@@ -51,9 +51,9 @@ export function CommandPalette() {
       closePalette();
     };
     return [
-      { id: "go-floor", group: "navigate", title: "Go to Floor", hint: "operator dashboard", run: goMode("floor") },
-      { id: "go-studio-anatomy", group: "navigate", title: "Open Studio: Anatomy", hint: "pipeline canvas", run: goMode("studio", "anatomy") },
-      { id: "go-studio-brain", group: "navigate", title: "Open Studio: Brain", hint: "decomposition + block inspector", run: goMode("studio", "brain") },
+      { id: "go-eyes", group: "navigate", title: "Go to Eyes", hint: "operator dashboard", run: goMode("eyes") },
+      { id: "go-brain", group: "navigate", title: "Open Brain", hint: "decomposition + block inspector", run: goMode("brain") },
+      { id: "go-anatomy", group: "navigate", title: "Open Anatomy", hint: "pipeline canvas", run: goMode("anatomy") },
       { id: "go-docs", group: "navigate", title: "Open API Docs", run: goMode("docs") },
       {
         id: "toggle-chat",
@@ -86,7 +86,7 @@ export function CommandPalette() {
       title: `${p.symbol} ${p.expiry}`,
       hint: `pos ${p.desiredPos > 0 ? "+" : ""}${p.desiredPos.toFixed(2)} $vega`,
       run: () => {
-        setMode("floor");
+        setMode("eyes");
         selectDimension(p.symbol, p.expiry);
         closePalette();
       },

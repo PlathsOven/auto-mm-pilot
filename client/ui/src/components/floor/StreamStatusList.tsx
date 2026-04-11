@@ -36,7 +36,7 @@ const REG_STATUS_TEXT: Record<RegisteredStreamStatus, string> = {
  */
 export function StreamStatusList() {
   const { payload } = useWebSocket();
-  const { setMode } = useMode();
+  const { navigate } = useMode();
   const { streams: registeredStreams, error: loadError } = useRegisteredStreams();
   const liveStreams = payload?.streams ?? [];
 
@@ -45,11 +45,11 @@ export function StreamStatusList() {
       <div className="mb-3 flex items-center justify-between border-b border-black/[0.06] pb-2">
         <h2 className="zone-header">Data Streams</h2>
         <button
-          onClick={() => setMode("studio", "streams")}
+          onClick={() => navigate("anatomy?streams=list")}
           className="rounded-md bg-mm-accent/8 px-2 py-0.5 text-[10px] font-medium text-mm-accent transition-colors hover:bg-mm-accent/10"
-          title="Open Studio to create or edit streams"
+          title="Open Anatomy to create or edit streams"
         >
-          Manage in Studio →
+          Manage in Anatomy →
         </button>
       </div>
 

@@ -74,7 +74,7 @@ export function GlobalContextBar() {
 
         {/* Docs toggle */}
         <button
-          onClick={() => setMode(inDocs ? "floor" : "docs")}
+          onClick={() => setMode(inDocs ? "eyes" : "docs")}
           className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
             inDocs
               ? "bg-mm-accent/10 font-medium text-mm-accent"

@@ -5,7 +5,8 @@ import { CommandPalette } from "./components/shared/CommandPalette";
 import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
 import { BlockDrawer } from "./components/studio/brain/BlockDrawer";
 import { FloorPage } from "./pages/FloorPage";
-import { StudioPage } from "./pages/StudioPage";
+import { BrainPage } from "./pages/BrainPage";
+import { AnatomyPage } from "./pages/AnatomyPage";
 import { DocsPage } from "./pages/DocsPage";
 import { useMode, type ModeId } from "./providers/ModeProvider";
 import { useChat } from "./providers/ChatProvider";
@@ -13,8 +14,9 @@ import { useChat } from "./providers/ChatProvider";
 import "react-grid-layout/css/styles.css";
 
 const MODE_PAGES: Record<ModeId, React.FC> = {
-  floor: FloorPage,
-  studio: StudioPage,
+  eyes: FloorPage,
+  brain: BrainPage,
+  anatomy: AnatomyPage,
   docs: DocsPage,
 };
 
