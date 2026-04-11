@@ -1,60 +1,44 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo } from "react";
 import type { ECElementEvent } from "echarts/types/dist/echarts";
 import ReactECharts from "echarts-for-react";
-import { formatExpiry } from "../utils";
 import { useSelection } from "../providers/SelectionProvider";
+import type { PipelineTimeSeriesResponse, TimeSeriesDimension } from "../types";
 import {
-  SIDEBAR_DEFAULT_WIDTH_PX,
-  SIDEBAR_MIN_WIDTH_PX,
-  SIDEBAR_MAX_WIDTH_PX,
-} from "../constants";
-import { usePipelineTimeSeries } from "../hooks/usePipelineTimeSeries";
-import { DecompositionSidebar } from "./PipelineChart/DecompositionSidebar";
-import { buildPipelineChartOptions, type DecompositionMode } from "./PipelineChart/chartOptions";
+  buildPipelineChartOptions,
+  RAW_COLOR,
+  SMOOTHED_COLOR,
+  MARKET_FAIR_COLOR,
+} from "./PipelineChart/chartOptions";
 
-export function PipelineChart() {
-  const { selectBlock, selectedBlocks, selectedDimension } = useSelection();
-  const { dimensions, selected, setSelected, data, error, loading } =
-    usePipelineTimeSeries(selectedDimension);
+interface PipelineChartProps {
+  data: PipelineTimeSeriesResponse | null;
+  selected: TimeSeriesDimension | null;
+  loading: boolean;
+  error: string | null;
+}
 
-  const [decompositionMode, setDecompositionMode] = useState<DecompositionMode>("variance");
-  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH_PX);
-  const dragRef = useRef<{ startX: number; startW: number } | null>(null);
+/**
+ * Pipeline time-series chart — three stacked grids (position, fair, variance)
+ * sharing an x-axis. Pure presentation: data, selection, and dimension state
+ * all flow in from BrainPage so the DecompositionPanel above can stay in
+ * sync from a single source of truth.
+ *
+ * Block colors come from the shared `BLOCK_COLORS` palette in `chartOptions`,
+ * so each stacked area corresponds 1:1 to a bar in the DecompositionPanel.
+ * The right-rail legend is intentionally absent — the decomposition panel
+ * serves as the colour key, and the inline overlay-legend strip below names
+ * the three non-block aggregate lines.
+ */
+export function PipelineChart({ data, selected, loading, error }: PipelineChartProps) {
+  const { selectBlock, selectedBlocks } = useSelection();
 
-  // Sidebar resize drag handlers
-  const onDragStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    dragRef.current = { startX: e.clientX, startW: sidebarWidth };
-    const onMove = (ev: MouseEvent) => {
-      if (!dragRef.current) return;
-      const delta = ev.clientX - dragRef.current.startX;
-      const next = Math.max(SIDEBAR_MIN_WIDTH_PX, Math.min(SIDEBAR_MAX_WIDTH_PX, dragRef.current.startW + delta));
-      setSidebarWidth(next);
-    };
-    const onUp = () => {
-      dragRef.current = null;
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  }, [sidebarWidth]);
-
-  const handleDimChange = useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const [sym, exp] = e.target.value.split("|");
-      setSelected({ symbol: sym, expiry: exp });
-    },
-    [setSelected],
-  );
-
-  // Build ECharts options
+  // Build ECharts options from the data fed in by BrainPage.
   const chartOption = useMemo(() => {
     if (!data) return null;
     return buildPipelineChartOptions(data, selectedBlocks);
   }, [data, selectedBlocks]);
 
-  // Chart click → select block
+  // Chart click → select block by parsing series name back to its block id.
   const handleChartClick = useCallback((params: ECElementEvent) => {
     const seriesName: string = params.seriesName ?? "";
     const match = seriesName.match(/^(.+?)\s*\((fair|var)\)$/);
@@ -65,88 +49,71 @@ export function PipelineChart() {
 
   const chartEvents = useMemo(() => ({ click: handleChartClick }), [handleChartClick]);
 
-  // Empty / loading states
-  if (error) {
-    return (
-      <div className="flex h-full items-center justify-center p-4 text-sm text-mm-error">
-        {error}
-      </div>
-    );
-  }
-
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      {/* Selector bar */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-black/[0.06] bg-black/[0.04] px-3 py-1.5">
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-mm-text-dim">
-          Instrument
-        </label>
-        <select
-          className="rounded-md border border-black/[0.06] bg-mm-surface-solid px-2 py-0.5 text-[11px] text-mm-text focus:border-mm-accent/40 focus:outline-none"
-          value={selected ? `${selected.symbol}|${selected.expiry}` : ""}
-          onChange={handleDimChange}
-        >
-          {dimensions.map((d) => (
-            <option key={`${d.symbol}|${d.expiry}`} value={`${d.symbol}|${d.expiry}`}>
-              {d.symbol} — {formatExpiry(d.expiry)}
-            </option>
-          ))}
-        </select>
-        {loading && (
-          <span className="text-[10px] text-mm-text-dim animate-pulse">Loading…</span>
-        )}
-      </div>
-
-      {/* Main content: decomposition sidebar (left) + charts */}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        {/* Decomposition sidebar — left (aligned with "now") */}
-        {data && (
-          <>
-            <div
-              className="shrink-0 border-r border-black/[0.06] bg-black/[0.03]"
-              style={{ width: sidebarWidth }}
-            >
-              <DecompositionSidebar
-                blocks={data.currentDecomposition.blocks}
-                aggregated={data.currentDecomposition.aggregated}
-                mode={decompositionMode}
-                onModeChange={setDecompositionMode}
-                selectedBlocks={selectedBlocks}
-                onBlockClick={(blockName) => selected && selectBlock(blockName, selected.symbol, selected.expiry)}
-              />
-            </div>
-            {/* Drag handle */}
-            <div
-              onMouseDown={onDragStart}
-              className="group relative w-1 shrink-0 cursor-col-resize select-none"
-            >
-              <div className="absolute inset-y-0 -left-0.5 w-2 transition-colors group-hover:bg-mm-accent/20 group-active:bg-mm-accent/30" />
-            </div>
-          </>
-        )}
-
-        {/* Charts */}
-        <div className="min-w-0 flex-1">
-          {chartOption ? (
-            <ReactECharts
-              option={chartOption}
-              notMerge
-              lazyUpdate
-              style={{ width: "100%", height: "100%" }}
-              opts={{ renderer: "canvas" }}
-              onEvents={chartEvents}
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center text-[11px] text-mm-text-dim">
-              {loading
-                ? <span className="animate-pulse">Loading pipeline data…</span>
-                : dimensions.length === 0
-                  ? "No pipeline data available"
-                  : "Select an instrument"}
-            </div>
+    <div className="glass-panel flex h-full flex-col overflow-hidden">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-black/[0.06] px-4 py-2">
+        <span className="zone-header">Pipeline</span>
+        <div className="flex items-center gap-4">
+          <OverlayLegend />
+          {loading && (
+            <span className="animate-pulse text-[10px] text-mm-text-dim">Loading…</span>
           )}
         </div>
       </div>
+
+      <div className="min-h-0 flex-1">
+        {error ? (
+          <div className="flex h-full items-center justify-center p-4 text-sm text-mm-error">
+            {error}
+          </div>
+        ) : chartOption ? (
+          <ReactECharts
+            option={chartOption}
+            notMerge
+            lazyUpdate
+            style={{ width: "100%", height: "100%" }}
+            opts={{ renderer: "canvas" }}
+            onEvents={chartEvents}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-[11px] text-mm-text-dim">
+            {loading
+              ? <span className="animate-pulse">Loading pipeline data…</span>
+              : "No pipeline data available"}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Inline legend for the three non-block aggregate overlays. The block-by-block
+ * legend lives in the DecompositionPanel above the chart — same colours, same
+ * names, with the additional bonus of being clickable for selection.
+ */
+function OverlayLegend() {
+  const items = [
+    { label: "Smoothed", color: SMOOTHED_COLOR, dash: false },
+    { label: "Raw", color: RAW_COLOR, dash: false },
+    { label: "Market Fair", color: MARKET_FAIR_COLOR, dash: true },
+  ];
+  return (
+    <div className="flex items-center gap-3 text-[10px] text-mm-text-dim">
+      {items.map((it) => (
+        <span key={it.label} className="flex items-center gap-1.5">
+          <span
+            className="inline-block h-[2px] w-4 rounded-full"
+            style={{
+              backgroundColor: it.color,
+              backgroundImage: it.dash
+                ? `repeating-linear-gradient(90deg, ${it.color} 0 4px, transparent 4px 7px)`
+                : undefined,
+            }}
+          />
+          {it.label}
+        </span>
+      ))}
     </div>
   );
 }

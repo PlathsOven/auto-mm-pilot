@@ -5,29 +5,41 @@ import type {
 } from "../../types";
 
 // ---------------------------------------------------------------------------
-// Color palette — distinct, saturated colors for block decomposition
+// Color palette — block decomposition
 // ---------------------------------------------------------------------------
+//
+// Brand-harmonised palette tuned for the indigo/navy glass UI: mm-accent
+// leads (so the most-prominent block visually anchors to the brand color),
+// followed by softer violets, teals, ambers and corals — all ≤ ~70%
+// saturation so the stacked-area chart doesn't shout against the glass
+// background. mm-error coral is kept in slot 8 because some blocks
+// genuinely drive variance the wrong way and the user must see them pop.
 export const BLOCK_COLORS = [
-  "#00cc96", // green
-  "#4f5bd5", // indigo
-  "#ef553b", // red
-  "#ab63fa", // purple
-  "#ffa15a", // orange
-  "#19d3f3", // cyan
-  "#ff6692", // pink
-  "#b6e880", // lime
-  "#ff97ff", // magenta
-  "#fecb52", // yellow
+  "#4f5bd5", // mm-accent indigo
+  "#7b6cf0", // soft violet
+  "#3eb4a8", // muted teal
+  "#5a8de8", // soft sky
+  "#c48a12", // mm-warn amber
+  "#a16fb5", // dusty plum
+  "#6ab57f", // sage
+  "#d4405c", // mm-error coral
+  "#e8826e", // soft terracotta
+  "#9098a8", // neutral slate
 ];
 
+// Aggregate-line colors — lean on mm-text (#1a1a2e) so the bold totals
+// read as authoritative against the lighter stacked areas. Raw/market
+// overlays are translucent to recede.
 export const SMOOTHED_COLOR = "#1a1a2e";
-export const RAW_COLOR = "rgba(26,26,46,0.3)";
+export const RAW_COLOR = "rgba(26,26,46,0.22)";
 export const FAIR_COLOR = "#1a1a2e";
 export const VARIANCE_COLOR = "#1a1a2e";
-export const MARKET_FAIR_COLOR = "rgba(26,26,46,0.35)";
-export const SIDEBAR_POSITION_COLOR = "#4f5bd5";
-export const SIDEBAR_FAIR_COLOR = "#00cc96";
-export const SIDEBAR_VARIANCE_COLOR = "#ef553b";
+export const MARKET_FAIR_COLOR = "rgba(26,26,46,0.28)";
+
+// Stacked-area opacity — bumped from 0.25 to compensate for the lighter
+// glass background. Dimmed value used when another block is selected.
+export const STACK_AREA_OPACITY = 0.32;
+export const STACK_AREA_OPACITY_DIMMED = 0.08;
 
 export type DecompositionMode = "variance" | "fair_value" | "desired_position" | "smoothed_desired_position";
 
@@ -41,6 +53,8 @@ export const MODE_LABELS: Record<DecompositionMode, string> = {
 export const TOOLTIP_STYLE = {
   backgroundColor: "rgba(255,255,255,0.92)",
   borderColor: "rgba(0,0,0,0.08)",
+  borderRadius: 8,
+  padding: [6, 8] as [number, number],
   textStyle: { color: "#1a1a2e", fontSize: 10 },
 } as const;
 
@@ -104,7 +118,7 @@ export function buildPipelineChartOptions(
       data: b.fair,
       showSymbol: false,
       stack: "fair",
-      areaStyle: { opacity: dimmed ? 0.08 : 0.25 },
+      areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
       lineStyle: { width: dimmed ? 0.3 : 0, color: BLOCK_COLORS[i % BLOCK_COLORS.length], opacity: dimmed ? 0.3 : 1 },
       itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
       emphasis: { focus: "series" as const },
@@ -148,7 +162,7 @@ export function buildPipelineChartOptions(
       data: b.var,
       showSymbol: false,
       stack: "var",
-      areaStyle: { opacity: dimmed ? 0.08 : 0.25 },
+      areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
       lineStyle: { width: dimmed ? 0.3 : 0, color: BLOCK_COLORS[i % BLOCK_COLORS.length], opacity: dimmed ? 0.3 : 1 },
       itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
       emphasis: { focus: "series" as const },
@@ -222,18 +236,11 @@ export function buildPipelineChartOptions(
         return html;
       },
     },
-    legend: {
-      type: "scroll",
-      orient: "vertical",
-      right: 0,
-      top: 30,
-      bottom: 40,
-      textStyle: { color: "#6e6e82", fontSize: 9 },
-      pageTextStyle: { color: "#6e6e82" },
-      itemWidth: 10,
-      itemHeight: 8,
-      itemGap: 4,
-    },
+    // No right-rail legend — the DecompositionPanel above the chart serves
+    // as the colour key (same palette, same names, clickable for selection).
+    // Removing the legend reclaims ~100px of horizontal space across all 3
+    // grids; the inline strip in PipelineChart's header explains the
+    // smoothed/raw/market-fair overlays that aren't tied to a block.
     axisPointer: { link: [{ xAxisIndex: "all" }] },
     dataZoom: [
       {
@@ -248,15 +255,15 @@ export function buildPipelineChartOptions(
         height: 14,
         borderColor: "transparent",
         backgroundColor: "rgba(0,0,0,0.03)",
-        fillerColor: "rgba(79,91,213,0.12)",
-        handleStyle: { color: "#4f5bd5" },
+        fillerColor: "rgba(79,91,213,0.10)",
+        handleStyle: { color: "#4f5bd5", borderColor: "rgba(255,255,255,0.6)" },
         textStyle: { color: "#6e6e82", fontSize: 9 },
       },
     ],
     grid: [
-      { left: 60, right: 130, top: 30, height: "22%" },
-      { left: 60, right: 130, top: "36%", height: "22%" },
-      { left: 60, right: 130, top: "66%", height: "22%" },
+      { left: 60, right: 24, top: 30, height: "22%" },
+      { left: 60, right: 24, top: "36%", height: "22%" },
+      { left: 60, right: 24, top: "66%", height: "22%" },
     ],
     xAxis: [
       {
@@ -283,7 +290,7 @@ export function buildPipelineChartOptions(
         gridIndex: 2,
         axisLabel: {
           color: "#6e6e82",
-          fontSize: 9,
+          fontSize: 10,
           formatter: (v: string) => {
             try {
               const d = new Date(v);
@@ -303,8 +310,8 @@ export function buildPipelineChartOptions(
         type: "value",
         gridIndex: 0,
         name: "Position ($)",
-        nameTextStyle: { color: "#6e6e82", fontSize: 9, padding: [0, 0, 0, -10] },
-        axisLabel: { color: "#6e6e82", fontSize: 9, formatter: (v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v)) },
+        nameTextStyle: { color: "#6e6e82", fontSize: 10, padding: [0, 0, 0, -10] },
+        axisLabel: { color: "#6e6e82", fontSize: 10, formatter: (v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v)) },
         splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
         axisLine: { show: false },
       },
@@ -312,8 +319,8 @@ export function buildPipelineChartOptions(
         type: "value",
         gridIndex: 1,
         name: "Fair Value",
-        nameTextStyle: { color: "#6e6e82", fontSize: 9, padding: [0, 0, 0, -10] },
-        axisLabel: { color: "#6e6e82", fontSize: 9, formatter: (v: number) => sci(v) },
+        nameTextStyle: { color: "#6e6e82", fontSize: 10, padding: [0, 0, 0, -10] },
+        axisLabel: { color: "#6e6e82", fontSize: 10, formatter: (v: number) => sci(v) },
         splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
         axisLine: { show: false },
       },
@@ -321,8 +328,8 @@ export function buildPipelineChartOptions(
         type: "value",
         gridIndex: 2,
         name: "Variance",
-        nameTextStyle: { color: "#6e6e82", fontSize: 9, padding: [0, 0, 0, -10] },
-        axisLabel: { color: "#6e6e82", fontSize: 9, formatter: (v: number) => sci(v) },
+        nameTextStyle: { color: "#6e6e82", fontSize: 10, padding: [0, 0, 0, -10] },
+        axisLabel: { color: "#6e6e82", fontSize: 10, formatter: (v: number) => sci(v) },
         splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
         axisLine: { show: false },
       },
