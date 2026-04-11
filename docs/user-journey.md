@@ -42,24 +42,24 @@ This is the daily loop. The customer opens APT, sees where his positions should 
 4. **Learn.** Over time, the investigation conversations teach the customer to think in Edge/Variance/Bankroll terms — building the positional intuition he currently lacks.
 5. **Reposition manually.** He decides whether to act and executes the trade himself on his firm's execution platform. APT advises; it does not execute.
 
-### Flow 2: Onboarding a New Data Stream (setup — LLM-guided)
+### Flow 2: Onboarding a New Data Stream (Build mode — LLM-guided)
 
 The customer has a new data source available — realized vol from a new provider, a funding rate feed, etc. He wants it reflected in his desired positions.
 
-1. **Ask the LLM.** He describes the data stream to the APT LLM: what it measures, its units, how frequently it updates.
-2. **LLM guides configuration.** The LLM asks targeted questions to determine the `StreamConfig` parameters: target-space mapping (scale/offset/exponent), temporal position (static vs. shifting), annualized vs. discrete, fixed vs. relative, decay shape, aggregation logic, confidence weight (`var_fair_ratio`). Critically, the LLM explains *why* each parameter matters in terms of the Edge/Variance framework — this is the "teaching" layer.
-3. **Quick-start with a manual block (optional).** Before the data stream is properly connected, the customer can capture its current value as a manual block (`POST /api/blocks`). This immediately reflects the data source in his desired positions without requiring the full adapter/ingestion pipeline. It is a snapshot, not a live feed.
-4. **LLM creates the stream.** When the customer is ready to connect the live feed, the LLM creates the stream definition. The customer then sends data to the open stream endpoint.
+1. **Switch to Build mode and describe the feed.** In LlmChat, he selects **Build** from the mode dropdown and describes the data stream: what it measures, its units, how frequently it updates.
+2. **LLM classifies and guides configuration.** Build mode classifies the input as a data stream and states so explicitly ("I see this as a data stream — emitting `create_stream` when we're done"). It then asks targeted questions to determine the `StreamConfig` parameters: target-space mapping (scale/offset/exponent), temporal position (static vs. shifting), annualized vs. discrete, fixed vs. relative, decay shape, aggregation logic, confidence weight (`var_fair_ratio`). Critically, the LLM explains *why* each parameter matters in terms of the Edge/Variance framework — this is the "teaching" layer.
+3. **Quick-start with a manual block (optional).** Before the data stream is properly connected, the customer can capture its current value as a manual block (in Build mode, the LLM emits `create_manual_block` instead of `create_stream` if asked). This immediately reflects the data source in his desired positions without requiring the full adapter/ingestion pipeline. It is a snapshot, not a live feed.
+4. **LLM creates the stream.** When the customer confirms the parameters, Build mode emits a `create_stream` engine command, which the client auto-executes against the stream API. The customer then sends data to the open stream endpoint.
 5. **Review impact.** The customer opens the Pipeline Chart and Block Configuration panel to see how the new stream's blocks change edge, variance, and desired positions across symbols and expiries.
 6. **Iterate.** If the impact looks wrong — positions moved too much, or not enough — he adjusts parameters (confidence weight, decay, scale) with LLM guidance and reviews again.
 
-### Flow 3: Registering an Opinion (setup — LLM-guided)
+### Flow 3: Registering an Opinion (Build mode — LLM-guided)
 
 The customer has a discretionary view — "I think ETH vol is going to spike around the Pectra upgrade" — and wants it reflected in his positions.
 
-1. **Ask the LLM.** He states his opinion in natural language.
-2. **LLM translates to parameters.** The LLM asks clarifying questions: What magnitude? Over what time window? How confident are you? Should it decay as the event passes? The LLM maps the answers to manual block parameters (size, temporal position, decay, var_fair_ratio).
-3. **Create the manual block.** The LLM creates a manual block reflecting the opinion. The customer sees it appear in the Block Configuration panel.
+1. **Switch to Build mode and state the view.** In LlmChat, he selects **Build** from the mode dropdown and states his opinion in natural language.
+2. **LLM classifies and translates to parameters.** Build mode classifies the input as a discretionary view and states so explicitly ("I see this as a discretionary view — emitting `create_manual_block` when we're done"). It asks clarifying questions: What magnitude? Over what time window? How confident are you? Should it decay as the event passes? The LLM maps the answers to manual block parameters (size, temporal position, decay, var_fair_ratio).
+3. **Create the manual block.** Build mode emits a `create_manual_block` engine command, which the client routes to the BlockDrawer for review. Once the customer submits the form, it appears in the Block Configuration panel.
 4. **Review impact.** Same as Flow 2, step 5 — the customer checks how the opinion changes his desired positions.
 5. **Adjust or remove.** If the view changes or the event passes, the customer updates or removes the manual block.
 

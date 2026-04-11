@@ -66,10 +66,10 @@ export function GlobalContextBar() {
               ? "bg-mm-accent/10 font-medium text-mm-accent"
               : "text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
           }`}
-          title="Toggle APT Chat (⌘\\)"
+          title="Toggle APT Chat (⌘/)"
         >
           <span>Chat</span>
-          <span className="text-[9px] text-mm-text-subtle">⌘\</span>
+          <span className="text-[9px] text-mm-text-subtle">⌘/</span>
         </button>
 
         {/* Docs toggle */}

@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal, Union
 
 # Single source of truth — imported by prompts/__init__.py and service.py.
-ChatMode = Literal["investigate", "configure", "opinion", "general"]
+ChatMode = Literal["investigate", "build", "general"]
 
 from pydantic import BaseModel, Field
 

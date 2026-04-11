@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { useChat } from "../providers/ChatProvider";
 import type { ChatMode } from "../types";
+import { CHAT_INPUT_MAX_HEIGHT_PX } from "../constants";
 
 const MODE_LABELS: Record<ChatMode, string> = {
   investigate: "Investigate",
-  configure: "Configure",
-  opinion: "Opinion",
+  build: "Build",
   general: "General",
 };
 
@@ -21,18 +21,44 @@ export function LlmChat() {
   const { messages, investigation, isStreaming, sendMessage, clearInvestigation, cancelStream, chatMode, setChatMode } = useChat();
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  // Autofocus the input each time the chat mounts (drawer open).
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
+
+  // Auto-grow the textarea up to the configured max height.
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, CHAT_INPUT_MAX_HEIGHT_PX)}px`;
+  }, [input]);
+
+  function submit() {
     const text = input.trim();
     if (!text) return;
     const prefix = investigation ? `[Context: ${investigationLabel(investigation)}]\n` : "";
     sendMessage(prefix + text);
     setInput("");
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    submit();
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // Enter sends; Shift+Enter inserts a newline (default textarea behavior).
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (!isStreaming) submit();
+    }
   }
 
   return (
@@ -103,11 +129,15 @@ export function LlmChat() {
                 </span>
               </div>
               {isApt ? (
-                <div className="prose-apt text-mm-text">
-                  <Markdown>{msg.content}</Markdown>
-                </div>
+                msg.content ? (
+                  <div className="prose-apt text-mm-text">
+                    <Markdown>{msg.content}</Markdown>
+                  </div>
+                ) : isStreaming ? (
+                  <ThinkingDots />
+                ) : null
               ) : (
-                <span className="text-mm-text-dim">
+                <span className="whitespace-pre-wrap text-mm-text-dim">
                   {msg.content}
                 </span>
               )}
@@ -127,32 +157,43 @@ export function LlmChat() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="mt-2 flex gap-2">
-        <input
-          type="text"
+      <form onSubmit={handleSubmit} className="mt-2 flex items-end gap-2">
+        <textarea
+          ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder={investigation ? "Ask about this context..." : "Ask APT anything..."}
-          className="flex-1 rounded-lg border border-black/[0.08] bg-mm-surface-solid px-3 py-2 text-xs text-mm-text outline-none placeholder:text-mm-text-subtle transition-colors focus:border-mm-accent/30 focus:ring-1 focus:ring-mm-accent/15"
-          disabled={isStreaming}
+          rows={1}
+          className="flex-1 resize-none rounded-lg border border-black/[0.08] bg-mm-surface-solid px-3 py-2 text-xs leading-relaxed text-mm-text outline-none placeholder:text-mm-text-subtle transition-colors focus:border-mm-accent/30 focus:ring-1 focus:ring-mm-accent/15"
         />
         {isStreaming ? (
           <button
             type="button"
             onClick={cancelStream}
-            className="rounded-lg border border-mm-warn/30 bg-mm-surface-solid px-4 py-2 text-xs text-mm-warn transition-colors hover:bg-mm-warn/10"
+            className="shrink-0 rounded-lg border border-mm-warn/30 bg-mm-surface-solid px-4 py-2 text-xs text-mm-warn transition-colors hover:bg-mm-warn/10"
           >
             Stop
           </button>
         ) : (
           <button
             type="submit"
-            className="rounded-lg border border-black/[0.06] bg-mm-surface-solid px-4 py-2 text-xs text-mm-accent transition-colors hover:bg-mm-accent/[0.06]"
+            className="shrink-0 rounded-lg border border-black/[0.06] bg-mm-surface-solid px-4 py-2 text-xs text-mm-accent transition-colors hover:bg-mm-accent/[0.06]"
           >
             Send
           </button>
         )}
       </form>
+    </div>
+  );
+}
+
+function ThinkingDots() {
+  return (
+    <div className="flex items-center gap-1 py-1" aria-label="APT is thinking">
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-mm-accent/60 [animation-delay:-0.3s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-mm-accent/60 [animation-delay:-0.15s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-mm-accent/60" />
     </div>
   );
 }

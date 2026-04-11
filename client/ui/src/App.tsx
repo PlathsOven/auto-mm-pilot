@@ -37,8 +37,10 @@ export default function App() {
       <header className="relative z-50 shrink-0">
         <GlobalContextBar />
       </header>
-      <Page />
-      <ChatDrawer />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <Page />
+        <ChatDrawer />
+      </div>
       <CommandPalette />
       <OnboardingFlow />
       <BlockDrawer

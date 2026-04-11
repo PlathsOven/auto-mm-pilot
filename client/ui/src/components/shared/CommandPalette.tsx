@@ -59,7 +59,7 @@ export function CommandPalette() {
         id: "toggle-chat",
         group: "action",
         title: "Toggle APT Chat",
-        hint: "⌘\\",
+        hint: "⌘/",
         run: () => { toggleDrawer(); closePalette(); },
       },
       {

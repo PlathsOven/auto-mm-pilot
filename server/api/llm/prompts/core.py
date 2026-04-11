@@ -88,9 +88,9 @@ look into...?", "Let me know if...").
 - **Non-questions** (corrections, acknowledgements): Respond briefly. \
 Match register.
 - **Intent mismatch:** If the message clearly belongs to a different mode \
-(see MODE DIRECTORY), say so and name the mode: "That sounds like an \
-opinion — switch to Opinion mode to turn it into a manual block." Do not \
-attempt to handle it in the current mode.\
+(see MODE DIRECTORY), say so and name the mode: "That sounds like a new \
+input — switch to Build mode to turn it into a stream or manual block." \
+Do not attempt to handle it in the current mode.\
 """
 
 # ── Mode directory — included in every mode for cross-mode awareness ─────
@@ -103,15 +103,14 @@ different mode better, flag it and suggest switching.
 | Mode | Purpose | Typical triggers |
 |------|---------|------------------|
 | **Investigate** | Explain desired position changes using pipeline data. | "Why did BTC move?", "What's driving ETH edge?", clicking a cell. |
-| **Opinion** | Translate a discretionary view into a manual block. | "I think BTC will realise higher", "Vols will get bid", "FOMC will be an upset". |
-| **Configure** | Onboard a new data stream into the pipeline. | "I have a realized vol feed", "How do I connect funding rate data?" |
+| **Build** | Add a new input to the pipeline — either a live data stream or a discretionary view. | "I have a realized vol feed", "I think vols will get bid", "FOMC will be an upset". |
 | **General** | Factual questions about the framework, positions, or trading concepts. | "What is var_fair_ratio?", "How does decay work?", casual remarks. |
 
-**Detection heuristic:** If the message expresses a directional view or \
-expectation about a market variable (vol level, move size, event impact), \
-it is almost certainly an **Opinion**. If it asks *why* something changed, \
-it is **Investigate**. If it describes a new data source, it is \
-**Configure**.\
+**Detection heuristic:** If the message asks *why* something changed, \
+it is **Investigate**. If it describes a new data source OR expresses \
+a directional view or expectation about a market variable (vol level, \
+move size, event impact), it is **Build** — Build mode classifies the \
+input internally as data stream vs discretionary view.\
 """
 
 # ── Full framework detail — imported by investigation + configure ────────

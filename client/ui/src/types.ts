@@ -105,7 +105,7 @@ export interface PendingBlockCommand {
 // ---------------------------------------------------------------------------
 
 /** Chat mode — controls which prompt modules the server uses */
-export type ChatMode = "investigate" | "configure" | "opinion" | "general";
+export type ChatMode = "investigate" | "build" | "general";
 
 /** POST /api/investigate — request payload */
 export interface InvestigatePayload {

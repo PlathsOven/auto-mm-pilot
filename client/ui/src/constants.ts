@@ -13,3 +13,6 @@ export const SIDEBAR_MAX_WIDTH_PX = 400;
 
 export const UPDATE_HISTORY_MAX_LENGTH = 100;
 export const GLOBAL_CONTEXT_TICK_MS = 47;
+
+// Chat textarea auto-grows up to this height (px) before scrolling internally.
+export const CHAT_INPUT_MAX_HEIGHT_PX = 160;

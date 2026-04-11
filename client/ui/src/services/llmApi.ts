@@ -1,22 +1,23 @@
 /**
  * HTTP client for the APT LLM server endpoints.
  *
- * - streamInvestigation(): SSE stream from POST /api/investigate
+ * - streamChat(): SSE stream from POST /api/investigate (endpoint name retained
+ *   for backwards compatibility — handles all chat modes, not just investigate).
  */
 
 import { API_BASE } from "../config";
 import type { InvestigatePayload } from "../types";
 
 // ---------------------------------------------------------------------------
-// Investigation — SSE streaming
+// Chat — SSE streaming
 // ---------------------------------------------------------------------------
 
 /**
- * Stream investigation tokens from the server.
+ * Stream chat tokens from the server for any mode (investigate, build, general).
  * Calls `onDelta` for each token chunk, `onDone` when complete, `onError` on failure.
  * Returns an AbortController so the caller can cancel.
  */
-export function streamInvestigation(
+export function streamChat(
   payload: InvestigatePayload,
   callbacks: {
     onDelta: (text: string) => void;

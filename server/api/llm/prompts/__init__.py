@@ -10,10 +10,9 @@ from __future__ import annotations
 from typing import Any
 
 from server.api.models import ChatMode
-from server.api.llm.prompts.configure import build_configure_prompt
+from server.api.llm.prompts.build import build_build_prompt
 from server.api.llm.prompts.general import build_general_prompt
 from server.api.llm.prompts.investigation import build_investigation_prompt
-from server.api.llm.prompts.opinion import build_opinion_prompt
 
 
 def build_system_prompt(
@@ -29,18 +28,15 @@ def build_system_prompt(
 
     Each mode receives only the data it needs:
     - investigate: engine state, stream contexts, pipeline snapshot, history
-    - configure:   engine state, stream contexts
-    - opinion:     engine state, stream contexts
+    - build:       engine state, stream contexts (positions + streams + dims)
     - general:     engine state (positions summary only)
     """
     if mode == "investigate":
         return build_investigation_prompt(
             engine_state, stream_contexts_json, pipeline_snapshot, history_context,
         )
-    if mode == "configure":
-        return build_configure_prompt(engine_state, stream_contexts_json)
-    if mode == "opinion":
-        return build_opinion_prompt(engine_state, stream_contexts_json)
+    if mode == "build":
+        return build_build_prompt(engine_state, stream_contexts_json)
     # general (default fallback)
     return build_general_prompt(engine_state)
 
