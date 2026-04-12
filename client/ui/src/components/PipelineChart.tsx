@@ -50,7 +50,7 @@ export function PipelineChart({ data, selected, loading, error }: PipelineChartP
   const chartEvents = useMemo(() => ({ click: handleChartClick }), [handleChartClick]);
 
   return (
-    <div className="glass-panel flex h-full flex-col overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-black/[0.06] px-4 py-2">
         <span className="zone-header">Pipeline</span>
         <div className="flex items-center gap-4">

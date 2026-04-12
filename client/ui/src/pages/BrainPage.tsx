@@ -119,28 +119,32 @@ export function BrainPage() {
         </div>
       </header>
 
-      {/* Decomposition — current snapshot, sized to its content */}
-      <section className="glass-panel shrink-0 overflow-hidden">
-        {data ? (
-          <DecompositionPanel
-            blocks={data.currentDecomposition.blocks}
-            aggregated={data.currentDecomposition.aggregated}
-            mode={decompositionMode}
-            onModeChange={setDecompositionMode}
-            selectedBlocks={selectedBlocks}
-            onBlockClick={onBarBlockClick}
-          />
-        ) : (
-          <div className="flex h-32 items-center justify-center text-[11px] text-mm-text-dim">
-            {loading ? <span className="animate-pulse">Loading decomposition…</span> : "No data"}
-          </div>
-        )}
-      </section>
+      {/* Analysis row — decomposition sidebar + pipeline chart side-by-side
+          in a single glass panel. The sidebar is fixed-width; the chart fills
+          the remaining space. */}
+      <section className="glass-panel flex h-[520px] shrink-0 overflow-hidden">
+        {/* Decomposition sidebar — fixed 300px */}
+        <div className="w-[300px] shrink-0 overflow-y-auto border-r border-black/[0.06]">
+          {data ? (
+            <DecompositionPanel
+              blocks={data.currentDecomposition.blocks}
+              aggregated={data.currentDecomposition.aggregated}
+              mode={decompositionMode}
+              onModeChange={setDecompositionMode}
+              selectedBlocks={selectedBlocks}
+              onBlockClick={onBarBlockClick}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-[11px] text-mm-text-dim">
+              {loading ? <span className="animate-pulse">Loading…</span> : "No data"}
+            </div>
+          )}
+        </div>
 
-      {/* Pipeline time series — fixed height so ECharts has something to
-          measure against on first mount. */}
-      <section className="h-[520px] shrink-0">
-        <PipelineChart data={data} selected={selected} loading={loading} error={error} />
+        {/* Pipeline chart — fills remaining width */}
+        <div className="min-w-0 flex-1">
+          <PipelineChart data={data} selected={selected} loading={loading} error={error} />
+        </div>
       </section>
 
       <EditableBlockTable

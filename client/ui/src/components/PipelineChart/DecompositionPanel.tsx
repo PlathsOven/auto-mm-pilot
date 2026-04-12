@@ -89,8 +89,8 @@ export function DecompositionPanel({
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      {/* Cards row — clickable metric tiles double as mode toggles */}
-      <div className="grid grid-cols-4 gap-2">
+      {/* Cards — clickable metric tiles double as mode toggles */}
+      <div className="grid grid-cols-2 gap-2">
         {cards.map((c) => {
           const active = mode === c.key;
           return (
