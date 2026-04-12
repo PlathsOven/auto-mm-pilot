@@ -58,14 +58,15 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `client/ui/src/components/ApiDocs.tsx` | Client-facing API documentation panel — endpoints, WebSocket stream, integration workflow |
 | `client/ui/src/components/DesiredPositionGrid.tsx` | Zone C — clickable cells push context to LlmChat |
 | `client/ui/src/components/UpdatesFeed.tsx` | Zone D — position-change cards with stream attribution |
-| `client/ui/src/components/PipelineChart.tsx` | Pipeline Analysis container — delegates to `PipelineChart/chartOptions.ts` (ECharts config) and `PipelineChart/DecompositionSidebar.tsx` |
+| `client/ui/src/components/PipelineChart.tsx` | Pipeline time-series chart (controlled child) — delegates to `PipelineChart/chartOptions.ts` (ECharts config); paired with `PipelineChart/DecompositionPanel.tsx` in BrainPage |
 | `client/ui/src/components/studio/brain/EditableBlockTable.tsx` | Block Inspector — TanStack Table with column visibility, multi-sort, global filter, row click to open detail drawer |
 | `client/ui/src/components/studio/brain/BlockDrawer.tsx` | Unified block drawer — create (empty or LLM-prefilled), edit (manual blocks), inspect (stream blocks) |
+| `client/ui/src/pages/AnatomyPage.tsx` | Top-level Anatomy mode — thin wrapper around `AnatomyCanvas` |
 | `client/ui/src/services/engineCommands.ts` | Engine-command parser + executor — strips `engine-command` fenced blocks from LLM text, routes to BlockDrawer or auto-executes |
 | `client/ui/src/components/GlobalContextBar.tsx` | Zone B — global context header |
-| `client/ui/src/components/floor/StreamStatusList.tsx` | Floor read-only stream registry/health |
-| `client/ui/src/components/studio/StreamLibrary.tsx` | Studio — stream CRUD |
-| `client/ui/src/components/studio/StreamCanvas.tsx` | Studio — 7-section stream config |
+| `client/ui/src/components/floor/StreamStatusList.tsx` | Eyes read-only stream list (name + last update) |
+| `client/ui/src/components/studio/StreamLibrary.tsx` | Anatomy — stream CRUD |
+| `client/ui/src/components/studio/StreamCanvas.tsx` | Anatomy — 7-section stream config |
 | `client/ui/src/services/llmApi.ts` | HTTP client for LLM server endpoints (SSE streaming + JSON fetch) |
 | `client/ui/src/services/streamApi.ts` | HTTP client for stream CRUD, snapshot ingestion, market-pricing, bankroll endpoints |
 | `client/ui/src/services/pipelineApi.ts` | HTTP client for pipeline dimensions + time series endpoints |

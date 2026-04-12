@@ -25,14 +25,14 @@ The UI is a fixed-height, single-page application (SPA) divided into four primar
 
 ### A. Data Streams Sidebar (Left — 2/12 Width)
 * **Header:** "Data Streams" — sentence case, `zone-header` class.
-* **Component:** A list of registered + live streams. Status pip (colored dot) + status label + last update time.
+* **Component:** Minimal list of live streams. Each row shows only stream name + last-update age (`formatAge`). No status pips, no registry state, no key-col metadata — those details live in Anatomy. Link: "Manage in Anatomy →".
 * **Cards:** `.glass-card` treatment — `bg-white/40 backdrop-blur-lg border-white/50 rounded-md`.
 * **Narrower than before** (was 3 cols, now 2) — it's a status list, not a workspace.
 
 ### B. Global Context Bar (Top — 56px Height)
 * **Treatment:** `.glass-bar` — `bg-white/65 backdrop-blur-2xl border-b border-black/[0.08]`. Content slides under this frosted strip.
 * **Left:** Static logo "APT" in `mm-accent` + connection status as a colored dot only (green/amber/red), tooltip on hover for details. No `[CONNECTED]` text.
-* **Centre:** Mode switcher (Floor / Studio) + search (`⌘K`) + chat toggle (`⌘\`).
+* **Centre:** Mode switcher (Eyes / Brain / Anatomy) + search (`⌘K`) + chat toggle (`⌘\`).
 * **Right:** APT Control toggle + UTC clock.
 
 ### C. Desired Positions (Centre — 7/12 Width, Full Height)

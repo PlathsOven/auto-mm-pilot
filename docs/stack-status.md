@@ -56,8 +56,8 @@
 | **Block Drawer** | `client/ui/src/components/studio/brain/BlockDrawer.tsx` | `PROD` | Block API | Unified create/edit/inspect drawer, replaces AddBlockDrawer |
 | **Engine Commands** | `client/ui/src/services/engineCommands.ts` | `PROD` | Stream API, Block API | Parses + executes engine-command fenced blocks from LLM responses |
 | ~~Daily Wrap~~ | ~~`client/ui/src/components/DailyWrap.tsx`~~ | — | — | Deleted — will be rebuilt when LLM-generated wrap is ready |
-| **Stream Status List** | `client/ui/src/components/floor/StreamStatusList.tsx` | `PROD` | WebSocket Provider, stream API | Floor read-only stream registry/health (replaces IngestionSidebar) |
-| **Stream Library / Canvas** | `client/ui/src/components/studio/StreamLibrary.tsx`, `StreamCanvas.tsx` | `PROD` | stream API, TransformsProvider | Studio CRUD + activate flow with 7 sections |
+| **Stream Status List** | `client/ui/src/components/floor/StreamStatusList.tsx` | `PROD` | WebSocket Provider | Eyes read-only stream list (name + last update) |
+| **Stream Library / Canvas** | `client/ui/src/components/studio/StreamLibrary.tsx`, `StreamCanvas.tsx` | `PROD` | stream API, TransformsProvider | Anatomy CRUD + activate flow with 7 sections |
 | **Global Context Bar** | `client/ui/src/components/GlobalContextBar.tsx` | `PROD` | WebSocket Provider | Zone B |
 
 ## Data Adapters (`client/adapter/`)
