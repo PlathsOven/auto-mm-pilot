@@ -29,10 +29,10 @@
 | **Client WS Auth** | `server/api/client_ws_auth.py` | `PROD` | `CLIENT_WS_API_KEY`, `CLIENT_WS_ALLOWED_IPS` env vars | API key + IP whitelist gate |
 | **OpenRouter Client** | `server/api/llm/client.py` | `PROD` | `OPENROUTER_API_KEY` env var | Async httpx, fallback model chain, `<think>` tag stripping |
 | **LLM Service** | `server/api/llm/service.py` | `PROD` | OpenRouter Client, Prompts, Engine State | Investigation (stream) |
-| **Investigation Prompt** | `server/api/llm/prompts/investigation.py` | `PROD` | — | System prompt for Zone E |
-| **Configure Prompt** | `server/api/llm/prompts/configure.py` | `PROD` | — | Stream onboarding guidance, engine-command emit format |
-| **Opinion Prompt** | `server/api/llm/prompts/opinion.py` | `PROD` | — | Discretionary view → manual block via engine-command |
-| **Shared Preamble** | `server/api/llm/prompts/preamble.py` | `PROD` | — | IP protection, language rules |
+| **Investigation Prompt** | `server/api/llm/prompts/investigation.py` | `PROD` | Core | Investigation mode: reasoning protocol, data sections, engine commands |
+| **Build Prompt** | `server/api/llm/prompts/build.py` | `PROD` | Core | Build mode: stream onboarding + opinion → manual block via engine-command |
+| **General Prompt** | `server/api/llm/prompts/general.py` | `PROD` | Core | General mode: catch-all conversational, minimal engine summary |
+| **Shared Core** | `server/api/llm/prompts/core.py` | `PROD` | — | Role, framework, language rules, hard constraints, response discipline |
 | **Snapshot Buffer** | `server/api/llm/snapshot_buffer.py` | `PROD` | — | Ring buffer + delta table builder |
 | **Stream Context DB** | `server/api/llm/context_db.py` | `MOCK` | — | Hardcoded stream metadata; will be client-contributed via API |
 | **Engine State Provider** | `server/api/engine_state.py` | `PROD` | Core Pipeline | Runs `server/core` pipeline, serializes snapshots for LLM layer |
