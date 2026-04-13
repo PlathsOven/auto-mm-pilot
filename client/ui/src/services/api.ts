@@ -30,10 +30,25 @@ export async function apiFetch<T>(
     let code: number | null = null;
     let message = `${res.status}`;
     try {
-      const body = (await res.json()) as { error?: { code?: number; message?: string } };
+      const body = (await res.json()) as {
+        error?: { code?: number; message?: string };
+        detail?: string | Array<{ loc?: unknown[]; msg?: string }>;
+      };
       if (body.error) {
         code = body.error.code ?? null;
         message = body.error.message ?? message;
+      } else if (typeof body.detail === "string") {
+        // FastAPI HTTPException shape: { "detail": "..." }
+        message = body.detail;
+      } else if (Array.isArray(body.detail) && body.detail.length > 0) {
+        // FastAPI RequestValidationError shape: { "detail": [{ loc, msg, type }] }
+        message = body.detail
+          .map((e) => {
+            const field = Array.isArray(e.loc) ? e.loc[e.loc.length - 1] : null;
+            return field ? `${field}: ${e.msg}` : (e.msg ?? "");
+          })
+          .filter(Boolean)
+          .join("; ");
       }
     } catch {
       // Body isn't JSON — fall back to raw text

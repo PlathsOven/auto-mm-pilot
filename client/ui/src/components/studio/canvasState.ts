@@ -124,6 +124,10 @@ export function validateBlockShape(d: BlockShapeDraft): SectionState {
     return { status: "draft", message: "Decay end size must be ≥ 0" };
   if (d.decay_rate_prop_per_min < 0)
     return { status: "draft", message: "Decay rate must be ≥ 0" };
+  if (d.size_type === "relative" && !d.annualized)
+    return { status: "draft", message: "Relative sizing requires annualized" };
+  if (d.decay_end_size_mult !== 0 && !d.annualized)
+    return { status: "draft", message: "Decay end size is only applicable for annualized streams" };
   return { status: "valid" };
 }
 
