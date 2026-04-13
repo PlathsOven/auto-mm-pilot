@@ -8,12 +8,21 @@ import {
 import { useKeyboardShortcut } from "../../../hooks/useKeyboardShortcut";
 import { Field } from "../sections/Field";
 import type { BlockRow } from "../../../types";
+import {
+  type DrawerMode,
+  type Draft,
+  type DraftBlockConfig,
+  EMPTY_DRAFT,
+  NUMERIC_RE,
+  nextKey,
+  emptyRow,
+  draftFromBlock,
+  draftFromCommandParams,
+} from "./blockDrawerState";
+import { SnapshotTable, ReadOnlyField } from "./BlockDrawerParts";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export type DrawerMode = "create" | "edit" | "inspect";
+// Re-export so existing imports from this file keep working
+export type { DrawerMode } from "./blockDrawerState";
 
 interface Props {
   open: boolean;
@@ -26,290 +35,6 @@ interface Props {
   /** Fires after a successful create or update so the parent can refresh. */
   onSaved: () => void;
 }
-
-interface DraftBlockConfig {
-  annualized: boolean;
-  size_type: "fixed" | "relative";
-  aggregation_logic: "average" | "offset";
-  temporal_position: "static" | "shifting";
-  decay_end_size_mult: number;
-  decay_rate_prop_per_min: number;
-  var_fair_ratio: number;
-}
-
-interface SnapshotRowDraft {
-  /** Unique client-side key for React list rendering. */
-  _key: number;
-  [col: string]: unknown;
-}
-
-interface Draft {
-  stream_name: string;
-  key_cols_raw: string;
-  scale: number;
-  offset: number;
-  exponent: number;
-  space_id: string;
-  block: DraftBlockConfig;
-  snapshot_headers: string[];
-  snapshot_rows: SnapshotRowDraft[];
-}
-
-// ---------------------------------------------------------------------------
-// Defaults
-// ---------------------------------------------------------------------------
-
-let _nextKey = 1;
-function nextKey(): number {
-  return _nextKey++;
-}
-
-const DEFAULT_HEADERS = ["timestamp", "symbol", "expiry", "raw_value", "market_price"];
-
-function emptyRow(headers: string[]): SnapshotRowDraft {
-  const row: SnapshotRowDraft = { _key: nextKey() };
-  for (const h of headers) row[h] = "";
-  return row;
-}
-
-const EMPTY_DRAFT: Draft = {
-  stream_name: "",
-  key_cols_raw: "symbol, expiry",
-  scale: 1.0,
-  offset: 0.0,
-  exponent: 1.0,
-  space_id: "",
-  block: {
-    annualized: true,
-    size_type: "fixed",
-    aggregation_logic: "average",
-    temporal_position: "shifting",
-    decay_end_size_mult: 1.0,
-    decay_rate_prop_per_min: 0.0,
-    var_fair_ratio: 1.0,
-  },
-  snapshot_headers: [...DEFAULT_HEADERS],
-  snapshot_rows: [
-    {
-      _key: nextKey(),
-      timestamp: "2026-01-15T16:00:00Z",
-      symbol: "BTC",
-      expiry: "27MAR26",
-      raw_value: "0.74",
-      market_price: "",
-    },
-  ],
-};
-
-// Strict numeric — matches integers, decimals, scientific notation.
-// Rejects strings like "27MAR26" which parseFloat would partly parse.
-const NUMERIC_RE = /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
-
-function draftFromBlock(b: BlockRow): Draft {
-  // We don't have the original snapshot rows from the server in BlockRow,
-  // so we start with a single row pre-filled from the block's known values.
-  const headers = [...DEFAULT_HEADERS];
-  const row: SnapshotRowDraft = {
-    _key: nextKey(),
-    timestamp: b.start_timestamp ?? new Date().toISOString(),
-    symbol: b.symbol,
-    expiry: b.expiry,
-    raw_value: String(b.raw_value),
-    market_price: b.market_price != null ? String(b.market_price) : "",
-  };
-  return {
-    stream_name: b.stream_name,
-    key_cols_raw: "symbol, expiry",
-    scale: b.scale,
-    offset: b.offset,
-    exponent: b.exponent,
-    space_id: b.space_id,
-    block: {
-      annualized: b.annualized,
-      size_type: b.size_type,
-      aggregation_logic: b.aggregation_logic,
-      temporal_position: b.temporal_position,
-      decay_end_size_mult: b.decay_end_size_mult,
-      decay_rate_prop_per_min: b.decay_rate_prop_per_min,
-      var_fair_ratio: b.var_fair_ratio,
-    },
-    snapshot_headers: headers,
-    snapshot_rows: [row],
-  };
-}
-
-/**
- * Build a draft from engine-command params (emitted by the LLM in opinion mode).
- * Falls back to EMPTY_DRAFT defaults for any missing fields.
- */
-function draftFromCommandParams(params: Record<string, unknown>): Draft {
-  const blk = (params.block ?? {}) as Record<string, unknown>;
-  const keyCols = params.key_cols as string[] | undefined;
-  const rawRows = params.snapshot_rows as Record<string, unknown>[] | undefined;
-
-  // Determine snapshot headers from the first row (if provided)
-  const firstRow = rawRows?.[0];
-  const headers = firstRow
-    ? Object.keys(firstRow).filter((k) => k !== "_key")
-    : [...DEFAULT_HEADERS];
-
-  // Add start_timestamp header if any row has it and it's not already present
-  if (!headers.includes("start_timestamp") && rawRows?.some((r) => "start_timestamp" in r)) {
-    headers.push("start_timestamp");
-  }
-
-  const rows: SnapshotRowDraft[] = rawRows
-    ? rawRows.map((r) => {
-        const row: SnapshotRowDraft = { _key: nextKey() };
-        for (const h of headers) {
-          row[h] = r[h] != null ? String(r[h]) : "";
-        }
-        return row;
-      })
-    : [emptyRow(headers)];
-
-  return {
-    stream_name: (params.stream_name as string) ?? "",
-    key_cols_raw: keyCols?.join(", ") ?? "symbol, expiry",
-    scale: typeof params.scale === "number" ? params.scale : 1.0,
-    offset: typeof params.offset === "number" ? params.offset : 0.0,
-    exponent: typeof params.exponent === "number" ? params.exponent : 1.0,
-    space_id: (params.space_id as string) ?? "",
-    block: {
-      annualized: typeof blk.annualized === "boolean" ? blk.annualized : EMPTY_DRAFT.block.annualized,
-      size_type: (blk.size_type as "fixed" | "relative") ?? EMPTY_DRAFT.block.size_type,
-      aggregation_logic: (blk.aggregation_logic as "average" | "offset") ?? EMPTY_DRAFT.block.aggregation_logic,
-      temporal_position: (blk.temporal_position as "static" | "shifting") ?? EMPTY_DRAFT.block.temporal_position,
-      decay_end_size_mult: typeof blk.decay_end_size_mult === "number" ? blk.decay_end_size_mult : EMPTY_DRAFT.block.decay_end_size_mult,
-      decay_rate_prop_per_min: typeof blk.decay_rate_prop_per_min === "number" ? blk.decay_rate_prop_per_min : EMPTY_DRAFT.block.decay_rate_prop_per_min,
-      var_fair_ratio: typeof blk.var_fair_ratio === "number" ? blk.var_fair_ratio : EMPTY_DRAFT.block.var_fair_ratio,
-    },
-    snapshot_headers: headers,
-    snapshot_rows: rows,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Snapshot table sub-component
-// ---------------------------------------------------------------------------
-
-function SnapshotTable({
-  headers,
-  rows,
-  readOnly,
-  onHeaderChange,
-  onAddHeader,
-  onRemoveHeader,
-  onCellChange,
-  onAddRow,
-  onRemoveRow,
-}: {
-  headers: string[];
-  rows: SnapshotRowDraft[];
-  readOnly: boolean;
-  onHeaderChange: (idx: number, val: string) => void;
-  onAddHeader: () => void;
-  onRemoveHeader: (idx: number) => void;
-  onCellChange: (rowIdx: number, col: string, val: string) => void;
-  onAddRow: () => void;
-  onRemoveRow: (rowIdx: number) => void;
-}) {
-  return (
-    <div className="overflow-auto rounded-lg border border-black/[0.06]">
-      <table className="w-full border-collapse text-[10px]">
-        <thead className="bg-black/[0.03]">
-          <tr>
-            {headers.map((h, i) => (
-              <th key={i} className="px-1.5 py-1 text-left">
-                {readOnly ? (
-                  <span className="font-medium text-mm-text-dim">{h}</span>
-                ) : (
-                  <div className="flex items-center gap-0.5">
-                    <input
-                      type="text"
-                      value={h}
-                      onChange={(e) => onHeaderChange(i, e.target.value)}
-                      className="w-full min-w-[60px] rounded border border-transparent bg-transparent px-1 py-0.5 font-mono text-[10px] font-medium text-mm-text-dim hover:border-black/[0.08] focus:border-mm-accent/40 focus:outline-none"
-                    />
-                    {headers.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => onRemoveHeader(i)}
-                        className="shrink-0 text-[9px] text-mm-text-dim/50 hover:text-mm-error"
-                        title="Remove column"
-                      >
-                        x
-                      </button>
-                    )}
-                  </div>
-                )}
-              </th>
-            ))}
-            {!readOnly && (
-              <th className="w-16 px-1.5 py-1">
-                <button
-                  type="button"
-                  onClick={onAddHeader}
-                  className="text-[9px] text-mm-accent hover:underline"
-                  title="Add column"
-                >
-                  + col
-                </button>
-              </th>
-            )}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, ri) => (
-            <tr key={row._key} className="border-t border-black/[0.03]">
-              {headers.map((h) => (
-                <td key={h} className="px-1.5 py-0.5">
-                  {readOnly ? (
-                    <span className="font-mono text-[10px]">{String(row[h] ?? "")}</span>
-                  ) : (
-                    <input
-                      type="text"
-                      value={String(row[h] ?? "")}
-                      onChange={(e) => onCellChange(ri, h, e.target.value)}
-                      className="w-full min-w-[60px] rounded border border-transparent bg-transparent px-1 py-0.5 font-mono text-[10px] hover:border-black/[0.08] focus:border-mm-accent/40 focus:outline-none"
-                    />
-                  )}
-                </td>
-              ))}
-              {!readOnly && (
-                <td className="px-1.5 py-0.5 text-center">
-                  {rows.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => onRemoveRow(ri)}
-                      className="text-[9px] text-mm-text-dim/50 hover:text-mm-error"
-                      title="Remove row"
-                    >
-                      x
-                    </button>
-                  )}
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {!readOnly && (
-        <button
-          type="button"
-          onClick={onAddRow}
-          className="w-full border-t border-black/[0.03] py-1 text-[9px] text-mm-accent hover:bg-mm-accent/5"
-        >
-          + Add row
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
 
 /**
  * Unified block drawer — handles create, edit, and inspect modes.
@@ -355,7 +80,6 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
       const old = d.snapshot_headers[idx];
       const headers = [...d.snapshot_headers];
       headers[idx] = val;
-      // Rename key in every row
       const rows = d.snapshot_rows.map((r) => {
         const nr = { ...r };
         if (old in nr) {
@@ -447,7 +171,7 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
         const out: Record<string, unknown> = {};
         for (const h of draft.snapshot_headers) {
           const cell = String(r[h] ?? "");
-          if (cell === "") continue; // omit empty cells so server defaults apply
+          if (cell === "") continue;
           out[h] = NUMERIC_RE.test(cell) ? parseFloat(cell) : cell;
         }
         return out;
@@ -475,7 +199,6 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
         };
         await createManualBlock(payload);
       } else {
-        // edit mode — PATCH
         const payload: UpdateBlockPayload = {
           scale: draft.scale,
           offset: draft.offset,
@@ -566,12 +289,7 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
               />
             )}
             {mode !== "create" && (
-              <Field
-                type="text"
-                label="Space id"
-                value={draft.space_id}
-                onChange={() => {}}
-              />
+              <Field type="text" label="Space id" value={draft.space_id} onChange={() => {}} />
             )}
             {mode === "create" && (
               <Field
@@ -722,20 +440,5 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
         </footer>
       </aside>
     </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Small helper for read-only numeric fields in the output section
-// ---------------------------------------------------------------------------
-
-function ReadOnlyField({ label, value }: { label: string; value: number | null | undefined }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] font-medium text-mm-text-dim">{label}</span>
-      <span className="font-mono text-[11px] tabular-nums">
-        {value != null ? value.toFixed(4) : "—"}
-      </span>
-    </div>
   );
 }
