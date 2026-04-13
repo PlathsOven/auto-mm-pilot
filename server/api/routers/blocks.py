@@ -84,42 +84,42 @@ def _blocks_from_pipeline() -> list[BlockRowResponse]:
 
     store = get_manual_block_store()
     rows: list[BlockRowResponse] = []
-    for row in blocks_df.iter_rows(named=True):
-        block_name = row["block_name"]
-        stream_name = row["stream_name"]
+    for d in blocks_df.to_dicts():
+        block_name = d["block_name"]
+        stream_name = d["stream_name"]
         block_latest_var = latest_vars.get(block_name, {})
 
-        start_ts = row.get("start_timestamp")
+        start_ts = d.get("start_timestamp")
         start_str = start_ts.isoformat() if hasattr(start_ts, "isoformat") and start_ts is not None else None
 
         source = "manual" if store.is_manual(stream_name) else "stream"
 
         # Serialize expiry (may be datetime or string)
-        raw_expiry = row.get("expiry")
+        raw_expiry = d.get("expiry")
         expiry_str = raw_expiry.isoformat() if hasattr(raw_expiry, "isoformat") and raw_expiry is not None else str(raw_expiry) if raw_expiry is not None else ""
 
         rows.append(BlockRowResponse(
             block_name=block_name,
             stream_name=stream_name,
-            symbol=row.get("symbol", ""),
+            symbol=d.get("symbol", ""),
             expiry=expiry_str,
-            space_id=row["space_id"],
+            space_id=d["space_id"],
             source=source,
-            annualized=row["annualized"],
-            size_type=row["size_type"],
-            aggregation_logic=row["aggregation_logic"],
-            temporal_position=row["temporal_position"],
-            decay_end_size_mult=row["decay_end_size_mult"],
-            decay_rate_prop_per_min=row["decay_rate_prop_per_min"],
-            var_fair_ratio=row["var_fair_ratio"],
-            scale=row["scale"],
-            offset=row["offset"],
-            exponent=row["exponent"],
-            target_value=row["target_value"],
-            raw_value=row["raw_value"],
-            market_price=row.get("market_price"),
-            market_value=row.get("market_value"),
-            target_market_value=row.get("target_market_value"),
+            annualized=d["annualized"],
+            size_type=d["size_type"],
+            aggregation_logic=d["aggregation_logic"],
+            temporal_position=d["temporal_position"],
+            decay_end_size_mult=d["decay_end_size_mult"],
+            decay_rate_prop_per_min=d["decay_rate_prop_per_min"],
+            var_fair_ratio=d["var_fair_ratio"],
+            scale=d["scale"],
+            offset=d["offset"],
+            exponent=d["exponent"],
+            target_value=d["target_value"],
+            raw_value=d["raw_value"],
+            market_price=d.get("market_price"),
+            market_value=d.get("market_value"),
+            target_market_value=d.get("target_market_value"),
             fair=block_latest_var.get("fair"),
             market_fair=block_latest_var.get("market_fair"),
             var=block_latest_var.get("var"),

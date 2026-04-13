@@ -10,6 +10,7 @@ import polars as pl
 from fastapi import APIRouter, HTTPException
 
 from server.api.engine_state import get_pipeline_results, RISK_DIMENSION_COLS
+from server.api.stream_registry import parse_datetime_tolerant
 from server.api.ws import get_current_tick_ts
 
 log = logging.getLogger(__name__)
@@ -38,20 +39,6 @@ def _pipeline_dimensions_sync() -> dict:
         exp = d["expiry"]
         d["expiry"] = exp.isoformat() if hasattr(exp, "isoformat") else str(exp)
     return {"dimensions": dim_rows}
-
-
-def _parse_expiry(raw: str) -> _dt:
-    """Accept ISO 8601 (``2026-01-02``) or canonical DDMMMYY (``02JAN26``).
-
-    The WebSocket payload normalises expiries to DDMMMYY via ``_format_expiry``
-    in ``ws.py``, so the client often forwards that format verbatim.  This
-    helper accepts both so callers never have to guess which one the server
-    wants.
-    """
-    try:
-        return _dt.fromisoformat(raw)
-    except ValueError:
-        return _dt.strptime(raw, "%d%b%y")
 
 
 def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
@@ -126,14 +113,18 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
     if block_var_filtered.height > 0:
         first_ts = block_var_filtered["timestamp"].min()
         latest_block_var = block_var_filtered.filter(pl.col("timestamp") == first_ts)
-        for row in latest_block_var.iter_rows(named=True):
-            current_blocks.append({
-                "blockName": row["block_name"],
-                "spaceId": row["space_id"],
-                "fair": row["fair"],
-                "marketFair": row["market_fair"],
-                "var": row["var"],
-            })
+        current_blocks = [
+            {
+                "blockName": d["block_name"],
+                "spaceId": d["space_id"],
+                "fair": d["fair"],
+                "marketFair": d["market_fair"],
+                "var": d["var"],
+            }
+            for d in latest_block_var.select(
+                "block_name", "space_id", "fair", "market_fair", "var",
+            ).to_dicts()
+        ]
 
     current_agg = {}
     if pos_sorted.height > 0:
@@ -175,7 +166,7 @@ async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
     """Return full block-level and aggregated time series for a symbol/expiry."""
     # Parse expiry string (tolerant of both ISO and DDMMMYY)
     try:
-        expiry_dt = _parse_expiry(expiry)
+        expiry_dt = parse_datetime_tolerant(expiry)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=f"Invalid expiry format: {exc}") from exc
 
