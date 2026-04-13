@@ -152,8 +152,8 @@ def _serialize_blocks_df(
     """Convert blocks_df rows to list of dicts for block_summary."""
     summary_cols = risk_dimension_cols + [
         "block_name", "stream_name", "space_id", "aggregation_logic",
-        "raw_value", "target_value", "target_market_value", "var_fair_ratio",
-        "annualized", "size_type", "temporal_position",
+        "raw_value", "market_price", "target_value", "target_market_value",
+        "var_fair_ratio", "annualized", "size_type", "temporal_position",
         "decay_end_size_mult", "decay_rate_prop_per_min",
     ]
     # Only include columns that exist

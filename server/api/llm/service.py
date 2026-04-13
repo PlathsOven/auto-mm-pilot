@@ -24,6 +24,16 @@ class LlmService:
         self._config = config or get_openrouter_config()
         self._client = OpenRouterClient(self._config)
 
+    @property
+    def client(self) -> OpenRouterClient:
+        """Expose the underlying HTTP client for reuse (e.g. correction detector)."""
+        return self._client
+
+    @property
+    def config(self) -> OpenRouterConfig:
+        """Expose config for reuse (e.g. detector model list)."""
+        return self._config
+
     # ------------------------------------------------------------------
     # Investigation chat (Zone E) — bidirectional: read state + issue
     # parameter change commands back to the engine.

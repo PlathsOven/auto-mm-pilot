@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -d client/ui/node_modules ] && npm --prefix client/ui run typecheck 2>&1 | tail -20 || echo 'client/ui/node_modules missing — skipping typecheck. Run: npm --prefix client/ui install'"
+            "command": "[ -d client/ui/node_modules ] && npm --prefix client/ui run typecheck 2>&1 | tail -20 || echo 'client/ui/node_modules missing \u2014 skipping typecheck. Run: npm --prefix client/ui install'"
           },
           {
             "type": "command",

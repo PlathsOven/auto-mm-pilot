@@ -117,6 +117,7 @@ def _blocks_from_pipeline() -> list[BlockRowResponse]:
             exponent=row["exponent"],
             target_value=row["target_value"],
             raw_value=row["raw_value"],
+            market_price=row.get("market_price"),
             market_value=row.get("market_value"),
             target_market_value=row.get("target_market_value"),
             fair=block_latest_var.get("fair"),
@@ -219,6 +220,8 @@ async def create_manual_block(req: ManualBlockRequest) -> BlockRowResponse:
     snap = req.snapshot_rows[0].model_dump() if req.snapshot_rows else {}
     raw_val = float(snap.get("raw_value", 0))
 
+    mkt_price = float(snap.get("market_price")) if snap.get("market_price") is not None else None
+
     return BlockRowResponse(
         block_name=req.stream_name,
         stream_name=req.stream_name,
@@ -238,6 +241,7 @@ async def create_manual_block(req: ManualBlockRequest) -> BlockRowResponse:
         exponent=req.exponent,
         target_value=0.0,
         raw_value=raw_val,
+        market_price=mkt_price,
         updated_at=_dt.now().isoformat(),
     )
 

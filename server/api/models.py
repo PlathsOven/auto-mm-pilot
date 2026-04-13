@@ -28,6 +28,10 @@ class SnapshotRow(BaseModel):
 
     timestamp: str = Field(..., description="ISO 8601 timestamp")
     raw_value: float = Field(..., description="Raw measurement value")
+    market_price: float | None = Field(
+        default=None,
+        description="Market-implied price in same raw units as raw_value. Defaults to raw_value if omitted.",
+    )
 
 
 class CellContext(BaseModel):
@@ -137,24 +141,6 @@ class SnapshotResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Market pricing
-# ---------------------------------------------------------------------------
-
-class MarketPricingRequest(BaseModel):
-    """Client supplies market-implied pricing keyed by space_id."""
-    pricing: dict[str, float] = Field(
-        ...,
-        min_length=1,
-        description="Market pricing per space_id, e.g. {'shifting': 0.55}",
-    )
-
-
-class MarketPricingResponse(BaseModel):
-    spaces_updated: int
-    pipeline_rerun: bool
-
-
-# ---------------------------------------------------------------------------
 # Bankroll
 # ---------------------------------------------------------------------------
 
@@ -197,6 +183,7 @@ class BlockRowResponse(BaseModel):
     # Output values
     target_value: float
     raw_value: float
+    market_price: float | None = None
     market_value: float | None = None
     target_market_value: float | None = None
     fair: float | None = None

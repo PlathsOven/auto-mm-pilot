@@ -24,7 +24,6 @@ from server.api.ws import pipeline_ws
 from server.api.routers.llm import router as llm_router
 from server.api.routers.streams import router as streams_router
 from server.api.routers.snapshots import router as snapshots_router
-from server.api.routers.market_pricing import router as market_pricing_router
 from server.api.routers.bankroll import router as bankroll_router
 from server.api.routers.transforms import router as transforms_router
 from server.api.routers.pipeline import router as pipeline_router
@@ -87,7 +86,6 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
 app.include_router(llm_router)
 app.include_router(streams_router)
 app.include_router(snapshots_router)
-app.include_router(market_pricing_router)
 app.include_router(bankroll_router)
 app.include_router(transforms_router)
 app.include_router(pipeline_router)

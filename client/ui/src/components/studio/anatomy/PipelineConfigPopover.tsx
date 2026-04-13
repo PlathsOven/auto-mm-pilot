@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import { BankrollEditor } from "../BankrollEditor";
-import { MarketPricingEditor } from "../MarketPricingEditor";
 import { useKeyboardShortcut } from "../../../hooks/useKeyboardShortcut";
 
 interface Props {
@@ -9,13 +8,10 @@ interface Props {
 }
 
 /**
- * Floating popover for pipeline-level configuration (bankroll + market pricing).
+ * Floating popover for pipeline-level configuration (bankroll).
  *
- * Previously these editors lived in a permanent right sidebar on Pipeline
- * Composer. In the new Anatomy they're tucked into a low-traffic popover
- * triggered from a "⚙ Config" button in the header — the canvas surface
- * stays clean by default, and architects who need to tweak bankroll or
- * market pricing reach them from a single click.
+ * Tucked into a low-traffic popover triggered from a "⚙ Config" button
+ * in the header — the canvas surface stays clean by default.
  */
 export function PipelineConfigPopover({ open, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
@@ -51,7 +47,6 @@ export function PipelineConfigPopover({ open, onClose }: Props) {
         </button>
       </div>
       <BankrollEditor />
-      <MarketPricingEditor />
     </div>
   );
 }

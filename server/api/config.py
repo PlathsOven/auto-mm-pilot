@@ -86,6 +86,16 @@ class OpenRouterConfig:
         )
     )
 
+    # Correction detector — cheap model for background KB extraction.
+    detector_models: tuple[str, ...] = field(
+        default_factory=lambda: _parse_str_list(
+            "OPENROUTER_DETECTOR_MODELS",
+            ("anthropic/claude-3.5-haiku", "google/gemini-2.0-flash-001"),
+        )
+    )
+    max_tokens_detector: int = 512
+    temperature_detector: float = 0.
+
     # Generation parameters — set high to accommodate models that spend
     # tokens on internal <think> reasoning (stripped before display).
     max_tokens_investigation: int = 16384

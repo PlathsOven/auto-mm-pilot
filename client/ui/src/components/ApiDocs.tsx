@@ -125,7 +125,6 @@ const NAV = [
   { id: "health", label: "Health" },
   { id: "streams", label: "Stream Management" },
   { id: "snapshots", label: "Snapshot Ingestion" },
-  { id: "pricing", label: "Market Pricing" },
   { id: "bankroll", label: "Bankroll" },
   { id: "llm", label: "LLM Endpoints" },
 ] as const;
@@ -373,11 +372,6 @@ if __name__ == "__main__":
               moves to <em>READY</em>.
             </li>
             <li>
-              <strong className="text-mm-text">Set market pricing</strong> —{" "}
-              <code>POST /api/market-pricing</code> with pricing keyed by
-              space ID.
-            </li>
-            <li>
               <strong className="text-mm-text">Set bankroll</strong> —{" "}
               <code>PATCH /api/config/bankroll</code> with your portfolio
               bankroll value.
@@ -386,7 +380,9 @@ if __name__ == "__main__":
               <strong className="text-mm-text">Ingest snapshots</strong> —{" "}
               <code>POST /api/snapshots</code> with rows containing{" "}
               <code>timestamp</code>, <code>raw_value</code>, and all key
-              columns. The engine re-runs automatically after each ingestion.
+              columns. Optionally include <code>market_price</code> per row
+              for market comparison (defaults to <code>raw_value</code> if
+              omitted). The engine re-runs automatically after each ingestion.
             </li>
             <li>
               <strong className="text-mm-text">Connect the WebSocket</strong> —{" "}
@@ -398,8 +394,9 @@ if __name__ == "__main__":
           <p>
             After initial setup, your integration loop is simply:{" "}
             <strong>ingest snapshots → receive positions via WebSocket</strong>.
-            Market pricing and bankroll can be updated at any time; each update
-            triggers a fresh engine run.
+            Bankroll can be updated at any time; each update triggers a fresh
+            engine run. Market pricing is set per-block via the{" "}
+            <code>market_price</code> field in snapshot rows.
           </p>
         </Section>
 
@@ -657,24 +654,6 @@ if __name__ == "__main__":
   "pipeline_rerun": true
 }`}</CodeBlock>
             <p><strong>404</strong> if stream not found. <strong>422</strong> if rows are missing required columns or the stream is not READY.</p>
-          </Endpoint>
-        </Section>
-
-        {/* ── Market Pricing ───────────────────────────── */}
-        <Section id="pricing" title="Market Pricing">
-          <Endpoint method="POST" path="/api/market-pricing" description="Update market-implied pricing keyed by space ID. Triggers an engine re-run.">
-            <p className="font-medium text-mm-text">Request body:</p>
-            <CodeBlock>{`{
-  "pricing": {
-    "shifting": 0.55,
-    "static": 0.48
-  }
-}`}</CodeBlock>
-            <p className="font-medium text-mm-text">Response:</p>
-            <CodeBlock>{`{
-  "spaces_updated": 2,
-  "pipeline_rerun": true
-}`}</CodeBlock>
           </Endpoint>
         </Section>
 

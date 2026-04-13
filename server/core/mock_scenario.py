@@ -34,6 +34,7 @@ MOCK_RV_STREAM = StreamConfig(
         "symbol": [_SYMBOL],
         "expiry": [_EXPIRY],
         "raw_value": [0.45],
+        "market_price": [0.55],
     }),
     key_cols=["symbol", "expiry"],
     scale=1.0, offset=0.0, exponent=2,
@@ -47,6 +48,7 @@ MOCK_MEAN_IV_STREAM = StreamConfig(
         "symbol": [_SYMBOL],
         "expiry": [_EXPIRY],
         "raw_value": [0.50],
+        "market_price": [0.55],
     }),
     key_cols=["symbol", "expiry"],
     scale=1.0, offset=0.0, exponent=2,
@@ -71,6 +73,7 @@ MOCK_EVENTS_STREAM = StreamConfig(
         "expiry": [_EXPIRY] * _NUM_EVENTS,
         "event_id": [f"event_{i}" for i in range(_NUM_EVENTS)],
         "raw_value": [2.5, 3.1, 1.8, 4.0, 2.0],
+        "market_price": [0.30, 0.25, 0.40, 0.35, 0.20],
         "start_timestamp": _EVENT_STARTS,
     }),
     key_cols=["symbol", "expiry", "event_id"],
@@ -90,14 +93,3 @@ MOCK_STREAMS: list[StreamConfig] = [
     MOCK_MEAN_IV_STREAM,
     MOCK_EVENTS_STREAM,
 ]
-
-# Mock market-implied pricing per space (keyed by space_id).
-# In production this comes from the data feed; here we use deterministic values.
-MOCK_MARKET_PRICING: dict[str, float] = {
-    "shifting": 0.55,
-    "static_20260101_000000": 0.30,
-    "static_20260101_040000": 0.25,
-    "static_20260101_080000": 0.40,
-    "static_20260101_120000": 0.35,
-    "static_20260101_160000": 0.20,
-}

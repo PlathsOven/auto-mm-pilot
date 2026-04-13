@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from server.api.models import ChatMode
+from server.api.llm.domain_kb import serialize_kb_section
 from server.api.llm.prompts.build import build_build_prompt
 from server.api.llm.prompts.general import build_general_prompt
 from server.api.llm.prompts.investigation import build_investigation_prompt
@@ -32,13 +33,17 @@ def build_system_prompt(
     - general:     engine state (positions summary only)
     """
     if mode == "investigate":
-        return build_investigation_prompt(
+        base = build_investigation_prompt(
             engine_state, stream_contexts_json, pipeline_snapshot, history_context,
         )
-    if mode == "build":
-        return build_build_prompt(engine_state, stream_contexts_json)
-    # general (default fallback)
-    return build_general_prompt(engine_state)
+    elif mode == "build":
+        base = build_build_prompt(engine_state, stream_contexts_json)
+    else:
+        # general (default fallback)
+        base = build_general_prompt(engine_state)
+
+    # Append accumulated domain knowledge to every mode
+    return base + serialize_kb_section()
 
 
 __all__ = [

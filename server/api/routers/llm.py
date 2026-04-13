@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -14,6 +15,7 @@ from server.api.engine_state import (
     get_pipeline_snapshot,
     get_snapshot_buffer,
 )
+from server.api.llm.correction_detector import detect_and_store
 from server.api.llm.service import LlmService
 from server.api.models import InvestigateRequest
 
@@ -54,6 +56,7 @@ async def investigate(req: InvestigateRequest) -> StreamingResponse:
     now = get_mock_now()
 
     async def event_generator():
+        full_response: list[str] = []
         try:
             async for delta in service.investigate_stream(
                 conversation=req.conversation,
@@ -63,7 +66,20 @@ async def investigate(req: InvestigateRequest) -> StreamingResponse:
                 now=now,
                 mode=req.mode,
             ):
+                full_response.append(delta)
                 yield f"data: {json.dumps(delta)}\n\n"
+
+            # Fire correction detector in background — no latency impact
+            cfg = service.config
+            asyncio.create_task(detect_and_store(
+                client=service.client,
+                detector_models=cfg.detector_models,
+                max_tokens=cfg.max_tokens_detector,
+                temperature=cfg.temperature_detector,
+                conversation=req.conversation,
+                assistant_response="".join(full_response),
+            ))
+
             yield "data: [DONE]\n\n"
         except Exception:
             log.exception("Investigation stream failed")

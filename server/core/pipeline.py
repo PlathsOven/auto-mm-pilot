@@ -54,16 +54,27 @@ def build_blocks_df(
         if "start_timestamp" not in snap.columns:
             snap = snap.with_columns(pl.lit(None).cast(pl.Datetime("us")).alias("start_timestamp"))
 
-        # Target-space conversion via selected transform or legacy fallback
-        if unit_conversion is not None:
-            conv_params = sc.get_conversion_params()
-            expr = unit_conversion.fn("raw_value", **conv_params)
+        # Market price (defaults to raw_value when absent or null)
+        if "market_price" not in snap.columns:
+            snap = snap.with_columns(pl.col("raw_value").alias("market_price"))
         else:
-            expr = raw_to_target_expr("raw_value", sc.scale, sc.offset, sc.exponent)
-        snap = snap.with_columns(expr.alias("target_value"))
+            snap = snap.with_columns(
+                pl.col("market_price").fill_null(pl.col("raw_value"))
+            )
 
-        # Get conversion params for storing in block rows (needed by attach_market_values)
+        # Target-space conversion via selected transform or legacy fallback.
+        # Apply the same conversion to both raw_value and market_price.
         conv_params = sc.get_conversion_params()
+        if unit_conversion is not None:
+            val_expr = unit_conversion.fn("raw_value", **conv_params)
+            mkt_expr = unit_conversion.fn("market_price", **conv_params)
+        else:
+            val_expr = raw_to_target_expr("raw_value", sc.scale, sc.offset, sc.exponent)
+            mkt_expr = raw_to_target_expr("market_price", sc.scale, sc.offset, sc.exponent)
+        snap = snap.with_columns(
+            val_expr.alias("target_value"),
+            mkt_expr.alias("target_market_value"),
+        )
 
         for row in snap.iter_rows(named=True):
             block_name = "_".join([sc.stream_name] + [str(row[k]) for k in extra_keys])
@@ -84,6 +95,8 @@ def build_blocks_df(
                 "stream_name": sc.stream_name,
                 "target_value": row["target_value"],
                 "raw_value": row["raw_value"],
+                "market_price": row["market_price"],
+                "target_market_value": row["target_market_value"],
                 "start_timestamp": row.get("start_timestamp"),
                 "space_id": space_id,
                 # Block config fields (flat)
@@ -94,14 +107,10 @@ def build_blocks_df(
                 "decay_end_size_mult": sc.block.decay_end_size_mult,
                 "decay_rate_prop_per_min": sc.block.decay_rate_prop_per_min,
                 "var_fair_ratio": sc.block.var_fair_ratio,
-                # Store legacy fields for backward compat + attach_market_values
                 "scale": sc.scale,
                 "offset": sc.offset,
                 "exponent": sc.exponent,
             }
-            # Store all conversion params (for attach_market_values to use)
-            for k, v in conv_params.items():
-                entry[f"conv_{k}"] = v
 
             # Carry through all risk dimension cols from the row
             for rdc in risk_dimension_cols:
@@ -113,74 +122,7 @@ def build_blocks_df(
 
 
 # ---------------------------------------------------------------------------
-# Stage 2: Attach market values
-# ---------------------------------------------------------------------------
-
-def attach_market_values(
-    blocks_df: pl.DataFrame,
-    market_pricing: dict[str, float],
-    unit_conversion: TransformRegistration | None = None,
-) -> pl.DataFrame:
-    """Join market-implied values and convert to target space."""
-    missing = set(blocks_df["space_id"].unique().to_list()) - set(market_pricing.keys())
-    if missing:
-        log.warning("Missing market pricing for spaces: %s — defaulting to 0.0", missing)
-        market_pricing = dict(market_pricing)
-        for sid in missing:
-            market_pricing[sid] = 0.0
-
-    market_df = pl.DataFrame({
-        "space_id": list(market_pricing.keys()),
-        "market_value": list(market_pricing.values()),
-    })
-
-    out = blocks_df.join(market_df, on="space_id", how="left")
-
-    if unit_conversion is not None:
-        # Apply the selected conversion function to market_value per-block.
-        # Each block may have different conversion params (stored as conv_* columns).
-        # We need to apply the transform row-by-row since params vary per block.
-        # For efficiency, collect unique param sets and apply in batches.
-        conv_param_cols = [c for c in out.columns if c.startswith("conv_")]
-        if conv_param_cols:
-            # Group blocks by their conversion params
-            unique_params = out.select(conv_param_cols).unique()
-            parts: list[pl.DataFrame] = []
-            for param_row in unique_params.iter_rows(named=True):
-                # Filter blocks with these params
-                filter_expr = pl.lit(True)
-                for col_name, val in param_row.items():
-                    filter_expr = filter_expr & (pl.col(col_name) == val)
-                subset = out.filter(filter_expr)
-
-                # Build params dict (strip "conv_" prefix)
-                params = {k[5:]: v for k, v in param_row.items()}
-                expr = unit_conversion.fn("market_value", **params)
-                subset = subset.with_columns(expr.alias("target_market_value"))
-                parts.append(subset)
-            out = pl.concat(parts)
-        else:
-            # No conv_ columns, use transform with no extra params
-            expr = unit_conversion.fn("market_value")
-            out = out.with_columns(expr.alias("target_market_value"))
-    else:
-        # Legacy: hardcoded formula
-        out = out.with_columns(
-            (pl.col("scale") * pl.col("market_value") + pl.col("offset"))
-            .pow(pl.col("exponent"))
-            .alias("target_market_value"),
-        )
-
-    # Validation
-    null_count = out.filter(pl.col("target_value").is_null()).height
-    if null_count > 0:
-        raise ValueError(f"{null_count} blocks have null target_value")
-
-    return out
-
-
-# ---------------------------------------------------------------------------
-# Stage 3: Build time grid (unchanged)
+# Stage 2: Build time grid
 # ---------------------------------------------------------------------------
 
 def _pick_grid_interval(ttx_secs: float, default: str) -> str:
@@ -231,7 +173,6 @@ def build_time_grid(
 
 def run_pipeline(
     streams: list[StreamConfig],
-    market_pricing: dict[str, float],
     risk_dimension_cols: list[str],
     now: dt.datetime,
     bankroll: float,
@@ -244,6 +185,12 @@ def run_pipeline(
     All pluggable steps are dispatched through the transform registry.
     Default selections reproduce the original hardcoded behaviour exactly.
     When *transform_config* is provided, overrides are applied first.
+
+    Market pricing is now per-block: each snapshot row carries an optional
+    ``market_price`` field (defaults to ``raw_value`` when absent).
+    ``build_blocks_df`` converts it through the same unit transform as
+    ``raw_value``, producing ``target_market_value`` inline — no separate
+    join stage needed.
 
     Keys:
         blocks_df        — one row per block (flat config + target values)
@@ -269,7 +216,6 @@ def run_pipeline(
     smooth_fn = get_step("smoothing").get_selected()
 
     blocks_df     = build_blocks_df(streams, risk_dimension_cols, unit_fn)
-    blocks_df     = attach_market_values(blocks_df, market_pricing, unit_fn)
     time_grid     = build_time_grid(blocks_df, risk_dimension_cols, now, interval=time_grid_interval)
 
     block_fair_df = fair_fn.fn(

@@ -31,6 +31,12 @@ concise, and direct. No filler, no hedging, no flowery language.
 Edge = fair value minus market-implied, aggregated across temporal windows. \
 Variance scales with the absolute size of fair value, weighted by each \
 stream's confidence factor (var_fair_ratio — lower means higher confidence). \
+Variance is summative — individual stream variances add directly to \
+total variance. Volatility is NOT summative (σ_total ≠ Σσ_i). This is \
+why the engine works in variance space, not vol space. Never explain \
+variance as "accounting for nonlinearity" — variance is summative, vol \
+is not, and that is the whole reason.
+
 Edge and variance are independently forward-smoothed (EWM) before the \
 position calculation for execution optimisation.
 
@@ -122,8 +128,12 @@ FRAMEWORK_DETAIL = """\
 active data streams. Each stream contributes to specific temporal windows \
 (rolling from now, or anchored to a scheduled event time).
 
-**Market-Implied Value:** The market's current pricing, converted to the \
-same units as fair value for comparison.
+**Market-Implied Value:** Each block carries its own market price \
+(market_price) in the same raw units as raw_value. It goes through \
+the identical unit conversion and temporal distribution as fair value. \
+When market_price is not provided, it defaults to raw_value (edge = 0 \
+for that block). Edge = fair minus market-implied, computed per-block \
+then aggregated.
 
 **Relative Conviction:** Each stream's var_fair_ratio represents the \
 desk's trust in that signal. Lower var_fair_ratio = higher confidence = \

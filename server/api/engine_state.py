@@ -24,7 +24,6 @@ from server.api.config import APT_MODE, SNAPSHOT_BUFFER_MAX_DEFAULT, SNAPSHOT_LO
 from server.api.llm.snapshot_buffer import SnapshotBufferConfig, SnapshotRingBuffer
 from server.core.mock_scenario import (
     MOCK_BANKROLL,
-    MOCK_MARKET_PRICING,
     MOCK_NOW,
     MOCK_RISK_DIMENSION_COLS,
     MOCK_SMOOTHING_HL_SECS,
@@ -56,7 +55,6 @@ _mock_now: datetime = datetime(2026, 1, 1, 17, 0, 0)
 
 # Client-settable parameters (initialised from mock defaults)
 _bankroll: float = MOCK_BANKROLL
-_market_pricing: dict[str, float] = dict(MOCK_MARKET_PRICING)
 _transform_config: dict[str, Any] | None = None
 
 
@@ -94,7 +92,6 @@ def init_mock() -> None:
 
 def rerun_pipeline(
     streams: list[Any],
-    market_pricing: dict[str, float] | None = None,
     bankroll: float | None = None,
     transform_config: dict[str, Any] | None = None,
 ) -> dict[str, pl.DataFrame]:
@@ -104,8 +101,6 @@ def rerun_pipeline(
     ----------
     streams : list[StreamConfig]
         Built from the stream registry (``registry.build_stream_configs()``).
-    market_pricing : dict[str, float] | None
-        If provided, merged into the stored market pricing.
     bankroll : float | None
         If provided, replaces the stored bankroll.
 
@@ -119,13 +114,11 @@ def rerun_pipeline(
     ValueError
         If ``streams`` is empty or the pipeline fails.
     """
-    global _snapshot_buffer, _pipeline_snapshot, _engine_state, _pipeline_results, _bankroll, _market_pricing, _transform_config
+    global _snapshot_buffer, _pipeline_snapshot, _engine_state, _pipeline_results, _bankroll, _transform_config
 
     if not streams:
         raise ValueError("Cannot rerun pipeline with zero streams")
 
-    if market_pricing is not None:
-        _market_pricing.update(market_pricing)
     if bankroll is not None:
         _bankroll = bankroll
     if transform_config is not None:
@@ -133,17 +126,13 @@ def rerun_pipeline(
 
     now = MOCK_NOW if APT_MODE == "mock" else datetime.now(timezone.utc).replace(tzinfo=None)
 
-    # Grid interval is now computed *per risk dimension* inside
-    # build_time_grid() so that adding a far-future instrument never
-    # coarsens the grid of an existing short-dated one.
     log.info(
-        "Re-running pipeline: %d streams, %d market prices, bankroll=%.2f, now=%s, default_interval=%s",
-        len(streams), len(_market_pricing), _bankroll, now, TIME_GRID_INTERVAL,
+        "Re-running pipeline: %d streams, bankroll=%.2f, now=%s, default_interval=%s",
+        len(streams), _bankroll, now, TIME_GRID_INTERVAL,
     )
 
     _pipeline_results = run_pipeline(
         streams=streams,
-        market_pricing=_market_pricing,
         risk_dimension_cols=RISK_DIMENSION_COLS,
         now=now,
         bankroll=_bankroll,
@@ -197,18 +186,6 @@ def get_bankroll() -> float:
     return _bankroll
 
 
-def set_market_pricing(pricing: dict[str, float]) -> None:
-    """Merge new entries into market pricing (does NOT trigger a pipeline re-run).
-
-    Uses ``update()`` so that existing entries (e.g. mock pricing for
-    "shifting" / "static_*") are preserved when clients add pricing for
-    new space IDs.
-    """
-    global _market_pricing
-    _market_pricing.update(pricing)
-    log.info("Market pricing merged: %d new/updated entries, %d total", len(pricing), len(_market_pricing))
-
-
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -233,11 +210,6 @@ def get_pipeline_results() -> dict[str, pl.DataFrame] | None:
 def get_snapshot_buffer() -> SnapshotRingBuffer | None:
     """Return the snapshot ring buffer."""
     return _snapshot_buffer
-
-
-def get_market_pricing() -> dict[str, float]:
-    """Return a copy of the current market pricing dict."""
-    return dict(_market_pricing)
 
 
 def get_mock_now() -> datetime:
@@ -265,7 +237,6 @@ async def rerun_and_broadcast(
     stream_configs: list,
     *,
     bankroll: float | None = None,
-    market_pricing: dict[str, float] | None = None,
     transform_config: dict | None = None,
 ) -> None:
     """Re-run the pipeline and restart the WS ticker as an atomic pair.
@@ -284,8 +255,6 @@ async def rerun_and_broadcast(
     kwargs: dict[str, Any] = {}
     if bankroll is not None:
         kwargs["bankroll"] = bankroll
-    if market_pricing is not None:
-        kwargs["market_pricing"] = market_pricing
     if transform_config is not None:
         kwargs["transform_config"] = transform_config
 

@@ -1,0 +1,8 @@
+[
+  {
+    "topic": "variance vs volatility summation",
+    "misconception": "Volatility is summative across streams, so total vol equals the sum of individual stream vols.",
+    "correct_fact": "Variance is summative — individual stream variances add directly to total variance. Volatility (σ) is NOT summative: σ_total ≠ Σσ_i. This is why the engine works in variance space, not vol space.",
+    "why_it_matters": "Explaining position changes in terms of 'vol contributions adding up' is mathematically wrong and misleads the trader. Always reason about variance contributions, then convert to vol at the end if needed."
+  }
+]

@@ -30,6 +30,14 @@ Format per entry: **Rule.** Then `Why:` (what went wrong, so edge cases can be j
 
 ---
 
+## Ground domain knowledge in prompts — don't let the LLM derive from first principles
+
+**Why:** The LLM explained variance as "accounting for nonlinearity" instead of the correct "variance is summative, vol is not." When domain facts are left for the model to derive, it invents plausible-sounding but wrong explanations. The trader corrects it, but the correction is lost between sessions — the same mistake repeats.
+
+**How to apply:** Critical domain facts belong in the system prompt (FRAMEWORK section of `core.py`), not in the model's latent knowledge. When the trader corrects the LLM, the correction detector captures it into `domain_kb.json` so it persists. For the most important facts, also hardcode them directly in the prompt — belt and suspenders.
+
+---
+
 ## ECharts types are exported under aliased names
 
 **Why:** `CallbackDataParams` is the internal name in ECharts but it's exported as `DefaultLabelFormatterCallbackParams`. Using the internal name causes TS2460. The tooltip formatter signature also expects `TopLevelFormatterParams` (union of single + array), not just the single variant.

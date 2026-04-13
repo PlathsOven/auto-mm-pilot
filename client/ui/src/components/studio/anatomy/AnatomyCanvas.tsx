@@ -277,7 +277,7 @@ function AnatomyCanvasInner() {
                   ? "border-mm-accent/60 bg-mm-accent/10 text-mm-accent"
                   : "border-black/[0.06] text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
               }`}
-              title="Pipeline configuration (bankroll, market pricing)"
+              title="Pipeline configuration (bankroll)"
             >
               ⚙ Config
             </button>

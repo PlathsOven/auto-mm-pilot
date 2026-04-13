@@ -64,7 +64,7 @@ function nextKey(): number {
   return _nextKey++;
 }
 
-const DEFAULT_HEADERS = ["timestamp", "symbol", "expiry", "raw_value"];
+const DEFAULT_HEADERS = ["timestamp", "symbol", "expiry", "raw_value", "market_price"];
 
 function emptyRow(headers: string[]): SnapshotRowDraft {
   const row: SnapshotRowDraft = { _key: nextKey() };
@@ -96,6 +96,7 @@ const EMPTY_DRAFT: Draft = {
       symbol: "BTC",
       expiry: "27MAR26",
       raw_value: "0.74",
+      market_price: "",
     },
   ],
 };
@@ -114,6 +115,7 @@ function draftFromBlock(b: BlockRow): Draft {
     symbol: b.symbol,
     expiry: b.expiry,
     raw_value: String(b.raw_value),
+    market_price: b.market_price != null ? String(b.market_price) : "",
   };
   return {
     stream_name: b.stream_name,
@@ -440,11 +442,12 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
         .map((c) => c.trim())
         .filter(Boolean);
 
-      // Convert snapshot rows: strip _key, coerce numeric cells
+      // Convert snapshot rows: strip _key, coerce numeric cells, omit empty
       const snapshot_rows = draft.snapshot_rows.map((r) => {
         const out: Record<string, unknown> = {};
         for (const h of draft.snapshot_headers) {
           const cell = String(r[h] ?? "");
+          if (cell === "") continue; // omit empty cells so server defaults apply
           out[h] = NUMERIC_RE.test(cell) ? parseFloat(cell) : cell;
         }
         return out;

@@ -40,7 +40,7 @@ Fair Value is not a single number from a single source. It is synthesised from m
 
 Each stream is parameterised by how it maps into a common target space, how it distributes its impact through time, how it aggregates with other streams (blending into a consensus or stacking as an independent additive layer), and its confidence weight (how much the desk trusts this particular signal). The engine does not privilege any stream — the framework is agnostic to the source. What matters is the parameterisation.
 
-Market Implied is the market's current pricing, converted to the same units as Fair Value for direct comparison. Edge is the difference.
+Each block carries its own market price (`market_price`) in the same raw units as `raw_value`. It goes through the identical unit conversion and temporal distribution as fair value. When `market_price` is not provided, it defaults to `raw_value` (edge = 0 for that block). Edge = fair minus market-implied, computed per-block then aggregated across all blocks and spaces.
 
 ### Time
 

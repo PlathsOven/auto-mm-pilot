@@ -14,7 +14,6 @@
 import type {
   BankrollResponse,
   BlockConfigPayload,
-  MarketPricingResponse,
   RegisteredStream,
   SnapshotResponse,
 } from "../types";
@@ -96,24 +95,6 @@ export async function ingestSnapshot(
   return apiFetch<SnapshotResponse>("/api/snapshots", {
     method: "POST",
     body: JSON.stringify({ stream_name: streamName, rows }),
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Market pricing
-// ---------------------------------------------------------------------------
-
-export async function fetchMarketPricing(): Promise<Record<string, number>> {
-  const data = await apiFetch<{ pricing: Record<string, number> }>("/api/market-pricing");
-  return data.pricing;
-}
-
-export async function updateMarketPricing(
-  pricing: Record<string, number>,
-): Promise<MarketPricingResponse> {
-  return apiFetch<MarketPricingResponse>("/api/market-pricing", {
-    method: "POST",
-    body: JSON.stringify({ pricing }),
   });
 }
 

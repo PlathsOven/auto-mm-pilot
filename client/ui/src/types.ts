@@ -121,12 +121,6 @@ export interface SnapshotResponse {
   pipeline_rerun: boolean;
 }
 
-/** POST /api/market-pricing — response */
-export interface MarketPricingResponse {
-  spaces_updated: number;
-  pipeline_rerun: boolean;
-}
-
 /** PATCH /api/config/bankroll — response */
 export interface BankrollResponse {
   bankroll: number;
@@ -198,6 +192,7 @@ export interface BlockRow {
   // Output values
   target_value: number;
   raw_value: number;
+  market_price: number | null;
   market_value: number | null;
   target_market_value: number | null;
   fair: number | null;

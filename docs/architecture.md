@@ -75,13 +75,13 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `server/api/config.py` | OpenRouter env config (API key, model fallback lists, generation params, snapshot buffer settings) |
 | `server/api/models.py` | **Canonical Pydantic request/response models for all API boundary data.** Read before any feature crossing the API boundary. |
 | `server/api/main.py` | FastAPI app factory — lifespan, CORS, error handler, router registration, health + WS mounts |
-| `server/api/routers/*.py` | Route modules (llm, streams, snapshots, market_pricing, bankroll, transforms, pipeline, blocks) extracted from main.py |
+| `server/api/routers/*.py` | Route modules (llm, streams, snapshots, bankroll, transforms, pipeline, blocks) extracted from main.py |
 | `server/api/stream_registry.py` | In-memory stream registry — CRUD, snapshot storage, validation, `StreamConfig` builder |
 | `server/api/ws.py` | WebSocket endpoint — singleton ticker broadcasts pipeline ticks; `restart_ticker()` on re-run |
 | `server/api/ws_serializers.py` | Pipeline DataFrame → JSON-safe dict serialization helpers (extracted from `ws.py`) |
 | `server/api/client_ws.py` | Client-facing WS endpoint (`/ws/client`) — auth-gated, inbound snapshot frames with ACK, joins broadcast for outbound positions |
 | `server/api/client_ws_auth.py` | Client WS auth — API key validation + IP whitelist, runs before accept |
-| `server/api/engine_state.py` | Engine state singleton — mock init + live `rerun_pipeline()`, mutable bankroll/market pricing |
+| `server/api/engine_state.py` | Engine state singleton — mock init + live `rerun_pipeline()`, mutable bankroll |
 | `server/api/llm/client.py` | Async OpenRouter HTTP client (complete + stream + fallback wrappers) |
 | `server/api/llm/service.py` | LLM orchestration — investigation chat |
 | `server/api/llm/snapshot_buffer.py` | Pipeline snapshot ring buffer — stores time-series history, builds condensed delta tables for LLM context |
