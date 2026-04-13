@@ -60,7 +60,7 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `client/ui/src/components/UpdatesFeed.tsx` | Zone D — position-change cards with stream attribution |
 | `client/ui/src/components/PipelineChart.tsx` | Pipeline time-series chart (controlled child) — delegates to `PipelineChart/chartOptions.ts` (ECharts config); paired with `PipelineChart/DecompositionPanel.tsx` in BrainPage |
 | `client/ui/src/components/studio/brain/EditableBlockTable.tsx` | Block Inspector — TanStack Table with column visibility, multi-sort, global filter, row click to open detail drawer |
-| `client/ui/src/components/studio/brain/BlockDrawer.tsx` | Unified block drawer — create (empty or LLM-prefilled), edit (manual blocks), inspect (stream blocks) |
+| `client/ui/src/components/studio/brain/BlockDrawer.tsx` | Unified block drawer — create (empty or LLM-prefilled), edit (manual blocks), inspect (stream blocks). Draft state in `blockDrawerState.ts`, sub-components in `BlockDrawerParts.tsx`. |
 | `client/ui/src/pages/AnatomyPage.tsx` | Top-level Anatomy mode — thin wrapper around `AnatomyCanvas` |
 | `client/ui/src/services/engineCommands.ts` | Engine-command parser + executor — strips `engine-command` fenced blocks from LLM text, routes to BlockDrawer or auto-executes |
 | `client/ui/src/components/GlobalContextBar.tsx` | Zone B — global context header |

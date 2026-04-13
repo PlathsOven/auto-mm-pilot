@@ -26,13 +26,15 @@
 - **TanStack Table** for data-heavy tables (column visibility, multi-column sort, global filter). Used by `EditableBlockTable`.
 - **Engine-command protocol.** LLM emits ` ```engine-command` fenced blocks containing `{ action, params }`. The client (`engineCommands.ts`) parses them, strips from the displayed message, and routes: `create_manual_block` → BlockDrawer (interactive review), `create_stream` → auto-execute via REST.
 - **`<think>` tag stripping.** Streaming responses pass through `_strip_think_tags()` in `client.py` before reaching the client, so reasoning-model internals never surface in the UI.
+- **`.to_dicts()` for DataFrame → dict serialization.** Never `iter_rows(named=True)` loops. Use `.to_dicts()` for bulk conversion and list comprehensions for field renaming.
+- **`parse_datetime_tolerant()` from `stream_registry.py`** for all datetime string parsing (ISO 8601 + DDMMMYY). Single source — do not duplicate.
 - **Conventional commits** — `feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`.
 - **Surgical staging** — `git add path1 path2`, never `git add .` or `git add -A`.
 
 ## Patterns Avoided
 
 - **Pandas.** Use Polars. If you find Pandas, it's a bug.
-- **`iterrows()` or any scalar loop over a DataFrame.** Express it as a columnar op.
+- **`iterrows()` / `iter_rows()` or any scalar loop over a DataFrame.** Express it as a columnar op or use `.to_dicts()` for dict conversion.
 - **Raw dicts crossing the API boundary.** Always through a Pydantic model or a TS interface.
 - **Prop drilling beyond 2 levels.** Use a Context provider.
 - **Barrel files** (`index.ts` re-exports). Import from the concrete module.
