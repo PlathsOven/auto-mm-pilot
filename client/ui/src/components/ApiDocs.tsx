@@ -268,7 +268,7 @@ if __name__ == "__main__":
               <strong className="text-mm-text">Ingest snapshots</strong> —{" "}
               <code>POST /api/snapshots</code> with rows containing{" "}
               <code>timestamp</code>, <code>raw_value</code>, and all key
-              columns. Optionally include <code>market_price</code> per row
+              columns. Optionally include <code>market_value</code> per row
               for market comparison (defaults to <code>raw_value</code> if
               omitted). The engine re-runs automatically after each ingestion.
             </li>
@@ -284,7 +284,7 @@ if __name__ == "__main__":
             <strong>ingest snapshots → receive positions via WebSocket</strong>.
             Bankroll can be updated at any time; each update triggers a fresh
             engine run. Market pricing is set per-block via the{" "}
-            <code>market_price</code> field in snapshot rows.
+            <code>market_value</code> field in snapshot rows.
           </p>
         </Section>
 
@@ -394,11 +394,13 @@ if __name__ == "__main__":
               </li>
             </ul>
 
-            <p className="font-medium text-mm-text">Inbound (you → server):</p>
+            <p className="font-medium text-mm-text">Inbound — Snapshot frame (you → server):</p>
             <p>
               Send JSON text frames containing snapshot rows. Each frame must
               include a <code>seq</code> (sequence number) which is echoed back
-              in the ACK so you can correlate responses.
+              in the ACK so you can correlate responses. Frames without a{" "}
+              <code>type</code> field are treated as snapshot frames (backwards
+              compatible).
             </p>
             <CodeBlock>{`{
   "seq": 1,
@@ -412,7 +414,29 @@ if __name__ == "__main__":
   ]
 }`}</CodeBlock>
 
+            <p className="font-medium text-mm-text">Inbound — Market value frame (you → server):</p>
+            <p>
+              Push aggregate market vol for one or more symbol/expiry pairs.
+              Set <code>type</code> to <code>"market_value"</code> and include
+              an <code>entries</code> array. Writes go to the market value
+              store; no immediate pipeline rerun — the dirty-flag coalescing
+              picks it up on the next tick.
+            </p>
+            <CodeBlock>{`{
+  "type": "market_value",
+  "seq": 2,
+  "entries": [
+    { "symbol": "BTC", "expiry": "2026-01-02T00:00:00", "total_vol": 0.55 },
+    { "symbol": "ETH", "expiry": "2026-01-02T00:00:00", "total_vol": 0.72 }
+  ]
+}`}</CodeBlock>
+
             <p className="font-medium text-mm-text">ACK response:</p>
+            <p>
+              Both frame types receive the same ACK shape.{" "}
+              <code>rows_accepted</code> reflects the number of snapshot rows
+              or market value entries accepted.
+            </p>
             <CodeBlock>{`{
   "type": "ack",
   "seq": 1,

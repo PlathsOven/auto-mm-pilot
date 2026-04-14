@@ -28,9 +28,9 @@ class SnapshotRow(BaseModel):
 
     timestamp: str = Field(..., description="ISO 8601 timestamp")
     raw_value: float = Field(..., description="Raw measurement value")
-    market_price: float | None = Field(
+    market_value: float | None = Field(
         default=None,
-        description="Market-implied price in same raw units as raw_value. Defaults to raw_value if omitted.",
+        description="Market-implied value in same raw units as raw_value. Defaults to raw_value if omitted.",
     )
 
 
@@ -183,7 +183,6 @@ class BlockRowResponse(BaseModel):
     # Output values
     target_value: float
     raw_value: float
-    market_price: float | None = None
     market_value: float | None = None
     target_market_value: float | None = None
     fair: float | None = None
@@ -241,6 +240,22 @@ class ClientWsInboundFrame(BaseModel):
             "Snapshot rows. Each row must contain 'timestamp', 'raw_value', "
             "and all key_cols defined on the stream."
         ),
+    )
+
+
+class ClientWsMarketValueFrame(BaseModel):
+    """Market value frame sent by the client over /ws/client.
+
+    Carries aggregate market vol entries that are written to the
+    MarketValueStore.  No immediate pipeline rerun — the dirty-flag
+    coalescing in the WS ticker picks it up on the next tick.
+    """
+    type: Literal["market_value"] = "market_value"
+    seq: int = Field(..., description="Sequence number — echoed back in ACK")
+    entries: list[MarketValueEntry] = Field(
+        ...,
+        min_length=1,
+        description="Aggregate market value entries to store",
     )
 
 
@@ -334,3 +349,26 @@ class TransformConfigRequest(BaseModel):
     position_sizing_params: dict[str, Any] | None = None
     smoothing: str | None = None
     smoothing_params: dict[str, Any] | None = None
+    market_value_inference: str | None = None
+    market_value_inference_params: dict[str, Any] | None = None
+
+
+# ---------------------------------------------------------------------------
+# Aggregate market values
+# ---------------------------------------------------------------------------
+
+class MarketValueEntry(BaseModel):
+    """One aggregate market value entry for a symbol/expiry pair."""
+    symbol: str = Field(..., min_length=1)
+    expiry: str = Field(..., min_length=1)
+    total_vol: float = Field(..., ge=0, description="Annualized total vol (must be >= 0)")
+
+
+class SetMarketValueRequest(BaseModel):
+    """Batch-set aggregate market values."""
+    entries: list[MarketValueEntry] = Field(..., min_length=1)
+
+
+class MarketValueListResponse(BaseModel):
+    """All aggregate market values currently stored."""
+    entries: list[MarketValueEntry]
