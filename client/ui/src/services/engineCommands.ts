@@ -93,11 +93,6 @@ export function parseEngineCommandsWithRanges(text: string): CommandMatch[] {
   return matches;
 }
 
-/** Simple extraction — just the commands, no ranges. */
-export function parseEngineCommands(text: string): EngineCommand[] {
-  return parseEngineCommandsWithRanges(text).map((m) => m.command);
-}
-
 // ---------------------------------------------------------------------------
 // Strip + parse (used by ChatProvider)
 // ---------------------------------------------------------------------------

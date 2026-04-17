@@ -7,21 +7,10 @@ import {
   type ReactNode,
 } from "react";
 
+import { migrateLegacyStorageKey } from "../utils";
+
 const STORAGE_KEY = "posit.onboarding.completed";
 const LEGACY_STORAGE_KEY = "apt.onboarding.completed";
-
-function migrateLegacyKey(): void {
-  try {
-    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (legacy === null) return;
-    if (localStorage.getItem(STORAGE_KEY) === null) {
-      localStorage.setItem(STORAGE_KEY, legacy);
-    }
-    localStorage.removeItem(LEGACY_STORAGE_KEY);
-  } catch {
-    // ignore — private mode / storage disabled
-  }
-}
 
 interface OnboardingContextValue {
   /** True if the user has completed (or skipped) onboarding before. */
@@ -36,7 +25,7 @@ interface OnboardingContextValue {
 const OnboardingContext = createContext<OnboardingContextValue | null>(null);
 
 function readCompleted(): boolean {
-  migrateLegacyKey();
+  migrateLegacyStorageKey(LEGACY_STORAGE_KEY, STORAGE_KEY);
   try {
     return localStorage.getItem(STORAGE_KEY) === "true";
   } catch {

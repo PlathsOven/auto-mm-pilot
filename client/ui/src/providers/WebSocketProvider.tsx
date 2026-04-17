@@ -32,12 +32,6 @@ export function useWebSocket() {
   return useContext(WebSocketContext);
 }
 
-/** Narrow selector: only re-renders when the position count changes. */
-export function useWebSocketPositionCount(): number {
-  const { payload } = useWebSocket();
-  return payload?.positions.length ?? 0;
-}
-
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const [payload, setPayload] = useState<ServerPayload | null>(null);
   const [updateHistory, setUpdateHistory] = useState<UpdateCard[]>([]);

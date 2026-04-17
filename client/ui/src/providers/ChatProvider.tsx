@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { ChatMessage, ChatMode, InvestigationContext, PendingBlockCommand } from "../types";
-import { streamChat } from "../services/llmApi";
+import { streamFetchSSE } from "../services/api";
 import { parseAndStripCommands, executeNonInteractiveCommands } from "../services/engineCommands";
 import { createIdGenerator } from "../utils";
 
@@ -106,7 +106,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setIsStreaming(true);
       let accumulated = "";
 
-      const controller = streamChat(
+      const controller = streamFetchSSE(
+        "/api/investigate",
         { conversation, mode: chatMode },
         {
           onDelta: (text) => {

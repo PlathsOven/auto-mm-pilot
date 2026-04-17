@@ -13,7 +13,7 @@ import "@xyflow/react/dist/style.css";
 
 import { useTransforms } from "../../../providers/TransformsProvider";
 import { useMode } from "../../../providers/ModeProvider";
-import { useWebSocketPositionCount } from "../../../providers/WebSocketProvider";
+import { useWebSocket } from "../../../providers/WebSocketProvider";
 import { useRegisteredStreams } from "../../../hooks/useRegisteredStreams";
 import { updateTransforms } from "../../../services/transformApi";
 import type { TransformStep } from "../../../types";
@@ -65,7 +65,8 @@ function AnatomyCanvasInner() {
   const { steps, setSteps, loading, error, refresh } = useTransforms();
   const { streams } = useRegisteredStreams();
   const { query, setMode, navigate } = useMode();
-  const positionCount = useWebSocketPositionCount();
+  const { payload } = useWebSocket();
+  const positionCount = payload?.positions.length ?? 0;
   const reactFlowInstance = useReactFlow();
 
   const [savingKey, setSavingKey] = useState<string | null>(null);

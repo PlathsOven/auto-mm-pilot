@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { LayoutItem } from "react-grid-layout";
+import { migrateLegacyStorageKey } from "../utils";
 
 export type PanelType = "streams" | "positions" | "updates";
 
@@ -37,23 +38,6 @@ const PANELS_KEY = "posit-panels";
 const LEGACY_STORAGE_KEY = "apt-layout";
 const LEGACY_PANELS_KEY = "apt-panels";
 
-function migrateLegacyKeys(): void {
-  try {
-    for (const [legacy, current] of [
-      [LEGACY_PANELS_KEY, PANELS_KEY],
-      [LEGACY_STORAGE_KEY, STORAGE_KEY],
-    ] as const) {
-      const old = localStorage.getItem(legacy);
-      if (old === null) continue;
-      if (localStorage.getItem(current) === null) {
-        localStorage.setItem(current, old);
-      }
-      localStorage.removeItem(legacy);
-    }
-  } catch {
-    // ignore — private mode / storage disabled
-  }
-}
 
 interface LayoutContextValue {
   panels: PanelInstance[];
@@ -75,7 +59,8 @@ const VALID_PANEL_TYPES = new Set<PanelType>([
 ]);
 
 function loadState(): { panels: PanelInstance[]; layout: LayoutItem[] } | null {
-  migrateLegacyKeys();
+  migrateLegacyStorageKey(LEGACY_PANELS_KEY, PANELS_KEY);
+  migrateLegacyStorageKey(LEGACY_STORAGE_KEY, STORAGE_KEY);
   try {
     const p = localStorage.getItem(PANELS_KEY);
     const l = localStorage.getItem(STORAGE_KEY);

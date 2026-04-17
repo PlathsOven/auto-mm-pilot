@@ -59,6 +59,24 @@ export function parseExpiry(ddmmmyy: string): number {
   return Date.UTC(2000 + yr, mon, day);
 }
 
+/**
+ * Migrate a legacy localStorage key to its new name. If the legacy key is
+ * set AND the current key is absent, copy the value and delete the legacy.
+ * Silent no-op if localStorage is unavailable (private mode / disabled).
+ */
+export function migrateLegacyStorageKey(legacy: string, current: string): void {
+  try {
+    const old = localStorage.getItem(legacy);
+    if (old === null) return;
+    if (localStorage.getItem(current) === null) {
+      localStorage.setItem(current, old);
+    }
+    localStorage.removeItem(legacy);
+  } catch {
+    // ignore — private mode / storage disabled
+  }
+}
+
 /** Formats a UTC timestamp (ms) as HH:MM:SS.mmm */
 export function formatUtcTime(ts: number): string {
   const d = new Date(ts);
