@@ -1,5 +1,5 @@
-import type { StreamDraft } from "../canvasState";
-import { EMPTY_DRAFT } from "../canvasState";
+import type { StreamDraft } from "./canvasState";
+import { EMPTY_DRAFT } from "./canvasState";
 
 export interface StreamTemplate {
   id: string;

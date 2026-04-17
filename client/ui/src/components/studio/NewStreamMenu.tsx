@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { STREAM_TEMPLATES } from "./templates";
+import { STREAM_TEMPLATES } from "./streamTemplates";
 
 interface Props {
   /** Fires when the user picks "Blank stream" (main body or popover top row). */

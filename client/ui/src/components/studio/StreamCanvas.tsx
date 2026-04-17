@@ -16,7 +16,7 @@ import {
   type StreamDraft,
   type SectionId,
 } from "./canvasState";
-import { STREAM_TEMPLATES } from "./templates";
+import { STREAM_TEMPLATES } from "./streamTemplates";
 
 interface Props {
   /** Stream name from the URL (#anatomy?stream={name}) — empty for a new draft. */
