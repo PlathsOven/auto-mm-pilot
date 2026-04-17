@@ -38,6 +38,14 @@ Format per entry: **Rule.** Then `Why:` (what went wrong, so edge cases can be j
 
 ---
 
+## Polars `group_by` without `maintain_order` is non-deterministic across processes
+
+**Why:** During the 2026-04-17 refactor, vectorising `build_blocks_df` produced "DIVERGENCE" against a parquet baseline on first comparison. The actual numerics were identical; only row order differed. Separately running the baseline twice (with no code changes) produced the same row-order drift *and* ULP-level differences in downstream aggregated columns (max abs 8.47e-22 on `edge`, 3.64e-12 on `raw_desired_position`). Root cause: `group_by` without `maintain_order=True` returns groups in hash order, which varies by process. Any aggregation downstream (`sum`, `mean`) inherits that order, and floating-point associativity makes the sums ULP-non-identical.
+
+**How to apply:** When doing numerical-parity checks on pipeline output, sort every DataFrame by all columns before `.equals()`. Treat ULP-level differences (max_abs_diff below 1e-12 absolute, 1e-15 relative) as "same as no-change"; they predate any given refactor. If strict bit-exactness is ever required, pass `maintain_order=True` to `group_by` at the non-determinism source (currently `snap.group_by(sc.key_cols)` inside `build_blocks_df`).
+
+---
+
 ## ECharts types are exported under aliased names
 
 **Why:** `CallbackDataParams` is the internal name in ECharts but it's exported as `DefaultLabelFormatterCallbackParams`. Using the internal name causes TS2460. The tooltip formatter signature also expects `TopLevelFormatterParams` (union of single + array), not just the single variant.

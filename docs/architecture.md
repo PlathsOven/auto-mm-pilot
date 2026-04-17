@@ -55,29 +55,32 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `client/ui/src/constants.ts` | Shared UI constants — magic numbers hoisted from components (Phase 4) |
 | `client/ui/src/providers/ChatProvider.tsx` | Team chat + @Posit LLM routing context |
 | `client/ui/src/components/LlmChat.tsx` | Team Chat panel — messages, note threads, investigation context |
-| `client/ui/src/components/ApiDocs.tsx` | Client-facing API documentation panel — endpoints, WebSocket stream, integration workflow |
+| `client/ui/src/components/ApiDocs.tsx` | Client-facing API documentation panel — shell + short sections; long sections extracted under `apiDocs/` (`QuickstartSection`, `PublicWebSocketSection`, `ClientWebSocketSection`) |
 | `client/ui/src/components/DesiredPositionGrid.tsx` | Zone C — clickable cells push context to LlmChat |
 | `client/ui/src/components/UpdatesFeed.tsx` | Zone D — position-change cards with stream attribution |
 | `client/ui/src/components/PipelineChart.tsx` | Pipeline time-series chart (controlled child) — delegates to `PipelineChart/chartOptions.ts` (ECharts config); paired with `PipelineChart/DecompositionPanel.tsx` in BrainPage |
 | `client/ui/src/components/studio/brain/EditableBlockTable.tsx` | Block Inspector — TanStack Table with column visibility, multi-sort, global filter, row click to open detail drawer |
-| `client/ui/src/components/studio/brain/BlockDrawer.tsx` | Unified block drawer — create (empty or LLM-prefilled), edit (manual blocks), inspect (stream blocks). Draft state in `blockDrawerState.ts`, sub-components in `BlockDrawerParts.tsx`. |
+| `client/ui/src/components/studio/brain/BlockDrawer.tsx` | Unified block drawer — create (empty or LLM-prefilled), edit (manual blocks), inspect (stream blocks). Draft state in `blockDrawerState.ts`, sub-components in `BlockDrawerParts.tsx`, submit + snapshot-edit callbacks in `useBlockDraftSubmit` and `useSnapshotEditor` hooks. |
 | `client/ui/src/pages/AnatomyPage.tsx` | Top-level Anatomy mode — thin wrapper around `AnatomyCanvas` |
 | `client/ui/src/services/engineCommands.ts` | Engine-command parser + executor — strips `engine-command` fenced blocks from LLM text, routes to BlockDrawer or auto-executes |
 | `client/ui/src/components/GlobalContextBar.tsx` | Zone B — global context header |
 | `client/ui/src/components/floor/StreamStatusList.tsx` | Eyes read-only stream list (name + last update) |
 | `client/ui/src/components/studio/StreamLibrary.tsx` | Anatomy — stream CRUD |
 | `client/ui/src/components/studio/StreamCanvas.tsx` | Anatomy — 7-section stream config |
-| `client/ui/src/services/llmApi.ts` | HTTP client for LLM server endpoints (SSE streaming + JSON fetch) |
+| `client/ui/src/services/api.ts` | `apiFetch` JSON wrapper + `streamFetchSSE` SSE helper — canonical HTTP/SSE path for every other service module |
+| `client/ui/src/services/llmApi.ts` | `streamChat()` — thin wrapper around `streamFetchSSE` for `POST /api/investigate` |
 | `client/ui/src/services/streamApi.ts` | HTTP client for stream CRUD, snapshot ingestion, market-pricing, bankroll endpoints |
 | `client/ui/src/services/pipelineApi.ts` | HTTP client for pipeline dimensions + time series endpoints |
 | `client/ui/src/services/blockApi.ts` | HTTP client for block table endpoints (GET/POST /api/blocks) |
+| `client/ui/src/services/marketValueApi.ts` | HTTP client for `/api/market-values` CRUD (aggregate total vol per symbol/expiry) |
 | `client/ui/UI_SPEC.md` | UI design specification |
 | `server/api/config.py` | OpenRouter env config (API key, model fallback lists, generation params, snapshot buffer settings) |
 | `server/api/models.py` | **Canonical Pydantic request/response models for all API boundary data.** Read before any feature crossing the API boundary. |
 | `server/api/main.py` | FastAPI app factory — lifespan, CORS, error handler, router registration, health + WS mounts |
-| `server/api/routers/*.py` | Route modules (llm, streams, snapshots, bankroll, transforms, pipeline, blocks) extracted from main.py |
+| `server/api/routers/*.py` | Route modules (llm, streams, snapshots, bankroll, transforms, pipeline, blocks, market_values) extracted from main.py |
 | `server/api/stream_registry.py` | In-memory stream registry — CRUD, snapshot storage, validation, `StreamConfig` builder |
-| `server/api/ws.py` | WebSocket endpoint — singleton ticker broadcasts pipeline ticks; `restart_ticker()` on re-run |
+| `server/api/market_value_store.py` | Aggregate-market-value singleton — `{(symbol, expiry): total_vol}` + dirty flag for coalesced ticker reruns |
+| `server/api/ws.py` | WebSocket endpoint — singleton ticker broadcasts pipeline ticks; `restart_ticker()` on re-run. Each broadcast is validated through `ServerPayload`. |
 | `server/api/ws_serializers.py` | Pipeline DataFrame → JSON-safe dict serialization helpers (extracted from `ws.py`) |
 | `server/api/client_ws.py` | Client-facing WS endpoint (`/ws/client`) — auth-gated, inbound snapshot frames with ACK, joins broadcast for outbound positions |
 | `server/api/client_ws_auth.py` | Client WS auth — API key validation + IP whitelist, runs before accept |
@@ -90,13 +93,12 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `server/api/llm/prompts/core.py` | Shared core: role, framework, language rules, hard constraints, response discipline |
 | `server/api/llm/prompts/investigation.py` | Investigation mode: reasoning protocol, data sections, engine commands |
 | `server/api/llm/prompts/general.py` | General mode: catch-all conversational, minimal engine summary |
-| `server/api/llm/prompts/configure.py` | Configure mode: stream onboarding guidance, engine-command emit format |
-| `server/api/llm/prompts/opinion.py` | Opinion mode: discretionary view → manual block via engine-command |
+| `server/api/llm/prompts/build.py` | Build mode: stream onboarding + opinion → `create_stream` / `create_manual_block` engine commands |
 | `server/api/llm/test_investigation.py` | **CLI harness, not prod code** — interactive test for Zone E investigation LLM with mock pipeline data |
 | `server/core/__init__.py` | Core pipeline package — re-exports public API (HUMAN ONLY) |
 | `server/core/config.py` | `BlockConfig`, `StreamConfig` dataclasses, `SECONDS_PER_YEAR` (HUMAN ONLY) |
 | `server/core/helpers.py` | `annualize`, `deannualize`, `raw_to_target_expr` (HUMAN ONLY) |
-| `server/core/transforms.py` | Polars transform expressions for the pipeline (HUMAN ONLY) |
+| `server/core/transforms/` | Pipeline transform package — one module per step (`registry`, `unit_conversion`, `decay`, `fair_value`, `variance`, `aggregation`, `position_sizing`, `smoothing`, `market_value_inference`). Public API re-exported from `__init__.py`. |
 | `server/core/pipeline.py` | All pipeline step functions + `run_pipeline()` orchestrator (HUMAN ONLY) |
 | `server/core/mock_scenario.py` | Mock stream configs, scenario params, market pricing (HUMAN ONLY) |
 | `server/core/serializers.py` | DataFrame→dict bridge for LLM prompt injection (HUMAN ONLY) |

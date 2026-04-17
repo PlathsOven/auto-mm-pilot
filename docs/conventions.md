@@ -17,6 +17,7 @@
 ## Patterns Used
 
 - **Pydantic validation at the API boundary.** Inbound JSON is parsed into a model before the handler sees it; outbound responses are serialized from models.
+- **`_WireModel` base for camelCase-on-wire responses.** `server/api/models.py` defines `_WireModel(BaseModel)` with `alias_generator=to_camel` + `populate_by_name=True`. Pipeline time-series (`PipelineTimeSeriesResponse`, `AggregatedTimeSeries`, `BlockTimeSeries`, etc.) and the WebSocket broadcast payload (`ServerPayload`, `DesiredPosition`, `UpdateCard`, `DataStream`, `GlobalContext`) inherit from it so their fields stay snake_case in Python but emit camelCase JSON. Snake-case-on-wire models (`BlockRowResponse`, `StreamResponse`, `BlockConfigPayload`) stay on plain `BaseModel`.
 - **Async httpx** for outbound HTTP (OpenRouter). Never `requests`.
 - **Polars columnar expressions** for all pipeline math. Lazy where possible.
 - **react-grid-layout** for the dashboard panel layout. Panels are declared in `LayoutProvider.tsx`.
@@ -26,7 +27,8 @@
 - **TanStack Table** for data-heavy tables (column visibility, multi-column sort, global filter). Used by `EditableBlockTable`.
 - **Engine-command protocol.** LLM emits ` ```engine-command` fenced blocks containing `{ action, params }`. The client (`engineCommands.ts`) parses them, strips from the displayed message, and routes: `create_manual_block` → BlockDrawer (interactive review), `create_stream` → auto-execute via REST.
 - **`<think>` tag stripping.** Streaming responses pass through `_strip_think_tags()` in `client.py` before reaching the client, so reasoning-model internals never surface in the UI.
-- **`.to_dicts()` for DataFrame → dict serialization.** Never `iter_rows(named=True)` loops. Use `.to_dicts()` for bulk conversion and list comprehensions for field renaming.
+- **`.to_dicts()` for DataFrame → dict serialization.** Never `iter_rows(named=True)` loops. Use `.to_dicts()` for bulk conversion and list comprehensions for field renaming. `build_blocks_df` uses `select(...)` + `pl.concat` so block-row construction is a pure columnar pass.
+- **`apiFetch` + `streamFetchSSE` in `client/ui/src/services/api.ts`.** All other service modules go through these two helpers — `apiFetch` for JSON request/response, `streamFetchSSE` for SSE token streams. Never reach for `fetch` directly from a service.
 - **`parse_datetime_tolerant()` from `stream_registry.py`** for all datetime string parsing (ISO 8601 + DDMMMYY). Single source — do not duplicate.
 - **Conventional commits** — `feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`.
 - **Surgical staging** — `git add path1 path2`, never `git add .` or `git add -A`.
