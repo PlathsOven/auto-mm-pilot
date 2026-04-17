@@ -1,17 +1,19 @@
-"""LLM investigation endpoint — SSE token stream."""
+"""LLM investigation endpoint — SSE token stream, scoped to the calling user."""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
+from server.api.auth.dependencies import current_user
+from server.api.auth.models import User
 from server.api.engine_state import (
     get_engine_state,
-    get_mock_now,
     get_pipeline_snapshot,
     get_snapshot_buffer,
 )
@@ -23,11 +25,7 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# ---------------------------------------------------------------------------
-# Singleton LLM service — lazily initialized so startup doesn't fail if
-# OPENROUTER_API_KEY is missing (health check still works).
-# ---------------------------------------------------------------------------
-
+# Lazily initialised so startup doesn't fail if OPENROUTER_API_KEY is missing.
 _llm_service: LlmService | None = None
 
 
@@ -38,22 +36,21 @@ def _get_llm_service() -> LlmService:
     return _llm_service
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
-
 @router.post("/api/investigate")
-async def investigate(req: InvestigateRequest) -> StreamingResponse:
+async def investigate(
+    req: InvestigateRequest,
+    user: User = Depends(current_user),
+) -> StreamingResponse:
     """Stream investigation tokens as SSE (text/event-stream)."""
     try:
         service = _get_llm_service()
     except EnvironmentError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    engine_state = get_engine_state()
-    pipeline_snapshot = get_pipeline_snapshot()
-    snapshot_buffer = get_snapshot_buffer()
-    now = get_mock_now()
+    engine_state = get_engine_state(user.id)
+    pipeline_snapshot = get_pipeline_snapshot(user.id)
+    snapshot_buffer = get_snapshot_buffer(user.id)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     async def event_generator():
         full_response: list[str] = []
@@ -69,7 +66,6 @@ async def investigate(req: InvestigateRequest) -> StreamingResponse:
                 full_response.append(delta)
                 yield f"data: {json.dumps(delta)}\n\n"
 
-            # Fire correction detector in background — no latency impact
             cfg = service.config
             asyncio.create_task(detect_and_store(
                 client=service.client,

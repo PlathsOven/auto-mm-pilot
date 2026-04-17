@@ -1,14 +1,14 @@
 """
-Engine State Provider.
+Per-user engine state.
 
-Singleton that exposes the current engine state, pipeline snapshot, and
-snapshot buffer to the LLM service layer.
+Each user owns an ``EngineState`` instance holding their pipeline snapshot,
+snapshot ring buffer, bankroll, and transform config. The LLM service layer
+and the WS ticker reach state via ``user_id`` so two users' pipelines never
+contend on shared mutable globals.
 
-Supports two modes:
-  1. **Mock init** — runs the pipeline once at startup with mock scenario data
-     (default, for development).
-  2. **Live ingestion** — ``rerun_pipeline()`` rebuilds state from the
-     stream registry + client-supplied market pricing & bankroll.
+Mock-scenario bootstrapping was removed in the multi-user rollout — every
+new account starts empty and fills the pipeline by registering streams
+through the client (or the SDK).
 """
 
 from __future__ import annotations
@@ -20,222 +20,168 @@ from typing import Any
 
 import polars as pl
 
-from server.api.config import POSIT_MODE, SNAPSHOT_BUFFER_MAX_DEFAULT, SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT
-from server.api.llm.snapshot_buffer import SnapshotBufferConfig, SnapshotRingBuffer
-from server.core.mock_scenario import (
-    MOCK_AGGREGATE_MARKET_VALUES,
-    MOCK_BANKROLL,
-    MOCK_NOW,
-    MOCK_RISK_DIMENSION_COLS,
-    MOCK_SMOOTHING_HL_SECS,
-    MOCK_STREAMS,
-    MOCK_TIME_GRID_INTERVAL,
+from server.api.config import (
+    SNAPSHOT_BUFFER_MAX_DEFAULT,
+    SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT,
 )
+from server.api.llm.snapshot_buffer import SnapshotBufferConfig, SnapshotRingBuffer
+from server.api.user_scope import UserRegistry
 from server.core.pipeline import run_pipeline
 from server.core.serializers import engine_state_from_pipeline, snapshot_from_pipeline
 
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Server-side config (not client-settable)
+# Server-wide pipeline knobs (not user-settable)
 # ---------------------------------------------------------------------------
+# Legacy mock scenario exposed these as "mock" constants; the pipeline code
+# still asks for them. For v1 multi-user, they are server-wide defaults —
+# users can't configure risk dimensions or smoothing half-life per account.
 
-RISK_DIMENSION_COLS: list[str] = list(MOCK_RISK_DIMENSION_COLS)
-SMOOTHING_HL_SECS: int = MOCK_SMOOTHING_HL_SECS
-TIME_GRID_INTERVAL: str = MOCK_TIME_GRID_INTERVAL
-
-# ---------------------------------------------------------------------------
-# Mutable state
-# ---------------------------------------------------------------------------
-
-_snapshot_buffer: SnapshotRingBuffer | None = None
-_pipeline_snapshot: dict[str, Any] | None = None
-_engine_state: dict[str, Any] | None = None
-_pipeline_results: dict[str, pl.DataFrame] | None = None
-_mock_now: datetime = datetime(2026, 1, 1, 17, 0, 0)
-
-# Client-settable parameters (initialised from mock defaults)
-_bankroll: float = MOCK_BANKROLL
-_transform_config: dict[str, Any] | None = None
+RISK_DIMENSION_COLS: list[str] = ["symbol", "expiry"]
+SMOOTHING_HL_SECS: int = 60
+TIME_GRID_INTERVAL: str = "1m"
 
 
 # ---------------------------------------------------------------------------
-# Mock initialization
+# Per-user engine state
 # ---------------------------------------------------------------------------
 
-def init_mock() -> None:
-    """Seed mock streams into the registry and run the pipeline.
+class EngineState:
+    """Everything downstream of the pipeline for a single user."""
 
-    Called once at server startup from the FastAPI lifespan handler. Uses
-    ``rerun_pipeline()`` so the startup path and subsequent re-runs share
-    the exact same code — mock streams live in the registry and are
-    included in every future ``build_stream_configs()`` call.
-    """
-    log.info("Seeding mock streams into registry…")
+    def __init__(self) -> None:
+        self.snapshot_buffer: SnapshotRingBuffer | None = None
+        self.pipeline_snapshot: dict[str, Any] | None = None
+        self.state: dict[str, Any] | None = None
+        self.pipeline_results: dict[str, pl.DataFrame] | None = None
+        self.bankroll: float = 0.0
+        self.transform_config: dict[str, Any] | None = None
 
-    from server.api.stream_registry import get_stream_registry
-    registry = get_stream_registry()
-    for sc in MOCK_STREAMS:
-        registry.seed_stream_config(sc)
+    def rerun_pipeline(
+        self,
+        streams: list[Any],
+        bankroll: float | None = None,
+        transform_config: dict[str, Any] | None = None,
+        aggregate_market_values: dict[tuple[str, str], float] | None = None,
+    ) -> dict[str, pl.DataFrame]:
+        """Re-run the pipeline for this user and update all state."""
+        if not streams:
+            raise ValueError("Cannot rerun pipeline with zero streams")
 
-    # Seed mock aggregate market values into the store
-    from server.api.market_value_store import set_market_value, clear_dirty
-    for (symbol, expiry), total_vol in MOCK_AGGREGATE_MARKET_VALUES.items():
-        set_market_value(symbol, expiry, total_vol)
-    clear_dirty()  # Don't trigger a dirty rerun on startup
+        if bankroll is not None:
+            self.bankroll = bankroll
+        if transform_config is not None:
+            self.transform_config = transform_config
 
-    stream_configs = registry.build_stream_configs()
-    if not stream_configs:
-        log.error("No READY streams after seeding — mock init aborted")
-        return
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
-    rerun_pipeline(stream_configs)
-    log.info("Engine state initialized from mock pipeline.")
+        log.info(
+            "Pipeline rerun: %d streams, bankroll=%.2f, now=%s",
+            len(streams), self.bankroll, now,
+        )
+
+        self.pipeline_results = run_pipeline(
+            streams=streams,
+            risk_dimension_cols=RISK_DIMENSION_COLS,
+            now=now,
+            bankroll=self.bankroll,
+            smoothing_hl_secs=SMOOTHING_HL_SECS,
+            time_grid_interval=TIME_GRID_INTERVAL,
+            transform_config=self.transform_config,
+            aggregate_market_values=aggregate_market_values or {},
+        )
+
+        self.pipeline_snapshot = snapshot_from_pipeline(
+            results=self.pipeline_results,
+            timestamp=now,
+            risk_dimension_cols=RISK_DIMENSION_COLS,
+            bankroll=self.bankroll,
+            smoothing_hl_secs=SMOOTHING_HL_SECS,
+            now=now,
+        )
+
+        self.state = engine_state_from_pipeline(
+            results=self.pipeline_results,
+            timestamp=now,
+            risk_dimension_cols=RISK_DIMENSION_COLS,
+        )
+
+        if self.snapshot_buffer is None:
+            self.snapshot_buffer = SnapshotRingBuffer(SnapshotBufferConfig(
+                max_snapshots=SNAPSHOT_BUFFER_MAX_DEFAULT,
+                lookback_offsets_seconds=SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT,
+            ))
+        self.snapshot_buffer.push(now, self.pipeline_snapshot)
+
+        return self.pipeline_results
+
+
+_engine_states: UserRegistry[EngineState] = UserRegistry(EngineState)
+
+
+def get_engine(user_id: str) -> EngineState:
+    """Return the per-user ``EngineState`` (lazily constructed)."""
+    return _engine_states.get(user_id)
+
+
+def active_user_ids() -> list[str]:
+    """List user ids with a live engine state (used by the WS ticker)."""
+    return _engine_states.active_users()
 
 
 # ---------------------------------------------------------------------------
-# Live pipeline re-execution
+# Thin functional wrappers kept for backwards compatibility with callers.
 # ---------------------------------------------------------------------------
 
 def rerun_pipeline(
+    user_id: str,
     streams: list[Any],
     bankroll: float | None = None,
     transform_config: dict[str, Any] | None = None,
 ) -> dict[str, pl.DataFrame]:
-    """Re-run the full pipeline with the given streams and update all state.
-
-    Parameters
-    ----------
-    streams : list[StreamConfig]
-        Built from the stream registry (``registry.build_stream_configs()``).
-    bankroll : float | None
-        If provided, replaces the stored bankroll.
-
-    Returns
-    -------
-    dict[str, pl.DataFrame]
-        The raw pipeline results.
-
-    Raises
-    ------
-    ValueError
-        If ``streams`` is empty or the pipeline fails.
-    """
-    global _snapshot_buffer, _pipeline_snapshot, _engine_state, _pipeline_results, _bankroll, _transform_config
-
-    if not streams:
-        raise ValueError("Cannot rerun pipeline with zero streams")
-
-    if bankroll is not None:
-        _bankroll = bankroll
-    if transform_config is not None:
-        _transform_config = transform_config
-
-    now = MOCK_NOW if POSIT_MODE == "mock" else datetime.now(timezone.utc).replace(tzinfo=None)
-
-    log.info(
-        "Re-running pipeline: %d streams, bankroll=%.2f, now=%s, default_interval=%s",
-        len(streams), _bankroll, now, TIME_GRID_INTERVAL,
-    )
-
     from server.api.market_value_store import to_dict as mv_to_dict
-    _pipeline_results = run_pipeline(
+    return get_engine(user_id).rerun_pipeline(
         streams=streams,
-        risk_dimension_cols=RISK_DIMENSION_COLS,
-        now=now,
-        bankroll=_bankroll,
-        smoothing_hl_secs=SMOOTHING_HL_SECS,
-        time_grid_interval=TIME_GRID_INTERVAL,
-        transform_config=_transform_config,
-        aggregate_market_values=mv_to_dict(),
+        bankroll=bankroll,
+        transform_config=transform_config,
+        aggregate_market_values=mv_to_dict(user_id),
     )
 
-    _pipeline_snapshot = snapshot_from_pipeline(
-        results=_pipeline_results,
-        timestamp=now,
-        risk_dimension_cols=RISK_DIMENSION_COLS,
-        bankroll=_bankroll,
-        smoothing_hl_secs=SMOOTHING_HL_SECS,
-        now=now,
-    )
 
-    _engine_state = engine_state_from_pipeline(
-        results=_pipeline_results,
-        timestamp=now,
-        risk_dimension_cols=RISK_DIMENSION_COLS,
-    )
-
-    # Push to snapshot buffer (create if first live run)
-    if _snapshot_buffer is None:
-        buf_config = SnapshotBufferConfig(
-            max_snapshots=SNAPSHOT_BUFFER_MAX_DEFAULT,
-            lookback_offsets_seconds=SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT,
-        )
-        _snapshot_buffer = SnapshotRingBuffer(buf_config)
-
-    _snapshot_buffer.push(now, _pipeline_snapshot)
-
-    log.info("Pipeline re-run complete at T=%s", now)
-    return _pipeline_results
+def set_bankroll(user_id: str, value: float) -> None:
+    get_engine(user_id).bankroll = value
+    log.info("Bankroll updated for user=%s to %.2f", user_id, value)
 
 
-# ---------------------------------------------------------------------------
-# Bankroll & market pricing accessors
-# ---------------------------------------------------------------------------
-
-def set_bankroll(value: float) -> None:
-    """Update the bankroll (does NOT trigger a pipeline re-run)."""
-    global _bankroll
-    _bankroll = value
-    log.info("Bankroll updated to %.2f", value)
+def get_bankroll(user_id: str) -> float:
+    return get_engine(user_id).bankroll
 
 
-def get_bankroll() -> float:
-    """Return the current bankroll."""
-    return _bankroll
+def get_engine_state(user_id: str) -> dict[str, Any]:
+    state = get_engine(user_id).state
+    return state if state is not None else {}
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-def get_engine_state() -> dict[str, Any]:
-    """Return the current engine state dict."""
-    if _engine_state is None:
-        return {}
-    return _engine_state
+def get_pipeline_snapshot(user_id: str) -> dict[str, Any] | None:
+    return get_engine(user_id).pipeline_snapshot
 
 
-def get_pipeline_snapshot() -> dict[str, Any] | None:
-    """Return the current pipeline snapshot."""
-    return _pipeline_snapshot
+def get_pipeline_results(user_id: str) -> dict[str, pl.DataFrame] | None:
+    return get_engine(user_id).pipeline_results
 
 
-def get_pipeline_results() -> dict[str, pl.DataFrame] | None:
-    """Return the raw pipeline DataFrames (for WS/UI consumption)."""
-    return _pipeline_results
+def get_snapshot_buffer(user_id: str) -> SnapshotRingBuffer | None:
+    return get_engine(user_id).snapshot_buffer
 
 
-def get_snapshot_buffer() -> SnapshotRingBuffer | None:
-    """Return the snapshot ring buffer."""
-    return _snapshot_buffer
+def get_transform_config(user_id: str) -> dict[str, Any] | None:
+    return get_engine(user_id).transform_config
 
 
-def get_mock_now() -> datetime:
-    """Return the mock 'now' timestamp used by the engine state provider."""
-    return _mock_now
-
-
-def get_transform_config() -> dict[str, Any] | None:
-    """Return the current transform configuration dict."""
-    return _transform_config
-
-
-def set_transform_config(config: dict[str, Any]) -> None:
-    """Update the stored transform configuration."""
-    global _transform_config
-    _transform_config = config
-    log.info("Transform config updated: %s", list(config.keys()))
+def set_transform_config(user_id: str, config: dict[str, Any]) -> None:
+    get_engine(user_id).transform_config = config
+    log.info("Transform config updated for user=%s: %s", user_id, list(config.keys()))
 
 
 # ---------------------------------------------------------------------------
@@ -243,22 +189,17 @@ def set_transform_config(config: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 async def rerun_and_broadcast(
+    user_id: str,
     stream_configs: list,
     *,
     bankroll: float | None = None,
     transform_config: dict | None = None,
 ) -> None:
-    """Re-run the pipeline and restart the WS ticker as an atomic pair.
+    """Re-run this user's pipeline and restart their WS ticker.
 
-    Every code path that previously called ``rerun_pipeline`` followed
-    by ``restart_ticker`` must call this instead.  Forgetting the
-    second call leaves the UI showing stale data.
-
-    The ticker restart import is done lazily to avoid circular imports
-    between ``engine_state`` and ``ws``.
+    The ticker restart import is lazy to avoid a circular import between
+    ``engine_state`` and ``ws``.
     """
-    # Lazy import — hoisting to module top triggers a circular import
-    # (engine_state → ws → engine_state).
     from server.api.ws import restart_ticker
 
     kwargs: dict[str, Any] = {}
@@ -267,5 +208,5 @@ async def rerun_and_broadcast(
     if transform_config is not None:
         kwargs["transform_config"] = transform_config
 
-    await asyncio.to_thread(rerun_pipeline, stream_configs, **kwargs)
-    await restart_ticker()
+    await asyncio.to_thread(rerun_pipeline, user_id, stream_configs, **kwargs)
+    await restart_ticker(user_id)

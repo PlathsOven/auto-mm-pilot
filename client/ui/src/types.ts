@@ -319,3 +319,61 @@ export interface ClientWsError {
 
 /** Discriminated union of every outbound frame on /ws/client. */
 export type ClientWsOutboundFrame = ClientWsAck | ClientWsError;
+
+// ---------------------------------------------------------------------------
+// Multi-user auth + account + admin (mirror of server/api/models.py)
+// ---------------------------------------------------------------------------
+
+export interface UserPublic {
+  id: string;
+  username: string;
+  created_at: string;
+  is_admin: boolean;
+}
+
+export interface SignupRequest {
+  username: string;
+  password: string;
+}
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  session_token: string;
+  user: UserPublic;
+}
+
+export interface ApiKeyResponse {
+  api_key: string;
+}
+
+export type UsageEventType =
+  | "panel_open"
+  | "panel_close"
+  | "manual_block_create"
+  | "cell_click"
+  | "app_focus"
+  | "app_blur";
+
+export interface UsageEventRequest {
+  type: UsageEventType;
+  metadata?: Record<string, string | number | boolean>;
+}
+
+export interface AdminUserSummary {
+  id: string;
+  username: string;
+  created_at: string;
+  last_login_at: string | null;
+  active_ws_connections: number;
+  manual_block_count: number;
+  total_sessions: number;
+  total_time_seconds: number;
+}
+
+export interface AdminUserListResponse {
+  users: AdminUserSummary[];
+}

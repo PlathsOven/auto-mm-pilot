@@ -7,7 +7,6 @@ Run:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -18,41 +17,35 @@ from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
-from server.api.config import POSIT_MODE, get_valid_api_keys
+from server.api.auth.tokens import resolve_user_from_request
 from server.api.client_ws import client_ws
-from server.api.engine_state import init_mock
+from server.api.db import init_db
 from server.api.ws import pipeline_ws
 
-from server.api.routers.llm import router as llm_router
-from server.api.routers.streams import router as streams_router
-from server.api.routers.snapshots import router as snapshots_router
-from server.api.routers.bankroll import router as bankroll_router
-from server.api.routers.transforms import router as transforms_router
-from server.api.routers.pipeline import router as pipeline_router
+from server.api.routers.admin import router as admin_router
+from server.api.routers.auth import router as auth_router
+from server.api.routers.account import router as account_router
 from server.api.routers.blocks import router as blocks_router
+from server.api.routers.bankroll import router as bankroll_router
+from server.api.routers.events import router as events_router
+from server.api.routers.llm import router as llm_router
 from server.api.routers.market_values import router as market_values_router
+from server.api.routers.pipeline import router as pipeline_router
+from server.api.routers.snapshots import router as snapshots_router
+from server.api.routers.streams import router as streams_router
+from server.api.routers.transforms import router as transforms_router
 
 log = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# App
-# ---------------------------------------------------------------------------
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """Run mock pipeline init at startup before accepting requests.
-
-    Init runs in a worker thread so the event loop stays responsive while
-    the (slow, sync) Polars pipeline executes.  The ``yield`` only fires
-    after init returns, so by the time the first client request lands,
-    ``_pipeline_results`` is already populated and accessors are O(1).
-    """
-    if POSIT_MODE == "mock":
-        await asyncio.to_thread(init_mock)
+    """Initialise the DB schema on boot. No mock scenario bootstrap in v1."""
+    init_db()
     yield
 
 
-app = FastAPI(title="Posit Server", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Posit Server", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -63,48 +56,51 @@ app.add_middleware(
 )
 
 
-# Paths exempt from API-key auth (health + WS endpoints + OpenAPI docs).
-_AUTH_EXEMPT = frozenset({"/api/health", "/docs", "/redoc", "/openapi.json"})
+# Paths that never require authentication: health check, signup, login,
+# OpenAPI docs, and CORS preflight. Everything else under /api/* must resolve
+# to a valid user via the unified auth middleware.
+_AUTH_EXEMPT: frozenset[str] = frozenset({
+    "/api/health",
+    "/api/auth/signup",
+    "/api/auth/login",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+})
 
 
-class _ApiKeyMiddleware(BaseHTTPMiddleware):
-    """Require a valid API key on all /api/* routes except /api/health.
+class _AuthMiddleware(BaseHTTPMiddleware):
+    """Unified auth resolver for every /api/* request.
 
-    Keys are read from POSIT_API_KEYS (comma-sep) or CLIENT_WS_API_KEY.
-    If neither env var is set, auth is disabled with a startup warning —
-    matching the IP-whitelist convention in client_ws_auth.py.
+    Resolution order (first match wins):
+      1. ``Authorization: Bearer <session_token>``
+      2. ``x-api-key`` header
+      3. ``?api_key=`` query parameter
+
+    Missing or invalid credentials → 401. The resolved user is stashed on
+    ``request.state.user`` so downstream ``Depends(current_user)`` can reuse
+    it (and avoid a second DB hit).
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        # CORS preflight: must bypass auth per spec (no credentials sent).
+        # CORS preflight always bypasses — no credentials are sent with OPTIONS.
         if request.method == "OPTIONS":
             return await call_next(request)
         path = request.url.path
         if not path.startswith("/api/") or path in _AUTH_EXEMPT:
             return await call_next(request)
 
-        valid_keys = get_valid_api_keys()
-        if not valid_keys:
-            log.warning(
-                "No API keys configured — REST auth disabled. "
-                "Set POSIT_API_KEYS or CLIENT_WS_API_KEY to enable."
-            )
-            return await call_next(request)
-
-        key = (
-            request.headers.get("x-api-key")
-            or request.query_params.get("api_key")
-        )
-        if not key or key not in valid_keys:
+        user = resolve_user_from_request(request)
+        if user is None:
             return JSONResponse(
-                {"error": {"code": 401, "message": "Invalid or missing API key"}},
+                {"error": {"code": 401, "message": "Authentication required"}},
                 status_code=401,
             )
-
+        request.state.user = user
         return await call_next(request)
 
 
-app.add_middleware(_ApiKeyMiddleware)
+app.add_middleware(_AuthMiddleware)
 
 
 class ApiError(BaseModel):
@@ -130,6 +126,10 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
 # Routers
 # ---------------------------------------------------------------------------
 
+app.include_router(auth_router)
+app.include_router(account_router)
+app.include_router(events_router)
+app.include_router(admin_router)
 app.include_router(llm_router)
 app.include_router(streams_router)
 app.include_router(snapshots_router)

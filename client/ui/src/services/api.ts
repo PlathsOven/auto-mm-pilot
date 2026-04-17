@@ -1,8 +1,10 @@
 /**
  * Shared HTTP client helper for all API calls.
  *
- * Every service module should import `apiFetch` from here instead of
- * duplicating fetch + error handling logic.
+ * Auth is pulled from a module-level getter registered by AuthProvider.
+ * Keeping the getter here (instead of a React hook) lets non-component
+ * code paths — WS reconnect logic, timers, event handlers — reach the
+ * current session token without threading props through.
  */
 
 import { API_BASE } from "../config";
@@ -18,14 +20,55 @@ export class ApiError extends Error {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Auth plumbing — AuthProvider registers handlers on mount
+// ---------------------------------------------------------------------------
+
+type TokenGetter = () => string | null;
+type UnauthorizedHandler = () => void;
+
+let _tokenGetter: TokenGetter = () => null;
+let _onUnauthorized: UnauthorizedHandler = () => {};
+
+export function registerAuthHandlers(
+  tokenGetter: TokenGetter,
+  onUnauthorized: UnauthorizedHandler,
+): void {
+  _tokenGetter = tokenGetter;
+  _onUnauthorized = onUnauthorized;
+}
+
+export function getSessionToken(): string | null {
+  return _tokenGetter();
+}
+
+function buildHeaders(init?: RequestInit): HeadersInit {
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const token = _tokenGetter();
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return headers;
+}
+
 export async function apiFetch<T>(
   path: string,
-  init?: RequestInit & { signal?: AbortSignal },
+  init?: RequestInit & { signal?: AbortSignal; skipAuth?: boolean },
 ): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
+  const { skipAuth, ...rest } = init ?? {};
+  const headers = skipAuth
+    ? { "Content-Type": "application/json", ...((rest.headers as Record<string, string>) ?? {}) }
+    : buildHeaders(rest);
+
+  const res = await fetch(`${API_BASE}${path}`, { ...rest, headers });
+
+  if (res.status === 401 && !skipAuth) {
+    _onUnauthorized();
+  }
+
   if (!res.ok) {
     let code: number | null = null;
     let message = `${res.status}`;
@@ -38,10 +81,8 @@ export async function apiFetch<T>(
         code = body.error.code ?? null;
         message = body.error.message ?? message;
       } else if (typeof body.detail === "string") {
-        // FastAPI HTTPException shape: { "detail": "..." }
         message = body.detail;
       } else if (Array.isArray(body.detail) && body.detail.length > 0) {
-        // FastAPI RequestValidationError shape: { "detail": [{ loc, msg, type }] }
         message = body.detail
           .map((e) => {
             const field = Array.isArray(e.loc) ? e.loc[e.loc.length - 1] : null;
@@ -51,12 +92,10 @@ export async function apiFetch<T>(
           .join("; ");
       }
     } catch {
-      // Body isn't JSON — fall back to raw text
       message = (await res.text().catch(() => "")) || `${res.status}`;
     }
     throw new ApiError(res.status, code, message);
   }
-  // 204 No Content
   if (res.status === 204) return undefined as unknown as T;
   return res.json();
 }
@@ -71,20 +110,6 @@ export interface SseCallbacks {
   onError: (error: string) => void;
 }
 
-/**
- * POST a JSON payload and stream the SSE response.
- *
- * Protocol handled:
- *   - `data: <json>\n\n` — a text delta (JSON-encoded string)
- *   - `event: error\ndata: <message>\n\n` — a server error; aborts the stream
- *   - `data: [DONE]\n\n` — end-of-stream sentinel
- *
- * This is the canonical SSE path — `apiFetch` cannot express streaming
- * body reads, so services that need SSE call through here instead of
- * reaching for `fetch` directly.
- *
- * Returns an AbortController so the caller can cancel mid-stream.
- */
 export function streamFetchSSE(
   path: string,
   payload: unknown,
@@ -95,9 +120,13 @@ export function streamFetchSSE(
   (async () => {
     let response: Response;
     try {
+      const headers = buildHeaders({
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
       response = await fetch(`${API_BASE}${path}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload),
         signal: controller.signal,
       });
@@ -108,6 +137,10 @@ export function streamFetchSSE(
         );
       }
       return;
+    }
+
+    if (response.status === 401) {
+      _onUnauthorized();
     }
 
     if (!response.ok) {

@@ -1,14 +1,14 @@
 """
-In-memory stream registry — manages stream definitions and snapshot data.
+Per-user in-memory stream registry.
+
+Each user owns an independent ``StreamRegistry`` with its own streams,
+snapshot rows, and manual-block metadata. Callers pass ``user_id`` explicitly
+— the module exposes helpers that lazily construct a registry per user.
 
 Lifecycle:
     1. User creates stream (stream_name + key_cols) → PENDING
-    2. Admin configures pipeline params (scale, offset, exponent, BlockConfig) → READY
+    2. Admin (or the user via stream config UI) fills in pipeline params → READY
     3. Client pushes snapshot rows for READY streams → stored here, consumed by engine
-
-Thread-safety: This module uses a simple lock for concurrent access from
-async FastAPI handlers.  For production persistence, swap the dict backend
-for a database.
 """
 
 from __future__ import annotations
@@ -16,18 +16,19 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 import polars as pl
 
+from server.api.user_scope import UserRegistry
 from server.core.config import BlockConfig, StreamConfig
 
 log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Manual-block metadata store
+# Manual-block metadata store (one per user)
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -36,7 +37,7 @@ class ManualBlockMetadata:
     created_at: str
 
 
-class _ManualBlockStore:
+class ManualBlockStore:
     def __init__(self) -> None:
         self._entries: dict[str, ManualBlockMetadata] = {}
         self._lock = threading.Lock()
@@ -53,23 +54,13 @@ class _ManualBlockStore:
         with self._lock:
             return stream_name in self._entries
 
-
-_manual_block_store: _ManualBlockStore | None = None
-
-
-def get_manual_block_store() -> _ManualBlockStore:
-    global _manual_block_store
-    if _manual_block_store is None:
-        _manual_block_store = _ManualBlockStore()
-    return _manual_block_store
+    def count(self) -> int:
+        with self._lock:
+            return len(self._entries)
 
 
 # Required columns in every snapshot row (in addition to key_cols)
 _REQUIRED_SNAPSHOT_COLS = {"timestamp", "raw_value"}
-
-# Default test stream — always exists on init so the client can verify connectivity
-TEST_STREAM_NAME = "__test__"
-_TEST_STREAM_KEY_COLS = ["symbol"]
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +111,6 @@ class StreamRegistration:
         assert self.exponent is not None
         assert self.block is not None
 
-        # Parse timestamp / datetime strings into Python datetimes
         rows = _coerce_datetime_fields(self.snapshot_rows, self.key_cols)
         snapshot_df = pl.DataFrame(rows)
 
@@ -144,12 +134,7 @@ _DATETIME_FIELDS = {"timestamp", "start_timestamp", "expiry"}
 
 
 def parse_datetime_tolerant(raw: str) -> datetime:
-    """Accept ISO 8601 (``2026-03-27T00:00:00``) or DDMMMYY (``27MAR26``).
-
-    The WS payload normalises expiries to DDMMMYY via ``_format_expiry`` in
-    ``ws.py``, so users routinely paste that format into manual block forms.
-    Falling back to DDMMMYY here lets the server accept either form.
-    """
+    """Accept ISO 8601 (``2026-03-27T00:00:00``) or DDMMMYY (``27MAR26``)."""
     try:
         return datetime.fromisoformat(raw)
     except ValueError:
@@ -163,9 +148,7 @@ def _coerce_datetime_fields(
     """Parse ISO-format strings into ``datetime`` objects for known datetime columns.
 
     All datetimes are normalised to **naive** (tzinfo stripped) to match the
-    codebase convention where naive datetimes represent UTC.  This prevents
-    Polars ``datetime[μs]`` vs ``datetime[μs, UTC]`` supertype mismatches
-    when manual blocks are combined with mock/existing streams.
+    codebase convention where naive datetimes represent UTC.
     """
     dt_cols = _DATETIME_FIELDS | {k for k in key_cols if k in _DATETIME_FIELDS}
     coerced: list[dict[str, Any]] = []
@@ -184,44 +167,21 @@ def _coerce_datetime_fields(
 
 
 # ---------------------------------------------------------------------------
-# Registry singleton
+# Per-user registry
 # ---------------------------------------------------------------------------
 
 class StreamRegistry:
-    """In-memory registry of stream definitions and their latest snapshots."""
+    """One user's stream registry + manual-block metadata."""
 
     def __init__(self) -> None:
         self._streams: dict[str, StreamRegistration] = {}
         self._lock = threading.Lock()
-        self._seed_test_stream()
-
-    def _seed_test_stream(self) -> None:
-        """Create a pre-configured READY test stream for connectivity verification.
-
-        Uses identity transform (scale=1, offset=0, exponent=1) and default
-        BlockConfig so the client can immediately send snapshot rows without
-        needing admin configuration.
-        """
-        reg = StreamRegistration(
-            stream_name=TEST_STREAM_NAME,
-            key_cols=list(_TEST_STREAM_KEY_COLS),
-            scale=1.0,
-            offset=0.0,
-            exponent=1.0,
-            block=BlockConfig(),
-        )
-        self._streams[TEST_STREAM_NAME] = reg
-        log.info("Test stream '%s' seeded (status=%s)", TEST_STREAM_NAME, reg.status)
+        self.manual_blocks = ManualBlockStore()
 
     # -- Seed from StreamConfig --------------------------------------------
 
     def seed_stream_config(self, sc: StreamConfig) -> None:
-        """Register a fully-built ``StreamConfig`` directly into the registry.
-
-        Used to seed mock/startup streams so they are included in
-        ``build_stream_configs()`` alongside any streams added later.
-        Overwrites any existing stream with the same name.
-        """
+        """Register a fully-built ``StreamConfig`` directly into the registry."""
         with self._lock:
             reg = StreamRegistration(
                 stream_name=sc.stream_name,
@@ -266,10 +226,7 @@ class StreamRegistry:
         new_name: str | None = None,
         new_key_cols: list[str] | None = None,
     ) -> StreamRegistration:
-        """User updates stream_name and/or key_cols.
-
-        If key_cols change, existing snapshot rows are cleared (schema mismatch).
-        """
+        """User updates stream_name and/or key_cols."""
         with self._lock:
             reg = self._streams.get(stream_name)
             if reg is None:
@@ -277,7 +234,7 @@ class StreamRegistry:
 
             if new_key_cols is not None and new_key_cols != reg.key_cols:
                 reg.key_cols = list(new_key_cols)
-                reg.snapshot_rows = []  # invalidate stale snapshot
+                reg.snapshot_rows = []
                 log.info("Stream '%s' key_cols updated to %s (snapshot cleared)", stream_name, new_key_cols)
 
             if new_name is not None and new_name != stream_name:
@@ -310,7 +267,7 @@ class StreamRegistry:
             reg.offset = offset
             reg.exponent = exponent
             reg.block = block
-            log.info("Stream '%s' configured by admin (status=%s)", stream_name, reg.status)
+            log.info("Stream '%s' configured (status=%s)", stream_name, reg.status)
             return reg
 
     # -- Delete -------------------------------------------------------------
@@ -320,7 +277,7 @@ class StreamRegistry:
             if stream_name not in self._streams:
                 raise KeyError(f"Stream '{stream_name}' not found")
             del self._streams[stream_name]
-            get_manual_block_store().unmark(stream_name)
+            self.manual_blocks.unmark(stream_name)
             log.info("Stream deleted: %s", stream_name)
 
     # -- Snapshot ingestion -------------------------------------------------
@@ -330,12 +287,7 @@ class StreamRegistry:
         stream_name: str,
         rows: list[dict[str, Any]],
     ) -> int:
-        """Store snapshot rows for a READY stream.
-
-        Validates that every row contains the required columns.
-        Returns the number of rows accepted.
-        Raises ``ValueError`` on validation failure, ``KeyError`` if not found.
-        """
+        """Store snapshot rows for a READY stream."""
         with self._lock:
             reg = self._streams.get(stream_name)
             if reg is None:
@@ -375,15 +327,17 @@ class StreamRegistry:
 
 
 # ---------------------------------------------------------------------------
-# Module-level singleton
+# Per-user lookup
 # ---------------------------------------------------------------------------
 
-_registry: StreamRegistry | None = None
+_registries: UserRegistry[StreamRegistry] = UserRegistry(StreamRegistry)
 
 
-def get_stream_registry() -> StreamRegistry:
-    """Return the global stream registry (created on first call)."""
-    global _registry
-    if _registry is None:
-        _registry = StreamRegistry()
-    return _registry
+def get_stream_registry(user_id: str) -> StreamRegistry:
+    """Return the per-user stream registry (lazily constructed)."""
+    return _registries.get(user_id)
+
+
+def get_manual_block_store(user_id: str) -> ManualBlockStore:
+    """Shortcut for ``get_stream_registry(user_id).manual_blocks``."""
+    return _registries.get(user_id).manual_blocks
