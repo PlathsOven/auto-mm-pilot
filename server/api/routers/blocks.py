@@ -84,41 +84,41 @@ def _blocks_from_pipeline() -> list[BlockRowResponse]:
 
     store = get_manual_block_store()
     rows: list[BlockRowResponse] = []
-    for d in blocks_df.to_dicts():
-        block_name = d["block_name"]
-        stream_name = d["stream_name"]
+    for block_dict in blocks_df.to_dicts():
+        block_name = block_dict["block_name"]
+        stream_name = block_dict["stream_name"]
         block_latest_var = latest_vars.get(block_name, {})
 
-        start_ts = d.get("start_timestamp")
+        start_ts = block_dict.get("start_timestamp")
         start_str = start_ts.isoformat() if hasattr(start_ts, "isoformat") and start_ts is not None else None
 
         source = "manual" if store.is_manual(stream_name) else "stream"
 
         # Serialize expiry (may be datetime or string)
-        raw_expiry = d.get("expiry")
+        raw_expiry = block_dict.get("expiry")
         expiry_str = raw_expiry.isoformat() if hasattr(raw_expiry, "isoformat") and raw_expiry is not None else str(raw_expiry) if raw_expiry is not None else ""
 
         rows.append(BlockRowResponse(
             block_name=block_name,
             stream_name=stream_name,
-            symbol=d.get("symbol", ""),
+            symbol=block_dict.get("symbol", ""),
             expiry=expiry_str,
-            space_id=d["space_id"],
+            space_id=block_dict["space_id"],
             source=source,
-            annualized=d["annualized"],
-            size_type=d["size_type"],
-            aggregation_logic=d["aggregation_logic"],
-            temporal_position=d["temporal_position"],
-            decay_end_size_mult=d["decay_end_size_mult"],
-            decay_rate_prop_per_min=d["decay_rate_prop_per_min"],
-            var_fair_ratio=d["var_fair_ratio"],
-            scale=d["scale"],
-            offset=d["offset"],
-            exponent=d["exponent"],
-            target_value=d["target_value"],
-            raw_value=d["raw_value"],
-            market_value=d.get("market_value"),
-            target_market_value=d.get("target_market_value"),
+            annualized=block_dict["annualized"],
+            size_type=block_dict["size_type"],
+            aggregation_logic=block_dict["aggregation_logic"],
+            temporal_position=block_dict["temporal_position"],
+            decay_end_size_mult=block_dict["decay_end_size_mult"],
+            decay_rate_prop_per_min=block_dict["decay_rate_prop_per_min"],
+            var_fair_ratio=block_dict["var_fair_ratio"],
+            scale=block_dict["scale"],
+            offset=block_dict["offset"],
+            exponent=block_dict["exponent"],
+            target_value=block_dict["target_value"],
+            raw_value=block_dict["raw_value"],
+            market_value=block_dict.get("market_value"),
+            target_market_value=block_dict.get("target_market_value"),
             fair=block_latest_var.get("fair"),
             market_fair=block_latest_var.get("market_fair"),
             var=block_latest_var.get("var"),

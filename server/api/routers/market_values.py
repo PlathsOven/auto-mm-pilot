@@ -38,7 +38,7 @@ async def set_market_values(req: SetMarketValueRequest) -> MarketValueListRespon
 
 
 @router.delete("/api/market-values/{symbol}/{expiry}")
-async def remove_market_value(symbol: str, expiry: str) -> dict:
+async def remove_market_value(symbol: str, expiry: str) -> dict[str, bool | str]:
     """Remove the aggregate for a symbol/expiry pair."""
     existed = delete_market_value(symbol, expiry)
     if not existed:
