@@ -76,6 +76,9 @@ class _ApiKeyMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        # CORS preflight: must bypass auth per spec (no credentials sent).
+        if request.method == "OPTIONS":
+            return await call_next(request)
         path = request.url.path
         if not path.startswith("/api/") or path in _AUTH_EXEMPT:
             return await call_next(request)
