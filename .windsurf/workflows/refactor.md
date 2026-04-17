@@ -1,5 +1,5 @@
 ---
-description: Comprehensive architecture review and refactoring pass — vectorize, modularize, simplify for Polars-native readability
+description: Architecture review and refactoring pass — canonicalize patterns, delete bloat, vectorize, decompose, rename for Polars-native legibility
 ---
 
 ## /refactor — Vibe-Code Rescue & Refactor
@@ -12,14 +12,14 @@ A structured workflow for taming codebases built primarily through AI-assisted "
 
 **Target reader:** a non-technical derivatives trader who writes Polars pipelines in Python and basic React dashboards. Every function must be legible to this person in under 30 seconds.
 
-**Core principle:** Vibe-coded repos don't need more abstraction — they need *convergence*. The goal is fewer patterns, not more layers. When two approaches exist for the same thing, pick the simpler one and kill the other everywhere.
+**Core principle:** Vibe-coded repos don't need more abstraction — they need *convergence* and *subtraction*. The goal is fewer patterns, fewer layers, fewer lines. When two approaches exist for the same thing, pick the simpler one and kill the other everywhere. When one approach exists for a thing that doesn't need doing, delete it entirely. **Every pass of /refactor must remove more LOC than it adds.**
 
 **Refactoring priorities (strict order):**
 1. **Canonicalize** — one pattern per intent, enforced everywhere
-2. **Vectorize** — scalar loops → columnar ops so logic scales with data size
-3. **Decompose** — god files/functions → single-purpose modules
-4. **Name** — domain vocabulary in every identifier
-5. **Delete** — if it's not called, it's gone
+2. **Minimize** — delete / inline / collapse anything that doesn't earn its keep (unused exports, thin wrappers, single-callsite helpers, speculative parameters, duplicated logic, pass-through indirection)
+3. **Vectorize** — scalar loops → columnar ops so logic scales with data size
+4. **Decompose** — god files/functions → single-purpose modules (but only when splitting *reduces* complexity; don't decompose for its own sake)
+5. **Name** — domain vocabulary in every identifier
 
 ---
 
@@ -96,16 +96,25 @@ Scalar code is the silent scaling killer. Catch it all.
 - [ ] **Loose positional args** — functions that take `(price, vol, strike, expiry, ...)` as separate floats → take a single DataFrame row or struct so the signature doesn't break when fields are added
 - [ ] **Manual string templating over data** — building SQL/JSON/prompt strings with f-strings inside loops → build once with DataFrame column expressions
 
-#### 4B. Dead Weight (Vibe-Code Specific)
+#### 4B. Dead Weight & Bloat
 
-Vibe coding leaves specific debris. Hunt it aggressively.
+Every pass of /refactor must reduce LOC and indirection. Hunt aggressively for anything that can be deleted, inlined, or collapsed without changing behaviour. For each finding record `path:line | problem | action (delete / inline / collapse) | impact | effort | risk`.
 
-- [ ] **Abandoned experiments** — half-built features, commented-out blocks, functions called from nowhere. If it's not in the active call graph, delete it.
+- [ ] **Unused exports** — `export` declarations (TS) or public functions (Python) with zero importers across the project. Confirm via repo-wide grep of the symbol name before deleting. Exception: React entry defaults (`App.tsx`, `main.tsx`), FastAPI router symbols auto-wired by include/registration.
+- [ ] **Trivial wrappers** — functions whose entire body is `return otherFn(args)` or a single delegating call with no transformation. Inline the caller and delete the wrapper (and its file, if that was its only export).
+- [ ] **Single-callsite helpers** — functions / hooks / components called from exactly one place that inline in ≤10 lines. Prefer inline unless the abstraction barrier is load-bearing (>1 caller likely, crosses a public boundary, or is domain-named in a way that documents intent).
+- [ ] **Abandoned experiments** — half-built features, commented-out blocks, functions never reached from any entry point. If it's not in the active call graph, delete it.
 - [ ] **Hallucinated APIs** — calls to functions, methods, or library APIs that don't actually exist (LLMs hallucinate these). Grep for every import and verify the target exists.
-- [ ] **Stale TODO/FIXME** — if a TODO has no owner and no issue ticket, resolve or delete it. (Exception: `# HUMAN WRITES LOGIC HERE` stubs are sacred.)
-- [ ] **Vestigial parameters** — function params that are accepted but never used inside the body. Remove from signature and all call sites.
+- [ ] **Dead branches** — `if/else` paths that cannot trigger given the current call graph; legacy option handlers for options never set; fallback code for cases that can't occur.
+- [ ] **Speculative parameters** — function params always passed the same value (or always omitted as a default) at every call site. Inspect every call; if never varied, remove the parameter.
+- [ ] **Vestigial parameters** — accepted but never used inside the body. Remove from signature and all call sites.
+- [ ] **Duplicate logic** — same computation / conditional / formatting expressed in 2+ places. Extract to one helper (or collapse to the existing one) and update callers.
+- [ ] **Re-export / pass-through indirection** — files whose only job is re-exports; classes that wrap a handful of static methods for no gain; providers that just pass props. Inline the consumer's import and delete the shim — *unless* the indirection buys real legibility (e.g., flattening a deeply-nested JSX provider stack).
+- [ ] **Over-typed dicts** — `dict[str, Any]` / `Record<string, unknown>` where a narrower typed shape exists or could easily be written. Tighten to the real shape.
+- [ ] **Stale TODO/FIXME** — no owner and no issue ticket → resolve or delete. **Exception:** `# HUMAN WRITES LOGIC HERE` stubs are sacred; never remove them.
 - [ ] **Copy-paste artifacts** — variable names that reference a different context (e.g., `userList` in a file about instruments) because the code was copy-pasted from another file.
 - [ ] **Debug leftovers** — `console.log`, `print()`, `debugger` statements in non-debug code paths.
+- [ ] **Placeholder / example data** — "replace with real entries" scaffolding that never got replaced; stub constants from abandoned features.
 
 #### 4C. Modularity & File Hygiene
 
@@ -165,6 +174,8 @@ End with:
 - **Canonical patterns elected** (from §3.1) — list each pattern choice with rationale
 - **Top 10 highest-impact changes** ranked by Impact × (1 / Effort)
 - **Execution order** — dependency-graph-aware: shared types first, then utils, then logic, then routes/UI, then tests
+- **Projected LOC delta** — sum of `bytes saved` from §4B findings minus new code added by canonicalization / decomposition. Must be negative; if it isn't, the pass isn't net-lean and §4B needs another sweep before execution begins.
+- **Things that LOOK like bloat but aren't** — ≤5 items where surface-level bloat has hidden value (real abstraction barriers, external API contracts, load-bearing indirection). Record these so the next /refactor pass doesn't re-flag them.
 
 **STOP. Do NOT refactor yet. Wait for explicit approval of the report, canonical pattern choices, and execution order.**
 
@@ -177,8 +188,8 @@ After approval, work in this strict order:
 #### Phase 0 — Logic Audit
 Before cutting any code, invoke `/logic-audit` on the highest-impact area identified in §5. A structural simplification at the root often eliminates 50% of the downstream refactor work — do it before you touch the surface. If the audit reveals the current shape is already near-minimal, proceed to Phase 1. If it reveals a deeper redesign, pause and present the alternative to the human before continuing the refactor.
 
-#### Phase 1 — Delete Dead Weight (§4B)
-Remove orphaned files, dead functions, hallucinated imports, debug leftovers. This reduces noise for all subsequent phases.
+#### Phase 1 — Delete & Inline (§4B)
+Delete / inline / collapse every §4B finding the report approved. This reduces surface for every subsequent phase — canonicalization has fewer files to touch, vectorization has fewer loops to fix, decomposition has fewer knots to untangle. The LOC delta after this phase should be sharply negative; if it isn't, revisit §4B before moving on.
 
 #### Phase 2 — Canonicalize Patterns (§3.1)
 For each pattern divergence, apply the elected canonical pattern everywhere. This is the highest-leverage phase — it makes the codebase feel like one person wrote it.
@@ -243,7 +254,7 @@ One surgical commit per phase, using native git only:
 
 ```bash
 git add <files...>
-git commit -m "refactor(phase1): delete dead weight — orphaned files, debug leftovers"
+git commit -m "refactor(phase1): delete & inline — orphans, thin wrappers, speculative params"
 
 git add <files...>
 git commit -m "refactor(phase2): canonicalize patterns — <list elected patterns>"
