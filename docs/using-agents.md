@@ -1,4 +1,4 @@
-# Using Coding Agents on Auto-MM-Pilot
+# Using Coding Agents on Posit
 
 This is the operator's playbook for coding this repo with the help of AI agents. Two harnesses are supported: **Claude Code** (primary) and **Windsurf** (secondary). Both run the same slash commands with byte-identical bodies. Pick whichever tool you prefer — or use both.
 
@@ -21,7 +21,7 @@ Do this once per machine. Skip to §2 if you've already done it.
 2. **Create `.env` at the repo root** with at minimum:
    ```
    OPENROUTER_API_KEY=sk-or-v1-your-key
-   APT_MODE=mock
+   POSIT_MODE=mock
    ```
    See `README.md` §Quick Start for the full list.
 

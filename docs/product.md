@@ -1,4 +1,4 @@
-# Product — APT Theory
+# Product — Posit Theory
 
 > This document contains the product theory previously at the top of `README.md`. `README.md` is now the operator's guide; this file holds the "why".
 
@@ -14,15 +14,15 @@ Market selection and execution infrastructure are well-understood problems. Edge
 
 This does not scale. It is not transferable. It walks out the door when the trader leaves. And it is the single highest-leverage factor in determining whether a desk is profitable.
 
-Crypto options market-making desks are the natural starting point for two reasons. First, crypto markets run 24/7 — there is no closing bell, no overnight break. Continuous coverage is not optional; it is a structural requirement. Automation is not a luxury here, it is the only way to maintain consistent position management across a cycle that never pauses. Second, crypto options is a nascent field. Unlike equities or rates desks with decades of accumulated institutional knowledge, crypto desks have far less positional expertise to draw from. APT fills that gap — providing a formal, transferable framework for position management that would otherwise take years of senior-trader experience to develop organically.
+Crypto options market-making desks are the natural starting point for two reasons. First, crypto markets run 24/7 — there is no closing bell, no overnight break. Continuous coverage is not optional; it is a structural requirement. Automation is not a luxury here, it is the only way to maintain consistent position management across a cycle that never pauses. Second, crypto options is a nascent field. Unlike equities or rates desks with decades of accumulated institutional knowledge, crypto desks have far less positional expertise to draw from. Posit fills that gap — providing a formal, transferable framework for position management that would otherwise take years of senior-trader experience to develop organically.
 
-APT replaces this process with a formal, configurable engine that makes the same decision — continuously, explainably, and without key-person risk.
+Posit replaces this process with a formal, configurable engine that makes the same decision — continuously, explainably, and without key-person risk.
 
 ---
 
 ## A General Unifying Theory of Trading
 
-APT is built on a single claim: every positional trading decision reduces to the same equation.
+Posit is built on a single claim: every positional trading decision reduces to the same equation.
 
 ```
 Desired Position = Edge x Bankroll / Variance
@@ -40,7 +40,7 @@ Fair Value is not a single number from a single source. It is synthesised from m
 
 Each stream is parameterised by how it maps into a common target space, how it distributes its impact through time, how it aggregates with other streams (blending into a consensus or stacking as an independent additive layer), and its confidence weight (how much the desk trusts this particular signal). The engine does not privilege any stream — the framework is agnostic to the source. What matters is the parameterisation.
 
-Each block carries its own market price (`market_price`) in the same raw units as `raw_value`. It goes through the identical unit conversion and temporal distribution as fair value. When `market_price` is not provided, it defaults to `raw_value` (edge = 0 for that block). Edge = fair minus market-implied, computed per-block then aggregated across all blocks and spaces.
+Each block carries its own market value (`market_value`) in the same raw units as `raw_value`. It goes through the identical unit conversion and temporal distribution as fair value. When `market_value` is not provided, it defaults to `raw_value` (edge = 0 for that block). Edge = fair minus market-implied, computed per-block then aggregated across all blocks and spaces.
 
 ### Time
 

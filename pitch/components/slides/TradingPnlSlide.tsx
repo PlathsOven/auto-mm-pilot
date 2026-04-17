@@ -133,7 +133,7 @@ const CURRENT_DEFAULTS: ParamStrings = {
   retLongNight: "-60",
 };
 
-const WITH_APT_DEFAULTS: ParamStrings = {
+const WITH_POSIT_DEFAULTS: ParamStrings = {
   marketEdge: "50000000",
   edgeShareDay: "10",
   edgeShareNight: "5",
@@ -488,32 +488,32 @@ function Cell({ value, onChange, prefix, suffix, step = 1, allowNeg = false, spa
 
 export function TradingPnlSlide() {
   const [curStrings, setCurStrings] = useState<ParamStrings>(CURRENT_DEFAULTS);
-  const [aptStrings, setAptStrings] = useState<ParamStrings>(WITH_APT_DEFAULTS);
+  const [positStrings, setPositStrings] = useState<ParamStrings>(WITH_POSIT_DEFAULTS);
 
   const curSet = useCallback((key: keyof ParamStrings, val: string) => {
     setCurStrings((prev) => ({ ...prev, [key]: val }));
   }, []);
-  const aptSet = useCallback((key: keyof ParamStrings, val: string) => {
-    setAptStrings((prev) => ({ ...prev, [key]: val }));
+  const positSet = useCallback((key: keyof ParamStrings, val: string) => {
+    setPositStrings((prev) => ({ ...prev, [key]: val }));
   }, []);
 
   const curP = useMemo(() => parseParams(curStrings), [curStrings]);
-  const aptP = useMemo(() => parseParams(aptStrings), [aptStrings]);
+  const positP = useMemo(() => parseParams(positStrings), [positStrings]);
 
   const curC = useMemo(() => computeValues(curP), [curP]);
-  const aptC = useMemo(() => computeValues(aptP), [aptP]);
+  const positC = useMemo(() => computeValues(positP), [positP]);
 
   const curArcs = useMemo(() => buildArcs(curP, curC), [curP, curC]);
-  const aptArcs = useMemo(() => buildArcs(aptP, aptC), [aptP, aptC]);
+  const positArcs = useMemo(() => buildArcs(positP, positC), [positP, positC]);
 
-  const delta = aptC.annualPnl - curC.annualPnl;
+  const delta = positC.annualPnl - curC.annualPnl;
   const deltaPct = curC.annualPnl !== 0 ? (delta / Math.abs(curC.annualPnl)) * 100 : 0;
 
   return (
     <div className="flex flex-col gap-4">
       <p className="text-muted-foreground text-sm leading-relaxed max-w-3xl mx-auto text-center">
         Insufficient coverage, poor unmonitored positional performance, and limited trader time reduces firm PnL.
-        APT solves each of these problems to unlock potential PnL for Gravity Team.
+        Posit solves each of these problems to unlock potential PnL for Gravity Team.
       </p>
 
       {/* Two-column comparison */}
@@ -526,11 +526,11 @@ export function TradingPnlSlide() {
           hatchId="hatch-cur"
         />
         <ScenarioColumn
-          title="APT"
-          arcs={aptArcs}
-          computed={aptC}
-          marketEdge={aptP.marketEdge}
-          hatchId="hatch-apt"
+          title="Posit"
+          arcs={positArcs}
+          computed={positC}
+          marketEdge={positP.marketEdge}
+          hatchId="hatch-posit"
         />
       </div>
 
@@ -547,7 +547,7 @@ export function TradingPnlSlide() {
 
         <div className="flex flex-col items-center gap-0.5 px-6 border-x border-muted">
           <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
-            APT Uplift
+            Posit Uplift
           </span>
           <span className="font-mono text-2xl font-bold" style={{ color: delta >= 0 ? COLORS.retainedShortTerm : COLORS.negative }}>
             {delta >= 0 ? "+" : ""}{formatDollars(delta)}
@@ -559,10 +559,10 @@ export function TradingPnlSlide() {
 
         <div className="flex flex-col gap-0.5 items-end">
           <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
-            With APT PnL
+            With Posit PnL
           </span>
-          <span className="font-mono text-lg font-bold" style={{ color: aptC.annualPnl >= 0 ? COLORS.retainedShortTerm : COLORS.negative }}>
-            {formatDollars(aptC.annualPnl)}
+          <span className="font-mono text-lg font-bold" style={{ color: positC.annualPnl >= 0 ? COLORS.retainedShortTerm : COLORS.negative }}>
+            {formatDollars(positC.annualPnl)}
           </span>
         </div>
       </div>
@@ -570,9 +570,9 @@ export function TradingPnlSlide() {
       {/* Shared collapsible parameters */}
       <ParamComparisonTable
         curStrings={curStrings}
-        aptStrings={aptStrings}
+        positStrings={positStrings}
         onCurChange={curSet}
-        onAptChange={aptSet}
+        onPositChange={positSet}
       />
 
       {/* Shared legend */}
@@ -612,20 +612,20 @@ export function TradingPnlSlide() {
 
 function ParamComparisonTable({
   curStrings,
-  aptStrings,
+  positStrings,
   onCurChange,
-  onAptChange,
+  onPositChange,
 }: {
   curStrings: ParamStrings;
-  aptStrings: ParamStrings;
+  positStrings: ParamStrings;
   onCurChange: (key: keyof ParamStrings, val: string) => void;
-  onAptChange: (key: keyof ParamStrings, val: string) => void;
+  onPositChange: (key: keyof ParamStrings, val: string) => void;
 }) {
   const [open, setOpen] = useState(false);
 
   const sharedSet = (key: keyof ParamStrings, val: string) => {
     onCurChange(key, val);
-    onAptChange(key, val);
+    onPositChange(key, val);
   };
 
   const TH = "px-2 py-1.5 text-[10px] text-muted-foreground uppercase tracking-wider font-medium text-left";
@@ -673,7 +673,7 @@ function ParamComparisonTable({
               <tr className="border-b border-muted/40">
                 <th className={TH} style={{ width: "32%" }} />
                 <th className={`${TH} text-center`} style={{ width: "26%" }}>Current</th>
-                <th className={`${TH} text-center`} style={{ width: "26%" }}>APT</th>
+                <th className={`${TH} text-center`} style={{ width: "26%" }}>Posit</th>
                 <th className={`${TH} text-center`} style={{ width: "16%" }}>Diff</th>
               </tr>
             </thead>
@@ -685,8 +685,8 @@ function ParamComparisonTable({
                   );
                 }
                 const curVal = parseNum(curStrings[row.key]);
-                const aptVal = parseNum(aptStrings[row.key]);
-                const diff = aptVal - curVal;
+                const positVal = parseNum(positStrings[row.key]);
+                const diff = positVal - curVal;
                 const diffColor = row.shared ? "text-muted-foreground/50" : diff > 0 ? "text-emerald-400" : diff < 0 ? "text-red-400" : "text-muted-foreground/50";
                 const diffStr = row.shared ? "—" : row.prefix === "$" ? formatDollars(diff) : `${diff >= 0 ? "+" : ""}${diff}`;
                 return (
@@ -708,8 +708,8 @@ function ParamComparisonTable({
                           step={row.step} allowNeg={row.allowNeg}
                         />
                         <Cell
-                          value={aptStrings[row.key]}
-                          onChange={(v) => onAptChange(row.key, v)}
+                          value={positStrings[row.key]}
+                          onChange={(v) => onPositChange(row.key, v)}
                           prefix={row.prefix} suffix={row.suffix}
                           step={row.step} allowNeg={row.allowNeg}
                         />

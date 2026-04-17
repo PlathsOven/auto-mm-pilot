@@ -1,13 +1,13 @@
-# APT — Automated Positional Trader
+# Posit — a positional trading platform
 
-APT is an advisory trading terminal for crypto options market-making desks. It ingests configurable data streams, runs a proprietary pricing pipeline, and streams a recommended desired position (plus LLM-generated explanations) to the trader in real time.
+Posit is an advisory trading terminal for crypto options market-making desks. It ingests configurable data streams, runs a proprietary pricing pipeline, and streams a recommended desired position (plus LLM-generated explanations) to the trader in real time.
 
 - **Product theory** (Edge × Bankroll / Variance, stream epistemology, pipeline): [`docs/product.md`](docs/product.md)
 - **System map** (client/server barrier, lanes, Key Files table): [`docs/architecture.md`](docs/architecture.md)
 - **Component status** (PROD / MOCK / STUB / OFF per subsystem): [`docs/stack-status.md`](docs/stack-status.md)
 - **User flows** (trader + operator personas): [`docs/user-journey.md`](docs/user-journey.md)
 
-This file is the **operator's guide** — everything needed to run APT locally or deploy it to production. It does not cover how the engine thinks; that lives in `docs/product.md`.
+This file is the **operator's guide** — everything needed to run Posit locally or deploy it to production. It does not cover how the engine thinks; that lives in `docs/product.md`.
 
 ---
 
@@ -41,11 +41,11 @@ Create a `.env` file at the repo root:
 
 ```
 OPENROUTER_API_KEY=sk-or-v1-your-key-here
-APT_MODE=mock
+POSIT_MODE=mock
 ```
 
-- `APT_MODE=mock` runs the pipeline on built-in scenario data. Use this for local development.
-- `APT_MODE=prod` expects live data streams via the (not-yet-built) universal adapter. See `docs/stack-status.md` for current component status.
+- `POSIT_MODE=mock` runs the pipeline on built-in scenario data. Use this for local development.
+- `POSIT_MODE=prod` expects live data streams via the (not-yet-built) universal adapter. See `docs/stack-status.md` for current component status.
 - Optionally override LLM routing: `OPENROUTER_INVESTIGATION_MODELS=anthropic/claude-sonnet-4,openai/gpt-4.1`
 
 ### Run
@@ -97,16 +97,16 @@ Railway runs the FastAPI backend as a persistent process with WebSocket support.
 3. Under **Variables**, add:
    ```
    OPENROUTER_API_KEY=sk-or-v1-your-actual-key
-   APT_MODE=mock
+   POSIT_MODE=mock
    ```
-   Set `APT_MODE=prod` when live data is available. Optional model overrides:
+   Set `POSIT_MODE=prod` when live data is available. Optional model overrides:
    ```
    OPENROUTER_INVESTIGATION_MODELS=anthropic/claude-sonnet-4,openai/gpt-4.1
    ```
 
 **1.4 Generate a public URL.**
 1. Under **Settings → Networking**, click **Generate Domain**.
-2. Railway will assign something like `apt-server-production.up.railway.app`.
+2. Railway will assign something like `posit-server-production.up.railway.app`.
 3. Copy this URL — you'll need it for the client deployment.
 
 **1.5 Verify.**
@@ -132,7 +132,7 @@ Vercel serves the React SPA as a static site.
 ```
 VITE_API_BASE = https://<your-railway-domain>
 ```
-For example: `VITE_API_BASE = https://apt-server-production.up.railway.app`. **No trailing slash.**
+For example: `VITE_API_BASE = https://posit-server-production.up.railway.app`. **No trailing slash.**
 
 **2.4 Deploy.** Click **Deploy**. Vercel builds the SPA and returns a URL like `https://auto-mm-pilot-client.vercel.app`.
 
@@ -184,7 +184,7 @@ allow_origins=["https://your-app.vercel.app"]
 - Production: confirm the variable is set in Railway's **Variables** tab and the service has been redeployed since adding it.
 
 **Pipeline empty on startup in local dev.**
-- Confirm `APT_MODE=mock` is set. In production with no adapter yet, `APT_MODE=prod` will produce an empty pipeline — switch to `mock` until adapters are wired.
+- Confirm `POSIT_MODE=mock` is set. In production with no adapter yet, `POSIT_MODE=prod` will produce an empty pipeline — switch to `mock` until adapters are wired.
 - `server/api/llm/context_db.py` is currently MOCK-initialized with hardcoded stream metadata (see `docs/stack-status.md`). This is expected.
 
 **Railway domain not generating / blank page.**

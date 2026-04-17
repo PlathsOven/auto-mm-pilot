@@ -73,12 +73,12 @@ export function DataSecuritySlide() {
   return (
     <div className="flex flex-col items-center gap-4 w-full max-w-2xl mx-auto">
       <p className="text-muted-foreground text-sm leading-relaxed text-center max-w-lg">
-        APT is delivered as a <strong className="text-foreground">compiled Docker container</strong> deployed
+        Posit is delivered as a <strong className="text-foreground">compiled Docker container</strong> deployed
         entirely within the firm&apos;s VPC. All security gates are vendor-provided
         but <strong className="text-foreground">fully auditable</strong> by the firm&apos;s engineering team.
       </p>
 
-      {/* ── Main layout: VPC with egress anchored to APT ── */}
+      {/* ── Main layout: VPC with egress anchored to Posit ── */}
       <div className="w-full pr-56">
         <div
           className="rounded-2xl border-2 border-dashed p-4 pt-6 flex flex-col items-center gap-0 relative overflow-visible"
@@ -102,7 +102,7 @@ export function DataSecuritySlide() {
           {/* 1 · Data Streams — firm-owned, visible → firm colour, no fill */}
           <FirmCard title="Data Streams" />
 
-          {/* 2 · APT — vendor-owned, PROTECTED → vendor colour, DARK fill */}
+          {/* 2 · Posit — vendor-owned, PROTECTED → vendor colour, DARK fill */}
           {/* Egress arrow is absolutely positioned from this wrapper */}
           <div className="flex flex-col items-center gap-0 py-0.5 w-full relative">
             <div className="h-3 w-px" style={{ backgroundColor: `${C.vendor}30` }} />
@@ -131,12 +131,12 @@ export function DataSecuritySlide() {
                 className="text-[10px] font-semibold uppercase tracking-wider"
                 style={{ color: C.vendor }}
               >
-                APT
+                Posit
               </span>
             </div>
             <div className="h-3 w-px" style={{ backgroundColor: `${C.vendor}30` }} />
 
-            {/* ── Egress arrow originating from APT ── */}
+            {/* ── Egress arrow originating from Posit ── */}
             <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full flex items-center gap-0 pl-0">
               {/* Line out */}
               <div className="h-px w-4" style={{ backgroundColor: `${C.egress}40` }} />

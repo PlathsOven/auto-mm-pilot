@@ -11,7 +11,7 @@ import { ArrowRight } from "lucide-react";
 interface Row {
   feature: string;
   traderSkill: string;
-  aptLogic: string;
+  positLogic: string;
   corporateIp: string;
 }
 
@@ -19,19 +19,19 @@ const TABLE_ROWS: Row[] = [
   {
     feature: "Ownership",
     traderSkill: "Stays with the trader.",
-    aptLogic: "Stays with the APT external vendor.",
+    positLogic: "Stays with the Posit external vendor.",
     corporateIp: "Stays with the company.",
   },
   {
     feature: "Transferability",
     traderSkill: "Traders take their skill to their next job.",
-    aptLogic: "Vendor retains logic across engagements.",
+    positLogic: "Vendor retains logic across engagements.",
     corporateIp: "Owned solely by the company.",
   },
   {
     feature: "Legal Protection",
     traderSkill: "Generally unprotected (Freedom to work).",
-    aptLogic: "Protected as vendor trade secrets.",
+    positLogic: "Protected as vendor trade secrets.",
     corporateIp: "Protected by patents, copyrights, contracts, etc.",
   },
 ];
@@ -46,7 +46,7 @@ const CORPORATE_IP_ITEMS = [
 const C = {
   skill: "#a78bfa",
   corporate: "#22c55e",
-  apt: "#f59e0b",
+  posit: "#f59e0b",
 };
 
 // ============================================================
@@ -54,18 +54,18 @@ const C = {
 // ============================================================
 
 export function IntellectualPropertySlide() {
-  const [showApt, setShowApt] = useState(false);
+  const [showPosit, setShowPosit] = useState(false);
 
-  const middleLabel = showApt ? "APT Logic" : "Trader Skill";
-  const middleColor = showApt ? C.apt : C.skill;
+  const middleLabel = showPosit ? "Posit Logic" : "Trader Skill";
+  const middleColor = showPosit ? C.posit : C.skill;
 
   return (
     <div className="flex flex-col items-center gap-8 w-full max-w-2xl mx-auto">
       {/* Intro */}
       <p className="text-muted-foreground text-sm leading-relaxed text-center max-w-lg">
         A trader&apos;s skill is <em>not</em> corporate IP&nbsp;&mdash; it walks
-        out the door when they leave. APT&apos;s internal logic is no different.
-        But APT also <strong className="text-foreground">converts</strong> that
+        out the door when they leave. Posit&apos;s internal logic is no different.
+        But Posit also <strong className="text-foreground">converts</strong> that
         skill into lasting corporate IP.
       </p>
 
@@ -73,27 +73,27 @@ export function IntellectualPropertySlide() {
       <div className="flex items-center gap-3 justify-center">
         <span
           className="text-xs font-medium transition-colors"
-          style={{ color: showApt ? "var(--muted-foreground)" : C.skill }}
+          style={{ color: showPosit ? "var(--muted-foreground)" : C.skill }}
         >
           Trader Skill
         </span>
         <button
-          onClick={() => setShowApt(!showApt)}
+          onClick={() => setShowPosit(!showPosit)}
           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-            showApt ? "bg-[var(--brand)]" : "bg-muted-foreground/30"
+            showPosit ? "bg-[var(--brand)]" : "bg-muted-foreground/30"
           }`}
         >
           <span
             className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-              showApt ? "translate-x-6" : "translate-x-1"
+              showPosit ? "translate-x-6" : "translate-x-1"
             }`}
           />
         </button>
         <span
           className="text-xs font-medium transition-colors"
-          style={{ color: showApt ? C.apt : "var(--muted-foreground)" }}
+          style={{ color: showPosit ? C.posit : "var(--muted-foreground)" }}
         >
-          APT Logic
+          Posit Logic
         </span>
       </div>
 
@@ -140,14 +140,14 @@ export function IntellectualPropertySlide() {
             <div className="px-4 py-3 text-xs text-foreground/80 border-l border-muted">
               <AnimatePresence mode="wait">
                 <motion.span
-                  key={showApt ? "apt" : "trader"}
+                  key={showPosit ? "posit" : "trader"}
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
                   transition={{ duration: 0.2 }}
                   className="block"
                 >
-                  {showApt ? row.aptLogic : row.traderSkill}
+                  {showPosit ? row.positLogic : row.traderSkill}
                 </motion.span>
               </AnimatePresence>
             </div>
@@ -158,7 +158,7 @@ export function IntellectualPropertySlide() {
         ))}
       </div>
 
-      {/* ── Arrow: Trader Skill / APT Logic → Corporate IP ── */}
+      {/* ── Arrow: Trader Skill / Posit Logic → Corporate IP ── */}
       <div className="w-full flex flex-col items-center gap-4 pt-2">
         {/* Arrow row */}
         <div className="flex items-center justify-center gap-4 w-full max-w-md">
@@ -186,20 +186,20 @@ export function IntellectualPropertySlide() {
 
           {/* Arrow */}
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
-            <div className="h-px flex-1" style={{ backgroundColor: `${C.apt}50` }} />
+            <div className="h-px flex-1" style={{ backgroundColor: `${C.posit}50` }} />
             <div
               className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap"
               style={{
-                color: C.apt,
-                backgroundColor: `${C.apt}15`,
-                border: `1px solid ${C.apt}30`,
+                color: C.posit,
+                backgroundColor: `${C.posit}15`,
+                border: `1px solid ${C.posit}30`,
               }}
             >
-              APT
+              Posit
             </div>
             <div className="flex items-center gap-0">
-              <div className="h-px w-4" style={{ backgroundColor: `${C.apt}50` }} />
-              <ArrowRight className="h-4 w-4" style={{ color: `${C.apt}80` }} />
+              <div className="h-px w-4" style={{ backgroundColor: `${C.posit}50` }} />
+              <ArrowRight className="h-4 w-4" style={{ color: `${C.posit}80` }} />
             </div>
           </div>
 
@@ -220,22 +220,22 @@ export function IntellectualPropertySlide() {
         <div
           className="rounded-xl border p-4 w-full max-w-md"
           style={{
-            borderColor: `${C.apt}30`,
-            backgroundColor: `${C.apt}06`,
+            borderColor: `${C.posit}30`,
+            backgroundColor: `${C.posit}06`,
           }}
         >
           <span
             className="text-[10px] font-semibold uppercase tracking-wider block text-center mb-3"
-            style={{ color: C.apt }}
+            style={{ color: C.posit }}
           >
-            APT Institutionalises Knowledge
+            Posit Institutionalises Knowledge
           </span>
           <div className="flex flex-col gap-2">
             {CORPORATE_IP_ITEMS.map((item) => (
               <div key={item} className="flex items-center gap-2 text-xs text-foreground/80">
                 <div
                   className="h-1.5 w-1.5 rounded-full shrink-0"
-                  style={{ backgroundColor: C.apt }}
+                  style={{ backgroundColor: C.posit }}
                 />
                 {item}
               </div>

@@ -25,7 +25,21 @@ interface Props {
   templateId: string | null;
 }
 
-const WALK_THROUGH_KEY = "apt.studio.walkthrough";
+const WALK_THROUGH_KEY = "posit.studio.walkthrough";
+const LEGACY_WALK_THROUGH_KEY = "apt.studio.walkthrough";
+
+function migrateLegacyWalkThroughKey(): void {
+  try {
+    const legacy = localStorage.getItem(LEGACY_WALK_THROUGH_KEY);
+    if (legacy === null) return;
+    if (localStorage.getItem(WALK_THROUGH_KEY) === null) {
+      localStorage.setItem(WALK_THROUGH_KEY, legacy);
+    }
+    localStorage.removeItem(LEGACY_WALK_THROUGH_KEY);
+  } catch {
+    // ignore
+  }
+}
 
 /**
  * The Studio Stream Canvas. Hosts all 7 sections.
@@ -40,6 +54,7 @@ export function StreamCanvas({ streamName, templateId }: Props) {
   const [draft, setDraft] = useState<StreamDraft>(() => initialDraft(streamName, templateId));
   const [pendingStreamName, setPendingStreamName] = useState<string | null>(streamName);
   const [walkThrough, setWalkThrough] = useState(() => {
+    migrateLegacyWalkThroughKey();
     try {
       const v = localStorage.getItem(WALK_THROUGH_KEY);
       return v === null ? true : v === "true";

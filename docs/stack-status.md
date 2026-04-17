@@ -1,4 +1,4 @@
-# Auto-MM-Pilot — Stack Component Registry
+# Posit — Stack Component Registry
 
 > **Purpose:** Single source of truth for which components are production-ready,
 > which are mocked, and how they connect. Update this file whenever a component
@@ -48,7 +48,7 @@
 | **Layout Provider** | `client/ui/src/providers/LayoutProvider.tsx` | `PROD` | — | Panel state, localStorage persistence |
 | **WebSocket Provider** | `client/ui/src/providers/WebSocketProvider.tsx` | `PROD` | Server WS `/ws` endpoint | Connects to real pipeline WS, auto-reconnects |
 | ~~Mock Data Generator~~ | ~~`client/ui/src/providers/MockDataProvider.ts`~~ | — | — | Deleted — remaining mock seeds inlined where needed |
-| **Chat Provider** | `client/ui/src/providers/ChatProvider.tsx` | `PROD` | LLM API Client | Routes @APT to server `/api/investigate` (SSE stream) |
+| **Chat Provider** | `client/ui/src/providers/ChatProvider.tsx` | `PROD` | LLM API Client | Routes @Posit to server `/api/investigate` (SSE stream) |
 | **LLM API Client** | `client/ui/src/services/llmApi.ts` | `PROD` | FastAPI App | HTTP client for `/api/investigate` |
 | **Desired Position Grid** | `client/ui/src/components/DesiredPositionGrid.tsx` | `PROD` | WebSocket Provider, Chat Provider | Zone C — clickable cells push context |
 | **Updates Feed** | `client/ui/src/components/UpdatesFeed.tsx` | `PROD` | WebSocket Provider | Zone D — position-change cards with stream attribution |
@@ -78,7 +78,7 @@
 │  │ DesiredPos   │    │ UpdatesFeed  │    │ LlmChat      │   │
 │  │ Grid (C)     │    │ (D)          │    │ (E)          │   │
 │  └──────┬───────┘    └──────────────┘    └──────┬───────┘   │
-│         │ click ctx                             │ @APT msg  │
+│         │ click ctx                             │ @Posit msg│
 │         ▼                                       ▼           │
 │  ┌──────────────┐                        ┌──────────────┐   │
 │  │ ChatProvider │                        │ ChatProvider │   │

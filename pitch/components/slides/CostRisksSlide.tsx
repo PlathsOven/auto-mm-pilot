@@ -8,58 +8,58 @@ import { Check, X } from "lucide-react";
 
 interface Row {
   dimension: string;
-  apt: string;
+  posit: string;
   trader: string;
-  winner: "apt" | "trader" | "draw";
+  winner: "posit" | "trader" | "draw";
 }
 
 const TABLE_ROWS: Row[] = [
   {
     dimension: "Annual Cost",
-    apt: "Fixed licensing cost",
+    posit: "Fixed licensing cost",
     trader: "YoY salary increases",
-    winner: "apt",
+    winner: "posit",
   },
   {
     dimension: "Profit share",
-    apt: "No",
+    posit: "No",
     trader: "Yes",
-    winner: "apt",
+    winner: "posit",
   },
   {
     dimension: "Fixed Cost",
-    apt: "Custom-built for free",
+    posit: "Custom-built for free",
     trader: "Signing bonuses",
-    winner: "apt",
+    winner: "posit",
   },
   {
     dimension: "Integration",
-    apt: "Simple technical integration only",
+    posit: "Simple technical integration only",
     trader: "3m training required",
-    winner: "apt",
+    winner: "posit",
   },
   {
     dimension: "Error risks",
-    apt: "Glitches",
+    posit: "Glitches",
     trader: "Fat fingers",
     winner: "draw",
   },
   {
     dimension: "Dependency risk",
-    apt: "Shutdown = Replacement trader",
+    posit: "Shutdown = Replacement trader",
     trader: "Termination = Replacement trader",
     winner: "draw",
   },
   {
     dimension: "Start time",
-    apt: "2m to first iteration",
+    posit: "2m to first iteration",
     trader: "Notice period (3m) + Non-compete (12m)",
-    winner: "apt",
+    winner: "posit",
   },
 ];
 
 const C = {
-  apt: "#f59e0b",
+  posit: "#f59e0b",
   trader: "#a78bfa",
   good: "#22c55e",
   bad: "#ef4444",
@@ -75,7 +75,7 @@ export function CostRisksSlide() {
       {/* Intro */}
       <p className="text-muted-foreground text-sm leading-relaxed text-center max-w-lg">
         A side-by-side comparison of the total cost and operational risk of
-        running APT versus employing a human trader.
+        running Posit versus employing a human trader.
       </p>
 
       {/* ── Comparison Table ── */}
@@ -85,9 +85,9 @@ export function CostRisksSlide() {
           <div className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground" />
           <div
             className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider border-l border-muted"
-            style={{ color: C.apt }}
+            style={{ color: C.posit }}
           >
-            APT
+            Posit
           </div>
           <div
             className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider border-l border-muted"
@@ -111,16 +111,16 @@ export function CostRisksSlide() {
             <div
               className="px-4 py-3 text-xs border-l border-muted flex items-start gap-2"
               style={{
-                color: row.winner === "apt" ? C.good : "var(--foreground)",
-                opacity: row.winner === "apt" ? 1 : 0.7,
+                color: row.winner === "posit" ? C.good : "var(--foreground)",
+                opacity: row.winner === "posit" ? 1 : 0.7,
               }}
             >
-              {row.winner === "apt" ? (
+              {row.winner === "posit" ? (
                 <Check className="h-3.5 w-3.5 shrink-0 mt-px" style={{ color: C.good }} />
               ) : (
                 <X className="h-3.5 w-3.5 shrink-0 mt-px" style={{ color: C.bad }} />
               )}
-              <span>{row.apt}</span>
+              <span>{row.posit}</span>
             </div>
             <div
               className="px-4 py-3 text-xs border-l border-muted flex items-start gap-2"
@@ -144,7 +144,7 @@ export function CostRisksSlide() {
       <div className="flex items-center gap-3 text-muted-foreground w-full">
         <div className="h-px flex-1 bg-muted" />
         <span className="text-[10px] uppercase tracking-widest whitespace-nowrap">
-          APT is strictly better on cost &amp; comparable on risk
+          Posit is strictly better on cost &amp; comparable on risk
         </span>
         <div className="h-px flex-1 bg-muted" />
       </div>

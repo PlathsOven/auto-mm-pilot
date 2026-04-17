@@ -53,7 +53,7 @@ export function nextKey(): number {
 // Defaults
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_HEADERS = ["timestamp", "symbol", "expiry", "raw_value", "market_price"];
+export const DEFAULT_HEADERS = ["timestamp", "symbol", "expiry", "raw_value", "market_value"];
 
 export function emptyRow(headers: string[]): SnapshotRowDraft {
   const row: SnapshotRowDraft = { _key: nextKey() };
@@ -85,7 +85,7 @@ export const EMPTY_DRAFT: Draft = {
       symbol: "BTC",
       expiry: "27MAR26",
       raw_value: "0.74",
-      market_price: "",
+      market_value: "",
     },
   ],
 };
@@ -105,7 +105,7 @@ export function draftFromBlock(b: BlockRow): Draft {
     symbol: b.symbol,
     expiry: b.expiry,
     raw_value: String(b.raw_value),
-    market_price: b.market_price != null ? String(b.market_price) : "",
+    market_value: b.market_value != null ? String(b.market_value) : "",
   };
   return {
     stream_name: b.stream_name,

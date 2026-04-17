@@ -1,7 +1,7 @@
 # Spec: Domain Knowledge Feedback Loop
 
 ## Overview
-The APT LLM frequently gets domain-specific facts wrong (e.g., explaining variance as "accounting for nonlinearity" instead of "variance is summative, vol is not"). Corrections the trader makes in conversation are lost between sessions. This feature automatically detects when the trader corrects the LLM, extracts the correction into a persistent knowledge base, and injects that knowledge into all future prompts — so the same mistake is never repeated.
+The Posit LLM frequently gets domain-specific facts wrong (e.g., explaining variance as "accounting for nonlinearity" instead of "variance is summative, vol is not"). Corrections the trader makes in conversation are lost between sessions. This feature automatically detects when the trader corrects the LLM, extracts the correction into a persistent knowledge base, and injects that knowledge into all future prompts — so the same mistake is never repeated.
 
 ## Requirements
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────────
-# APT — Start all required services
+# Posit — Start all required services
 #
 # Services:
 #   1. FastAPI backend   (server/api)  → http://localhost:8001
@@ -9,7 +9,7 @@
 # Usage:
 #   ./start.sh          Start all services (mock pipeline data)
 #   ./start.sh --prod   Start all services (prod mode — waits for API data)
-#   ./start.sh --stop   Kill any running APT services on known ports
+#   ./start.sh --stop   Kill any running Posit services on known ports
 # ──────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -26,9 +26,9 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # ── Mode selection ────────────────────────────────────────────
-APT_MODE="mock"
+POSIT_MODE="mock"
 if [[ "${1:-}" == "--prod" ]]; then
-  APT_MODE="prod"
+  POSIT_MODE="prod"
   shift
 fi
 
@@ -50,7 +50,7 @@ trap cleanup SIGINT SIGTERM
 
 # --stop flag: kill anything on known ports
 if [[ "${1:-}" == "--stop" ]]; then
-  echo -e "${YELLOW}Stopping APT services…${NC}"
+  echo -e "${YELLOW}Stopping Posit services…${NC}"
   for port in 8001 5174; do
     pid=$(lsof -ti :"$port" 2>/dev/null || true)
     if [[ -n "$pid" ]]; then
@@ -90,7 +90,7 @@ echo ""
 
 # FastAPI backend
 echo -e "  ${GREEN}▶${NC} FastAPI backend  → http://localhost:8001"
-APT_MODE="$APT_MODE" PYTHONPATH="$ROOT_DIR" "$VENV_DIR/bin/uvicorn" server.api.main:app \
+POSIT_MODE="$POSIT_MODE" PYTHONPATH="$ROOT_DIR" "$VENV_DIR/bin/uvicorn" server.api.main:app \
   --host 0.0.0.0 --port 8001 --reload \
   > "$LOG_DIR/server.log" 2>&1 &
 PIDS+=($!)
@@ -105,7 +105,7 @@ PIDS+=($!)
 sleep 2
 echo ""
 echo -e "${GREEN}══════════════════════════════════════════════${NC}"
-echo -e "${GREEN}  APT is running  (mode: ${APT_MODE})${NC}"
+echo -e "${GREEN}  Posit is running  (mode: ${POSIT_MODE})${NC}"
 echo -e "${GREEN}══════════════════════════════════════════════${NC}"
 echo -e "  Backend:  ${CYAN}http://localhost:8001${NC}"
 echo -e "  Client:   ${CYAN}http://localhost:5174${NC}"

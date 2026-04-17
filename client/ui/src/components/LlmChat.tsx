@@ -65,7 +65,7 @@ export function LlmChat() {
     <div className="flex h-full flex-col p-4">
       <div className="mb-3 flex items-center justify-between border-b border-black/[0.06] pb-2">
         <div className="flex items-baseline gap-2">
-          <h2 className="zone-header">APT Chat</h2>
+          <h2 className="zone-header">Posit Chat</h2>
           <span className="text-[9px] text-mm-text-subtle">Ask the engine anything</span>
         </div>
         <select
@@ -83,7 +83,7 @@ export function LlmChat() {
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         {messages.length === 0 && (
           <p className="text-xs text-mm-text-dim">
-            Ask <span className="font-semibold text-mm-accent">APT</span> about positions, edges, or pipeline state.
+            Ask <span className="font-semibold text-mm-accent">Posit</span> about positions, edges, or pipeline state.
           </p>
         )}
 
@@ -99,13 +99,13 @@ export function LlmChat() {
             );
           }
 
-          const isApt = msg.role === "assistant";
+          const isPosit = msg.role === "assistant";
 
           return (
             <div
               key={msg.id}
               className={`rounded-lg px-3 py-2 text-xs leading-relaxed ${
-                isApt
+                isPosit
                   ? "border-l-2 border-mm-accent/40 bg-mm-accent/[0.04]"
                   : "bg-black/[0.03]"
               }`}
@@ -113,24 +113,24 @@ export function LlmChat() {
               <div className="mb-1 flex items-center gap-1.5">
                 <span
                   className={`flex h-4 w-4 items-center justify-center rounded-full text-[7px] font-bold ${
-                    isApt
+                    isPosit
                       ? "bg-mm-accent/10 text-mm-accent"
                       : "bg-mm-accent/10 text-mm-accent"
                   }`}
                 >
-                  {isApt ? "AI" : "U"}
+                  {isPosit ? "AI" : "U"}
                 </span>
                 <span
                   className={`text-[10px] font-semibold ${
-                    isApt ? "text-mm-accent" : "text-mm-text"
+                    isPosit ? "text-mm-accent" : "text-mm-text"
                   }`}
                 >
-                  {isApt ? "APT" : "You"}
+                  {isPosit ? "Posit" : "You"}
                 </span>
               </div>
-              {isApt ? (
+              {isPosit ? (
                 msg.content ? (
-                  <div className="prose-apt text-mm-text">
+                  <div className="prose-posit text-mm-text">
                     <Markdown>{msg.content}</Markdown>
                   </div>
                 ) : isStreaming ? (
@@ -163,7 +163,7 @@ export function LlmChat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={investigation ? "Ask about this context..." : "Ask APT anything..."}
+          placeholder={investigation ? "Ask about this context..." : "Ask Posit anything..."}
           rows={1}
           className="flex-1 resize-none rounded-lg border border-black/[0.08] bg-mm-surface-solid px-3 py-2 text-xs leading-relaxed text-mm-text outline-none placeholder:text-mm-text-subtle transition-colors focus:border-mm-accent/30 focus:ring-1 focus:ring-mm-accent/15"
         />
@@ -190,7 +190,7 @@ export function LlmChat() {
 
 function ThinkingDots() {
   return (
-    <div className="flex items-center gap-1 py-1" aria-label="APT is thinking">
+    <div className="flex items-center gap-1 py-1" aria-label="Posit is thinking">
       <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-mm-accent/60 [animation-delay:-0.3s]" />
       <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-mm-accent/60 [animation-delay:-0.15s]" />
       <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-mm-accent/60" />

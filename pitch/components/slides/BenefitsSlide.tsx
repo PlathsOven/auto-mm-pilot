@@ -57,7 +57,7 @@ const BENEFITS: BenefitCard[] = [
     header: "Built for Gravity Team",
     icon: <Users className="h-5 w-5" />,
     points: [
-      "First to access APT",
+      "First to access Posit",
       "Shape development direction",
     ],
   },
@@ -71,7 +71,7 @@ export function BenefitsSlide() {
   return (
     <div className="flex flex-col items-center gap-8 w-full max-w-3xl mx-auto">
       <p className="text-muted-foreground text-sm leading-relaxed text-center max-w-lg">
-        Key advantages APT delivers to Gravity Team over conventional
+        Key advantages Posit delivers to Gravity Team over conventional
         staffing.
       </p>
 

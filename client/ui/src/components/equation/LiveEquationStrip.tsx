@@ -4,7 +4,7 @@ import { useActivePositionSizing } from "../../hooks/useActivePositionSizing";
 import { CANONICAL_GLYPH, renderFormula } from "./formulaTemplates";
 
 /**
- * Three-size renderer for the canonical APT equation.
+ * Three-size renderer for the canonical Posit equation.
  *
  * - `xs` — top-bar glyph. Always shows the canonical "P = E·B / V" regardless
  *   of which sizing rule is active. The symbolic anchor for the framework.
@@ -41,7 +41,7 @@ function XsGlyph({ onClick }: { onClick?: () => void }) {
   const content = (
     <span
       className="font-medium tracking-wide text-mm-accent/80"
-      title="APT canonical form: Position = Edge × Bankroll / Variance"
+      title="Posit canonical form: Position = Edge × Bankroll / Variance"
     >
       {CANONICAL_GLYPH}
     </span>

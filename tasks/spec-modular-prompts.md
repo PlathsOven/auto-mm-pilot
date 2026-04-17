@@ -32,7 +32,7 @@ Replace the monolithic investigation prompt with a modular prompt system where t
 
 ## Technical Approach
 
-The prompt system becomes a composition pipeline: **shared core + mode extension + mode-specific data.** The shared core contains the APT framework, language rules, and hard constraints — stated once, no duplication. Each mode extension adds role-specific instructions and reasoning protocols. Data injection is mode-aware: investigation injects engine state + pipeline + history; configure injects stream registry + parameter schemas; opinion injects block API + current positions; general injects minimal engine summary.
+The prompt system becomes a composition pipeline: **shared core + mode extension + mode-specific data.** The shared core contains the Posit framework, language rules, and hard constraints — stated once, no duplication. Each mode extension adds role-specific instructions and reasoning protocols. Data injection is mode-aware: investigation injects engine state + pipeline + history; configure injects stream registry + parameter schemas; opinion injects block API + current positions; general injects minimal engine summary.
 
 The client already knows the trader's intent from the UI context (clicked a grid cell = investigate, opened stream config = configure, etc.) and sends it explicitly. The LLM is instructed to flag mismatched intent rather than silently switching modes.
 
@@ -62,7 +62,7 @@ server/api/llm/prompts/
 
 The shared core consolidates into these sections, each stated exactly once:
 
-1. **Role** — "You are the intelligence layer of APT..." (3 sentences)
+1. **Role** — "You are the intelligence layer of Posit..." (3 sentences)
 2. **Framework** — Edge x Bankroll / Variance equation, signal synthesis, time & impact (current preamble sections A/B/C, trimmed)
 3. **Parameter mapping** — current preamble parameter mapping section (kept — useful for parameter questions)
 4. **Language rules** — directional neutrality, "desired position", epistemology over mechanics, plain vocabulary, numbers, vol-is-not-a-risk, forbidden jargon (merged from preamble + investigation, stated once)

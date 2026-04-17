@@ -185,7 +185,7 @@ cleans up the metadata. Today, deleted manual blocks leak.
 
 **File:** `server/api/config.py`
 
-Add these constants (below the existing ones, e.g. after `APT_MODE` on
+Add these constants (below the existing ones, e.g. after `POSIT_MODE` on
 line 57):
 
 ```python
@@ -213,10 +213,10 @@ OPENROUTER_STREAM_TIMEOUT_SECS: float = 60.0
 Delete lines 29 and 32 (the two constants). Replace with imports:
 
 ```python
-from server.api.config import APT_MODE, TICK_INTERVAL_SECS, UPDATE_THRESHOLD
+from server.api.config import POSIT_MODE, TICK_INTERVAL_SECS, UPDATE_THRESHOLD
 ```
 
-(Replace the existing `from server.api.config import APT_MODE` on line 23.)
+(Replace the existing `from server.api.config import POSIT_MODE` on line 23.)
 
 **File:** `server/api/llm/client.py`
 

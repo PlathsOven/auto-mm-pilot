@@ -4,9 +4,9 @@ Who uses this product, what they do with it, and what must never break.
 
 ## Background
 
-The first APT customer is the head of the crypto options market-making desk at a mid-sized crypto trading firm. He comes from a quant background — technically sophisticated, fluent in math and vol surfaces — but has never been a positional trader. He wanted to hire a senior trader to manage leftover positions after the desk's short-term alphas, because 24/7 coverage of the crypto cycle is unsustainable for one person. APT is the automated version of that trader.
+The first Posit customer is the head of the crypto options market-making desk at a mid-sized crypto trading firm. He comes from a quant background — technically sophisticated, fluent in math and vol surfaces — but has never been a positional trader. He wanted to hire a senior trader to manage leftover positions after the desk's short-term alphas, because 24/7 coverage of the crypto cycle is unsustainable for one person. Posit is the automated version of that trader.
 
-APT does not trade for him. It provides the **framework** by which a positional trader thinks — Edge × Bankroll / Variance — and gives him the platform to feed data and opinions into that framework. Over time, using APT teaches the customer to reason about positions the way a senior trader would: which streams are driving edge, how variance tempers sizing, and why a position changed overnight while he was asleep.
+Posit does not trade for him. It provides the **framework** by which a positional trader thinks — Edge × Bankroll / Variance — and gives him the platform to feed data and opinions into that framework. Over time, using Posit teaches the customer to reason about positions the way a senior trader would: which streams are driving edge, how variance tempers sizing, and why a position changed overnight while he was asleep.
 
 ## Personas
 
@@ -34,13 +34,13 @@ APT does not trade for him. It provides the **framework** by which a positional 
 
 ### Flow 1: Steady-State Monitoring (primary — the 24/7 value)
 
-This is the daily loop. The customer opens APT, sees where his positions should be, and acts.
+This is the daily loop. The customer opens Posit, sees where his positions should be, and acts.
 
 1. **Connect.** Opens terminal → WS handshake to `/ws` → desired position grid populates live → updates feed shows tick-by-tick changes with stream attribution.
 2. **Notice a change.** A desired position has moved since he last checked — the grid highlights it, the updates feed attributes the move to a specific stream or block.
-3. **Investigate.** Clicks the cell → context (symbol, expiry, current edge, variance breakdown) is posted to LlmChat → @APT investigation streams back via SSE, walking through the reasoning chain: what drove the change, which stream, how fair value and market-implied compare, directional effect on position.
+3. **Investigate.** Clicks the cell → context (symbol, expiry, current edge, variance breakdown) is posted to LlmChat → @Posit investigation streams back via SSE, walking through the reasoning chain: what drove the change, which stream, how fair value and market-implied compare, directional effect on position.
 4. **Learn.** Over time, the investigation conversations teach the customer to think in Edge/Variance/Bankroll terms — building the positional intuition he currently lacks.
-5. **Reposition manually.** He decides whether to act and executes the trade himself on his firm's execution platform. APT advises; it does not execute.
+5. **Reposition manually.** He decides whether to act and executes the trade himself on his firm's execution platform. Posit advises; it does not execute.
 
 ### Flow 2: Onboarding a New Data Stream (Build mode — LLM-guided)
 
@@ -65,7 +65,7 @@ The customer has a discretionary view — "I think ETH vol is going to spike aro
 
 ### Flow 4: Operator Deployment
 
-1. **Deploy the server.** Push to main → Railway auto-deploys from `Procfile` → operator adds `OPENROUTER_API_KEY` + `APT_MODE` env vars → clicks "Generate Domain" in Railway → verifies `/api/health` returns `{"status": "ok"}`.
+1. **Deploy the server.** Push to main → Railway auto-deploys from `Procfile` → operator adds `OPENROUTER_API_KEY` + `POSIT_MODE` env vars → clicks "Generate Domain" in Railway → verifies `/api/health` returns `{"status": "ok"}`.
 2. **Deploy the client.** Push to main → Vercel auto-deploys from `client/ui/vercel.json` → operator adds `VITE_API_BASE=https://<railway-domain>` env var → opens the Vercel URL → confirms the CONNECTED indicator turns green.
 
 ## Invariants (must never break)
@@ -78,6 +78,6 @@ The customer has a discretionary view — "I think ETH vol is going to spike aro
 ## Edge Cases
 
 - **WS disconnect mid-investigation.** The streaming LLM response aborts cleanly, the partial answer is preserved in the chat log, a "disconnected — retry?" affordance appears.
-- **Empty stream state on fresh deploy.** Before the operator activates any streams, the pipeline runs against mock scenario data (`APT_MODE=mock`). The grid shows mock positions until `APT_MODE=prod` is set and real streams are configured.
+- **Empty stream state on fresh deploy.** Before the operator activates any streams, the pipeline runs against mock scenario data (`POSIT_MODE=mock`). The grid shows mock positions until `POSIT_MODE=prod` is set and real streams are configured.
 - **Two users editing the same stream config.** Last write wins via `stream_registry.py`; no optimistic locking today. Documented risk — if it becomes a problem, add a version field.
 - **OpenRouter down.** The fallback chain tries every configured model in order; if all fail, the LLM feature surfaces an error card in LlmChat but the pipeline keeps running.

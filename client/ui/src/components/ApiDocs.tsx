@@ -45,7 +45,7 @@ export function ApiDocs() {
         {/* ── Overview ─────────────────────────────────── */}
         <Section id="overview" title="Overview">
           <p>
-            The APT server exposes a <strong>REST API</strong> for configuration
+            The Posit server exposes a <strong>REST API</strong> for configuration
             and data ingestion, plus a <strong>WebSocket stream</strong> for
             real-time position output. All REST endpoints live under the{" "}
             <code className="text-mm-accent">/api</code> prefix. The WebSocket
@@ -53,7 +53,7 @@ export function ApiDocs() {
           </p>
           <p>
             The base URL is determined by your deployment (e.g.{" "}
-            <code>https://apt-admin.up.railway.app</code>). Set the{" "}
+            <code>https://posit-admin.up.railway.app</code>). Set the{" "}
             <code>VITE_API_BASE</code> environment variable to override.
           </p>
           <p>
@@ -94,7 +94,7 @@ export function ApiDocs() {
 import asyncio, websockets, json
 
 async def listen():
-    async with websockets.connect("wss://apt-admin.up.railway.app/ws") as ws:
+    async with websockets.connect("wss://posit-admin.up.railway.app/ws") as ws:
         async for msg in ws:
             payload = json.loads(msg)
             n = len(payload["positions"])
@@ -105,7 +105,7 @@ asyncio.run(listen())`}</CodeBlock>
             <p>
               In a browser console you can use the native WebSocket API:
             </p>
-            <CodeBlock>{`const ws = new WebSocket("wss://apt-admin.up.railway.app/ws");
+            <CodeBlock>{`const ws = new WebSocket("wss://posit-admin.up.railway.app/ws");
 ws.onmessage = (e) => {
   const d = JSON.parse(e.data);
   console.log(d.context.lastUpdateTimestamp, d.positions.length, "positions");
@@ -123,7 +123,7 @@ import asyncio, websockets, json
 API_KEY = "YOUR_KEY"  # must match CLIENT_WS_API_KEY on the server
 
 async def send_test():
-    uri = f"wss://apt-admin.up.railway.app/ws/client?api_key={API_KEY}"
+    uri = f"wss://posit-admin.up.railway.app/ws/client?api_key={API_KEY}"
     async with websockets.connect(uri) as ws:
         frame = {
             "seq": 1,
@@ -162,17 +162,17 @@ asyncio.run(send_test())`}</CodeBlock>
             </p>
           </div>
 
-          <Collapsible title="Complete script — apt_test.py (copy & paste)">
+          <Collapsible title="Complete script — posit_test.py (copy & paste)">
             <p className="mb-2 text-mm-text-dim">
               Single-file script that sends a test snapshot and listens for
               position broadcasts. Requires <code>pip install websockets</code>.
             </p>
             <CodeBlock>{`#!/usr/bin/env python3
-"""apt_test.py — Minimal APT send & receive test.
+"""posit_test.py — Minimal Posit send & receive test.
 
 Usage:
     pip install websockets
-    python apt_test.py
+    python posit_test.py
 """
 
 import asyncio
@@ -180,7 +180,7 @@ import json
 import websockets
 
 # ── Config ────────────────────────────────────────────────────────────────
-HOST = "apt-admin.up.railway.app"
+HOST = "posit-admin.up.railway.app"
 API_KEY = "YOUR_KEY"  # must match CLIENT_WS_API_KEY on the server
 
 SEND_URI = f"wss://{HOST}/ws/client?api_key={API_KEY}"
@@ -367,7 +367,7 @@ if __name__ == "__main__":
           <p>
             The <code className="text-mm-accent">/ws/client</code> endpoint is
             the <strong>authenticated bidirectional channel</strong> between your
-            server and the APT engine. It combines <strong>inbound snapshot
+            server and the Posit engine. It combines <strong>inbound snapshot
             ingestion</strong> with <strong>outbound position broadcasts</strong>
             on a single connection.
           </p>
@@ -529,7 +529,7 @@ if __name__ == "__main__":
             <p>
               This endpoint is used by administrators to finalize stream setup.
               The request body contains server-side configuration parameters
-              provided by your APT account representative. Once configured, the
+              provided by your Posit account representative. Once configured, the
               stream moves to <em>READY</em> and can accept snapshot data.
             </p>
           </Endpoint>

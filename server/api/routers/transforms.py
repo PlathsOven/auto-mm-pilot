@@ -30,6 +30,7 @@ _STEP_LABELS = {
     "aggregation": "Block Aggregation",
     "position_sizing": "Position Sizing",
     "smoothing": "Position Smoothing",
+    "market_value_inference": "Market Value Inference",
 }
 
 

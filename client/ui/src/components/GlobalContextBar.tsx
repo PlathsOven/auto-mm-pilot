@@ -13,7 +13,7 @@ export function GlobalContextBar() {
   const { drawerOpen, toggleDrawer } = useChat();
   const { openPalette } = useCommandPalette();
   const [now, setNow] = useState(Date.now());
-  const [aptEnabled, setAptEnabled] = useState(true);
+  const [positEnabled, setPositEnabled] = useState(true);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), GLOBAL_CONTEXT_TICK_MS);
@@ -27,10 +27,10 @@ export function GlobalContextBar() {
       {/* Left: brand + connection dot */}
       <div className="flex items-center gap-3">
         <span className="text-base font-bold tracking-wide text-mm-accent">
-          APT
+          Posit
         </span>
         <span className="text-[10px] text-mm-text-dim">
-          Automated Positional Trader
+          a positional trading platform
         </span>
         <span
           className={`h-2 w-2 rounded-full ${
@@ -66,7 +66,7 @@ export function GlobalContextBar() {
               ? "bg-mm-accent/10 font-medium text-mm-accent"
               : "text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
           }`}
-          title="Toggle APT Chat (⌘/)"
+          title="Toggle Posit Chat (⌘/)"
         >
           <span>Chat</span>
           <span className="text-[9px] text-mm-text-subtle">⌘/</span>
@@ -84,24 +84,24 @@ export function GlobalContextBar() {
           {inDocs ? "← Back" : "API Docs"}
         </button>
 
-        {/* APT Parameter Control Toggle */}
+        {/* Posit Parameter Control Toggle */}
         <div className="flex items-center gap-2 pl-4">
-          <span className="text-[10px] text-mm-text-dim">APT Control:</span>
+          <span className="text-[10px] text-mm-text-dim">Posit Control:</span>
           <button
-            onClick={() => setAptEnabled((v) => !v)}
+            onClick={() => setPositEnabled((v) => !v)}
             className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-              aptEnabled ? "bg-mm-accent" : "bg-black/10"
+              positEnabled ? "bg-mm-accent" : "bg-black/10"
             }`}
-            title={aptEnabled ? "APT is allowed to move parameters" : "APT parameter moves are paused"}
+            title={positEnabled ? "Posit is allowed to move parameters" : "Posit parameter moves are paused"}
           >
             <span
               className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
-                aptEnabled ? "translate-x-[18px]" : "translate-x-[3px]"
+                positEnabled ? "translate-x-[18px]" : "translate-x-[3px]"
               }`}
             />
           </button>
-          <span className={`text-[10px] font-semibold ${aptEnabled ? "text-mm-accent" : "text-mm-error"}`}>
-            {aptEnabled ? "LIVE" : "PAUSED"}
+          <span className={`text-[10px] font-semibold ${positEnabled ? "text-mm-accent" : "text-mm-error"}`}>
+            {positEnabled ? "LIVE" : "PAUSED"}
           </span>
         </div>
       </div>

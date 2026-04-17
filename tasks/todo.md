@@ -19,7 +19,7 @@ _(Format example — replace with real entries as work starts.)_
 
 _(Format example — always include the reason.)_
 
-- [ ] Example: switch `APT_MODE` to `prod` — **blocked:** universal data adapter not yet built (`client/adapter/` is OFF, see `docs/stack-status.md`).
+- [ ] Example: switch `POSIT_MODE` to `prod` — **blocked:** universal data adapter not yet built (`client/adapter/` is OFF, see `docs/stack-status.md`).
 
 ## Follow-ups (deferred items from the harness migration)
 

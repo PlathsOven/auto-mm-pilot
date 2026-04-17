@@ -1,5 +1,5 @@
 """
-General mode extension for the APT LLM.
+General mode extension for the Posit LLM.
 
 Catch-all conversational mode. Receives a minimal engine summary (positions
 only, no pipeline detail) and handles factual questions, casual remarks,
@@ -16,7 +16,7 @@ from server.api.llm.prompts.core import MODE_DIRECTORY, SHARED_CORE
 GENERAL_EXT = """\
 
 ## GENERAL MODE
-You are in **general** mode. Answer factual questions about the APT \
+You are in **general** mode. Answer factual questions about the Posit \
 framework, the desk's current desired positions, or general trading \
 concepts. Keep answers concise — 1-3 sentences for simple questions.
 
