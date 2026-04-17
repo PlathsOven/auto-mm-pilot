@@ -17,7 +17,7 @@ But even inside that more collaborative world, something kept breaking. Not ever
 
 The missing piece, I think, is a common language. A way to express a positional view in terms precise enough that it cannot be forgotten, cannot be quietly overwritten, and composes cleanly with every other view on the desk. Mathematical, not verbal. Written down, not remembered.
 
-I am building that platform. It's called Posit — the framework a desk uses to run its positions, where every trader's view is declared as a configured signal, sized by confidence, and combined with every other signal on the desk. Nothing gets lost. Nothing gets silently reversed. The reasoning is visible to anyone who walks up to the screen.
+I am building that common language. It's called Posit — a formalisation of positional trading, where every trader's view is declared as a structured signal with explicit parameters: magnitude, confidence, time horizon, and how it composes with every other view on the desk. Three traders holding distinct views on the same name don't collide — their views compose, weighted by confidence, according to agreed-upon rules. Nothing gets lost. Nothing gets silently reversed. The desk's collective conviction is visible to anyone who walks up to the screen.
 
 I'd like VivCourt to be the first desk to use it. Free of charge, for as long as it's useful to you. I'll be a forward-deployed engineer — in your office several days a week, building what your traders actually need, iterating against real positions rather than my own assumptions.
 
@@ -36,7 +36,7 @@ s.gng1009@gmail.com · [phone]
 
 ## Notebook dedication (inside cover, handwritten)
 
-> For the views that deserve to be remembered.
+> For every view on the desk — written down, not just remembered.
 
 ---
 

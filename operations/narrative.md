@@ -2,11 +2,13 @@
 
 ## The problem
 
-Every trading desk that holds positions overnight is running the same invisible process: a senior trader synthesises dozens of data feeds, opinions, and instincts into a single decision — how much to be long or short, and in what. This process lives entirely in one person's head. It is unwritten, unreviewable, non-transferable, and it stops the moment that person leaves the room.
+Every trading desk that holds positions runs on opinions. "Realised vol is underpriced." "ETH will spike around Pectra." "Funding rates are signalling a squeeze." These views drive what the book looks like — how much to be long or short, and in what.
 
-The consequences compound quietly. Opinions that aren't voiced are never acted on. Opinions that are voiced are forgotten within days. When multiple people on a desk hold overlapping but distinct views, there is no honest way to reconcile them — the loudest or most recent voice wins by default. Sizing is done by gut, not by confidence-weighted math. And when the senior trader leaves the firm, everything they knew about how to run the book walks out the door with them.
+The problem is that opinions live in individual heads, expressed in natural language, with no shared notation. When three traders on a desk hold overlapping but distinct views on the same name, there is no honest way to reconcile them. One person is putting on a position another is quietly reversing. The loudest or most recent voice wins by default. Nobody — including the desk head — can see the full picture of what the team collectively believes, or whether the book actually reflects it.
 
-This is not a technology problem. It is a language problem. Trading desks have no common language for expressing, storing, and combining positional views.
+The consequences compound quietly. Opinions that aren't voiced are never acted on. Opinions that are voiced are forgotten within days. Sizing is done by gut, not by confidence-weighted math. When a senior trader leaves the firm, every positional insight they held walks out the door. And across any given week, the book drifts away from what the desk actually thinks — not because anyone made a mistake, but because there was no common language in which to align.
+
+This is not a technology problem. It is a language problem. Trading desks have no common language for expressing, combining, and acting on positional views.
 
 ## The solution
 
@@ -24,18 +26,20 @@ Nothing is forgotten. Nothing is silently reversed. Every opinion is stored, siz
 
 ## What Posit is, precisely
 
-Posit is a rulebook — the written set of rules a desk uses to run its positions.
+Posit is the formalisation of positional trading — the common language a desk uses to express, compose, and act on every view its traders hold.
 
-A rulebook is more than a database (it doesn't just store, it evaluates). It is more than an engine (it doesn't just compute, it encodes the desk's beliefs). It is more than a spec (it isn't a description of the system, it *is* the system). Every trader's view, every data source, every confidence weight, every decay curve — declared, composed, and executed 24/7 without the human present.
+Every opinion enters Posit as a structured object with explicit parameters: magnitude, confidence, time horizon, decay shape, and how it composes with every other opinion on the desk. This is the formalisation — opinions stop being verbal, ephemeral, and private, and become declared, durable, and shared. A view expressed by one trader is visible to every other trader, weighted by declared confidence, and composed with their views according to agreed-upon rules.
 
-Like a company's operating manual or a sport's rule book, it is the artifact that makes the institution's knowledge independent of any single person.
+The closest analogy is what double-entry bookkeeping did for commerce. Before double-entry, a firm's financial state lived in one clerk's memory. Double-entry gave merchants a shared notation — debits and credits, a grammar for composition, a balance that anyone could audit. It didn't replace the merchant's judgment. It gave the merchant's judgment a language in which it could be written down, composed, and preserved.
+
+Posit does the same for positional trading. It doesn't replace the trader's views. It gives those views a language in which they can be declared, reconciled across a team, and acted on consistently — every tick, every symbol, even when nobody is watching.
 
 ## The new world
 
-Today, positional trading expertise is trapped inside individual heads — accumulated over years, applied inconsistently, lost when people leave, and invisible to everyone else on the desk.
+Today, a desk's positional views exist in fragments — scattered across individual heads, Slack threads, verbal handoffs, and the residue of yesterday's morning meeting. No single person can see all of them. No system reconciles them. The book reflects some combination of whoever spoke most recently and whoever happened to be at their screen.
 
-Posit creates a world where that expertise is written down. Where a junior trader can open the rulebook, see every signal the desk is running, understand why the book is positioned the way it is, and contribute their own view into the same framework. Where the 3am position adjustment follows the same logic as the 3pm one. Where an opinion from last Tuesday carries exactly the weight it was assigned, not the weight of how recently it was mentioned in conversation.
+Posit creates a world where the desk speaks a common language. Where every trader declares their view in the same notation — magnitude, confidence, time horizon, decay — and every view composes with every other view according to agreed-upon rules. Where a junior trader can see every signal the desk is running, understand why the book is positioned the way it is, and contribute their own view into the same framework. Where the 3am position adjustment follows the same logic as the 3pm one. Where opinions from different people on the same name don't collide silently — they compose explicitly, weighted by confidence, visible to everyone.
 
-A world where knowledge and expertise is no longer gatekept behind the minds of individual traders, but disseminated to everyone around them — compounding, not decaying.
+A world where the desk's collective conviction is formalised, not inferred. Where expertise compounds across the team instead of decaying inside individuals.
 
-Trading can be formalised. Posit is the proof.
+Positional trading can be formalised. Posit is the proof.
