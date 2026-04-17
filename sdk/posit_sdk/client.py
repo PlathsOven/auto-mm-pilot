@@ -196,6 +196,10 @@ class PositClient:
             snapshot_rows=snapshot_rows,
         )
 
+    async def delete_block(self, stream_name: str) -> None:
+        """Delete a manual block (deletes the underlying stream)."""
+        await self._require_rest().delete_stream(stream_name)
+
     # ----- Market values -----
 
     async def list_market_values(self) -> list[MarketValueEntry]:

@@ -7,6 +7,8 @@ import logging
 from typing import AsyncGenerator
 from urllib.parse import urlencode
 
+from typing import Any
+
 import websockets
 import websockets.exceptions
 
@@ -51,7 +53,9 @@ class WsClient:
         self._position_queue: asyncio.Queue[PositionPayload | None] = asyncio.Queue()
         self._connected = asyncio.Event()
         self._closed = False
-        self._ws: websockets.WebSocketClientProtocol | None = None
+        # Type is websockets.asyncio.client.ClientConnection (v14+) or legacy
+        # WebSocketClientProtocol (<v14).  Typed as Any to stay version-agnostic.
+        self._ws: Any = None
         self._recv_task: asyncio.Task | None = None
 
     async def connect(self) -> None:
@@ -97,12 +101,15 @@ class WsClient:
             except asyncio.CancelledError:
                 return
 
-            except websockets.exceptions.InvalidStatusCode as exc:
-                if exc.status_code in (401, 403):
-                    log.error("Posit WS auth rejected (HTTP %d) — not reconnecting", exc.status_code)
+            except websockets.exceptions.WebSocketException as exc:
+                # Both InvalidStatus (websockets>=14) and the deprecated
+                # InvalidStatusCode (<14) embed the HTTP status in __str__.
+                msg = str(exc)
+                if "401" in msg or "403" in msg:
+                    log.error("Posit WS auth rejected — not reconnecting: %s", msg)
                     self._fail_pending_acks(PositAuthError("WebSocket auth rejected"))
                     return
-                log.warning("Posit WS rejected (HTTP %d) — retrying in %.1fs", exc.status_code, delay)
+                log.warning("Posit WS: %s — retrying in %.1fs", exc, delay)
 
             except Exception as exc:
                 log.warning("Posit WS error: %s — retrying in %.1fs", exc, delay)

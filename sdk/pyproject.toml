@@ -22,3 +22,6 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["posit_sdk"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"posit_sdk/py.typed" = "posit_sdk/py.typed"
