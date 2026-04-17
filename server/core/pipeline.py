@@ -38,7 +38,7 @@ def build_blocks_df(
     When *unit_conversion* is provided, uses it for the raw → target conversion.
     Otherwise falls back to the legacy ``raw_to_target_expr``.
     """
-    rows: list[dict] = []
+    parts: list[pl.DataFrame] = []
     for sc in streams:
         missing = set(risk_dimension_cols) - set(sc.key_cols)
         if missing:
@@ -80,50 +80,55 @@ def build_blocks_df(
             mkt_expr.alias("target_market_value"),
         )
 
-        for row in snap.iter_rows(named=True):
-            block_name = "_".join([sc.stream_name] + [str(row[k]) for k in extra_keys])
+        # block_name = stream_name + (optional extra_key cells joined by "_")
+        if extra_keys:
+            block_name_expr = pl.concat_str(
+                [pl.lit(sc.stream_name)] + [pl.col(k).cast(pl.Utf8) for k in extra_keys],
+                separator="_",
+            )
+        else:
+            block_name_expr = pl.lit(sc.stream_name)
 
-            # Assign space_id (with optional override from StreamConfig)
-            if sc.space_id_override is not None:
-                space_id = sc.space_id_override
-            elif sc.block.temporal_position == "shifting":
-                space_id = "shifting"
-            else:
-                st = row["start_timestamp"]
-                if st is None:
-                    raise ValueError(f"start_timestamp required for static block {block_name}")
-                space_id = f"static_{st.strftime('%Y%m%d_%H%M%S')}"
+        # space_id: override > shifting > formatted start_timestamp
+        if sc.space_id_override is not None:
+            space_id_expr = pl.lit(sc.space_id_override)
+        elif sc.block.temporal_position == "shifting":
+            space_id_expr = pl.lit("shifting")
+        else:
+            null_rows = snap.filter(pl.col("start_timestamp").is_null())
+            if null_rows.height > 0:
+                bad = null_rows.row(0, named=True)
+                bad_name = "_".join([sc.stream_name] + [str(bad[k]) for k in extra_keys])
+                raise ValueError(f"start_timestamp required for static block {bad_name}")
+            space_id_expr = pl.lit("static_") + pl.col("start_timestamp").dt.strftime("%Y%m%d_%H%M%S")
 
-            entry = {
-                "block_name": block_name,
-                "stream_name": sc.stream_name,
-                "target_value": row["target_value"],
-                "raw_value": row["raw_value"],
-                "market_value": row["market_value"],
-                "target_market_value": row["target_market_value"],
-                "has_user_market_value": row["has_user_market_value"],
-                "start_timestamp": row.get("start_timestamp"),
-                "space_id": space_id,
-                # Block config fields (flat)
-                "annualized": sc.block.annualized,
-                "size_type": sc.block.size_type,
-                "aggregation_logic": sc.block.aggregation_logic,
-                "temporal_position": sc.block.temporal_position,
-                "decay_end_size_mult": sc.block.decay_end_size_mult,
-                "decay_rate_prop_per_min": sc.block.decay_rate_prop_per_min,
-                "var_fair_ratio": sc.block.var_fair_ratio,
-                "scale": sc.scale,
-                "offset": sc.offset,
-                "exponent": sc.exponent,
-            }
+        block_df = snap.select(
+            block_name_expr.alias("block_name"),
+            pl.lit(sc.stream_name).alias("stream_name"),
+            pl.col("target_value"),
+            pl.col("raw_value"),
+            pl.col("market_value"),
+            pl.col("target_market_value"),
+            pl.col("has_user_market_value"),
+            pl.col("start_timestamp"),
+            space_id_expr.alias("space_id"),
+            pl.lit(sc.block.annualized).alias("annualized"),
+            pl.lit(sc.block.size_type).alias("size_type"),
+            pl.lit(sc.block.aggregation_logic).alias("aggregation_logic"),
+            pl.lit(sc.block.temporal_position).alias("temporal_position"),
+            pl.lit(sc.block.decay_end_size_mult).alias("decay_end_size_mult"),
+            pl.lit(sc.block.decay_rate_prop_per_min).alias("decay_rate_prop_per_min"),
+            pl.lit(sc.block.var_fair_ratio).alias("var_fair_ratio"),
+            pl.lit(sc.scale).alias("scale"),
+            pl.lit(sc.offset).alias("offset"),
+            pl.lit(sc.exponent).alias("exponent"),
+            *[pl.col(rdc) for rdc in risk_dimension_cols],
+        )
+        parts.append(block_df)
 
-            # Carry through all risk dimension cols from the row
-            for rdc in risk_dimension_cols:
-                entry[rdc] = row[rdc]
-
-            rows.append(entry)
-
-    return pl.DataFrame(rows)
+    if not parts:
+        return pl.DataFrame()
+    return pl.concat(parts)
 
 
 # ---------------------------------------------------------------------------
