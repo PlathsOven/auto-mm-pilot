@@ -1,7 +1,11 @@
 import { CodeBlock, Endpoint, Section } from "./ApiDocsParts";
+import { AuthSection } from "./apiDocs/AuthSection";
+import { BlocksSection } from "./apiDocs/BlocksSection";
 import { ClientWebSocketSection } from "./apiDocs/ClientWebSocketSection";
+import { MarketValuesSection } from "./apiDocs/MarketValuesSection";
 import { PublicWebSocketSection } from "./apiDocs/PublicWebSocketSection";
 import { QuickstartSection } from "./apiDocs/QuickstartSection";
+import { SdkSection } from "./apiDocs/SdkSection";
 
 // ---------------------------------------------------------------------------
 // Nav items
@@ -9,6 +13,8 @@ import { QuickstartSection } from "./apiDocs/QuickstartSection";
 
 const NAV = [
   { id: "overview", label: "Overview" },
+  { id: "auth", label: "Authentication" },
+  { id: "sdk", label: "Python SDK" },
   { id: "quickstart", label: "Quickstart" },
   { id: "workflow", label: "Integration Workflow" },
   { id: "websocket", label: "WebSocket Stream" },
@@ -16,6 +22,8 @@ const NAV = [
   { id: "health", label: "Health" },
   { id: "streams", label: "Stream Management" },
   { id: "snapshots", label: "Snapshot Ingestion" },
+  { id: "blocks", label: "Blocks" },
+  { id: "market-values", label: "Market Values" },
   { id: "bankroll", label: "Bankroll" },
   { id: "llm", label: "LLM Endpoints" },
 ] as const;
@@ -61,9 +69,20 @@ export function ApiDocs() {
           </p>
           <p>
             All request and response bodies use <strong>JSON</strong>.
-            Include <code>Content-Type: application/json</code> on every request.
+            Include <code>Content-Type: application/json</code> on every
+            POST/PATCH/PUT request. All{" "}
+            <code className="text-mm-accent">/api/*</code> routes except{" "}
+            <code>/api/health</code> require an API key — see the{" "}
+            <a href="#auth" className="underline text-mm-accent hover:opacity-80">
+              Authentication
+            </a>{" "}
+            section.
           </p>
         </Section>
+
+        <AuthSection />
+
+        <SdkSection />
 
         <QuickstartSection />
 
@@ -208,6 +227,10 @@ export function ApiDocs() {
             <p><strong>404</strong> if stream not found. <strong>422</strong> if rows are missing required columns or the stream is not READY.</p>
           </Endpoint>
         </Section>
+
+        <BlocksSection />
+
+        <MarketValuesSection />
 
         {/* ── Bankroll ─────────────────────────────────── */}
         <Section id="bankroll" title="Bankroll">
