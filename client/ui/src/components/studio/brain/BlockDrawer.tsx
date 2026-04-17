@@ -1,10 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  createManualBlock,
-  updateBlock,
-  type ManualBlockPayload,
-  type UpdateBlockPayload,
-} from "../../../services/blockApi";
 import { useKeyboardShortcut } from "../../../hooks/useKeyboardShortcut";
 import { Field } from "../sections/Field";
 import type { BlockRow } from "../../../types";
@@ -13,13 +7,13 @@ import {
   type Draft,
   type DraftBlockConfig,
   EMPTY_DRAFT,
-  NUMERIC_RE,
   nextKey,
-  emptyRow,
   draftFromBlock,
   draftFromCommandParams,
 } from "./blockDrawerState";
 import { SnapshotTable, ReadOnlyField } from "./BlockDrawerParts";
+import { useSnapshotEditor } from "./useSnapshotEditor";
+import { useBlockDraftSubmit } from "./useBlockDraftSubmit";
 
 // Re-export so existing imports from this file keep working
 export type { DrawerMode } from "./blockDrawerState";
@@ -45,8 +39,8 @@ interface Props {
  */
 export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved }: Props) {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { submitting, error, submit, clearError } = useBlockDraftSubmit(mode, onSaved, onClose);
+  const snapshotEditor = useSnapshotEditor(setDraft);
 
   // Reset draft when the drawer opens or the block changes
   useEffect(() => {
@@ -58,12 +52,10 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
     } else if (block) {
       setDraft(draftFromBlock(block));
     }
-    setError(null);
-  }, [open, mode, block, initialParams]);
+    clearError();
+  }, [open, mode, block, initialParams, clearError]);
 
   useKeyboardShortcut("Escape", () => open && onClose(), { mod: false });
-
-  // -- Patch helpers --
 
   const patch = useCallback(<K extends keyof Draft>(k: K, v: Draft[K]) => {
     setDraft((d) => ({ ...d, [k]: v }));
@@ -72,73 +64,6 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
   const patchBlock = useCallback(<K extends keyof DraftBlockConfig>(k: K, v: DraftBlockConfig[K]) => {
     setDraft((d) => ({ ...d, block: { ...d.block, [k]: v } }));
   }, []);
-
-  // -- Snapshot table callbacks --
-
-  const onHeaderChange = useCallback((idx: number, val: string) => {
-    setDraft((d) => {
-      const old = d.snapshot_headers[idx];
-      const headers = [...d.snapshot_headers];
-      headers[idx] = val;
-      const rows = d.snapshot_rows.map((r) => {
-        const nr = { ...r };
-        if (old in nr) {
-          nr[val] = nr[old];
-          delete nr[old];
-        }
-        return nr;
-      });
-      return { ...d, snapshot_headers: headers, snapshot_rows: rows };
-    });
-  }, []);
-
-  const onAddHeader = useCallback(() => {
-    setDraft((d) => {
-      const name = `col_${d.snapshot_headers.length}`;
-      return {
-        ...d,
-        snapshot_headers: [...d.snapshot_headers, name],
-        snapshot_rows: d.snapshot_rows.map((r) => ({ ...r, [name]: "" })),
-      };
-    });
-  }, []);
-
-  const onRemoveHeader = useCallback((idx: number) => {
-    setDraft((d) => {
-      const col = d.snapshot_headers[idx];
-      const headers = d.snapshot_headers.filter((_, i) => i !== idx);
-      const rows = d.snapshot_rows.map((r) => {
-        const nr = { ...r };
-        delete nr[col];
-        return nr;
-      });
-      return { ...d, snapshot_headers: headers, snapshot_rows: rows };
-    });
-  }, []);
-
-  const onCellChange = useCallback((rowIdx: number, col: string, val: string) => {
-    setDraft((d) => {
-      const rows = [...d.snapshot_rows];
-      rows[rowIdx] = { ...rows[rowIdx], [col]: val };
-      return { ...d, snapshot_rows: rows };
-    });
-  }, []);
-
-  const onAddRow = useCallback(() => {
-    setDraft((d) => ({
-      ...d,
-      snapshot_rows: [...d.snapshot_rows, emptyRow(d.snapshot_headers)],
-    }));
-  }, []);
-
-  const onRemoveRow = useCallback((idx: number) => {
-    setDraft((d) => ({
-      ...d,
-      snapshot_rows: d.snapshot_rows.filter((_, i) => i !== idx),
-    }));
-  }, []);
-
-  // -- Validation --
 
   const readOnly = mode === "inspect";
   const canEdit = mode === "create" || mode === "edit";
@@ -153,79 +78,6 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
     draft.exponent !== 0 &&
     draft.snapshot_rows.length > 0 &&
     draft.block.var_fair_ratio > 0;
-
-  // -- Submit --
-
-  const submit = async () => {
-    if (!valid) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const key_cols = draft.key_cols_raw
-        .split(",")
-        .map((c) => c.trim())
-        .filter(Boolean);
-
-      // Convert snapshot rows: strip _key, coerce numeric cells, omit empty
-      const snapshot_rows = draft.snapshot_rows.map((r) => {
-        const out: Record<string, unknown> = {};
-        for (const h of draft.snapshot_headers) {
-          const cell = String(r[h] ?? "");
-          if (cell === "") continue;
-          out[h] = NUMERIC_RE.test(cell) ? parseFloat(cell) : cell;
-        }
-        return out;
-      });
-
-      if (mode === "create") {
-        const payload: ManualBlockPayload = {
-          stream_name: draft.stream_name.trim(),
-          key_cols: key_cols.length > 0 ? key_cols : undefined,
-          scale: draft.scale,
-          offset: draft.offset,
-          exponent: draft.exponent,
-          block: {
-            annualized: draft.block.annualized,
-            size_type: draft.block.size_type,
-            aggregation_logic: draft.block.aggregation_logic,
-            temporal_position: draft.block.temporal_position,
-            decay_end_size_mult: draft.block.decay_end_size_mult,
-            decay_rate_prop_per_min: draft.block.decay_rate_prop_per_min,
-            decay_profile: "linear",
-            var_fair_ratio: draft.block.var_fair_ratio,
-          },
-          snapshot_rows,
-          space_id: draft.space_id.trim() || undefined,
-        };
-        await createManualBlock(payload);
-      } else {
-        const payload: UpdateBlockPayload = {
-          scale: draft.scale,
-          offset: draft.offset,
-          exponent: draft.exponent,
-          block: {
-            annualized: draft.block.annualized,
-            size_type: draft.block.size_type,
-            aggregation_logic: draft.block.aggregation_logic,
-            temporal_position: draft.block.temporal_position,
-            decay_end_size_mult: draft.block.decay_end_size_mult,
-            decay_rate_prop_per_min: draft.block.decay_rate_prop_per_min,
-            decay_profile: "linear",
-            var_fair_ratio: draft.block.var_fair_ratio,
-          },
-          snapshot_rows,
-        };
-        await updateBlock(draft.stream_name, payload);
-      }
-
-      onSaved();
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   if (!open) return null;
 
@@ -396,12 +248,7 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
               headers={draft.snapshot_headers}
               rows={draft.snapshot_rows}
               readOnly={readOnly}
-              onHeaderChange={onHeaderChange}
-              onAddHeader={onAddHeader}
-              onRemoveHeader={onRemoveHeader}
-              onCellChange={onCellChange}
-              onAddRow={onAddRow}
-              onRemoveRow={onRemoveRow}
+              {...snapshotEditor}
             />
           </section>
 
@@ -425,7 +272,7 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
             <button
               type="button"
               disabled={!valid || submitting}
-              onClick={submit}
+              onClick={() => submit(draft)}
               className="rounded-lg bg-mm-accent px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-mm-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {submitting
