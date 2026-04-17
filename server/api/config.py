@@ -53,6 +53,25 @@ SNAPSHOT_BUFFER_MAX_DEFAULT: int = 2048
 CLIENT_WS_API_KEY: str = os.environ.get("CLIENT_WS_API_KEY", "")
 CLIENT_WS_ALLOWED_IPS: str = os.environ.get("CLIENT_WS_ALLOWED_IPS", "")
 
+# ── REST API auth — per-user keys ────────────────────────────────────────
+# Comma-separated list of valid API keys (one per user/integration).
+# Falls back to CLIENT_WS_API_KEY for single-key backwards-compatibility.
+# If neither is set, REST auth is disabled (all requests pass) with a warning.
+_POSIT_API_KEYS_RAW: str = os.environ.get("POSIT_API_KEYS", "")
+
+
+def get_valid_api_keys() -> frozenset[str]:
+    """Return the set of valid REST API keys.
+
+    Priority: POSIT_API_KEYS (comma-separated) → CLIENT_WS_API_KEY → empty set.
+    An empty set means auth is disabled (dev mode).
+    """
+    if _POSIT_API_KEYS_RAW.strip():
+        return frozenset(k.strip() for k in _POSIT_API_KEYS_RAW.split(",") if k.strip())
+    if CLIENT_WS_API_KEY:
+        return frozenset([CLIENT_WS_API_KEY])
+    return frozenset()
+
 # ── Application mode ─────────────────────────────────────────────────────
 POSIT_MODE: str = os.environ.get("POSIT_MODE", "mock").lower()
 

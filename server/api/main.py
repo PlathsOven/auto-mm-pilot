@@ -15,8 +15,10 @@ from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
-from server.api.config import POSIT_MODE
+from server.api.config import POSIT_MODE, get_valid_api_keys
 from server.api.client_ws import client_ws
 from server.api.engine_state import init_mock
 from server.api.ws import pipeline_ws
@@ -59,6 +61,47 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Paths exempt from API-key auth (health + WS endpoints + OpenAPI docs).
+_AUTH_EXEMPT = frozenset({"/api/health", "/docs", "/redoc", "/openapi.json"})
+
+
+class _ApiKeyMiddleware(BaseHTTPMiddleware):
+    """Require a valid API key on all /api/* routes except /api/health.
+
+    Keys are read from POSIT_API_KEYS (comma-sep) or CLIENT_WS_API_KEY.
+    If neither env var is set, auth is disabled with a startup warning —
+    matching the IP-whitelist convention in client_ws_auth.py.
+    """
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        path = request.url.path
+        if not path.startswith("/api/") or path in _AUTH_EXEMPT:
+            return await call_next(request)
+
+        valid_keys = get_valid_api_keys()
+        if not valid_keys:
+            log.warning(
+                "No API keys configured — REST auth disabled. "
+                "Set POSIT_API_KEYS or CLIENT_WS_API_KEY to enable."
+            )
+            return await call_next(request)
+
+        key = (
+            request.headers.get("x-api-key")
+            or request.query_params.get("api_key")
+        )
+        if not key or key not in valid_keys:
+            return JSONResponse(
+                {"error": {"code": 401, "message": "Invalid or missing API key"}},
+                status_code=401,
+            )
+
+        return await call_next(request)
+
+
+app.add_middleware(_ApiKeyMiddleware)
 
 
 class ApiError(BaseModel):
