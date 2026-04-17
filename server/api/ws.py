@@ -12,7 +12,6 @@ Route:  ws://host:port/ws
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from datetime import datetime, timezone
 import polars as pl
@@ -21,6 +20,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from server.api.config import POSIT_MODE, TICK_INTERVAL_SECS
 from server.api.engine_state import get_pipeline_results, rerun_pipeline
 from server.api.market_value_store import is_dirty, clear_dirty, to_dict as mv_to_dict
+from server.api.models import ServerPayload
 from server.api.ws_serializers import (
     context_at_tick,
     positions_at_tick,
@@ -29,6 +29,26 @@ from server.api.ws_serializers import (
 )
 
 log = logging.getLogger(__name__)
+
+
+def _build_payload(
+    streams: list,
+    context: dict,
+    positions: list,
+    updates: list,
+) -> str:
+    """Validate a broadcast tick against ``ServerPayload`` and return JSON.
+
+    Centralizes the wire-contract check so serializer drift surfaces here
+    as a Pydantic ``ValidationError`` instead of silently reaching the
+    client.
+    """
+    return ServerPayload(
+        streams=streams,
+        context=context,
+        positions=positions,
+        updates=updates,
+    ).model_dump_json(by_alias=True)
 
 
 # ---------------------------------------------------------------------------
@@ -137,14 +157,6 @@ async def _run_ticker_mock(
         positions = positions_at_tick(desired_pos_df, ts, prev_positions)
         updates = updates_from_diff(positions, prev_positions, i)
 
-        payload_dict = {
-            "streams": streams,
-            "context": context_at_tick(ts),
-            "positions": positions,
-            "updates": updates,
-        }
-        _latest_payload = json.dumps(payload_dict)
-
         for pos in positions:
             key = f"{pos['symbol']}-{pos['expiry']}"
             prev_positions[key] = pos["desiredPos"]
@@ -153,6 +165,7 @@ async def _run_ticker_mock(
         for s in streams:
             s["lastHeartbeat"] = ts_ms
 
+        _latest_payload = _build_payload(streams, context_at_tick(ts), positions, updates)
         await _broadcast(_latest_payload)
         await asyncio.sleep(TICK_INTERVAL_SECS)
 
@@ -219,14 +232,7 @@ async def _run_ticker_prod(
         for s in streams:
             s["lastHeartbeat"] = ts_ms
 
-        payload_dict = {
-            "streams": streams,
-            "context": context_at_tick(ts),
-            "positions": positions,
-            "updates": updates,
-        }
-        _latest_payload = json.dumps(payload_dict)
-
+        _latest_payload = _build_payload(streams, context_at_tick(ts), positions, updates)
         await _broadcast(_latest_payload)
 
         tick_count += 1
@@ -245,15 +251,12 @@ async def _run_heartbeat() -> None:
 
     while True:
         now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
-        payload_dict = {
-            "streams": [],
-            "context": {
-                "lastUpdateTimestamp": now_ms,
-            },
-            "positions": [],
-            "updates": [],
-        }
-        _latest_payload = json.dumps(payload_dict)
+        _latest_payload = _build_payload(
+            streams=[],
+            context={"lastUpdateTimestamp": now_ms},
+            positions=[],
+            updates=[],
+        )
         await _broadcast(_latest_payload)
         await asyncio.sleep(TICK_INTERVAL_SECS)
 

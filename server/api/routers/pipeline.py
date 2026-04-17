@@ -11,6 +11,10 @@ from fastapi import APIRouter, HTTPException
 
 from server.api.engine_state import get_pipeline_results, RISK_DIMENSION_COLS
 from server.api.market_value_store import to_dict as mv_to_dict
+from server.api.models import (
+    PipelineDimensionsResponse,
+    PipelineTimeSeriesResponse,
+)
 from server.api.stream_registry import parse_datetime_tolerant
 from server.api.ws import get_current_tick_ts
 
@@ -127,7 +131,7 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
             ).to_dicts()
         ]
 
-    current_agg = {}
+    current_agg: dict | None = None
     if pos_sorted.height > 0:
         last = pos_sorted.row(0, named=True)
         current_agg = {
@@ -163,14 +167,15 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
 # Endpoints
 # ---------------------------------------------------------------------------
 
-@router.get("/api/pipeline/dimensions")
-async def pipeline_dimensions() -> dict:
+@router.get("/api/pipeline/dimensions", response_model=PipelineDimensionsResponse)
+async def pipeline_dimensions() -> PipelineDimensionsResponse:
     """Return available (symbol, expiry) pairs from the current pipeline run."""
-    return await asyncio.to_thread(_pipeline_dimensions_sync)
+    payload = await asyncio.to_thread(_pipeline_dimensions_sync)
+    return PipelineDimensionsResponse(**payload)
 
 
-@router.get("/api/pipeline/timeseries")
-async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
+@router.get("/api/pipeline/timeseries", response_model=PipelineTimeSeriesResponse)
+async def pipeline_timeseries(symbol: str, expiry: str) -> PipelineTimeSeriesResponse:
     """Return full block-level and aggregated time series for a symbol/expiry."""
     # Parse expiry string (tolerant of both ISO and DDMMMYY)
     try:
@@ -185,4 +190,4 @@ async def pipeline_timeseries(symbol: str, expiry: str) -> dict:
             raise HTTPException(status_code=404, detail="No pipeline results available")
         raise HTTPException(status_code=404, detail=f"No data for {symbol}/{expiry}")
     payload["expiry"] = expiry
-    return payload
+    return PipelineTimeSeriesResponse(**payload)
