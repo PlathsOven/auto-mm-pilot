@@ -13,7 +13,7 @@ Run before implementing any UI change that affects layout, interaction patterns,
 Read these files fully — do not skim:
 - `docs/user-journey.md` — personas, core flows, invariants, edge cases
 - `client/ui/UI_SPEC.md` — visual identity, zone layout, component specs
-- `docs/product.md` — the "why" behind APT, the Edge x Bankroll / Variance framework
+- `docs/product.md` — the "why" behind Posit, the Edge x Bankroll / Variance framework
 - `docs/conventions.md` — established UI patterns (react-grid-layout, Context providers, named exports, no prop drilling)
 
 If the design task touches a specific component, also read that component file and its provider/service dependencies.
@@ -94,7 +94,7 @@ Output the design as:
 Before reporting the design as ready:
 - [ ] Every element traces back to a persona need or flow step (no speculative features)
 - [ ] No invariant from `docs/user-journey.md` §Invariants is violated
-- [ ] The design works in the empty/mock state (`APT_MODE=mock`) as well as production
+- [ ] The design works in the empty/mock state (`POSIT_MODE=mock`) as well as production
 - [ ] WS disconnect mid-interaction is handled gracefully
 - [ ] The design does not require changes to `server/core/` (Manual Brain rule)
 - [ ] The design is achievable with the current stack (React, Tailwind, react-grid-layout, Context providers)

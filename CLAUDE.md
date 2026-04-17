@@ -1,7 +1,7 @@
-# Auto-MM-Pilot — Agent Instructions (Auto-Loaded)
+# Posit — Agent Instructions (Auto-Loaded)
 
 ## Project
-APT — advisory trading terminal for crypto options MM desks. Physically split into a local client (ingestion + display) and a remote server (proprietary math) across a visibility barrier. Vendor product: client gets the terminal, we keep the math IP.
+Posit — a positional trading platform for crypto options MM desks. Physically split into a local client (ingestion + display) and a remote server (proprietary math) across a visibility barrier. Vendor product: client gets the terminal, we keep the math IP.
 
 ## Harness Sync Rule (IMPORTANT)
 Slash commands exist in **two** locations and must stay byte-identical in body (frontmatter may differ):
@@ -52,7 +52,7 @@ Fix the root cause, not the symptom. One bug = one fix in one place. If your dif
 - `server/api/llm/context_db.py` is MOCK-initialized (hardcoded stream metadata).
 - `client/ui/src/components/DailyWrap.tsx` is MOCK data.
 - `server/api/ws.py` has a singleton background ticker — call `restart_ticker()` after hot reloads.
-- `APT_MODE=mock` runs on scenario data; `APT_MODE=prod` expects real streams via the (not-yet-built) adapter.
+- `POSIT_MODE=mock` runs on scenario data; `POSIT_MODE=prod` expects real streams via the (not-yet-built) adapter.
 
 ## Context Pointers
 - Architecture: `docs/architecture.md`

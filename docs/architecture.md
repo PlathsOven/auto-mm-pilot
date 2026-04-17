@@ -2,7 +2,7 @@
 
 ## System Overview
 
-Auto-MM-Pilot (APT — Automated Positional Trader) is an advisory trading terminal for crypto options market-making desks. It is physically split into a local client (data ingestion + UI display) and a remote server (proprietary calculations) with a deliberate visibility barrier between them. The server computes `Desired Position = Edge × Bankroll / Variance` over a configurable pipeline of data streams, blocks, and spaces; the client renders the result and lets the trader investigate positions via an LLM layer. "Pilot" refers to the navigational engine, not a trial — this is a vendor product where the client receives the terminal + adapters and we retain the math IP.
+Posit is an advisory trading platform for crypto options market-making desks. It is physically split into a local client (data ingestion + UI display) and a remote server (proprietary calculations) with a deliberate visibility barrier between them. The server computes `Desired Position = Edge × Bankroll / Variance` over a configurable pipeline of data streams, blocks, and spaces; the client renders the result and lets the trader investigate positions via an LLM layer. This is a vendor product where the client receives the terminal + adapters and we retain the math IP.
 
 ## Component Map
 
@@ -53,7 +53,7 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `client/ui/src/types.ts` | **Canonical TypeScript interfaces for all client-side data shapes.** Read before any feature crossing the API boundary. |
 | `client/ui/src/providers/WebSocketProvider.tsx` | Central WS state manager — connects to server `/ws`, auto-reconnects |
 | `client/ui/src/constants.ts` | Shared UI constants — magic numbers hoisted from components (Phase 4) |
-| `client/ui/src/providers/ChatProvider.tsx` | Team chat + @APT LLM routing context |
+| `client/ui/src/providers/ChatProvider.tsx` | Team chat + @Posit LLM routing context |
 | `client/ui/src/components/LlmChat.tsx` | Team Chat panel — messages, note threads, investigation context |
 | `client/ui/src/components/ApiDocs.tsx` | Client-facing API documentation panel — endpoints, WebSocket stream, integration workflow |
 | `client/ui/src/components/DesiredPositionGrid.tsx` | Zone C — clickable cells push context to LlmChat |

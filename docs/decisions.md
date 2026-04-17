@@ -8,7 +8,7 @@ Format per entry: **Date — Decision**. Then `Context:`, `Decision:`, `Rational
 
 ## 2025 — Physical client/server split for IP protection
 
-**Context:** APT is a vendor product. The client (trading desk) gets the terminal + adapters; we retain the proprietary pricing math.
+**Context:** Posit is a vendor product. The client (trading desk) gets the terminal + adapters; we retain the proprietary pricing math.
 
 **Decision:** All proprietary computation (target-space conversion, fair value synthesis, variance estimation, desired position) lives on a remote Python server in `server/core/`. The local Electron client only handles data ingestion, format standardization, and display.
 
@@ -136,13 +136,25 @@ Format per entry: **Date — Decision**. Then `Context:`, `Decision:`, `Rational
 
 ## 2026-04-10 — Open-framework platform: remove IP protection from LLM prompts
 
-**Context:** APT was originally positioned as a black-box vendor product — the epistemological framework (Edge × Bankroll / Variance, streams, blocks, spaces, aggregation, decay, var_fair_ratio, etc.) was hidden behind opaque LLM deflection. The LLM system prompts in `server/api/llm/prompts/` enforced heavy IP protection: forbidden internal terminology, no absolute numbers, opaque deflection when asked about methodology. Supersedes the IP-protection motivation in the "2025 — Physical client/server split" entry (the split itself remains for deployment reasons).
+**Context:** Posit (then known as APT) was originally positioned as a black-box vendor product — the epistemological framework (Edge × Bankroll / Variance, streams, blocks, spaces, aggregation, decay, var_fair_ratio, etc.) was hidden behind opaque LLM deflection. The LLM system prompts in `server/api/llm/prompts/` enforced heavy IP protection: forbidden internal terminology, no absolute numbers, opaque deflection when asked about methodology. Supersedes the IP-protection motivation in the "2025 — Physical client/server split" entry (the split itself remains for deployment reasons).
 
 **Decision:** Remove all IP protection constraints from the LLM prompts. The framework is now the product — the user sees it in plain sight and formalises data and opinions within it. Internal terminology (block, space, pipeline, var_fair_ratio, smoothing, etc.) is allowed when it is the clearest way to communicate. Absolute numbers are allowed. Opaque deflection is removed. Communication quality rules (directional neutrality, "desired position", epistemology over mechanics, no vacuous jargon) are retained.
 
-**Rationale:** The value of APT is not in hiding how it works — it is in providing the epistemological framework itself and the platform to use it. A user who understands blocks, spaces, and var_fair_ratio can configure their own streams more effectively and reason about position changes more precisely. Hiding the framework was creating friction without adding defensible value.
+**Rationale:** The value of Posit is not in hiding how it works — it is in providing the epistemological framework itself and the platform to use it. A user who understands blocks, spaces, and var_fair_ratio can configure their own streams more effectively and reason about position changes more precisely. Hiding the framework was creating friction without adding defensible value.
 
 **Consequences:** The LLM will now use framework terminology and quote exact values when helpful. The `server/core/` Manual Brain restriction is unchanged — that is about code authorship quality, not IP. The physical client/server split remains for deployment architecture, though its original IP motivation is no longer primary.
+
+---
+
+## 2026-04-17 — Rebrand from APT to Posit
+
+**Context:** "APT — Automated Positional Trader" was the working name during development. It was too generic (collides with the advanced persistent threat acronym) and too verbose (tied to a legacy "automated trader" framing that no longer matches the positioning — Posit is an advisory platform, not an autonomous agent).
+
+**Decision:** Rebrand everything user-visible and operator-visible from APT to Posit. Tagline: "a positional trading platform." The change spans UI strings, LLM system prompts, env var (`APT_MODE` → `POSIT_MODE`), localStorage keys (with migration), OpenRouter app metadata, pitch deck, operations docs, legal agreement template, and historical artifacts. The local directory `auto-mm-pilot/` and the GitHub repo name are not renamed in this pass — that is an out-of-codebase action tracked separately.
+
+**Rationale:** (1) Brand clarity — "APT" has established meaning in security contexts; "Posit" is distinctive. (2) Positioning accuracy — "positional trading platform" describes what it is without claiming autonomy the product deliberately does not have. (3) The rebrand was cheap now (single PR) and would get exponentially more expensive after the first customer signed a license agreement referencing "APT."
+
+**Consequences:** Operators deploying to Railway must rename `APT_MODE` → `POSIT_MODE` in their env vars (and optionally rename the Railway domain `apt-admin` → `posit-admin`). Vercel `VITE_API_BASE` follows if the Railway domain is renamed. Existing users' localStorage layouts are preserved via a one-time migration in `LayoutProvider`, `OnboardingProvider`, and `StreamCanvas`.
 
 ---
 
