@@ -1,4 +1,4 @@
-# UI Frontend Specification: APT — Automated Positional Trader
+# UI Frontend Specification: Posit — a positional trading platform
 
 ## 1. Visual Identity & Brand Philosophy
 * **Persona:** Intellectual research interface. Clarity, transparency, and flow around ideas — not a conventional dark trading terminal.
@@ -31,9 +31,9 @@ The UI is a fixed-height, single-page application (SPA) divided into four primar
 
 ### B. Global Context Bar (Top — 56px Height)
 * **Treatment:** `.glass-bar` — `bg-white/65 backdrop-blur-2xl border-b border-black/[0.08]`. Content slides under this frosted strip.
-* **Left:** Static logo "APT" in `mm-accent` + connection status as a colored dot only (green/amber/red), tooltip on hover for details. No `[CONNECTED]` text.
+* **Left:** Static logo "Posit" in `mm-accent` + connection status as a colored dot only (green/amber/red), tooltip on hover for details. No `[CONNECTED]` text.
 * **Centre:** Mode switcher (Eyes / Brain / Anatomy) + search (`⌘K`) + chat toggle (`⌘\`).
-* **Right:** APT Control toggle + UTC clock.
+* **Right:** Posit Control toggle + UTC clock.
 
 ### C. Desired Positions (Centre — 7/12 Width, Full Height)
 * **Header:** "Desired Positions" with a dropdown toggle between nine view modes and a unit label.
@@ -68,7 +68,7 @@ The UI is a fixed-height, single-page application (SPA) divided into four primar
 * **Highlighting:** New cards receive a fading left-border accent (~2.5s) on arrival.
 * **Clickable cards:** Clicking any card pushes its context (asset, expiry, old/new position, delta) to the LLM Chat (Zone E) for investigation.
 
-### E. APT Chat (Right-side Drawer — 420px Width)
+### E. Posit Chat (Right-side Drawer — 420px Width)
 * **Trigger:** `⌘\` keyboard shortcut or Chat button in context bar.
 * **Treatment:** Glass drawer — `bg-white/70 backdrop-blur-2xl border-l border-black/[0.06] shadow-xl shadow-black/[0.06]`.
 * **Component:** A scrollable message feed with a text input at the bottom.
@@ -76,10 +76,10 @@ The UI is a fixed-height, single-page application (SPA) divided into four primar
     * **System** — auto-generated when a cell or card is clicked, summarizing the investigation context (blue left-border accent).
     * **User** — typed by the current logged-in operator, shown with initials badge and "(you)" suffix.
     * **Team** — messages from other desk members, shown with initials badge and "• team" label.
-    * **Assistant (@APT)** — responses from the LLM backend, shown with "AI" badge and blue accent border. Only triggered when the user tags `@APT` in their message.
-* **Routing:** Messages containing `@APT` are routed to the LLM engine for investigation responses. All other messages operate as a standard team chat.
-* **Interaction flow:** Click a cell/card → system context message → type `@APT why did this change?` → LLM responds with investigation.py-style reasoning.
-* **Empty state:** "Chat with your team or tag @APT to investigate positions."
+    * **Assistant (@Posit)** — responses from the LLM backend, shown with "AI" badge and blue accent border. Only triggered when the user tags `@Posit` in their message.
+* **Routing:** Messages containing `@Posit` are routed to the LLM engine for investigation responses. All other messages operate as a standard team chat.
+* **Interaction flow:** Click a cell/card → system context message → type `@Posit why did this change?` → LLM responds with investigation.py-style reasoning.
+* **Empty state:** "Chat with your team or tag @Posit to investigate positions."
 
 ### F. Daily Trading Wrap (Center Bottom — 55% Width, 45% Height)
 * **Header:** "Daily Trading Wrap" with generation timestamp.

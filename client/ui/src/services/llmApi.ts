@@ -1,5 +1,5 @@
 /**
- * HTTP client for the APT LLM server endpoints.
+ * HTTP client for the Posit LLM server endpoints.
  *
  * - streamChat(): SSE stream from POST /api/investigate (endpoint name retained
  *   for backwards compatibility — handles all chat modes, not just investigate).
@@ -39,7 +39,7 @@ export function streamChat(
     } catch (err) {
       if (!controller.signal.aborted) {
         callbacks.onError(
-          `Failed to connect to APT server: ${err instanceof Error ? err.message : String(err)}`,
+          `Failed to connect to Posit server: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
       return;

@@ -25,7 +25,7 @@ export function ChatDrawer() {
   return (
     <aside className="flex w-[420px] shrink-0 flex-col border-l border-black/[0.06] bg-white/85 shadow-[-8px_0_24px_-12px_rgba(0,0,0,0.08)]">
       <div className="flex items-center justify-between border-b border-black/[0.06] px-3 py-2">
-        <span className="zone-header">APT Chat</span>
+        <span className="zone-header">Posit Chat</span>
         <div className="flex items-center gap-2">
           <span className="hidden text-[9px] tabular-nums text-mm-text-subtle sm:inline">
             ⌘/

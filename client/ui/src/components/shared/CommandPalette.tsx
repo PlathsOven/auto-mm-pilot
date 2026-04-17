@@ -58,7 +58,7 @@ export function CommandPalette() {
       {
         id: "toggle-chat",
         group: "action",
-        title: "Toggle APT Chat",
+        title: "Toggle Posit Chat",
         hint: "⌘/",
         run: () => { toggleDrawer(); closePalette(); },
       },
@@ -69,9 +69,9 @@ export function CommandPalette() {
         run: () => { openOnboarding(); closePalette(); },
       },
       {
-        id: "explain-apt",
+        id: "explain-posit",
         group: "action",
-        title: "Explain APT",
+        title: "Explain Posit",
         hint: "60-second framework primer",
         run: () => { openOnboarding(); closePalette(); },
       },

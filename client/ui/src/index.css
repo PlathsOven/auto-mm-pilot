@@ -73,34 +73,34 @@
   }
 }
 
-/* Markdown prose inside APT chat messages */
-.prose-apt {
+/* Markdown prose inside Posit chat messages */
+.prose-posit {
   font-size: 0.75rem;
   line-height: 1.6;
 }
-.prose-apt p {
+.prose-posit p {
   margin: 0.25em 0;
 }
-.prose-apt ul,
-.prose-apt ol {
+.prose-posit ul,
+.prose-posit ol {
   margin: 0.25em 0;
   padding-left: 1.25em;
 }
-.prose-apt li {
+.prose-posit li {
   margin: 0.1em 0;
 }
-.prose-apt strong {
+.prose-posit strong {
   color: #4f5bd5; /* mm-accent */
   font-weight: 600;
 }
-.prose-apt code {
+.prose-posit code {
   font-size: 0.7rem;
   background: rgba(0, 0, 0, 0.05);
   padding: 0.1em 0.35em;
   border-radius: 4px;
   color: #1a1a2e;
 }
-.prose-apt pre {
+.prose-posit pre {
   background: rgba(0, 0, 0, 0.04);
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 8px;
@@ -108,17 +108,17 @@
   margin: 0.5em 0;
   overflow-x: auto;
 }
-.prose-apt pre code {
+.prose-posit pre code {
   background: none;
   padding: 0;
 }
-.prose-apt h1, .prose-apt h2, .prose-apt h3 {
+.prose-posit h1, .prose-posit h2, .prose-posit h3 {
   font-size: 0.75rem;
   font-weight: 700;
   color: #4f5bd5;
   margin: 0.5em 0 0.25em;
 }
-.prose-apt blockquote {
+.prose-posit blockquote {
   border-left: 2px solid rgba(79, 91, 213, 0.3);
   padding-left: 0.75em;
   margin: 0.25em 0;

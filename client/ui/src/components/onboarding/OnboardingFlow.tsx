@@ -23,8 +23,8 @@ interface OnboardingCard {
  * feedback loop (you + LLM). The shared visual is the through-line; each card
  * only swaps heading, body, and which region is lit.
  *
- * State persists in `localStorage.apt.onboarding.completed`. Re-openable from
- * the command palette ("Replay onboarding tour" / "Explain APT").
+ * State persists in `localStorage.posit.onboarding.completed`. Re-openable from
+ * the command palette ("Replay onboarding tour" / "Explain Posit").
  */
 export function OnboardingFlow() {
   const { open, markCompleted } = useOnboarding();
@@ -243,8 +243,8 @@ const CARDS: OnboardingCard[] = [
     id: "intro",
     label: "Welcome",
     highlight: "all",
-    heading: "Welcome to APT",
-    body: <>APT turns ideas into positions through one configurable engine.</>,
+    heading: "Welcome to Posit",
+    body: <>Posit turns ideas into positions through one configurable engine.</>,
   },
   {
     id: "streams",
@@ -254,7 +254,7 @@ const CARDS: OnboardingCard[] = [
     body: (
       <>
         Realized vol, FOMC, funding rates, historical IV, your own regime call — anything you can
-        quantify becomes a stream, expressing a view on fair value. APT doesn&rsquo;t privilege any
+        quantify becomes a stream, expressing a view on fair value. Posit doesn&rsquo;t privilege any
         source.
       </>
     ),
@@ -279,7 +279,7 @@ const CARDS: OnboardingCard[] = [
     heading: "See where your book should be.",
     body: (
       <>
-        For each (asset, expiry) pair, APT shows the position you should hold — and which streams
+        For each (asset, expiry) pair, Posit shows the position you should hold — and which streams
         drove it. Every number traces back to the views that produced it.
       </>
     ),
