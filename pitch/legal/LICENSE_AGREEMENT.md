@@ -1,12 +1,12 @@
 # SOFTWARE LICENSE AND SERVICES AGREEMENT
 
-**APT — Automated Positional Trader**
+**Posit — a positional trading platform**
 
 ---
 
 **Effective Date:** [___]
 
-**Agreement Number:** APT-GT-[___]
+**Agreement Number:** POSIT-GT-[___]
 
 ---
 
@@ -23,7 +23,7 @@ Each individually a "**Party**" and collectively the "**Parties**."
 
 ## RECITALS
 
-**A.** Vendor has invested significant expertise, effort, and capital in the research, development, and refinement of proprietary trading technology, including the Software and the APT Logic embedded therein.
+**A.** Vendor has invested significant expertise, effort, and capital in the research, development, and refinement of proprietary trading technology, including the Software and the Posit Logic embedded therein.
 
 **B.** Licensee operates a cryptocurrency options market-making business and has expressed interest in a commercial arrangement in which fees are initially tied to demonstrated performance, allowing Licensee to evaluate the Software's efficacy and build confidence in its outputs before committing to a fixed licensing fee.
 
@@ -67,11 +67,11 @@ Each individually a "**Party**" and collectively the "**Parties**."
 
 ## 1. DEFINITIONS
 
-**1.1** "**APT**" or "**Software**" means the proprietary advisory position terminal software developed and owned by Vendor, including all updates, patches, and new versions delivered to Licensee during the Term, delivered in a format determined by Vendor (which may include, without limitation, a compiled container image, a hosted service, or any other delivery mechanism agreed upon by the Parties).
+**1.1** "**Posit**" or "**Software**" means the proprietary positional trading platform software developed and owned by Vendor, including all updates, patches, and new versions delivered to Licensee during the Term, delivered in a format determined by Vendor (which may include, without limitation, a compiled container image, a hosted service, or any other delivery mechanism agreed upon by the Parties).
 
 **1.2** "**Advisory Period**" means the initial period commencing on the Deployment Date during which Vendor provides the Software for evaluation and integration purposes at no recurring licensing fee, subject to the limitations in Section 4.
 
-**1.3** "**APT Logic**" means all algorithms, mathematical models, pricing models, variance calculations, fair value computations, desired position simulations, and any other proprietary computational logic embedded within the Software.
+**1.3** "**Posit Logic**" means all algorithms, mathematical models, pricing models, variance calculations, fair value computations, desired position simulations, and any other proprietary computational logic embedded within the Software.
 
 **1.4** "**Advisory Mode**" means the operating mode of the Software in which it generates advisory position outputs and recommendations for review by Licensee personnel, without autonomously modifying any trading parameters or executing any trading actions.
 
@@ -89,11 +89,11 @@ Each individually a "**Party**" and collectively the "**Parties**."
 
 **1.11** "**Fee Commencement Date**" means the date on which recurring Licensing Fees become payable, determined in accordance with Section 4.
 
-**1.12** "**Hard Risk Fuses**" means the firm-owned safety mechanisms and risk limits that operate independently of APT Logic and remain under Licensee's exclusive control at all times.
+**1.12** "**Hard Risk Fuses**" means the firm-owned safety mechanisms and risk limits that operate independently of Posit Logic and remain under Licensee's exclusive control at all times.
 
 **1.13** "**Licensing Fee**" means the monthly fee payable by Licensee to Vendor as set out in Section 5, as may be adjusted in accordance with Section 6.
 
-**1.14** "**Parameter Change Integration**" means the milestone at which Licensee integrates APT's recommended trading parameter adjustments into its live trading operations, including without limitation the commencement of internal transfers between Book B and any Market-Facing Book (including but not limited to Book A).
+**1.14** "**Parameter Change Integration**" means the milestone at which Licensee integrates Posit's recommended trading parameter adjustments into its live trading operations, including without limitation the commencement of internal transfers between Book B and any Market-Facing Book (including but not limited to Book A).
 
 **1.14A** "**Market-Facing Book**" means any trading book on which a live trading algorithm is dependent, or which otherwise carries or transmits exposure to external markets. For the avoidance of doubt, Book C is not a Market-Facing Book.
 
@@ -141,7 +141,7 @@ Each individually a "**Party**" and collectively the "**Parties**."
 **2.5 Restrictions.** Licensee shall not:
 - (a) Copy, modify, adapt, translate, reverse engineer, decompile, disassemble, or create derivative works of the Software or any portion thereof;
 - (b) Sublicense, lease, rent, loan, distribute, or otherwise transfer the Software or any rights therein to any third party;
-- (c) Attempt to access, extract, or reconstruct the APT Logic;
+- (c) Attempt to access, extract, or reconstruct the Posit Logic;
 - (d) Remove, alter, or obscure any proprietary notices, labels, or marks on the Software;
 - (e) Use the Software for the benefit of any third party or operate it as a service bureau;
 - (f) Circumvent, disable, or interfere with the Data Egress mechanisms, Entity Masking processes, or any other security features of the Software;
@@ -279,10 +279,10 @@ Such access shall be provided via a real-time data feed, dashboard, or API, in a
 ## 7. INTELLECTUAL PROPERTY
 
 **7.1 Vendor IP.** Licensee acknowledges and agrees that:
-- (a) The APT Logic, including all algorithms, models, and computational methods embedded in the Software, is and shall remain the sole and exclusive property of Vendor;
+- (a) The Posit Logic, including all algorithms, models, and computational methods embedded in the Software, is and shall remain the sole and exclusive property of Vendor;
 - (b) The Software (including its source code, object code, architecture, and design) is and shall remain the sole and exclusive property of Vendor;
-- (c) Nothing in this Agreement grants Licensee any ownership interest in the APT Logic or the Software;
-- (d) Vendor retains the APT Logic across all client engagements and may use general learnings, techniques, and know-how developed during the performance of this Agreement in its other business activities, provided such use does not disclose Licensee's Confidential Information.
+- (c) Nothing in this Agreement grants Licensee any ownership interest in the Posit Logic or the Software;
+- (d) Vendor retains the Posit Logic across all client engagements and may use general learnings, techniques, and know-how developed during the performance of this Agreement in its other business activities, provided such use does not disclose Licensee's Confidential Information.
 
 **7.2 Licensee IP (Corporate IP).** Vendor acknowledges and agrees that all Corporate IP is and shall remain the sole and exclusive property of Licensee. This includes, without limitation:
 - (a) **On-Demand Explanations** — all explanation outputs generated by the Software in response to Licensee queries, to the extent they reflect Licensee's trading strategies and decisions;
@@ -301,7 +301,7 @@ Vendor's access to Shared Data shall not be construed as a transfer of ownership
 
 **7.6 Custom Indicators and Tools.** Any custom indicators, analytical tools, models, or other deliverables developed by Vendor for Licensee during the Term (whether at Licensee's request or on Vendor's initiative) shall be and remain the sole intellectual property of Vendor. Licensee is granted a non-exclusive, non-transferable, royalty-free license to use such custom indicators and tools for its internal business operations for the duration of the Term. Vendor retains the right to use, modify, sublicense, and provide such custom indicators and tools to any other client or third party, provided that Vendor does not disclose Licensee's Confidential Information in connection with such use.
 
-**7.7 Improvements and Derivative Works.** All improvements, enhancements, modifications, updates, and derivative works of the Software or the APT Logic — regardless of whether they were prompted by, inspired by, or developed in response to Licensee's usage patterns, feedback, feature requests, bug reports, or any other input from Licensee — are and shall remain the sole and exclusive intellectual property of Vendor. To the extent that Licensee's feedback or input gives rise to any intellectual property rights in improvements or derivative works, Licensee hereby assigns such rights to Vendor, to the extent permitted by applicable law. For the avoidance of doubt, no suggestion, feedback, or feature request from Licensee shall create a joint work, joint ownership, or any intellectual property claim by Licensee in the Software or the APT Logic. Where Vendor develops a material new feature or capability that was substantially prompted by Licensee's specific written feature request, Vendor shall use commercially reasonable efforts to make such feature available to Licensee under this license at no additional charge during the Term.
+**7.7 Improvements and Derivative Works.** All improvements, enhancements, modifications, updates, and derivative works of the Software or the Posit Logic — regardless of whether they were prompted by, inspired by, or developed in response to Licensee's usage patterns, feedback, feature requests, bug reports, or any other input from Licensee — are and shall remain the sole and exclusive intellectual property of Vendor. To the extent that Licensee's feedback or input gives rise to any intellectual property rights in improvements or derivative works, Licensee hereby assigns such rights to Vendor, to the extent permitted by applicable law. For the avoidance of doubt, no suggestion, feedback, or feature request from Licensee shall create a joint work, joint ownership, or any intellectual property claim by Licensee in the Software or the Posit Logic. Where Vendor develops a material new feature or capability that was substantially prompted by Licensee's specific written feature request, Vendor shall use commercially reasonable efforts to make such feature available to Licensee under this license at no additional charge during the Term.
 
 ---
 
@@ -371,7 +371,7 @@ Vendor's access to Shared Data shall not be construed as a transfer of ownership
 ## 10. CONFIDENTIALITY
 
 **10.1 Definition.** "**Confidential Information**" means any non-public information disclosed by one Party ("**Disclosing Party**") to the other Party ("**Receiving Party**"), whether orally, in writing, or in any other form, that is designated as confidential or that a reasonable person would understand to be confidential given the nature of the information and circumstances of disclosure. Confidential Information includes, without limitation:
-- (a) For Vendor: APT Logic, source code, algorithms, business plans, pricing, and client lists;
+- (a) For Vendor: Posit Logic, source code, algorithms, business plans, pricing, and client lists;
 - (b) For Licensee: trading strategies, position data, financial information, personnel information, Corporate IP, and Shared Data (to the extent not already accessible to Vendor under Section 7.3).
 
 **10.2 Obligations.** The Receiving Party shall:
@@ -469,7 +469,7 @@ Vendor's access to Shared Data shall not be construed as a transfer of ownership
 - (e) Sections 7, 8.5, 8.6, 9.5, 10, 11.3, 11.4, 12, 13, 14.5, 14.6, 15, and 16 shall survive termination;
 - (f) If termination occurs before the end of the then-current term (whether Initial Term or Renewal Period), the Early Termination Fee provisions of Section 6.3(a) shall apply.
 
-**14.5 Post-Termination Non-Compete.** The Parties acknowledge that during the Term, Licensee will have had substantial exposure to the APT Logic's outputs, methodologies, and behavioral patterns. To protect Vendor's proprietary investment, for a period of twelve (12) months following the effective date of termination or expiration of this Agreement (the "**Restricted Period**"), Licensee shall not, directly or indirectly, deploy, develop, commission, license, or use any software, system, algorithm, or methodology that replicates, is substantially similar to, or was derived from or inspired by the APT Logic, the Software's architecture, or the Software's outputs. The intent of this restriction is to prevent the direct cloning or reverse-engineering of the APT Logic — it is not intended to restrict Licensee's ordinary business operations or use of generally available commercial software and independently developed tools that were not influenced by the Software or the APT Logic.
+**14.5 Post-Termination Non-Compete.** The Parties acknowledge that during the Term, Licensee will have had substantial exposure to the Posit Logic's outputs, methodologies, and behavioral patterns. To protect Vendor's proprietary investment, for a period of twelve (12) months following the effective date of termination or expiration of this Agreement (the "**Restricted Period**"), Licensee shall not, directly or indirectly, deploy, develop, commission, license, or use any software, system, algorithm, or methodology that replicates, is substantially similar to, or was derived from or inspired by the Posit Logic, the Software's architecture, or the Software's outputs. The intent of this restriction is to prevent the direct cloning or reverse-engineering of the Posit Logic — it is not intended to restrict Licensee's ordinary business operations or use of generally available commercial software and independently developed tools that were not influenced by the Software or the Posit Logic.
 
 **14.6 Non-Solicitation.** During the Term and for a period of twelve (12) months following the effective date of termination or expiration of this Agreement, Licensee shall not, directly or indirectly, solicit, recruit, hire, engage, or contract with any employee, contractor, or consultant of Vendor who was involved in the development, deployment, or support of the Software, without Vendor's prior written consent. This restriction does not apply to general, untargeted recruitment advertisements or to individuals who approach Licensee without solicitation.
 
@@ -594,7 +594,7 @@ The Performance Metric is achieved on the first trading day on which the Annuali
 
 | Data Category | Description | Masking Applied | Retention Period |
 |---|---|---|---|
-| Encrypted Logic Logs | Encrypted records of APT's internal computational processes | Full encryption; no plaintext trading data | Indefinite (per §8.5) |
+| Encrypted Logic Logs | Encrypted records of Posit's internal computational processes | Full encryption; no plaintext trading data | Indefinite (per §8.5) |
 | Masked Linguistic Telemetry | Anonymized NLP interaction records (chat, queries, explanations) | Entity masking: names, instruments, counterparties replaced | Indefinite (per §8.5) |
 | Performance Metadata | Aggregated system performance statistics (latency, uptime, accuracy) | No firm-identifying information included | Indefinite (per §8.5) |
 

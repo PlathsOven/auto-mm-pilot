@@ -34,7 +34,7 @@ export interface Slide {
 export const slides: Slide[] = [
   {
     id: "intro",
-    title: "APT",
+    title: "Posit",
     icon: <Monitor className="h-4 w-4" />,
     content: <IntroSlide />,
   },

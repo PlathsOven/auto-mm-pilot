@@ -101,7 +101,7 @@ function DotList({ items, color }: { items: string[]; color: string }) {
 }
 
 // ============================================================
-// APT internals — Pricing Logic
+// Posit internals — Pricing Logic
 // ============================================================
 
 function PricingLogicInternals() {
@@ -145,7 +145,7 @@ function PricingLogicInternals() {
 }
 
 // ============================================================
-// APT internals — Execution Logic
+// Posit internals — Execution Logic
 // ============================================================
 
 function ExecutionLogicInternals() {
@@ -174,14 +174,14 @@ function ExecutionLogicInternals() {
 // Main slide — vertical flow
 // ============================================================
 
-type IpHighlight = null | "gravity" | "apt";
+type IpHighlight = null | "gravity" | "posit";
 
 export function PositionManagementSlide() {
-  const [showAptInternals, setShowAptInternals] = useState(false);
+  const [showPositInternals, setShowPositInternals] = useState(false);
   const [ipHighlight, setIpHighlight] = useState<IpHighlight>(null);
 
-  const gravityDim = ipHighlight === "apt" ? "opacity-20" : "opacity-100";
-  const aptDim = ipHighlight === "gravity" ? "opacity-20" : "opacity-100";
+  const gravityDim = ipHighlight === "posit" ? "opacity-20" : "opacity-100";
+  const positDim = ipHighlight === "gravity" ? "opacity-20" : "opacity-100";
   const arrowDim = ipHighlight !== null ? "opacity-40" : "opacity-100";
 
   return (
@@ -191,7 +191,7 @@ export function PositionManagementSlide() {
         changes. <strong className="text-foreground">Pricing Logic</strong> decides{" "}
         <em>what</em> position to hold;{" "}
         <strong className="text-foreground">Execution Logic</strong> figures out{" "}
-        <em>how</em> to get there. APT automates both.
+        <em>how</em> to get there. Posit automates both.
       </p>
 
       {/* Toggles row */}
@@ -199,19 +199,19 @@ export function PositionManagementSlide() {
         {/* Black-box / Internals toggle */}
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setShowAptInternals(!showAptInternals)}
+            onClick={() => setShowPositInternals(!showPositInternals)}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              showAptInternals ? "bg-[var(--brand)]" : "bg-muted-foreground/30"
+              showPositInternals ? "bg-[var(--brand)]" : "bg-muted-foreground/30"
             }`}
           >
             <span
               className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-                showAptInternals ? "translate-x-6" : "translate-x-1"
+                showPositInternals ? "translate-x-6" : "translate-x-1"
               }`}
             />
           </button>
           <span className="text-xs text-foreground/80 font-medium">
-            {showAptInternals ? "APT Internals" : "Black Box View"}
+            {showPositInternals ? "Posit Internals" : "Black Box View"}
           </span>
         </div>
 
@@ -222,7 +222,7 @@ export function PositionManagementSlide() {
           <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-1">IP:</span>
           {([
             { key: "gravity" as const, label: "Gravity Team", color: C.streams },
-            { key: "apt" as const, label: "Trader/APT", color: C.logic },
+            { key: "posit" as const, label: "Trader/Posit", color: C.logic },
           ]).map((pill) => {
             const active = ipHighlight === pill.key;
             return (
@@ -260,20 +260,20 @@ export function PositionManagementSlide() {
       </div>
 
       {/* 2 + 3 · Pricing Logic & Execution Logic — Black Box bracket */}
-      <div className={`w-full transition-opacity duration-300 ${aptDim}`}>
+      <div className={`w-full transition-opacity duration-300 ${positDim}`}>
       <SectionCard title="" color={C.logic} dashed className="relative pt-6">
         {/* Badge */}
         <div
           className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] font-semibold uppercase tracking-wider px-3 py-0.5 rounded-full border whitespace-nowrap"
           style={{ color: C.logic, borderColor: `${C.logic}40`, backgroundColor: `${C.logic}15` }}
         >
-          BLACK BOX: Trader / APT
+          BLACK BOX: Trader / Posit
         </div>
 
         {/* Pricing Logic */}
         <SectionCard title="Pricing Logic" color={C.logic}>
           <AnimatePresence mode="wait">
-            {showAptInternals ? (
+            {showPositInternals ? (
               <motion.div
                 key="pricing-internals"
                 initial={{ opacity: 0, y: 8 }}
@@ -307,7 +307,7 @@ export function PositionManagementSlide() {
         {/* Execution Logic */}
         <SectionCard title="Execution Logic" color={C.hands}>
           <AnimatePresence mode="wait">
-            {showAptInternals ? (
+            {showPositInternals ? (
               <motion.div
                 key="exec-internals"
                 initial={{ opacity: 0, y: 8 }}

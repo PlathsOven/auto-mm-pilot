@@ -17,7 +17,7 @@ interface Milestone {
 const MILESTONES: Milestone[] = [
   {
     label: "Immediate",
-    items: ["APT development begins"],
+    items: ["Posit development begins"],
     icon: <Rocket className="h-4 w-4" />,
     accent: "#f59e0b",
   },

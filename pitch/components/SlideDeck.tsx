@@ -59,7 +59,7 @@ export function SlideDeck() {
             <span className="text-xs font-bold text-background leading-none">A</span>
           </div>
           <span className="text-sm font-semibold tracking-tight text-foreground">
-            APT: Automated Positional Trader
+            Posit — a positional trading platform
           </span>
         </div>
         <span className="text-sm font-medium text-muted-foreground tabular-nums">
