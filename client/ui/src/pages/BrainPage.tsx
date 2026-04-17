@@ -129,6 +129,7 @@ export function BrainPage() {
             <DecompositionPanel
               blocks={data.currentDecomposition.blocks}
               aggregated={data.currentDecomposition.aggregated}
+              aggregateMarketValue={data.currentDecomposition.aggregateMarketValue}
               mode={decompositionMode}
               onModeChange={setDecompositionMode}
               selectedBlocks={selectedBlocks}

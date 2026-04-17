@@ -128,6 +128,20 @@ export interface BankrollResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Aggregate market values
+// ---------------------------------------------------------------------------
+
+export interface MarketValueEntry {
+  symbol: string;
+  expiry: string;
+  total_vol: number;
+}
+
+export interface MarketValueListResponse {
+  entries: MarketValueEntry[];
+}
+
+// ---------------------------------------------------------------------------
 // Pipeline time series (charting)
 // ---------------------------------------------------------------------------
 
@@ -192,7 +206,6 @@ export interface BlockRow {
   // Output values
   target_value: number;
   raw_value: number;
-  market_price: number | null;
   market_value: number | null;
   target_market_value: number | null;
   fair: number | null;
@@ -212,6 +225,7 @@ export interface PipelineTimeSeriesResponse {
   currentDecomposition: {
     blocks: CurrentBlockDecomposition[];
     aggregated: Record<string, number>;
+    aggregateMarketValue?: { totalVol: number } | null;
   };
 }
 

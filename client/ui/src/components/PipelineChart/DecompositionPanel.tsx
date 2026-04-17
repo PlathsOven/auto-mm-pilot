@@ -38,6 +38,7 @@ interface CardSpec {
 export function DecompositionPanel({
   blocks,
   aggregated,
+  aggregateMarketValue,
   mode,
   onModeChange,
   selectedBlocks,
@@ -45,12 +46,14 @@ export function DecompositionPanel({
 }: {
   blocks: CurrentBlockDecomposition[];
   aggregated: Record<string, number>;
+  aggregateMarketValue?: { totalVol: number } | null;
   mode: DecompositionMode;
   onModeChange: (m: DecompositionMode) => void;
   selectedBlocks: Set<string>;
   onBlockClick: (blockName: string) => void;
 }) {
   const totalFair = aggregated.totalFair ?? 0;
+  const totalMarketFair = aggregated.totalMarketFair ?? 0;
   const totalVar = aggregated.smoothedVar ?? aggregated.var ?? 0;
   const rawDesPos = aggregated.rawDesiredPosition ?? aggregated.smoothedDesiredPosition ?? 0;
   const smoothDesPos = aggregated.smoothedDesiredPosition ?? 0;
@@ -87,6 +90,13 @@ export function DecompositionPanel({
     { key: "variance", label: "Variance", value: totalVar, fmt: sci },
   ];
 
+  const marketFairCard = {
+    label: "Market Fair",
+    value: totalMarketFair,
+    fmt: sci,
+    userVol: aggregateMarketValue?.totalVol,
+  };
+
   return (
     <div className="flex flex-col gap-3 p-4">
       {/* Cards — clickable metric tiles double as mode toggles */}
@@ -117,6 +127,28 @@ export function DecompositionPanel({
             </button>
           );
         })}
+      </div>
+
+      {/* Market Fair — read-only summary card with user's aggregate vol indicator */}
+      <div className="glass-card flex items-center justify-between px-3 py-2">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">
+            {marketFairCard.label}
+          </span>
+          <span className="font-mono tabular-nums text-[13px] font-semibold text-mm-text">
+            {marketFairCard.fmt(marketFairCard.value)}
+          </span>
+        </div>
+        {marketFairCard.userVol !== undefined && (
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="text-[8px] font-semibold uppercase tracking-wider text-mm-text-dim">
+              Agg Vol
+            </span>
+            <span className="rounded bg-mm-accent/10 px-1.5 py-0.5 font-mono tabular-nums text-[11px] font-semibold text-mm-accent">
+              {marketFairCard.userVol.toFixed(4)}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Bars — block decomposition for the active mode */}

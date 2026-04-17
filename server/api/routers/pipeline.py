@@ -10,6 +10,7 @@ import polars as pl
 from fastapi import APIRouter, HTTPException
 
 from server.api.engine_state import get_pipeline_results, RISK_DIMENSION_COLS
+from server.api.market_value_store import to_dict as mv_to_dict
 from server.api.stream_registry import parse_datetime_tolerant
 from server.api.ws import get_current_tick_ts
 
@@ -140,6 +141,12 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
             "smoothedDesiredPosition": last["smoothed_desired_position"],
         }
 
+    # Look up user's aggregate market value for this dimension
+    aggregate_mvs = mv_to_dict()
+    expiry_iso = expiry_dt.isoformat()
+    agg_mv_entry = aggregate_mvs.get((symbol, expiry_iso))
+    agg_mv = {"totalVol": agg_mv_entry} if agg_mv_entry is not None else None
+
     return {
         "symbol": symbol,
         "blocks": blocks,
@@ -147,6 +154,7 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
         "currentDecomposition": {
             "blocks": current_blocks,
             "aggregated": current_agg,
+            "aggregateMarketValue": agg_mv,
         },
     }
 

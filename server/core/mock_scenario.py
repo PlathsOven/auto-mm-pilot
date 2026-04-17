@@ -34,7 +34,7 @@ MOCK_RV_STREAM = StreamConfig(
         "symbol": [_SYMBOL],
         "expiry": [_EXPIRY],
         "raw_value": [0.45],
-        "market_price": [0.55],
+        "market_value": [0.55],
     }),
     key_cols=["symbol", "expiry"],
     scale=1.0, offset=0.0, exponent=2,
@@ -48,7 +48,7 @@ MOCK_MEAN_IV_STREAM = StreamConfig(
         "symbol": [_SYMBOL],
         "expiry": [_EXPIRY],
         "raw_value": [0.50],
-        "market_price": [0.55],
+        "market_value": [0.55],
     }),
     key_cols=["symbol", "expiry"],
     scale=1.0, offset=0.0, exponent=2,
@@ -73,7 +73,7 @@ MOCK_EVENTS_STREAM = StreamConfig(
         "expiry": [_EXPIRY] * _NUM_EVENTS,
         "event_id": [f"event_{i}" for i in range(_NUM_EVENTS)],
         "raw_value": [2.5, 3.1, 1.8, 4.0, 2.0],
-        "market_price": [0.30, 0.25, 0.40, 0.35, 0.20],
+        "market_value": [0.30, 0.25, 0.40, 0.35, 0.20],
         "start_timestamp": _EVENT_STARTS,
     }),
     key_cols=["symbol", "expiry", "event_id"],
@@ -93,3 +93,9 @@ MOCK_STREAMS: list[StreamConfig] = [
     MOCK_MEAN_IV_STREAM,
     MOCK_EVENTS_STREAM,
 ]
+
+# Aggregate market values for testing — total vol per (symbol, expiry_str)
+# Expiry is stored as a string (ISO format) matching the API representation.
+MOCK_AGGREGATE_MARKET_VALUES: dict[tuple[str, str], float] = {
+    (_SYMBOL, _EXPIRY.isoformat()): 0.55,
+}

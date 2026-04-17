@@ -54,23 +54,27 @@ def build_blocks_df(
         if "start_timestamp" not in snap.columns:
             snap = snap.with_columns(pl.lit(None).cast(pl.Datetime("us")).alias("start_timestamp"))
 
-        # Market price (defaults to raw_value when absent or null)
-        if "market_price" not in snap.columns:
-            snap = snap.with_columns(pl.col("raw_value").alias("market_price"))
+        # Track whether each row has a user-defined market_value before fill
+        if "market_value" not in snap.columns:
+            snap = snap.with_columns(
+                pl.lit(False).alias("has_user_market_value"),
+                pl.col("raw_value").alias("market_value"),
+            )
         else:
             snap = snap.with_columns(
-                pl.col("market_price").fill_null(pl.col("raw_value"))
+                pl.col("market_value").is_not_null().alias("has_user_market_value"),
+                pl.col("market_value").fill_null(pl.col("raw_value")),
             )
 
         # Target-space conversion via selected transform or legacy fallback.
-        # Apply the same conversion to both raw_value and market_price.
+        # Apply the same conversion to both raw_value and market_value.
         conv_params = sc.get_conversion_params()
         if unit_conversion is not None:
             val_expr = unit_conversion.fn("raw_value", **conv_params)
-            mkt_expr = unit_conversion.fn("market_price", **conv_params)
+            mkt_expr = unit_conversion.fn("market_value", **conv_params)
         else:
             val_expr = raw_to_target_expr("raw_value", sc.scale, sc.offset, sc.exponent)
-            mkt_expr = raw_to_target_expr("market_price", sc.scale, sc.offset, sc.exponent)
+            mkt_expr = raw_to_target_expr("market_value", sc.scale, sc.offset, sc.exponent)
         snap = snap.with_columns(
             val_expr.alias("target_value"),
             mkt_expr.alias("target_market_value"),
@@ -95,8 +99,9 @@ def build_blocks_df(
                 "stream_name": sc.stream_name,
                 "target_value": row["target_value"],
                 "raw_value": row["raw_value"],
-                "market_price": row["market_price"],
+                "market_value": row["market_value"],
                 "target_market_value": row["target_market_value"],
+                "has_user_market_value": row["has_user_market_value"],
                 "start_timestamp": row.get("start_timestamp"),
                 "space_id": space_id,
                 # Block config fields (flat)
@@ -179,6 +184,7 @@ def run_pipeline(
     smoothing_hl_secs: int,
     time_grid_interval: str = "1m",
     transform_config: dict[str, Any] | None = None,
+    aggregate_market_values: dict[tuple[str, str], float] | None = None,
 ) -> dict[str, pl.DataFrame]:
     """Execute the full pipeline and return every intermediate as a dict.
 
@@ -187,7 +193,7 @@ def run_pipeline(
     When *transform_config* is provided, overrides are applied first.
 
     Market pricing is now per-block: each snapshot row carries an optional
-    ``market_price`` field (defaults to ``raw_value`` when absent).
+    ``market_value`` field (defaults to ``raw_value`` when absent).
     ``build_blocks_df`` converts it through the same unit transform as
     ``raw_value``, producing ``target_market_value`` inline — no separate
     join stage needed.
@@ -214,8 +220,16 @@ def run_pipeline(
     agg_fn    = get_step("aggregation").get_selected()
     pos_fn    = get_step("position_sizing").get_selected()
     smooth_fn = get_step("smoothing").get_selected()
+    mvi_fn    = get_step("market_value_inference").get_selected()
 
     blocks_df     = build_blocks_df(streams, risk_dimension_cols, unit_fn)
+
+    # Market value inference: distribute aggregate total vol to blocks
+    blocks_df     = mvi_fn.fn(
+        blocks_df, aggregate_market_values or {}, unit_fn,
+        **get_step("market_value_inference").get_param_values(),
+    )
+
     time_grid     = build_time_grid(blocks_df, risk_dimension_cols, now, interval=time_grid_interval)
 
     block_fair_df = fair_fn.fn(
