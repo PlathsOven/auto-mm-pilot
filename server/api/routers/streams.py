@@ -1,11 +1,13 @@
-"""Stream CRUD endpoints."""
+"""Stream CRUD endpoints — scoped to the calling user."""
 
 from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from server.api.auth.dependencies import current_user
+from server.api.auth.models import User
 from server.api.models import (
     AdminConfigureStreamRequest,
     BlockConfigPayload,
@@ -21,10 +23,6 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _stream_to_response(reg: StreamRegistration) -> StreamResponse:
     """Convert a StreamRegistration to its API response model."""
@@ -51,14 +49,12 @@ def _stream_to_response(reg: StreamRegistration) -> StreamResponse:
     )
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
-
 @router.post("/api/streams", response_model=StreamResponse, status_code=201)
-async def create_stream(req: CreateStreamRequest) -> StreamResponse:
-    """User creates a new data stream (PENDING until admin configures it)."""
-    registry = get_stream_registry()
+async def create_stream(
+    req: CreateStreamRequest,
+    user: User = Depends(current_user),
+) -> StreamResponse:
+    registry = get_stream_registry(user.id)
     try:
         reg = registry.create(req.stream_name, req.key_cols)
     except ValueError as exc:
@@ -67,18 +63,22 @@ async def create_stream(req: CreateStreamRequest) -> StreamResponse:
 
 
 @router.get("/api/streams", response_model=StreamListResponse)
-async def list_streams() -> StreamListResponse:
-    """List all registered data streams."""
-    registry = get_stream_registry()
+async def list_streams(
+    user: User = Depends(current_user),
+) -> StreamListResponse:
+    registry = get_stream_registry(user.id)
     return StreamListResponse(
         streams=[_stream_to_response(r) for r in registry.list_streams()],
     )
 
 
 @router.patch("/api/streams/{stream_name}", response_model=StreamResponse)
-async def update_stream(stream_name: str, req: UpdateStreamRequest) -> StreamResponse:
-    """User updates stream_name and/or key_cols."""
-    registry = get_stream_registry()
+async def update_stream(
+    stream_name: str,
+    req: UpdateStreamRequest,
+    user: User = Depends(current_user),
+) -> StreamResponse:
+    registry = get_stream_registry(user.id)
     try:
         reg = registry.update(
             stream_name,
@@ -94,10 +94,11 @@ async def update_stream(stream_name: str, req: UpdateStreamRequest) -> StreamRes
 
 @router.post("/api/streams/{stream_name}/configure", response_model=StreamResponse)
 async def configure_stream(
-    stream_name: str, req: AdminConfigureStreamRequest,
+    stream_name: str,
+    req: AdminConfigureStreamRequest,
+    user: User = Depends(current_user),
 ) -> StreamResponse:
-    """Admin configures pipeline-facing parameters -> moves stream to READY."""
-    registry = get_stream_registry()
+    registry = get_stream_registry(user.id)
     try:
         block = BlockConfig(
             annualized=req.block.annualized,
@@ -126,9 +127,11 @@ async def configure_stream(
 
 
 @router.delete("/api/streams/{stream_name}", status_code=204)
-async def delete_stream(stream_name: str) -> None:
-    """Remove a registered stream."""
-    registry = get_stream_registry()
+async def delete_stream(
+    stream_name: str,
+    user: User = Depends(current_user),
+) -> None:
+    registry = get_stream_registry(user.id)
     try:
         registry.delete(stream_name)
     except KeyError as exc:

@@ -5,9 +5,15 @@ import { useCommandPalette } from "../providers/CommandPaletteProvider";
 import { formatUtcTime } from "../utils";
 import { useMode } from "../providers/ModeProvider";
 import { ModeSwitcher } from "./shared/ModeSwitcher";
+import { UserMenu } from "./UserMenu";
 import { GLOBAL_CONTEXT_TICK_MS } from "../constants";
 
-export function GlobalContextBar() {
+interface GlobalContextBarProps {
+  onOpenAccount: () => void;
+  onOpenAdmin: () => void;
+}
+
+export function GlobalContextBar({ onOpenAccount, onOpenAdmin }: GlobalContextBarProps) {
   const { connectionStatus } = useWebSocket();
   const { mode, setMode } = useMode();
   const { drawerOpen, toggleDrawer } = useChat();
@@ -106,12 +112,15 @@ export function GlobalContextBar() {
         </div>
       </div>
 
-      {/* Right: System Time (UTC) */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-mm-text-dim">UTC</span>
-        <span className="text-sm tabular-nums text-mm-text">
-          {formatUtcTime(now)}
-        </span>
+      {/* Right: System Time (UTC) + User menu */}
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-mm-text-dim">UTC</span>
+          <span className="text-sm tabular-nums text-mm-text">
+            {formatUtcTime(now)}
+          </span>
+        </div>
+        <UserMenu onOpenAccount={onOpenAccount} onOpenAdmin={onOpenAdmin} />
       </div>
     </div>
   );

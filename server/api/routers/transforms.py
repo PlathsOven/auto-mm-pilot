@@ -1,12 +1,22 @@
-"""Transform configuration endpoints."""
+"""Transform configuration endpoints — scoped to the calling user.
+
+Note: the underlying ``server.core.transforms`` registry is shared process-
+wide (mutating its ``.selected`` / ``.params`` is how transform selections
+are validated). The pipeline rerun uses the caller's per-user
+``transform_config``, so pipeline math stays isolated — only the ``GET``
+response can reflect another user's most recent patch. Documented v1
+trade-off; revisit when transforms gain true per-user persistence.
+"""
 
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from server.api.auth.dependencies import current_user
+from server.api.auth.models import User
 from server.api.engine_state import rerun_and_broadcast, set_transform_config
 from server.api.models import (
     TransformConfigRequest,
@@ -34,9 +44,7 @@ _STEP_LABELS = {
 }
 
 
-@router.get("/api/transforms", response_model=TransformListResponse)
-async def list_transforms() -> TransformListResponse:
-    """Return all pipeline steps with available transforms, selections, and param schemas."""
+def _list_transforms_response() -> TransformListResponse:
     registry = get_registry()
     steps: dict[str, TransformStepResponse] = {}
 
@@ -76,17 +84,24 @@ async def list_transforms() -> TransformListResponse:
     return TransformListResponse(steps=steps)
 
 
+@router.get("/api/transforms", response_model=TransformListResponse)
+async def list_transforms(
+    _user: User = Depends(current_user),
+) -> TransformListResponse:
+    return _list_transforms_response()
+
+
 @router.patch("/api/transforms", response_model=TransformListResponse)
-async def update_transforms(req: TransformConfigRequest) -> TransformListResponse:
-    """Update transform selections and/or params, then re-run pipeline."""
+async def update_transforms(
+    req: TransformConfigRequest,
+    user: User = Depends(current_user),
+) -> TransformListResponse:
     registry = get_registry()
 
-    # Build config dict from request (only non-None fields)
     config: dict[str, Any] = {}
     for step_name in registry.list_steps():
         selection = getattr(req, step_name, None)
         if selection is not None:
-            # Validate the transform exists
             try:
                 registry.get_step(step_name).select(selection)
             except ValueError as exc:
@@ -98,16 +113,14 @@ async def update_transforms(req: TransformConfigRequest) -> TransformListRespons
             registry.get_step(step_name).set_param_values(params)
             config[f"{step_name}_params"] = params
 
-    # Store the full config for pipeline runs
     full_config = registry.to_dict()
-    set_transform_config(full_config)
+    set_transform_config(user.id, full_config)
 
-    # Re-run pipeline with new config
-    stream_registry = get_stream_registry()
+    stream_registry = get_stream_registry(user.id)
     stream_configs = stream_registry.build_stream_configs()
     if stream_configs:
         try:
-            await rerun_and_broadcast(stream_configs, transform_config=full_config)
+            await rerun_and_broadcast(user.id, stream_configs, transform_config=full_config)
         except Exception as exc:
             log.exception("Pipeline re-run failed after transform config update")
             raise HTTPException(
@@ -115,5 +128,4 @@ async def update_transforms(req: TransformConfigRequest) -> TransformListRespons
                 detail=f"Config updated but pipeline re-run failed: {exc}",
             ) from exc
 
-    # Return updated state
-    return await list_transforms()
+    return _list_transforms_response()

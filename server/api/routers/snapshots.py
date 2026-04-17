@@ -1,11 +1,13 @@
-"""Snapshot ingestion endpoint."""
+"""Snapshot ingestion endpoint — scoped to the calling user."""
 
 from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from server.api.auth.dependencies import current_user
+from server.api.auth.models import User
 from server.api.engine_state import rerun_and_broadcast
 from server.api.models import SnapshotRequest, SnapshotResponse
 from server.api.stream_registry import get_stream_registry
@@ -16,9 +18,12 @@ router = APIRouter()
 
 
 @router.post("/api/snapshots", response_model=SnapshotResponse)
-async def ingest_snapshot(req: SnapshotRequest) -> SnapshotResponse:
+async def ingest_snapshot(
+    req: SnapshotRequest,
+    user: User = Depends(current_user),
+) -> SnapshotResponse:
     """Ingest snapshot rows for a READY stream and re-run the pipeline."""
-    registry = get_stream_registry()
+    registry = get_stream_registry(user.id)
     try:
         accepted = registry.ingest_snapshot(
             req.stream_name, [r.model_dump() for r in req.rows],
@@ -28,12 +33,11 @@ async def ingest_snapshot(req: SnapshotRequest) -> SnapshotResponse:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    # Re-run pipeline with all available streams
     stream_configs = registry.build_stream_configs()
     pipeline_rerun = False
     if stream_configs:
         try:
-            await rerun_and_broadcast(stream_configs)
+            await rerun_and_broadcast(user.id, stream_configs)
             pipeline_rerun = True
         except Exception as exc:
             log.exception("Pipeline re-run failed after snapshot ingestion")

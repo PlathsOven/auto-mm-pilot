@@ -1,9 +1,9 @@
 """
-Thread-safe aggregate market value store.
+Per-user aggregate market value store.
 
-Singleton that holds ``{(symbol, expiry): total_vol}`` with a dirty flag.
-API writes update the store and set the flag; the WS ticker checks the
-flag each tick and triggers a coalesced pipeline rerun when dirty.
+Each user owns a ``{(symbol, expiry): total_vol}`` map + a dirty flag. API
+writes mutate the calling user's store and set their dirty flag; the WS
+ticker checks the flag per user and triggers coalesced reruns.
 """
 
 from __future__ import annotations
@@ -12,78 +12,101 @@ import logging
 import threading
 from typing import Any
 
+from server.api.user_scope import UserRegistry
+
 log = logging.getLogger(__name__)
 
-_lock = threading.Lock()
-_store: dict[tuple[str, str], float] = {}
-_dirty: bool = False
 
+class MarketValueStore:
+    """One user's aggregate market value store."""
 
-# ---------------------------------------------------------------------------
-# Write operations (set dirty flag)
-# ---------------------------------------------------------------------------
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._store: dict[tuple[str, str], float] = {}
+        self._dirty: bool = False
 
-def set_market_value(symbol: str, expiry: str, total_vol: float) -> None:
-    """Set or update the aggregate total vol for a symbol/expiry pair."""
-    global _dirty
-    with _lock:
-        _store[(symbol, expiry)] = total_vol
-        _dirty = True
-    log.info("Market value set: %s/%s = %.6f", symbol, expiry, total_vol)
+    # -- writes ------------------------------------------------------------
 
+    def set_market_value(self, symbol: str, expiry: str, total_vol: float) -> None:
+        with self._lock:
+            self._store[(symbol, expiry)] = total_vol
+            self._dirty = True
+        log.info("Market value set: %s/%s = %.6f", symbol, expiry, total_vol)
 
-def delete_market_value(symbol: str, expiry: str) -> bool:
-    """Remove the aggregate for a symbol/expiry. Returns True if it existed."""
-    global _dirty
-    with _lock:
-        existed = (symbol, expiry) in _store
+    def delete_market_value(self, symbol: str, expiry: str) -> bool:
+        with self._lock:
+            existed = (symbol, expiry) in self._store
+            if existed:
+                del self._store[(symbol, expiry)]
+                self._dirty = True
         if existed:
-            del _store[(symbol, expiry)]
-            _dirty = True
-    if existed:
-        log.info("Market value deleted: %s/%s", symbol, expiry)
-    return existed
+            log.info("Market value deleted: %s/%s", symbol, expiry)
+        return existed
+
+    def set_entries(self, entries: list[dict[str, Any]]) -> None:
+        with self._lock:
+            for e in entries:
+                self._store[(e["symbol"], e["expiry"])] = e["total_vol"]
+            self._dirty = True
+        log.info("Market values batch-set: %d entries", len(entries))
+
+    # -- reads -------------------------------------------------------------
+
+    def get_all(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [
+                {"symbol": k[0], "expiry": k[1], "total_vol": v}
+                for k, v in sorted(self._store.items())
+            ]
+
+    def to_dict(self) -> dict[tuple[str, str], float]:
+        with self._lock:
+            return dict(self._store)
+
+    # -- dirty flag --------------------------------------------------------
+
+    def is_dirty(self) -> bool:
+        return self._dirty
+
+    def clear_dirty(self) -> None:
+        self._dirty = False
 
 
-def set_entries(entries: list[dict[str, Any]]) -> None:
-    """Batch-set entries. Each dict must have symbol, expiry, total_vol."""
-    global _dirty
-    with _lock:
-        for e in entries:
-            _store[(e["symbol"], e["expiry"])] = e["total_vol"]
-        _dirty = True
-    log.info("Market values batch-set: %d entries", len(entries))
+_market_values: UserRegistry[MarketValueStore] = UserRegistry(MarketValueStore)
+
+
+def get_store(user_id: str) -> MarketValueStore:
+    """Return the per-user market value store (lazily constructed)."""
+    return _market_values.get(user_id)
 
 
 # ---------------------------------------------------------------------------
-# Read operations
+# Convenience shims — thin delegates to keep caller sites concise
 # ---------------------------------------------------------------------------
 
-def get_all() -> list[dict[str, Any]]:
-    """Return all entries as a list of dicts."""
-    with _lock:
-        return [
-            {"symbol": k[0], "expiry": k[1], "total_vol": v}
-            for k, v in sorted(_store.items())
-        ]
+def set_market_value(user_id: str, symbol: str, expiry: str, total_vol: float) -> None:
+    get_store(user_id).set_market_value(symbol, expiry, total_vol)
 
 
-def to_dict() -> dict[tuple[str, str], float]:
-    """Return a snapshot of the store as a plain dict (for pipeline)."""
-    with _lock:
-        return dict(_store)
+def delete_market_value(user_id: str, symbol: str, expiry: str) -> bool:
+    return get_store(user_id).delete_market_value(symbol, expiry)
 
 
-# ---------------------------------------------------------------------------
-# Dirty flag
-# ---------------------------------------------------------------------------
-
-def is_dirty() -> bool:
-    """Check whether the store has been modified since last clear."""
-    return _dirty
+def set_entries(user_id: str, entries: list[dict[str, Any]]) -> None:
+    get_store(user_id).set_entries(entries)
 
 
-def clear_dirty() -> None:
-    """Clear the dirty flag (called by ticker after coalesced rerun)."""
-    global _dirty
-    _dirty = False
+def get_all(user_id: str) -> list[dict[str, Any]]:
+    return get_store(user_id).get_all()
+
+
+def to_dict(user_id: str) -> dict[tuple[str, str], float]:
+    return get_store(user_id).to_dict()
+
+
+def is_dirty(user_id: str) -> bool:
+    return get_store(user_id).is_dirty()
+
+
+def clear_dirty(user_id: str) -> None:
+    get_store(user_id).clear_dirty()

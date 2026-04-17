@@ -1,4 +1,4 @@
-"""Pipeline time series endpoints (read-only, for charting)."""
+"""Pipeline time series endpoints — scoped to the calling user."""
 
 from __future__ import annotations
 
@@ -7,9 +7,11 @@ import logging
 from datetime import datetime as _dt
 
 import polars as pl
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-from server.api.engine_state import get_pipeline_results, RISK_DIMENSION_COLS
+from server.api.auth.dependencies import current_user
+from server.api.auth.models import User
+from server.api.engine_state import RISK_DIMENSION_COLS, get_pipeline_results
 from server.api.market_value_store import to_dict as mv_to_dict
 from server.api.models import (
     PipelineDimensionsResponse,
@@ -23,13 +25,8 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# ---------------------------------------------------------------------------
-# Sync helpers (run via asyncio.to_thread)
-# ---------------------------------------------------------------------------
-
-def _pipeline_dimensions_sync() -> dict:
-    """Sync helper — runs in a worker thread via ``asyncio.to_thread``."""
-    results = get_pipeline_results()
+def _pipeline_dimensions_sync(user_id: str) -> dict:
+    results = get_pipeline_results(user_id)
     if results is None:
         return {"dimensions": []}
 
@@ -46,24 +43,16 @@ def _pipeline_dimensions_sync() -> dict:
     return {"dimensions": dim_rows}
 
 
-def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
-    """Sync helper — runs in a worker thread via ``asyncio.to_thread``.
-
-    Returns ``None`` if no data exists for the requested dimension; the
-    async wrapper translates that into a 404.  Returns the dict payload
-    otherwise.
-    """
-    results = get_pipeline_results()
+def _pipeline_timeseries_sync(user_id: str, symbol: str, expiry_dt: _dt) -> dict | None:
+    results = get_pipeline_results(user_id)
     if results is None:
         return None
 
     block_var_df = results["block_var_df"]
     pos_df = results["desired_pos_df"]
 
-    # Slice to current tick if the ticker is running
-    current_ts = get_current_tick_ts()
+    current_ts = get_current_tick_ts(user_id)
 
-    # Filter to requested dimension
     block_var_filtered = block_var_df.filter(
         (pl.col("symbol") == symbol) & (pl.col("expiry") == expiry_dt)
     ).drop_nulls(subset=["fair"])
@@ -74,8 +63,6 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
     if current_ts is not None:
         bv_sliced = block_var_filtered.filter(pl.col("timestamp") >= current_ts)
         pos_sliced = pos_filtered.filter(pl.col("timestamp") >= current_ts)
-        # If the ticker has advanced past this instrument's last timestamp,
-        # fall back to the full (unfiltered) data instead of returning 404.
         if not bv_sliced.is_empty() or not pos_sliced.is_empty():
             block_var_filtered = bv_sliced
             pos_filtered = pos_sliced
@@ -83,7 +70,6 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
     if block_var_filtered.is_empty() and pos_filtered.is_empty():
         return None
 
-    # Block-level time series (camelCase for the wire)
     block_names = sorted(block_var_filtered["block_name"].unique().to_list())
     blocks = []
     for bn in block_names:
@@ -98,7 +84,6 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
             "var": bd["var"].to_list(),
         })
 
-    # Aggregated time series (camelCase for the wire)
     pos_sorted = pos_filtered.sort("timestamp")
     timestamps = [t.isoformat() for t in pos_sorted["timestamp"].to_list()]
     aggregated = {
@@ -113,7 +98,6 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
         "smoothedDesiredPosition": pos_sorted["smoothed_desired_position"].to_list(),
     }
 
-    # Current decomposition (first timestamp = current tick, camelCase)
     current_blocks = []
     if block_var_filtered.height > 0:
         first_ts = block_var_filtered["timestamp"].min()
@@ -145,8 +129,7 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
             "smoothedDesiredPosition": last["smoothed_desired_position"],
         }
 
-    # Look up user's aggregate market value for this dimension
-    aggregate_mvs = mv_to_dict()
+    aggregate_mvs = mv_to_dict(user_id)
     expiry_iso = expiry_dt.isoformat()
     agg_mv_entry = aggregate_mvs.get((symbol, expiry_iso))
     agg_mv = {"totalVol": agg_mv_entry} if agg_mv_entry is not None else None
@@ -163,29 +146,28 @@ def _pipeline_timeseries_sync(symbol: str, expiry_dt: _dt) -> dict | None:
     }
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
-
 @router.get("/api/pipeline/dimensions", response_model=PipelineDimensionsResponse)
-async def pipeline_dimensions() -> PipelineDimensionsResponse:
-    """Return available (symbol, expiry) pairs from the current pipeline run."""
-    payload = await asyncio.to_thread(_pipeline_dimensions_sync)
+async def pipeline_dimensions(
+    user: User = Depends(current_user),
+) -> PipelineDimensionsResponse:
+    payload = await asyncio.to_thread(_pipeline_dimensions_sync, user.id)
     return PipelineDimensionsResponse(**payload)
 
 
 @router.get("/api/pipeline/timeseries", response_model=PipelineTimeSeriesResponse)
-async def pipeline_timeseries(symbol: str, expiry: str) -> PipelineTimeSeriesResponse:
-    """Return full block-level and aggregated time series for a symbol/expiry."""
-    # Parse expiry string (tolerant of both ISO and DDMMMYY)
+async def pipeline_timeseries(
+    symbol: str,
+    expiry: str,
+    user: User = Depends(current_user),
+) -> PipelineTimeSeriesResponse:
     try:
         expiry_dt = parse_datetime_tolerant(expiry)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=f"Invalid expiry format: {exc}") from exc
 
-    payload = await asyncio.to_thread(_pipeline_timeseries_sync, symbol, expiry_dt)
+    payload = await asyncio.to_thread(_pipeline_timeseries_sync, user.id, symbol, expiry_dt)
     if payload is None:
-        results = get_pipeline_results()
+        results = get_pipeline_results(user.id)
         if results is None:
             raise HTTPException(status_code=404, detail="No pipeline results available")
         raise HTTPException(status_code=404, detail=f"No data for {symbol}/{expiry}")

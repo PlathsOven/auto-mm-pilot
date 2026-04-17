@@ -50,30 +50,30 @@ SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT: tuple[int, ...] = (300, 3600, 21600, 86400)  
 SNAPSHOT_BUFFER_MAX_DEFAULT: int = 2048
 
 # ── Client-facing WebSocket ──────────────────────────────────────────────
-CLIENT_WS_API_KEY: str = os.environ.get("CLIENT_WS_API_KEY", "")
+# IP whitelist for the SDK /ws/client endpoint. The shared API key model was
+# removed with multi-user auth — each user's per-account API key is the
+# authenticator now (see server/api/auth/).
 CLIENT_WS_ALLOWED_IPS: str = os.environ.get("CLIENT_WS_ALLOWED_IPS", "")
 
-# ── REST API auth — per-user keys ────────────────────────────────────────
-# Comma-separated list of valid API keys (one per user/integration).
-# Falls back to CLIENT_WS_API_KEY for single-key backwards-compatibility.
-# If neither is set, REST auth is disabled (all requests pass) with a warning.
-_POSIT_API_KEYS_RAW: str = os.environ.get("POSIT_API_KEYS", "")
+# ── Database + auth ──────────────────────────────────────────────────────
+# SQLite by default (persistent volume on Railway). Override with a full
+# SQLAlchemy URL if pointing to another backend in tests or future prod.
+_DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent.parent / "posit.db"
+DATABASE_URL: str = os.environ.get("DATABASE_URL", f"sqlite:///{_DEFAULT_DB_PATH}")
 
+# bcrypt cost factor — 12 is the spec target; raise only if the host CPU
+# can absorb the extra ~2× per-verify cost.
+BCRYPT_ROUNDS: int = int(os.environ.get("BCRYPT_ROUNDS", "12"))
 
-def get_valid_api_keys() -> frozenset[str]:
-    """Return the set of valid REST API keys.
+# How long a session token remains valid before the client is forced back
+# to the Login page. "Re-login on every launch" is enforced client-side
+# (no persistence); this TTL is the server-side backstop.
+SESSION_TTL_HOURS: int = int(os.environ.get("SESSION_TTL_HOURS", "24"))
 
-    Priority: POSIT_API_KEYS (comma-separated) → CLIENT_WS_API_KEY → empty set.
-    An empty set means auth is disabled (dev mode).
-    """
-    if _POSIT_API_KEYS_RAW.strip():
-        return frozenset(k.strip() for k in _POSIT_API_KEYS_RAW.split(",") if k.strip())
-    if CLIENT_WS_API_KEY:
-        return frozenset([CLIENT_WS_API_KEY])
-    return frozenset()
-
-# ── Application mode ─────────────────────────────────────────────────────
-POSIT_MODE: str = os.environ.get("POSIT_MODE", "mock").lower()
+# Comma-separated list of usernames (case-insensitive) that become admins
+# when they sign up. Non-signed-up entries are inert — admin rights are
+# granted at signup time only, never retroactively.
+POSIT_ADMIN_USERNAMES: str = os.environ.get("POSIT_ADMIN_USERNAMES", "")
 
 # ── WebSocket ticker ─────────────────────────────────────────────────────
 
