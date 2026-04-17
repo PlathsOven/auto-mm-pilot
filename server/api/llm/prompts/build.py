@@ -1,5 +1,5 @@
 """
-Build mode extension for the APT LLM.
+Build mode extension for the Posit LLM.
 
 Unified mode for adding inputs to the pipeline. Every input is either a
 live data stream (emits ``create_stream``) or a discretionary view

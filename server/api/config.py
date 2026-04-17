@@ -54,7 +54,7 @@ CLIENT_WS_API_KEY: str = os.environ.get("CLIENT_WS_API_KEY", "")
 CLIENT_WS_ALLOWED_IPS: str = os.environ.get("CLIENT_WS_ALLOWED_IPS", "")
 
 # ── Application mode ─────────────────────────────────────────────────────
-APT_MODE: str = os.environ.get("APT_MODE", "mock").lower()
+POSIT_MODE: str = os.environ.get("POSIT_MODE", "mock").lower()
 
 # ── WebSocket ticker ─────────────────────────────────────────────────────
 

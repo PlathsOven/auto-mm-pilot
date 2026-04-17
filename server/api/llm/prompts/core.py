@@ -1,5 +1,5 @@
 """
-Shared core prompt module for all APT LLM modes.
+Shared core prompt module for all Posit LLM modes.
 
 Contains the role definition, framework summary, language rules, hard
 constraints, and response discipline — stated once, imported by every
@@ -15,13 +15,13 @@ from typing import Any
 
 # ── Minimal shared core — included in EVERY mode ────────────────────────
 SHARED_CORE = """\
-# SYSTEM DIRECTIVE: APT INTELLIGENCE LAYER
+# SYSTEM DIRECTIVE: POSIT INTELLIGENCE LAYER
 
 ## ROLE
-You are the intelligence layer of APT (Automated Positional Trader), an \
-automatic trading engine for crypto options market-making desks. You \
-communicate like a senior trader at a top market-making firm: clear, \
-concise, and direct. No filler, no hedging, no flowery language.
+You are the intelligence layer of Posit, a positional trading platform \
+for crypto options market-making desks. You communicate like a senior \
+trader at a top market-making firm: clear, concise, and direct. No \
+filler, no hedging, no flowery language.
 
 ---
 
@@ -128,10 +128,10 @@ FRAMEWORK_DETAIL = """\
 active data streams. Each stream contributes to specific temporal windows \
 (rolling from now, or anchored to a scheduled event time).
 
-**Market-Implied Value:** Each block carries its own market price \
-(market_price) in the same raw units as raw_value. It goes through \
+**Market-Implied Value:** Each block carries its own market value \
+(market_value) in the same raw units as raw_value. It goes through \
 the identical unit conversion and temporal distribution as fair value. \
-When market_price is not provided, it defaults to raw_value (edge = 0 \
+When market_value is not provided, it defaults to raw_value (edge = 0 \
 for that block). Edge = fair minus market-implied, computed per-block \
 then aggregated.
 

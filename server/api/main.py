@@ -1,5 +1,5 @@
 """
-FastAPI application — APT terminal backend.
+FastAPI application — Posit terminal backend.
 
 Run:
     uvicorn server.api.main:app --host 0.0.0.0 --port 8000 --reload
@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from server.api.config import APT_MODE
+from server.api.config import POSIT_MODE
 from server.api.client_ws import client_ws
 from server.api.engine_state import init_mock
 from server.api.ws import pipeline_ws
@@ -28,6 +28,7 @@ from server.api.routers.bankroll import router as bankroll_router
 from server.api.routers.transforms import router as transforms_router
 from server.api.routers.pipeline import router as pipeline_router
 from server.api.routers.blocks import router as blocks_router
+from server.api.routers.market_values import router as market_values_router
 
 log = logging.getLogger(__name__)
 
@@ -44,12 +45,12 @@ async def lifespan(_app: FastAPI):
     after init returns, so by the time the first client request lands,
     ``_pipeline_results`` is already populated and accessors are O(1).
     """
-    if APT_MODE == "mock":
+    if POSIT_MODE == "mock":
         await asyncio.to_thread(init_mock)
     yield
 
 
-app = FastAPI(title="APT Server", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Posit Server", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -90,6 +91,7 @@ app.include_router(bankroll_router)
 app.include_router(transforms_router)
 app.include_router(pipeline_router)
 app.include_router(blocks_router)
+app.include_router(market_values_router)
 
 
 # ---------------------------------------------------------------------------

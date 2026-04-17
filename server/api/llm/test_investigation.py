@@ -306,7 +306,7 @@ async def _run_cli() -> None:
     )
 
     print("=" * 70)
-    print("  APT — Investigation LLM Test CLI")
+    print("  Posit — Investigation LLM Test CLI")
     print("=" * 70)
     print(f"  Models (priority order): {', '.join(config.investigation_models)}")
     print(f"  Max tokens: {config.max_tokens_investigation}")
@@ -362,7 +362,7 @@ async def _run_cli() -> None:
         conversation.append({"role": "user", "content": user_input})
         messages = [{"role": "system", "content": system_prompt}, *conversation]
 
-        print("\nAPT: ", end="", flush=True)
+        print("\nPosit: ", end="", flush=True)
         try:
             full_response = ""
             async for delta in client.stream_with_fallback(

@@ -1,5 +1,5 @@
 """
-Investigation mode extension for the APT LLM.
+Investigation mode extension for the Posit LLM.
 
 This module builds the investigation-specific system prompt by combining
 the shared core with investigation-only content: reasoning protocol,

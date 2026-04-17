@@ -17,8 +17,8 @@ from server.api.config import OPENROUTER_TIMEOUT_SECS, OPENROUTER_STREAM_TIMEOUT
 
 log = logging.getLogger(__name__)
 
-_APP_REFERER = "https://auto-mm-pilot.app"
-_APP_TITLE = "APT"
+_APP_REFERER = "https://posit-trading.app"
+_APP_TITLE = "Posit"
 
 
 async def _strip_think_tags(stream: AsyncIterator[str]) -> AsyncIterator[str]:

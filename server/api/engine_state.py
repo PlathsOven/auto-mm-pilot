@@ -20,9 +20,10 @@ from typing import Any
 
 import polars as pl
 
-from server.api.config import APT_MODE, SNAPSHOT_BUFFER_MAX_DEFAULT, SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT
+from server.api.config import POSIT_MODE, SNAPSHOT_BUFFER_MAX_DEFAULT, SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT
 from server.api.llm.snapshot_buffer import SnapshotBufferConfig, SnapshotRingBuffer
 from server.core.mock_scenario import (
+    MOCK_AGGREGATE_MARKET_VALUES,
     MOCK_BANKROLL,
     MOCK_NOW,
     MOCK_RISK_DIMENSION_COLS,
@@ -77,6 +78,12 @@ def init_mock() -> None:
     for sc in MOCK_STREAMS:
         registry.seed_stream_config(sc)
 
+    # Seed mock aggregate market values into the store
+    from server.api.market_value_store import set_market_value, clear_dirty
+    for (symbol, expiry), total_vol in MOCK_AGGREGATE_MARKET_VALUES.items():
+        set_market_value(symbol, expiry, total_vol)
+    clear_dirty()  # Don't trigger a dirty rerun on startup
+
     stream_configs = registry.build_stream_configs()
     if not stream_configs:
         log.error("No READY streams after seeding — mock init aborted")
@@ -124,13 +131,14 @@ def rerun_pipeline(
     if transform_config is not None:
         _transform_config = transform_config
 
-    now = MOCK_NOW if APT_MODE == "mock" else datetime.now(timezone.utc).replace(tzinfo=None)
+    now = MOCK_NOW if POSIT_MODE == "mock" else datetime.now(timezone.utc).replace(tzinfo=None)
 
     log.info(
         "Re-running pipeline: %d streams, bankroll=%.2f, now=%s, default_interval=%s",
         len(streams), _bankroll, now, TIME_GRID_INTERVAL,
     )
 
+    from server.api.market_value_store import to_dict as mv_to_dict
     _pipeline_results = run_pipeline(
         streams=streams,
         risk_dimension_cols=RISK_DIMENSION_COLS,
@@ -139,6 +147,7 @@ def rerun_pipeline(
         smoothing_hl_secs=SMOOTHING_HL_SECS,
         time_grid_interval=TIME_GRID_INTERVAL,
         transform_config=_transform_config,
+        aggregate_market_values=mv_to_dict(),
     )
 
     _pipeline_snapshot = snapshot_from_pipeline(
