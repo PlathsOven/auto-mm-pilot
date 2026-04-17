@@ -9,12 +9,26 @@ from typing import Annotated, Any, Literal, Union
 # Single source of truth — imported by prompts/__init__.py and service.py.
 ChatMode = Literal["investigate", "build", "general"]
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
 
 
 # ---------------------------------------------------------------------------
 # Shared submodels (used across endpoints)
 # ---------------------------------------------------------------------------
+
+class _WireModel(BaseModel):
+    """Base for outbound wire-shape models.
+
+    Emits camelCase JSON via an alias generator but accepts either
+    camelCase or snake_case on input.  Use for models whose JSON
+    representation must be camelCase (pipeline time-series endpoints,
+    WebSocket broadcast payloads).  Endpoints whose wire format is
+    already snake_case (``BlockRowResponse``, ``StreamResponse``, etc.)
+    stay on plain ``BaseModel``.
+    """
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
 
 class SnapshotRow(BaseModel):
     """One row of a snapshot ingestion payload.
@@ -372,3 +386,145 @@ class SetMarketValueRequest(BaseModel):
 class MarketValueListResponse(BaseModel):
     """All aggregate market values currently stored."""
     entries: list[MarketValueEntry]
+
+
+# ---------------------------------------------------------------------------
+# Broadcast wire shapes (camelCase on the wire — see _WireModel)
+# ---------------------------------------------------------------------------
+# These models formalize the JSON shapes currently composed as raw dicts
+# in ``ws_serializers.py`` (streams_from_blocks, context_at_tick,
+# positions_at_tick, updates_from_diff) and in ``routers/pipeline.py``
+# (block/aggregated/current-decomposition time series).  Wire shape is
+# unchanged; the models add runtime contract validation + a single
+# source of truth for the TS mirrors in ``client/ui/src/types.ts``.
+
+class DataStream(_WireModel):
+    """One data-stream entry in the pipeline broadcast."""
+    id: str
+    name: str
+    status: Literal["ONLINE", "DEGRADED", "OFFLINE"]
+    last_heartbeat: int
+
+
+class GlobalContext(_WireModel):
+    """Global context strip — shown in the top bar."""
+    last_update_timestamp: int
+
+
+class DesiredPosition(_WireModel):
+    """One row of the desired-position grid."""
+    symbol: str
+    expiry: str
+    edge: float
+    smoothed_edge: float
+    variance: float
+    smoothed_var: float
+    desired_pos: float
+    raw_desired_pos: float
+    current_pos: float
+    total_fair: float
+    total_market_fair: float
+    change_magnitude: float
+    updated_at: int
+
+
+class UpdateCard(_WireModel):
+    """A position-change update card in the feed."""
+    id: str
+    symbol: str
+    expiry: str
+    old_pos: float
+    new_pos: float
+    delta: float
+    timestamp: int
+
+
+class ServerPayload(_WireModel):
+    """Top-level payload broadcast on ``/ws`` each tick."""
+    streams: list[DataStream]
+    context: GlobalContext
+    positions: list[DesiredPosition]
+    updates: list[UpdateCard]
+
+
+# ---------------------------------------------------------------------------
+# Pipeline time-series wire shapes
+# ---------------------------------------------------------------------------
+
+class TimeSeriesDimension(_WireModel):
+    """A single (symbol, expiry) pair from the pipeline dimensions list."""
+    symbol: str
+    expiry: str
+
+
+class PipelineDimensionsResponse(_WireModel):
+    """Response for ``GET /api/pipeline/dimensions``."""
+    dimensions: list[TimeSeriesDimension]
+
+
+class BlockTimeSeries(_WireModel):
+    """Per-block time series for one block on one dimension."""
+    block_name: str
+    space_id: str
+    aggregation_logic: str
+    timestamps: list[str]
+    fair: list[float]
+    market_fair: list[float]
+    var: list[float]
+
+
+class AggregatedTimeSeries(_WireModel):
+    """Aggregated time series across all blocks on one dimension."""
+    timestamps: list[str]
+    total_fair: list[float]
+    total_market_fair: list[float]
+    edge: list[float]
+    smoothed_edge: list[float]
+    var: list[float]
+    smoothed_var: list[float]
+    raw_desired_position: list[float]
+    smoothed_desired_position: list[float]
+
+
+class CurrentBlockDecomposition(_WireModel):
+    """Block decomposition snapshot at the current tick timestamp."""
+    block_name: str
+    space_id: str
+    fair: float
+    market_fair: float
+    var: float
+
+
+class CurrentAggregatedDecomposition(_WireModel):
+    """Aggregated decomposition snapshot at the current tick timestamp."""
+    total_fair: float
+    total_market_fair: float
+    edge: float
+    smoothed_edge: float
+    var: float
+    smoothed_var: float
+    raw_desired_position: float
+    smoothed_desired_position: float
+
+
+class AggregateMarketValue(_WireModel):
+    """The user's set total vol for a (symbol, expiry), if any."""
+    total_vol: float
+
+
+class CurrentDecomposition(_WireModel):
+    """Everything the client needs to render the decomposition panel at
+    the current tick: per-block + aggregated + the user's set total vol.
+    """
+    blocks: list[CurrentBlockDecomposition]
+    aggregated: CurrentAggregatedDecomposition | None = None
+    aggregate_market_value: AggregateMarketValue | None = None
+
+
+class PipelineTimeSeriesResponse(_WireModel):
+    """Response for ``GET /api/pipeline/timeseries``."""
+    symbol: str
+    expiry: str
+    blocks: list[BlockTimeSeries]
+    aggregated: AggregatedTimeSeries
+    current_decomposition: CurrentDecomposition

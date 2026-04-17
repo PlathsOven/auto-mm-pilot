@@ -1,5 +1,8 @@
 import { useMemo } from "react";
-import type { CurrentBlockDecomposition } from "../../types";
+import type {
+  CurrentAggregatedDecomposition,
+  CurrentBlockDecomposition,
+} from "../../types";
 import {
   BLOCK_COLORS,
   MODE_LABELS,
@@ -45,18 +48,18 @@ export function DecompositionPanel({
   onBlockClick,
 }: {
   blocks: CurrentBlockDecomposition[];
-  aggregated: Record<string, number>;
+  aggregated: CurrentAggregatedDecomposition | null;
   aggregateMarketValue?: { totalVol: number } | null;
   mode: DecompositionMode;
   onModeChange: (m: DecompositionMode) => void;
   selectedBlocks: Set<string>;
   onBlockClick: (blockName: string) => void;
 }) {
-  const totalFair = aggregated.totalFair ?? 0;
-  const totalMarketFair = aggregated.totalMarketFair ?? 0;
-  const totalVar = aggregated.smoothedVar ?? aggregated.var ?? 0;
-  const rawDesPos = aggregated.rawDesiredPosition ?? aggregated.smoothedDesiredPosition ?? 0;
-  const smoothDesPos = aggregated.smoothedDesiredPosition ?? 0;
+  const totalFair = aggregated?.totalFair ?? 0;
+  const totalMarketFair = aggregated?.totalMarketFair ?? 0;
+  const totalVar = aggregated?.smoothedVar ?? aggregated?.var ?? 0;
+  const rawDesPos = aggregated?.rawDesiredPosition ?? aggregated?.smoothedDesiredPosition ?? 0;
+  const smoothDesPos = aggregated?.smoothedDesiredPosition ?? 0;
 
   // Resolve the target scalar for the active mode (used to project block fair
   // contributions onto the desired-position axis).

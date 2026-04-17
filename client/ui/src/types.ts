@@ -107,10 +107,10 @@ export interface PendingBlockCommand {
 /** Chat mode — controls which prompt modules the server uses */
 export type ChatMode = "investigate" | "build" | "general";
 
-/** POST /api/investigate — request payload */
-export interface InvestigatePayload {
+/** POST /api/investigate — request payload (mirrors ``InvestigateRequest`` in server/api/models.py). */
+export interface InvestigateRequest {
   conversation: { role: string; content: string }[];
-  cell_context?: Record<string, unknown> | null;
+  cell_context?: InvestigationContext | null;
   mode: ChatMode;
 }
 
@@ -184,6 +184,18 @@ export interface CurrentBlockDecomposition {
   var: number;
 }
 
+/** Aggregated decomposition snapshot at the current tick timestamp */
+export interface CurrentAggregatedDecomposition {
+  totalFair: number;
+  totalMarketFair: number;
+  edge: number;
+  smoothedEdge: number;
+  var: number;
+  smoothedVar: number;
+  rawDesiredPosition: number;
+  smoothedDesiredPosition: number;
+}
+
 /** A single row in the block configuration table */
 export interface BlockRow {
   block_name: string;
@@ -224,7 +236,7 @@ export interface PipelineTimeSeriesResponse {
   aggregated: AggregatedTimeSeries;
   currentDecomposition: {
     blocks: CurrentBlockDecomposition[];
-    aggregated: Record<string, number>;
+    aggregated: CurrentAggregatedDecomposition | null;
     aggregateMarketValue?: { totalVol: number } | null;
   };
 }
@@ -262,3 +274,48 @@ export interface TransformStep {
 export interface TransformListResponse {
   steps: Record<string, TransformStep>;
 }
+
+// ---------------------------------------------------------------------------
+// Client → server WebSocket frames (/ws/client)
+// ---------------------------------------------------------------------------
+
+/** Row of a snapshot-frame payload (mirrors ``SnapshotRow`` in server/api/models.py). */
+export interface SnapshotRow {
+  timestamp: string;
+  raw_value: number;
+  market_value?: number | null;
+  // Extra key_cols permitted per stream config
+  [key: string]: unknown;
+}
+
+/** Inbound snapshot frame sent by the client over /ws/client. */
+export interface ClientWsInboundFrame {
+  seq: number;
+  stream_name: string;
+  rows: SnapshotRow[];
+}
+
+/** Inbound market-value frame sent by the client over /ws/client. */
+export interface ClientWsMarketValueFrame {
+  type: "market_value";
+  seq: number;
+  entries: MarketValueEntry[];
+}
+
+/** ACK sent by the server in response to every inbound frame. */
+export interface ClientWsAck {
+  type: "ack";
+  seq: number;
+  rows_accepted: number;
+  pipeline_rerun: boolean;
+}
+
+/** Error sent by the server when an inbound frame fails validation/processing. */
+export interface ClientWsError {
+  type: "error";
+  seq: number | null;
+  detail: string;
+}
+
+/** Discriminated union of every outbound frame on /ws/client. */
+export type ClientWsOutboundFrame = ClientWsAck | ClientWsError;

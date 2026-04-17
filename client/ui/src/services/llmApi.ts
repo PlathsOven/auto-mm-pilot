@@ -6,7 +6,7 @@
  */
 
 import { API_BASE } from "../config";
-import type { InvestigatePayload } from "../types";
+import type { InvestigateRequest } from "../types";
 
 // ---------------------------------------------------------------------------
 // Chat — SSE streaming
@@ -18,7 +18,7 @@ import type { InvestigatePayload } from "../types";
  * Returns an AbortController so the caller can cancel.
  */
 export function streamChat(
-  payload: InvestigatePayload,
+  payload: InvestigateRequest,
   callbacks: {
     onDelta: (text: string) => void;
     onDone: () => void;
