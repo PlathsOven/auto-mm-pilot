@@ -1,7 +1,8 @@
-import { useCallback, useState, useRef, useEffect } from "react";
+import { useCallback, useMemo, useState, useRef, useEffect } from "react";
 import { useWebSocket } from "../providers/WebSocketProvider";
 import { valColor, cellBg } from "../utils";
 import { useFocus } from "../providers/FocusProvider";
+import { Tabs, type TabItem } from "./ui/Tabs";
 import type { Focus } from "../types";
 import {
   VIEW_MODE_META,
@@ -97,8 +98,18 @@ export function DesiredPositionGrid() {
   const meta = VIEW_MODE_META[viewMode];
   const secondaryActive = SECONDARY_VIEW_MODES.includes(viewMode);
 
+  const primaryTabs = useMemo<TabItem<ViewMode>[]>(
+    () => PRIMARY_VIEW_MODES.map((m) => ({ value: m, label: VIEW_MODE_META[m].label })),
+    [],
+  );
+
+  const timeframeTabs = useMemo<TabItem<TimeframeLabel>[]>(
+    () => TIMEFRAME_OPTIONS.map((tf) => ({ value: tf.label, label: tf.label })),
+    [],
+  );
+
   return (
-    <div className="flex h-full flex-col p-4">
+    <div className="flex h-full flex-col p-3">
       <div className="mb-3 flex items-center justify-between border-b border-black/[0.06] pb-2">
         <div className="flex items-baseline gap-2">
           <h2 className="zone-header">Desired Positions</h2>
@@ -108,39 +119,23 @@ export function DesiredPositionGrid() {
         </div>
         <div className="flex items-center gap-2">
           {viewMode === "change" && (
-            <div className="flex items-center gap-1">
-              {TIMEFRAME_OPTIONS.map((tf) => (
-                <button
-                  key={tf.label}
-                  onClick={() => setTimeframe(tf.label)}
-                  className={`px-2 py-0.5 text-[10px] transition-colors ${
-                    timeframe === tf.label
-                      ? "rounded-md bg-mm-accent/10 text-mm-accent"
-                      : "rounded-md text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
-                  }`}
-                >
-                  {tf.label}
-                </button>
-              ))}
-            </div>
+            <Tabs
+              items={timeframeTabs}
+              value={timeframe}
+              onChange={setTimeframe}
+              variant="pill"
+              size="sm"
+            />
           )}
 
           {/* Primary 4 view modes as a tab strip */}
-          <div className="flex items-center gap-0.5 rounded-lg border border-black/[0.06] bg-black/[0.03] p-0.5">
-            {PRIMARY_VIEW_MODES.map((m) => (
-              <button
-                key={m}
-                onClick={() => setViewMode(m)}
-                className={`rounded-md px-2 py-1 text-[10px] font-medium transition-colors ${
-                  viewMode === m
-                    ? "bg-mm-accent/10 text-mm-accent"
-                    : "text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
-                }`}
-              >
-                {VIEW_MODE_META[m].label}
-              </button>
-            ))}
-          </div>
+          <Tabs
+            items={primaryTabs}
+            value={PRIMARY_VIEW_MODES.includes(viewMode) ? viewMode : "position"}
+            onChange={setViewMode}
+            variant="pill"
+            size="sm"
+          />
 
           {/* "More" dropdown for secondary modes */}
           <div ref={moreMenuRef} className="relative">
@@ -209,7 +204,7 @@ export function DesiredPositionGrid() {
                 >
                   <td
                     onClick={() => setSymbolFocus(symbol)}
-                    className={`cursor-pointer px-3 py-2.5 text-[12px] font-medium transition-colors hover:text-mm-accent ${
+                    className={`cursor-pointer px-2 py-1.5 text-[12px] font-medium transition-colors hover:text-mm-accent ${
                       isFocused({ kind: "symbol", symbol }) ? "text-mm-accent" : "text-mm-text"
                     }`}
                   >
@@ -232,7 +227,7 @@ export function DesiredPositionGrid() {
                         onDoubleClick={(e) => { e.stopPropagation(); startEdit(key, symbol, exp, cell.pos, viewMode); }}
                         onMouseEnter={() => onMouseEnter(symbol, exp, key)}
                         onMouseLeave={onMouseLeave}
-                        className={`relative cursor-pointer rounded-md px-3 py-2.5 text-center text-[12px] font-medium tabular-nums transition-colors hover:bg-white/80 hover:ring-1 hover:ring-mm-accent/20 ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${isCellChannelled(symbol, exp) ? "channel-highlight-cell" : ""}`}
+                        className={`relative cursor-pointer rounded-md px-2 py-1.5 text-center text-[12px] font-medium tabular-nums transition-colors hover:bg-white/80 hover:ring-1 hover:ring-mm-accent/20 ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${isCellChannelled(symbol, exp) ? "channel-highlight-cell" : ""}`}
                         style={{ backgroundColor: cellBg(val) }}
                       >
                         {isEditing ? (
@@ -280,7 +275,7 @@ export function DesiredPositionGrid() {
                 </tr>
               ))}
               <tr className="border-t border-black/[0.06]">
-                <td className="px-3 py-2.5 text-[11px] font-medium text-mm-text-dim">Total</td>
+                <td className="px-2 py-1.5 text-[11px] font-medium text-mm-text-dim">Total</td>
                 {expiries.map((exp) => (
                   <TotalCell
                     key={exp}

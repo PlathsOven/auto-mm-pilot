@@ -42,7 +42,7 @@ export function UpdatesFeed() {
             <div
               key={card.id}
               onClick={() => toggleFocus({ kind: "cell", symbol: card.symbol, expiry: card.expiry })}
-              className={`glass-card cursor-pointer p-3 transition-colors hover:bg-white/60 hover:ring-1 hover:ring-mm-accent/20 ${isRecent ? "row-highlight" : ""}`}
+              className={`glass-card cursor-pointer p-2.5 transition-colors hover:bg-white/60 hover:ring-1 hover:ring-mm-accent/20 ${isRecent ? "row-highlight" : ""}`}
             >
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-xs font-medium text-mm-text">

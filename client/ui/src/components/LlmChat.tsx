@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { useChat } from "../providers/ChatProvider";
+import { Tabs, type TabItem } from "./ui/Tabs";
 import type { ChatMode } from "../types";
 import { CHAT_INPUT_MAX_HEIGHT_PX } from "../constants";
 
@@ -22,6 +23,15 @@ export function LlmChat() {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const modeTabs = useMemo<TabItem<ChatMode>[]>(
+    () => (Object.keys(MODE_LABELS) as ChatMode[]).map((m) => ({
+      value: m,
+      label: MODE_LABELS[m],
+      disabled: isStreaming,
+    })),
+    [isStreaming],
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -68,16 +78,7 @@ export function LlmChat() {
           <h2 className="zone-header">Posit Chat</h2>
           <span className="text-[9px] text-mm-text-subtle">Ask the engine anything</span>
         </div>
-        <select
-          value={chatMode}
-          onChange={(e) => setChatMode(e.target.value as ChatMode)}
-          disabled={isStreaming}
-          className="rounded-md border border-black/[0.06] bg-mm-surface-solid px-2 py-0.5 text-[10px] text-mm-text outline-none transition-colors focus:border-mm-accent/40"
-        >
-          {(Object.keys(MODE_LABELS) as ChatMode[]).map((m) => (
-            <option key={m} value={m}>{MODE_LABELS[m]}</option>
-          ))}
-        </select>
+        <Tabs items={modeTabs} value={chatMode} onChange={setChatMode} variant="pill" size="sm" />
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">

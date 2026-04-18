@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { LlmChat } from "../LlmChat";
 import { InspectorRouter } from "./InspectorRouter";
+import { Tabs, type TabItem } from "../ui/Tabs";
 import { useFocus } from "../../providers/FocusProvider";
 import { useChat } from "../../providers/ChatProvider";
 import { WORKBENCH_RAIL_OPEN_KEY, WORKBENCH_RAIL_TAB_KEY, WORKBENCH_RAIL_WIDTH_PX } from "../../constants";
@@ -99,24 +100,18 @@ export function WorkbenchRail({ signal }: WorkbenchRailProps) {
     );
   }
 
+  const tabItems = useMemo<TabItem<RailTab>[]>(() => [
+    { value: "inspector", label: "Inspector", hint: focusHint(focus) },
+    { value: "chat", label: "Chat", hint: "⌘/" },
+  ], [focus]);
+
   return (
     <aside
-      className="flex shrink-0 flex-col border-l border-black/[0.06] bg-white/70"
-      style={{ width: WORKBENCH_RAIL_WIDTH_PX, backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)" }}
+      className="glass-bar flex shrink-0 flex-col border-l"
+      style={{ width: WORKBENCH_RAIL_WIDTH_PX }}
     >
-      <div className="flex shrink-0 items-center gap-1 border-b border-black/[0.06] bg-white/40 px-2 py-1">
-        <RailTabButton
-          active={tab === "inspector"}
-          onClick={() => persistTab("inspector")}
-          label="Inspector"
-          hint={focusHint(focus)}
-        />
-        <RailTabButton
-          active={tab === "chat"}
-          onClick={() => persistTab("chat")}
-          label="Chat"
-          hint="⌘/"
-        />
+      <div className="flex shrink-0 items-center gap-1 border-b border-black/[0.05] px-2 py-1.5">
+        <Tabs items={tabItems} value={tab} onChange={persistTab} variant="pill" size="sm" />
         <button
           type="button"
           onClick={() => persistOpen(false)}
@@ -132,32 +127,6 @@ export function WorkbenchRail({ signal }: WorkbenchRailProps) {
         {tab === "inspector" ? <InspectorRouter /> : <LlmChat />}
       </div>
     </aside>
-  );
-}
-
-interface RailTabButtonProps {
-  active: boolean;
-  label: string;
-  hint?: string;
-  onClick: () => void;
-}
-
-function RailTabButton({ active, label, hint, onClick }: RailTabButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex items-baseline gap-1.5 rounded-md px-2.5 py-1 text-[11px] transition-colors ${
-        active
-          ? "bg-mm-accent/10 font-semibold text-mm-accent"
-          : "text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
-      }`}
-    >
-      <span>{label}</span>
-      {hint && (
-        <span className="text-[9px] text-mm-text-subtle">{hint}</span>
-      )}
-    </button>
   );
 }
 

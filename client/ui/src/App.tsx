@@ -1,9 +1,9 @@
 import { useCallback, useState } from "react";
-import { GlobalContextBar } from "./components/GlobalContextBar";
 import { CommandPalette } from "./components/shared/CommandPalette";
 import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
 import { BlockDrawer } from "./components/studio/brain/BlockDrawer";
 import { HotkeyCheatsheet } from "./components/workbench/HotkeyCheatsheet";
+import { AppShell } from "./components/shell/AppShell";
 import { WorkbenchPage } from "./pages/WorkbenchPage";
 import { AnatomyPage } from "./pages/AnatomyPage";
 import { DocsPage } from "./pages/DocsPage";
@@ -18,8 +18,6 @@ import { useCommandPalette } from "./providers/CommandPaletteProvider";
 import { useTimeOnApp } from "./hooks/useTimeOnApp";
 import { useHotkeys } from "./hooks/useHotkeys";
 import { WORKBENCH_RAIL_OPEN_KEY } from "./constants";
-
-import "react-grid-layout/css/styles.css";
 
 const MODE_PAGES: Record<ModeId, React.FC> = {
   workbench: WorkbenchPage,
@@ -52,6 +50,7 @@ export default function App() {
   const openAccount = useCallback(() => setView("account"), []);
   const openAdmin = useCallback(() => setView("admin"), []);
   const closeOverlay = useCallback(() => setView("dashboard"), []);
+  const showCheatsheet = useCallback(() => setCheatsheetOpen(true), []);
 
   // Bare-key workbench hotkeys. Modifier-bearing shortcuts (⌘K palette,
   // ⌘/ chat) are owned by their respective components — kept separate so
@@ -74,11 +73,8 @@ export default function App() {
     },
     "[": toggleRail,
     "]": toggleRail,
-    "?": () => setCheatsheetOpen(true),
+    "?": showCheatsheet,
     "g c": () => toggleDrawer(),
-    "g s": () => { /* StreamStatusList lives in workbench — no-op for now */ },
-    "g b": () => { /* Block table lives in workbench */ },
-    "g p": () => { /* Position grid lives in workbench */ },
     "g k": () => togglePalette(),
   });
 
@@ -89,11 +85,12 @@ export default function App() {
   const Page = MODE_PAGES[mode];
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-mm-bg">
-      <header className="relative z-50 shrink-0">
-        <GlobalContextBar onOpenAccount={openAccount} onOpenAdmin={openAdmin} />
-      </header>
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+    <>
+      <AppShell
+        onOpenAccount={openAccount}
+        onOpenAdmin={openAdmin}
+        onShowCheatsheet={showCheatsheet}
+      >
         {view === "account" ? (
           <AccountPage onClose={closeOverlay} />
         ) : view === "admin" ? (
@@ -101,7 +98,7 @@ export default function App() {
         ) : (
           <Page />
         )}
-      </div>
+      </AppShell>
       <CommandPalette />
       <HotkeyCheatsheet open={cheatsheetOpen} onClose={() => setCheatsheetOpen(false)} />
       <OnboardingFlow />
@@ -113,6 +110,6 @@ export default function App() {
         onClose={handleBlockDrawerClose}
         onSaved={handleBlockDrawerSaved}
       />
-    </div>
+    </>
   );
 }

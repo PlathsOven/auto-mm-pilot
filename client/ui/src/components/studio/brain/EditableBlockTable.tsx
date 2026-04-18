@@ -307,7 +307,7 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
                   {hg.headers.map((header) => (
                     <th
                       key={header.id}
-                      className={`cursor-pointer select-none px-2 py-1.5 font-medium text-left ${
+                      className={`cursor-pointer select-none px-2 py-1 font-medium text-left ${
                         header.column.getCanSort() ? "hover:text-mm-text" : ""
                       }`}
                       onClick={header.column.getToggleSortingHandler()}
@@ -339,7 +339,7 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
                   title={onRowEdit ? "Click to inspect · double-click to edit" : undefined}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-2 py-1.5">
+                    <td key={cell.id} className="px-2 py-1">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
