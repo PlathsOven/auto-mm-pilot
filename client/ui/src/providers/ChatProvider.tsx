@@ -9,7 +9,7 @@ interface ChatState {
   messages: ChatMessage[];
   investigation: InvestigationContext | null;
   isStreaming: boolean;
-  /** Whether the global ChatDrawer is currently visible. */
+  /** Whether the WorkbenchRail's Chat tab is currently surfaced. */
   drawerOpen: boolean;
   chatMode: ChatMode;
   /** Pending manual-block command awaiting review in BlockDrawer. */
@@ -171,8 +171,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const investigate = useCallback(
     (ctx: InvestigationContext) => {
+      // Phase 1 redesign: investigate() no longer auto-opens any drawer. The
+      // workbench rail listens for `investigation` and surfaces its Chat tab
+      // when set. Cell clicks set focus only — chat is now a deliberate
+      // gesture from the Inspector ("Ask @Posit") or the explicit Chat
+      // toggle (⌘/), never a side-effect of clicking on a value.
       setInvestigation(ctx);
-      setDrawerOpen(true);
     },
     [],
   );

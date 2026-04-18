@@ -80,7 +80,7 @@ export function GlobalContextBar({ onOpenAccount, onOpenAdmin }: GlobalContextBa
 
         {/* Docs toggle */}
         <button
-          onClick={() => setMode(inDocs ? "eyes" : "docs")}
+          onClick={() => setMode(inDocs ? "workbench" : "docs")}
           className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
             inDocs
               ? "bg-mm-accent/10 font-medium text-mm-accent"

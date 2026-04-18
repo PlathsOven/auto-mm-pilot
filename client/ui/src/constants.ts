@@ -16,3 +16,8 @@ export const GLOBAL_CONTEXT_TICK_MS = 47;
 
 // Chat textarea auto-grows up to this height (px) before scrolling internally.
 export const CHAT_INPUT_MAX_HEIGHT_PX = 160;
+
+// Workbench right rail (Inspector + Chat) sizing + persistence keys.
+export const WORKBENCH_RAIL_WIDTH_PX = 360;
+export const WORKBENCH_RAIL_OPEN_KEY = "posit-rail-open";
+export const WORKBENCH_RAIL_TAB_KEY = "posit-rail-tab";

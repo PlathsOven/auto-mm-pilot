@@ -1,10 +1,9 @@
 import { useMode, MODE_LABELS, type ModeId } from "../../providers/ModeProvider";
 
-const VISIBLE_MODES: ModeId[] = ["eyes", "brain", "anatomy"];
+const VISIBLE_MODES: ModeId[] = ["workbench", "anatomy"];
 
 const MODE_TITLES: Record<ModeId, string> = {
-  eyes: "Operator dashboard — monitor positions, investigate changes",
-  brain: "Pipeline output — decomposition, time series, block inspector",
+  workbench: "Workbench — positions, streams, blocks, focus-driven Inspector",
   anatomy: "Pipeline canvas — streams, transforms, structure",
   docs: "API documentation",
 };

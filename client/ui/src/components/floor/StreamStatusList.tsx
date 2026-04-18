@@ -1,5 +1,6 @@
 import { useWebSocket } from "../../providers/WebSocketProvider";
 import { useMode } from "../../providers/ModeProvider";
+import { useFocus } from "../../providers/FocusProvider";
 import { formatAge } from "../../utils";
 
 /**
@@ -13,6 +14,7 @@ import { formatAge } from "../../utils";
 export function StreamStatusList() {
   const { payload } = useWebSocket();
   const { navigate } = useMode();
+  const { toggleFocus, isFocused } = useFocus();
   const liveStreams = payload?.streams ?? [];
 
   return (
@@ -29,19 +31,26 @@ export function StreamStatusList() {
       </div>
 
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
-        {liveStreams.map((stream) => (
-          <div
-            key={stream.id}
-            className="glass-card flex items-center justify-between gap-3 px-3 py-2"
-          >
-            <span className="truncate text-xs font-medium text-mm-text">
-              {stream.name}
-            </span>
-            <span className="shrink-0 text-[10px] tabular-nums text-mm-text-subtle">
-              {formatAge(Date.now() - stream.lastHeartbeat)}
-            </span>
-          </div>
-        ))}
+        {liveStreams.map((stream) => {
+          const focused = isFocused({ kind: "stream", name: stream.name });
+          return (
+            <button
+              key={stream.id}
+              type="button"
+              onClick={() => toggleFocus({ kind: "stream", name: stream.name })}
+              className={`glass-card flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-white/60 ${
+                focused ? "ring-1 ring-mm-accent/40" : ""
+              }`}
+            >
+              <span className={`truncate text-xs font-medium ${focused ? "text-mm-accent" : "text-mm-text"}`}>
+                {stream.name}
+              </span>
+              <span className="shrink-0 text-[10px] tabular-nums text-mm-text-subtle">
+                {formatAge(Date.now() - stream.lastHeartbeat)}
+              </span>
+            </button>
+          );
+        })}
 
         {liveStreams.length === 0 && (
           <p className="text-xs text-mm-text-dim">

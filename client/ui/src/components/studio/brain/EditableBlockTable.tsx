@@ -170,7 +170,10 @@ interface Props {
   headerAction?: React.ReactNode;
   onRefresh?: () => void;
   refreshKey?: number;
+  /** Single-click handler — Phase 1 sets workbench focus. */
   onRowClick?: (block: BlockRow) => void;
+  /** Optional separate handler for "edit this block" (double-click + Edit btn). */
+  onRowEdit?: (block: BlockRow) => void;
 }
 
 /**
@@ -179,7 +182,7 @@ interface Props {
  * TanStack Table with column visibility toggle, multi-column sort,
  * global filter, and row click to open the detail drawer.
  */
-export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowClick }: Props) {
+export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowClick, onRowEdit }: Props) {
   const [blocks, setBlocks] = useState<BlockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -328,6 +331,12 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
                     onRowClick ? "cursor-pointer" : ""
                   }`}
                   onClick={() => onRowClick?.(row.original)}
+                  onDoubleClick={(e) => {
+                    if (!onRowEdit) return;
+                    e.stopPropagation();
+                    onRowEdit(row.original);
+                  }}
+                  title={onRowEdit ? "Click to inspect · double-click to edit" : undefined}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="px-2 py-1.5">

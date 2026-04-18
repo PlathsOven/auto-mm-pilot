@@ -1,8 +1,8 @@
 import { useCallback, useMemo } from "react";
 import type { ECElementEvent } from "echarts/types/dist/echarts";
 import ReactECharts from "echarts-for-react";
-import { useSelection } from "../providers/SelectionProvider";
-import type { PipelineTimeSeriesResponse, TimeSeriesDimension } from "../types";
+import { useFocus } from "../providers/FocusProvider";
+import type { PipelineTimeSeriesResponse } from "../types";
 import {
   buildPipelineChartOptions,
   RAW_COLOR,
@@ -12,40 +12,43 @@ import {
 
 interface PipelineChartProps {
   data: PipelineTimeSeriesResponse | null;
-  selected: TimeSeriesDimension | null;
   loading: boolean;
   error: string | null;
 }
 
 /**
  * Pipeline time-series chart — three stacked grids (position, fair, variance)
- * sharing an x-axis. Pure presentation: data, selection, and dimension state
- * all flow in from BrainPage so the DecompositionPanel above can stay in
- * sync from a single source of truth.
+ * sharing an x-axis. Pure presentation: data flows in from the parent
+ * inspector, block focus comes from `FocusProvider`. Series-click toggles
+ * block focus so the DecompositionPanel + chart stay sync'd via a single
+ * source of truth.
  *
  * Block colors come from the shared `BLOCK_COLORS` palette in `chartOptions`,
  * so each stacked area corresponds 1:1 to a bar in the DecompositionPanel.
- * The right-rail legend is intentionally absent — the decomposition panel
- * serves as the colour key, and the inline overlay-legend strip below names
- * the three non-block aggregate lines.
  */
-export function PipelineChart({ data, selected, loading, error }: PipelineChartProps) {
-  const { selectBlock, selectedBlocks } = useSelection();
+export function PipelineChart({ data, loading, error }: PipelineChartProps) {
+  const { focus, toggleFocus } = useFocus();
 
-  // Build ECharts options from the data fed in by BrainPage.
+  // Highlight the focused block in the stacked-area legend, when one is set.
+  const selectedBlocks = useMemo<Set<string>>(() => {
+    if (focus?.kind === "block") return new Set([focus.name]);
+    return new Set();
+  }, [focus]);
+
+  // Build ECharts options from the data fed in by the parent inspector.
   const chartOption = useMemo(() => {
     if (!data) return null;
     return buildPipelineChartOptions(data, selectedBlocks);
   }, [data, selectedBlocks]);
 
-  // Chart click → select block by parsing series name back to its block id.
+  // Chart click → focus a block by parsing series name back to its block id.
   const handleChartClick = useCallback((params: ECElementEvent) => {
     const seriesName: string = params.seriesName ?? "";
     const match = seriesName.match(/^(.+?)\s*\((fair|var)\)$/);
-    if (match && selected) {
-      selectBlock(match[1], selected.symbol, selected.expiry);
+    if (match) {
+      toggleFocus({ kind: "block", name: match[1] });
     }
-  }, [selected, selectBlock]);
+  }, [toggleFocus]);
 
   const chartEvents = useMemo(() => ({ click: handleChartClick }), [handleChartClick]);
 

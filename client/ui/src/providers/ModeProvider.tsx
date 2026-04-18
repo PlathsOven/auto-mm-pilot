@@ -8,14 +8,26 @@ import {
   type ReactNode,
 } from "react";
 
-export type ModeId = "eyes" | "brain" | "anatomy" | "docs";
+export type ModeId = "workbench" | "anatomy" | "docs";
 
-const VALID_MODES: readonly ModeId[] = ["eyes", "brain", "anatomy", "docs"] as const;
-const DEFAULT_MODE: ModeId = "eyes";
+const VALID_MODES: readonly ModeId[] = ["workbench", "anatomy", "docs"] as const;
+const DEFAULT_MODE: ModeId = "workbench";
+
+/**
+ * Legacy mode hashes redirected to the unified workbench. `eyes` (Floor) and
+ * `brain` (Brain) used to be separate pages; the Phase 1 redesign merged them
+ * into a single canvas with a focus-driven Inspector rail. Keep these
+ * redirects so old bookmarks and existing client code paths still land
+ * somewhere sensible.
+ */
+const LEGACY_MODE_ALIASES: Record<string, ModeId> = {
+  eyes: "workbench",
+  brain: "workbench",
+  floor: "workbench",
+};
 
 export const MODE_LABELS: Record<ModeId, string> = {
-  eyes: "Eyes",
-  brain: "Brain",
+  workbench: "Workbench",
   anatomy: "Anatomy",
   docs: "Docs",
 };
@@ -43,7 +55,12 @@ function parseHash(hash: string): ParsedRoute {
   const head = slash === -1 ? path : path.slice(0, slash);
   const rest = slash === -1 ? "" : path.slice(slash + 1);
 
-  if (!(VALID_MODES as readonly string[]).includes(head)) {
+  let resolvedHead: ModeId;
+  if ((VALID_MODES as readonly string[]).includes(head)) {
+    resolvedHead = head as ModeId;
+  } else if (head in LEGACY_MODE_ALIASES) {
+    resolvedHead = LEGACY_MODE_ALIASES[head];
+  } else {
     return emptyRoute(DEFAULT_MODE);
   }
 
@@ -54,7 +71,7 @@ function parseHash(hash: string): ParsedRoute {
       query[k] = v;
     }
   }
-  return { mode: head as ModeId, subPath: rest, segments, query };
+  return { mode: resolvedHead, subPath: rest, segments, query };
 }
 
 function emptyRoute(mode: ModeId): ParsedRoute {

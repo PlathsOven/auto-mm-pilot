@@ -4,16 +4,21 @@ import { useMode, type ModeId } from "../../providers/ModeProvider";
 import { useChat } from "../../providers/ChatProvider";
 import { useOnboarding } from "../../providers/OnboardingProvider";
 import { useWebSocket } from "../../providers/WebSocketProvider";
-import { useSelection } from "../../providers/SelectionProvider";
+import { useFocus } from "../../providers/FocusProvider";
+import { fetchBlocks } from "../../services/blockApi";
+import { listStreams } from "../../services/streamApi";
 import { useKeyboardShortcut } from "../../hooks/useKeyboardShortcut";
+import type { BlockRow, RegisteredStream } from "../../types";
 
 interface Command {
   id: string;
   title: string;
   hint?: string;
-  group: "navigate" | "action" | "cell";
+  group: "navigate" | "action" | "cell" | "stream" | "block";
   run: () => void;
 }
+
+const PALETTE_RESULTS_LIMIT = 80;
 
 /**
  * Cmd+K command palette.
@@ -28,9 +33,11 @@ export function CommandPalette() {
   const { toggleDrawer } = useChat();
   const { openOnboarding } = useOnboarding();
   const { payload } = useWebSocket();
-  const { selectDimension } = useSelection();
+  const { setFocus } = useFocus();
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
+  const [blocks, setBlocks] = useState<BlockRow[]>([]);
+  const [streams, setStreams] = useState<RegisteredStream[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useKeyboardShortcut("k", togglePalette);
@@ -40,8 +47,10 @@ export function CommandPalette() {
     if (open) {
       setQuery("");
       setActiveIdx(0);
-      // Focus next tick after the modal mounts
       setTimeout(() => inputRef.current?.focus(), 0);
+      // Hydrate streams + blocks lazily on open so search includes them.
+      fetchBlocks().then(setBlocks).catch(() => { /* ignore */ });
+      listStreams().then(setStreams).catch(() => { /* ignore */ });
     }
   }, [open]);
 
@@ -51,8 +60,7 @@ export function CommandPalette() {
       closePalette();
     };
     return [
-      { id: "go-eyes", group: "navigate", title: "Go to Eyes", hint: "operator dashboard", run: goMode("eyes") },
-      { id: "go-brain", group: "navigate", title: "Open Brain", hint: "decomposition + block inspector", run: goMode("brain") },
+      { id: "go-workbench", group: "navigate", title: "Open Workbench", hint: "positions + inspector + chat", run: goMode("workbench") },
       { id: "go-anatomy", group: "navigate", title: "Open Anatomy", hint: "pipeline canvas", run: goMode("anatomy") },
       { id: "go-docs", group: "navigate", title: "Open API Docs", run: goMode("docs") },
       {
@@ -68,39 +76,62 @@ export function CommandPalette() {
         title: "Replay onboarding tour",
         run: () => { openOnboarding(); closePalette(); },
       },
-      {
-        id: "explain-posit",
-        group: "action",
-        title: "Explain Posit",
-        hint: "60-second framework primer",
-        run: () => { openOnboarding(); closePalette(); },
-      },
     ];
   }, [setMode, closePalette, toggleDrawer, openOnboarding]);
 
   const cellCommands = useMemo<Command[]>(() => {
     if (!payload) return [];
-    return payload.positions.slice(0, 50).map((p) => ({
+    return payload.positions.map((p) => ({
       id: `cell-${p.symbol}-${p.expiry}`,
       group: "cell" as const,
       title: `${p.symbol} ${p.expiry}`,
       hint: `pos ${p.desiredPos > 0 ? "+" : ""}${p.desiredPos.toFixed(2)} $vega`,
       run: () => {
-        setMode("eyes");
-        selectDimension(p.symbol, p.expiry);
+        setMode("workbench");
+        setFocus({ kind: "cell", symbol: p.symbol, expiry: p.expiry });
         closePalette();
       },
     }));
-  }, [payload, setMode, selectDimension, closePalette]);
+  }, [payload, setMode, setFocus, closePalette]);
+
+  const streamCommands = useMemo<Command[]>(() => {
+    return streams.map((s) => ({
+      id: `stream-${s.stream_name}`,
+      group: "stream" as const,
+      title: s.stream_name,
+      hint: `${s.status.toLowerCase()} · ${s.key_cols.join(",")}`,
+      run: () => {
+        setMode("workbench");
+        setFocus({ kind: "stream", name: s.stream_name });
+        closePalette();
+      },
+    }));
+  }, [streams, setMode, setFocus, closePalette]);
+
+  const blockCommands = useMemo<Command[]>(() => {
+    return blocks.map((b) => ({
+      id: `block-${b.block_name}`,
+      group: "block" as const,
+      title: b.block_name,
+      hint: `${b.symbol} · ${b.expiry} · ${b.source}`,
+      run: () => {
+        setMode("workbench");
+        setFocus({ kind: "block", name: b.block_name });
+        closePalette();
+      },
+    }));
+  }, [blocks, setMode, setFocus, closePalette]);
 
   const filtered = useMemo(() => {
-    const all = [...baseCommands, ...cellCommands];
+    const all = [...baseCommands, ...cellCommands, ...streamCommands, ...blockCommands];
     const q = query.trim().toLowerCase();
-    if (!q) return all;
-    return all.filter(
-      (c) => c.title.toLowerCase().includes(q) || c.hint?.toLowerCase().includes(q),
-    );
-  }, [baseCommands, cellCommands, query]);
+    const matched = !q
+      ? all
+      : all.filter(
+          (c) => c.title.toLowerCase().includes(q) || c.hint?.toLowerCase().includes(q),
+        );
+    return matched.slice(0, PALETTE_RESULTS_LIMIT);
+  }, [baseCommands, cellCommands, streamCommands, blockCommands, query]);
 
   // Reset highlight when filter changes
   useEffect(() => {

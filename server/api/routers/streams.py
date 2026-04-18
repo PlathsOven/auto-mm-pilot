@@ -12,8 +12,11 @@ from server.api.models import (
     AdminConfigureStreamRequest,
     BlockConfigPayload,
     CreateStreamRequest,
+    StreamKeyTimeseries,
     StreamListResponse,
     StreamResponse,
+    StreamTimeseriesPoint,
+    StreamTimeseriesResponse,
     UpdateStreamRequest,
 )
 from server.api.stream_registry import StreamRegistration, get_stream_registry
@@ -124,6 +127,59 @@ async def configure_stream(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _stream_to_response(reg)
+
+
+@router.get("/api/streams/{stream_name}/timeseries", response_model=StreamTimeseriesResponse)
+async def stream_timeseries(
+    stream_name: str,
+    user: User = Depends(current_user),
+) -> StreamTimeseriesResponse:
+    """Return per-key-combination time series of raw/market values for a stream.
+
+    Sourced from the in-memory snapshot rows on the per-user stream registry —
+    no new storage. Snapshot rows are grouped by their key-column values so the
+    Inspector can render one chart per (symbol, expiry) (or whatever the
+    stream's ``key_cols`` define).
+    """
+    registry = get_stream_registry(user.id)
+    reg = registry.get(stream_name)
+    if reg is None:
+        raise HTTPException(status_code=404, detail=f"Stream '{stream_name}' not found")
+
+    grouped: dict[tuple[str, ...], list[StreamTimeseriesPoint]] = {}
+    key_specs: dict[tuple[str, ...], dict[str, str]] = {}
+    for row in reg.snapshot_rows:
+        key_values = tuple(str(row.get(k, "")) for k in reg.key_cols)
+        ts_raw = row.get("timestamp")
+        ts_str = ts_raw.isoformat() if hasattr(ts_raw, "isoformat") else str(ts_raw)
+        try:
+            raw_value = float(row.get("raw_value", 0.0))
+        except (TypeError, ValueError):
+            continue
+        mv_raw = row.get("market_value")
+        market_value: float | None
+        try:
+            market_value = float(mv_raw) if mv_raw is not None else None
+        except (TypeError, ValueError):
+            market_value = None
+        grouped.setdefault(key_values, []).append(
+            StreamTimeseriesPoint(timestamp=ts_str, raw_value=raw_value, market_value=market_value)
+        )
+        key_specs.setdefault(
+            key_values, {k: str(row.get(k, "")) for k in reg.key_cols}
+        )
+
+    series = [
+        StreamKeyTimeseries(key=key_specs[k], points=sorted(pts, key=lambda p: p.timestamp))
+        for k, pts in grouped.items()
+    ]
+    series.sort(key=lambda s: tuple(s.key.values()))
+
+    return StreamTimeseriesResponse(
+        stream_name=reg.stream_name,
+        key_cols=list(reg.key_cols),
+        series=series,
+    )
 
 
 @router.delete("/api/streams/{stream_name}", status_code=204)

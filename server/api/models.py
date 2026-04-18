@@ -132,6 +132,30 @@ class StreamListResponse(BaseModel):
     streams: list[StreamResponse]
 
 
+class StreamTimeseriesPoint(BaseModel):
+    """One point in a single stream-key time series."""
+    timestamp: str
+    raw_value: float
+    market_value: float | None = None
+
+
+class StreamKeyTimeseries(BaseModel):
+    """Time series for one unique key-column combination within a stream."""
+    key: dict[str, str]
+    points: list[StreamTimeseriesPoint]
+
+
+class StreamTimeseriesResponse(BaseModel):
+    """Response for ``GET /api/streams/{stream_name}/timeseries``.
+
+    Groups the stream's snapshot rows by key-column combination so each unique
+    key (e.g. ``{symbol: BTC, expiry: 27MAR26}``) gets its own value series.
+    """
+    stream_name: str
+    key_cols: list[str]
+    series: list[StreamKeyTimeseries]
+
+
 # ---------------------------------------------------------------------------
 # Snapshot ingestion
 # ---------------------------------------------------------------------------

@@ -101,6 +101,50 @@ export interface PendingBlockCommand {
 }
 
 // ---------------------------------------------------------------------------
+// Stream time-series (per-key snapshot history)
+// ---------------------------------------------------------------------------
+
+/** One point in a stream-key time series. */
+export interface StreamTimeseriesPoint {
+  timestamp: string;
+  raw_value: number;
+  market_value: number | null;
+}
+
+/** Time series for one unique key-column combination within a stream. */
+export interface StreamKeyTimeseries {
+  key: Record<string, string>;
+  points: StreamTimeseriesPoint[];
+}
+
+/** GET /api/streams/{name}/timeseries response. */
+export interface StreamTimeseriesResponse {
+  stream_name: string;
+  key_cols: string[];
+  series: StreamKeyTimeseries[];
+}
+
+// ---------------------------------------------------------------------------
+// Workbench focus — drives Inspector + channelled panels
+// ---------------------------------------------------------------------------
+
+/**
+ * Discriminated union of every focusable entity in the workbench.
+ *
+ * - `cell` — a single (symbol, expiry) cell from the desired-position grid.
+ * - `symbol` — an entire symbol row.
+ * - `expiry` — an entire expiry column.
+ * - `stream` — a registered data stream.
+ * - `block` — a single block by name.
+ */
+export type Focus =
+  | { kind: "cell"; symbol: string; expiry: string }
+  | { kind: "symbol"; symbol: string }
+  | { kind: "expiry"; expiry: string }
+  | { kind: "stream"; name: string }
+  | { kind: "block"; name: string };
+
+// ---------------------------------------------------------------------------
 // API request / response types
 // ---------------------------------------------------------------------------
 

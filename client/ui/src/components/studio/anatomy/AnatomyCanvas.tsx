@@ -214,7 +214,7 @@ function AnatomyCanvasInner() {
       } else if (node.type === "transform") {
         setSelection({ kind: "transform", stepKey: node.id as StepKey });
       } else if (node.type === "output") {
-        setMode("eyes");
+        setMode("workbench");
       }
     },
     [setMode, openSidebarList],

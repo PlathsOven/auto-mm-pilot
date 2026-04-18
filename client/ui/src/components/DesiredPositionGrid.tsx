@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import { useWebSocket } from "../providers/WebSocketProvider";
-import { useChat } from "../providers/ChatProvider";
 import { valColor, cellBg } from "../utils";
-import { useSelection } from "../providers/SelectionProvider";
+import { useFocus } from "../providers/FocusProvider";
+import type { Focus } from "../types";
 import {
   VIEW_MODE_META,
   TIMEFRAME_OPTIONS,
@@ -25,9 +25,44 @@ import {
 
 export function DesiredPositionGrid() {
   const { payload } = useWebSocket();
-  const { investigate } = useChat();
-  const { isDimensionSelected } = useSelection();
+  const { focus, toggleFocus, isFocused } = useFocus();
   const positions = payload?.positions ?? [];
+
+  const setCellFocus = useCallback(
+    (symbol: string, expiry: string) => {
+      toggleFocus({ kind: "cell", symbol, expiry });
+    },
+    [toggleFocus],
+  );
+
+  const setSymbolFocus = useCallback(
+    (symbol: string) => {
+      toggleFocus({ kind: "symbol", symbol });
+    },
+    [toggleFocus],
+  );
+
+  const setExpiryFocus = useCallback(
+    (expiry: string) => {
+      toggleFocus({ kind: "expiry", expiry });
+    },
+    [toggleFocus],
+  );
+
+  /** Highlight any cell whose symbol or expiry matches the current focus. */
+  const isCellChannelled = useCallback(
+    (symbol: string, expiry: string): boolean => {
+      const focusVal: Focus | null = focus;
+      if (!focusVal) return false;
+      switch (focusVal.kind) {
+        case "cell": return focusVal.symbol === symbol && focusVal.expiry === expiry;
+        case "symbol": return focusVal.symbol === symbol;
+        case "expiry": return focusVal.expiry === expiry;
+        default: return false;
+      }
+    },
+    [focus],
+  );
 
   const [viewMode, setViewMode] = useState<ViewMode>("position");
   const [timeframe, setTimeframe] = useState<TimeframeLabel>("Latest");
@@ -155,7 +190,10 @@ export function DesiredPositionGrid() {
                 {expiries.map((exp) => (
                   <th
                     key={exp}
-                    className="px-2 py-1.5 text-center font-medium"
+                    onClick={() => setExpiryFocus(exp)}
+                    className={`cursor-pointer px-2 py-1.5 text-center font-medium transition-colors hover:text-mm-accent ${
+                      isFocused({ kind: "expiry", expiry: exp }) ? "text-mm-accent" : ""
+                    }`}
                   >
                     {exp}
                   </th>
@@ -169,7 +207,12 @@ export function DesiredPositionGrid() {
                   key={symbol}
                   className="border-b border-black/[0.04]"
                 >
-                  <td className="px-3 py-2.5 text-[12px] font-medium text-mm-text">
+                  <td
+                    onClick={() => setSymbolFocus(symbol)}
+                    className={`cursor-pointer px-3 py-2.5 text-[12px] font-medium transition-colors hover:text-mm-accent ${
+                      isFocused({ kind: "symbol", symbol }) ? "text-mm-accent" : "text-mm-text"
+                    }`}
+                  >
                     {symbol}
                   </td>
                   {expiries.map((exp) => {
@@ -185,11 +228,11 @@ export function DesiredPositionGrid() {
                     return (
                       <td
                         key={exp}
-                        onClick={() => investigate({ type: "position", symbol, expiry: exp, position: cell.pos })}
+                        onClick={() => setCellFocus(symbol, exp)}
                         onDoubleClick={(e) => { e.stopPropagation(); startEdit(key, symbol, exp, cell.pos, viewMode); }}
                         onMouseEnter={() => onMouseEnter(symbol, exp, key)}
                         onMouseLeave={onMouseLeave}
-                        className={`relative cursor-pointer rounded-md px-3 py-2.5 text-center text-[12px] font-medium tabular-nums transition-colors hover:bg-white/80 hover:ring-1 hover:ring-mm-accent/20 ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${isDimensionSelected(symbol, exp) ? "channel-highlight-cell" : ""}`}
+                        className={`relative cursor-pointer rounded-md px-3 py-2.5 text-center text-[12px] font-medium tabular-nums transition-colors hover:bg-white/80 hover:ring-1 hover:ring-mm-accent/20 ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${isCellChannelled(symbol, exp) ? "channel-highlight-cell" : ""}`}
                         style={{ backgroundColor: cellBg(val) }}
                       >
                         {isEditing ? (
