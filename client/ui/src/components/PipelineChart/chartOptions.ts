@@ -73,6 +73,186 @@ export function sci(v: number): string {
 // ECharts option builder
 // ---------------------------------------------------------------------------
 
+/** Single-view rendering modes for the pipeline chart. Each maps to one of
+ *  the three substantive aggregates (position / fair / variance) that the
+ *  pipeline produces — same vocabulary as the position grid's view-mode tabs
+ *  so the two surfaces can stay in sync. */
+export type PipelineView = "position" | "fair" | "variance";
+
+/**
+ * Build a single-grid ECharts option for the requested view.
+ *
+ * Replaces the old three-stacked-grid layout. With one grid filling the
+ * panel the chart actually fills the canvas, gets significantly more y-axis
+ * resolution, and reads at small heights. The trader switches view via tabs
+ * up in PipelineChartPanel — by default, those tabs follow the position
+ * grid's active view-mode (linked).
+ */
+export function buildPipelineSingleViewOptions(
+  data: PipelineTimeSeriesResponse,
+  view: PipelineView,
+  selectedBlocks: Set<string>,
+): EChartsOption {
+  const { blocks, aggregated } = data;
+  const timestamps = aggregated.timestamps;
+  const hasSelection = selectedBlocks.size > 0;
+
+  const series: EChartsOption["series"] = [];
+  let yAxisName = "";
+  let yAxisFormatter: (v: number) => string;
+
+  if (view === "position") {
+    yAxisName = "Position ($)";
+    yAxisFormatter = (v: number) =>
+      v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v));
+    series.push(
+      {
+        name: "Raw",
+        type: "line",
+        data: aggregated.rawDesiredPosition,
+        showSymbol: false,
+        lineStyle: { width: 1, color: RAW_COLOR },
+        itemStyle: { color: RAW_COLOR },
+        z: 1,
+      },
+      {
+        name: "Smoothed",
+        type: "line",
+        data: aggregated.smoothedDesiredPosition,
+        showSymbol: false,
+        lineStyle: { width: 2, color: SMOOTHED_COLOR },
+        itemStyle: { color: SMOOTHED_COLOR },
+        z: 2,
+      },
+    );
+  } else if (view === "fair") {
+    yAxisName = "Fair Value";
+    yAxisFormatter = sci;
+    blocks.forEach((b, i) => {
+      const dimmed = hasSelection && !selectedBlocks.has(b.blockName);
+      series.push({
+        name: `${b.blockName} (fair)`,
+        type: "line",
+        data: b.fair,
+        showSymbol: false,
+        stack: "fair",
+        areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
+        lineStyle: {
+          width: dimmed ? 0.3 : 0,
+          color: BLOCK_COLORS[i % BLOCK_COLORS.length],
+          opacity: dimmed ? 0.3 : 1,
+        },
+        itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
+        emphasis: { focus: "series" },
+      });
+    });
+    series.push({
+      name: "Total Fair",
+      type: "line",
+      data: aggregated.totalFair,
+      showSymbol: false,
+      lineStyle: { width: 2, color: FAIR_COLOR },
+      itemStyle: { color: FAIR_COLOR },
+      z: 10,
+    });
+    series.push({
+      name: "Market Fair",
+      type: "line",
+      data: aggregated.totalMarketFair,
+      showSymbol: false,
+      lineStyle: { width: 2, type: "dashed", color: MARKET_FAIR_COLOR },
+      itemStyle: { color: MARKET_FAIR_COLOR },
+      z: 10,
+    });
+  } else {
+    // variance
+    yAxisName = "Variance";
+    yAxisFormatter = sci;
+    blocks.forEach((b, i) => {
+      const dimmed = hasSelection && !selectedBlocks.has(b.blockName);
+      series.push({
+        name: `${b.blockName} (var)`,
+        type: "line",
+        data: b.var,
+        showSymbol: false,
+        stack: "var",
+        areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
+        lineStyle: {
+          width: dimmed ? 0.3 : 0,
+          color: BLOCK_COLORS[i % BLOCK_COLORS.length],
+          opacity: dimmed ? 0.3 : 1,
+        },
+        itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
+        emphasis: { focus: "series" },
+      });
+    });
+    series.push({
+      name: "Total Variance",
+      type: "line",
+      data: aggregated.var,
+      showSymbol: false,
+      lineStyle: { width: 2, color: VARIANCE_COLOR },
+      itemStyle: { color: VARIANCE_COLOR },
+      z: 10,
+    });
+  }
+
+  return {
+    backgroundColor: "transparent",
+    animation: false,
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "cross", crossStyle: { color: "#666" } },
+      ...TOOLTIP_STYLE,
+      confine: true,
+      valueFormatter: (v) => (typeof v === "number" ? sci(v) : String(v ?? "—")),
+    },
+    dataZoom: [
+      { type: "inside", filterMode: "filter" },
+      {
+        type: "slider",
+        bottom: 6,
+        height: 12,
+        borderColor: "transparent",
+        backgroundColor: "rgba(0,0,0,0.03)",
+        fillerColor: "rgba(79,91,213,0.10)",
+        handleStyle: { color: "#4f5bd5", borderColor: "rgba(255,255,255,0.6)" },
+        textStyle: { color: "#6e6e82", fontSize: 9 },
+      },
+    ],
+    grid: { left: 56, right: 16, top: 12, bottom: 36 },
+    xAxis: {
+      type: "category",
+      data: timestamps,
+      axisLabel: {
+        color: "#6e6e82",
+        fontSize: 9,
+        formatter: (v: string) => {
+          try {
+            const d = new Date(v);
+            return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+          } catch {
+            return v;
+          }
+        },
+      },
+      axisTick: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
+      axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
+      splitLine: { show: false },
+    },
+    yAxis: {
+      type: "value",
+      name: yAxisName,
+      nameTextStyle: { color: "#6e6e82", fontSize: 10, padding: [0, 0, 0, -10] },
+      axisLabel: { color: "#6e6e82", fontSize: 10, formatter: yAxisFormatter },
+      splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
+      axisLine: { show: false },
+    },
+    series,
+  };
+}
+
+
 export function buildPipelineChartOptions(
   data: PipelineTimeSeriesResponse,
   selectedBlocks: Set<string>,

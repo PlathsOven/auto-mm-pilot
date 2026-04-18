@@ -24,7 +24,14 @@ import {
   OverrideStatusBar,
 } from "./grid-helpers";
 
-export function DesiredPositionGrid() {
+interface DesiredPositionGridProps {
+  /** Controlled view mode — when supplied, the grid lifts state to the
+   *  parent so other surfaces (e.g. PipelineChartPanel) can mirror it. */
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
+}
+
+export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeChange }: DesiredPositionGridProps = {}) {
   const { payload } = useWebSocket();
   const { focus, toggleFocus, isFocused } = useFocus();
   const positions = payload?.positions ?? [];
@@ -65,7 +72,15 @@ export function DesiredPositionGrid() {
     [focus],
   );
 
-  const [viewMode, setViewMode] = useState<ViewMode>("position");
+  const [internalViewMode, setInternalViewMode] = useState<ViewMode>("position");
+  const viewMode = controlledViewMode ?? internalViewMode;
+  const setViewMode = useCallback(
+    (m: ViewMode) => {
+      setInternalViewMode(m);
+      onViewModeChange?.(m);
+    },
+    [onViewModeChange],
+  );
   const [timeframe, setTimeframe] = useState<TimeframeLabel>("Latest");
   const [moreOpen, setMoreOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -172,7 +187,7 @@ export function DesiredPositionGrid() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto">
         {positions.length === 0 ? (
           <p className="px-3 py-8 text-center text-xs text-mm-text-dim">
             Awaiting engine output...

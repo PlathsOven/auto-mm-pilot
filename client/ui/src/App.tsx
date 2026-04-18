@@ -17,7 +17,7 @@ import { useFocus } from "./providers/FocusProvider";
 import { useCommandPalette } from "./providers/CommandPaletteProvider";
 import { useTimeOnApp } from "./hooks/useTimeOnApp";
 import { useHotkeys } from "./hooks/useHotkeys";
-import { WORKBENCH_RAIL_OPEN_KEY } from "./constants";
+import { INSPECTOR_COLUMN_OPEN_KEY } from "./constants";
 
 const MODE_PAGES: Record<ModeId, React.FC> = {
   workbench: WorkbenchPage,
@@ -54,12 +54,12 @@ export default function App() {
   // Bare-key workbench hotkeys. Modifier-bearing shortcuts (⌘K palette,
   // ⌘/ chat) are owned by their respective components — kept separate so
   // useHotkeys can refuse modified events without conflict.
-  const toggleRail = useCallback(() => {
+  const toggleInspector = useCallback(() => {
     try {
-      const v = localStorage.getItem(WORKBENCH_RAIL_OPEN_KEY);
+      const v = localStorage.getItem(INSPECTOR_COLUMN_OPEN_KEY);
       const next = v === "false" ? "true" : "false";
-      localStorage.setItem(WORKBENCH_RAIL_OPEN_KEY, next);
-      window.dispatchEvent(new StorageEvent("storage", { key: WORKBENCH_RAIL_OPEN_KEY }));
+      localStorage.setItem(INSPECTOR_COLUMN_OPEN_KEY, next);
+      window.dispatchEvent(new StorageEvent("storage", { key: INSPECTOR_COLUMN_OPEN_KEY }));
     } catch {
       // ignore — private mode
     }
@@ -70,8 +70,8 @@ export default function App() {
       if (cheatsheetOpen) setCheatsheetOpen(false);
       else clearFocus();
     },
-    "[": toggleRail,
-    "]": toggleRail,
+    "[": toggleInspector,
+    "]": toggleInspector,
     "?": toggleCheatsheet,
     "g c": () => toggleDrawer(),
     "g k": () => togglePalette(),

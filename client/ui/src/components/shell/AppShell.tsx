@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { LeftNav } from "./LeftNav";
 import { StatusBar } from "./StatusBar";
 import { TopBar } from "./TopBar";
+import { ChatDock } from "../workbench/ChatDock";
 
 interface AppShellProps {
   onShowCheatsheet: () => void;
@@ -28,6 +29,7 @@ export function AppShell({ onShowCheatsheet, children }: AppShellProps) {
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <TopBar />
           <main className="flex min-h-0 flex-1 overflow-hidden">{children}</main>
+          <ChatDock />
         </div>
       </div>
       <StatusBar onShowCheatsheet={onShowCheatsheet} />

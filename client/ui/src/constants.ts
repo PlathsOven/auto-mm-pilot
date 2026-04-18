@@ -17,10 +17,13 @@ export const GLOBAL_CONTEXT_TICK_MS = 47;
 // Chat textarea auto-grows up to this height (px) before scrolling internally.
 export const CHAT_INPUT_MAX_HEIGHT_PX = 160;
 
-// Workbench right rail (Inspector + Chat) sizing + persistence keys.
-export const WORKBENCH_RAIL_WIDTH_PX = 360;
-export const WORKBENCH_RAIL_OPEN_KEY = "posit-rail-open";
-export const WORKBENCH_RAIL_TAB_KEY = "posit-rail-tab";
+// Workbench right inspector column sizing + persistence keys.
+export const INSPECTOR_COLUMN_WIDTH_PX = 320;
+export const INSPECTOR_COLUMN_OPEN_KEY = "posit-inspector-open";
+
+// Bottom chat dock — independent of the inspector now.
+export const CHAT_DOCK_HEIGHT_PX = 280;
+export const CHAT_DOCK_OPEN_KEY = "posit-chatdock-open";
 
 // Left navigation sidebar (mode + account + actions).
 export const LEFTNAV_EXPANDED_WIDTH_PX = 196;

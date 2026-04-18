@@ -3,28 +3,31 @@ import { DesiredPositionGrid } from "../components/DesiredPositionGrid";
 import { StreamStatusList } from "../components/floor/StreamStatusList";
 import { EditableBlockTable } from "../components/studio/brain/EditableBlockTable";
 import { BlockDrawer, type DrawerMode } from "../components/studio/brain/BlockDrawer";
-import { WorkbenchRail } from "../components/workbench/WorkbenchRail";
+import { InspectorColumn } from "../components/workbench/InspectorColumn";
 import { UpdatesTicker } from "../components/workbench/UpdatesTicker";
 import { PipelineChartPanel } from "../components/workbench/PipelineChartPanel";
 import { useFocus } from "../providers/FocusProvider";
 import type { BlockRow } from "../types";
+import type { ViewMode } from "../components/grid-config";
 
 /**
- * Unified workbench page — replaces the old Floor + Brain split.
+ * Unified workbench — vertical-stack canvas + right-side InspectorColumn.
  *
- * Layout:
- *  - Top: Updates ticker (horizontal scroll, ~36px)
- *  - Middle (flex-1): Position Grid (left) + Pipeline Chart (right)
- *  - Bottom (h-[280px]): Data Streams (narrow) + Block Inspector (wide)
- *  - Right rail: Inspector + Chat tabs (collapsible)
+ * Vertical canvas (top → bottom):
+ *  - Updates ticker (horizontal scrolling strip, ~36px)
+ *  - Position grid (with view-mode tabs; flex-1)
+ *  - Pipeline chart (with linked view-mode tabs; flex-1, fills the panel)
+ *  - Streams + Block Inspector (h-[260px], side-by-side)
  *
- * Clicking anything in the canvas sets workbench focus, which channels the
- * pipeline chart, the inspector rail, and (when "follow focus" is on) the
- * block table filters.
+ * The position grid view-mode is owned here so the pipeline panel can mirror
+ * it ("Linked" toggle in the pipeline header).
+ *
+ * Inspector lives in its own right-side column. Chat moved out of the rail
+ * and into a bottom dock — see `<ChatDock/>` mounted by `<AppShell/>`.
  */
 export function WorkbenchPage() {
   const { setFocus } = useFocus();
-  const [railSignal, setRailSignal] = useState<{ tab: "inspector" | "chat"; nonce: number } | null>(null);
+  const [gridViewMode, setGridViewMode] = useState<ViewMode>("position");
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
@@ -40,7 +43,6 @@ export function WorkbenchPage() {
   const onBlockRowClick = useCallback(
     (block: BlockRow) => {
       setFocus({ kind: "block", name: block.block_name });
-      setRailSignal({ tab: "inspector", nonce: Date.now() });
     },
     [setFocus],
   );
@@ -59,16 +61,15 @@ export function WorkbenchPage() {
       <main className="flex min-w-0 flex-1 flex-col gap-2 overflow-hidden p-2">
         <UpdatesTicker />
 
-        <div className="flex min-h-0 flex-1 gap-2">
-          <section className="glass-panel flex flex-1 min-w-0 overflow-hidden">
-            <DesiredPositionGrid />
-          </section>
-          <section className="glass-panel flex flex-1 min-w-0 overflow-hidden">
-            <PipelineChartPanel />
-          </section>
-        </div>
+        <section className="glass-panel flex min-h-0 flex-1 overflow-hidden">
+          <DesiredPositionGrid viewMode={gridViewMode} onViewModeChange={setGridViewMode} />
+        </section>
 
-        <div className="flex h-[300px] shrink-0 gap-2">
+        <section className="glass-panel flex min-h-0 flex-1 overflow-hidden">
+          <PipelineChartPanel gridViewMode={gridViewMode} />
+        </section>
+
+        <div className="flex h-[260px] shrink-0 gap-2">
           <section className="glass-panel w-[240px] shrink-0 overflow-hidden">
             <StreamStatusList />
           </section>
@@ -91,7 +92,7 @@ export function WorkbenchPage() {
         </div>
       </main>
 
-      <WorkbenchRail signal={railSignal} />
+      <InspectorColumn />
 
       <BlockDrawer
         open={drawerOpen}

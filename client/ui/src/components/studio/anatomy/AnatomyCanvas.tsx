@@ -114,7 +114,9 @@ function AnatomyCanvasInner() {
   // recomputes from upstream identity churn.
   useEffect(() => {
     const id = requestAnimationFrame(() => {
-      reactFlowInstance.fitView({ duration: 200, padding: 0.2 });
+      // Tighter padding + min zoom floor — earlier `padding: 0.2` zoomed out
+      // far enough on wide canvases that node labels became unreadable.
+      reactFlowInstance.fitView({ duration: 200, padding: 0.05, minZoom: 0.85 });
     });
     return () => cancelAnimationFrame(id);
   }, [sidebarMode.kind, reactFlowInstance]);
