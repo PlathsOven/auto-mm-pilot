@@ -1,6 +1,5 @@
 import { useCallback, useMemo } from "react";
 import { useWebSocket } from "../../../providers/WebSocketProvider";
-import { useChat } from "../../../providers/ChatProvider";
 import { useFocus } from "../../../providers/FocusProvider";
 import { useStreamContributions } from "../../../hooks/useStreamContributions";
 import { valColor } from "../../../utils";
@@ -17,12 +16,11 @@ const TOP_BLOCKS_LIMIT = 12;
  *
  * The pipeline chart for this dimension lives on the main canvas (it's
  * channelled to focus from there); the inspector stays lean — just the
- * scalars, the explicit "Ask @Posit" affordance, and the per-block edge
- * attribution list.
+ * scalars and the per-block edge attribution list. Chat lives in its own
+ * dock — open it explicitly with `⌘/` if you want to discuss the cell.
  */
 export function CellInspector({ symbol, expiry }: CellInspectorProps) {
   const { payload } = useWebSocket();
-  const { investigate } = useChat();
   const { clearFocus, toggleFocus } = useFocus();
 
   const position = useMemo(
@@ -31,11 +29,6 @@ export function CellInspector({ symbol, expiry }: CellInspectorProps) {
   );
 
   const { contributions, loading, error } = useStreamContributions({ symbol, expiry });
-
-  const handleAskPosit = () => {
-    if (!position) return;
-    investigate({ type: "position", symbol, expiry, position });
-  };
 
   const onBlockClick = useCallback(
     (blockName: string) => toggleFocus({ kind: "block", name: blockName }),
@@ -51,25 +44,14 @@ export function CellInspector({ symbol, expiry }: CellInspectorProps) {
             {symbol} <span className="text-mm-text-dim">·</span> {expiry}
           </span>
         </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={handleAskPosit}
-            disabled={!position}
-            className="rounded-md border border-mm-accent/30 bg-mm-accent/[0.06] px-2 py-0.5 text-[10px] font-semibold text-mm-accent transition-colors hover:bg-mm-accent/[0.12] disabled:opacity-40"
-            title="Ask @Posit about this cell"
-          >
-            Ask @Posit →
-          </button>
-          <button
-            type="button"
-            onClick={clearFocus}
-            className="rounded-md p-1 text-[11px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
-            title="Clear focus (Esc)"
-          >
-            ✕
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={clearFocus}
+          className="rounded-md p-1 text-[11px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
+          title="Clear focus (Esc)"
+        >
+          ✕
+        </button>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 py-2">

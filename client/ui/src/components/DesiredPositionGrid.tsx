@@ -92,6 +92,10 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
   } = usePositionEdit();
 
   const { hoverCell, onMouseEnter, onMouseLeave } = usePositionHover();
+  // Capture the hovered cell's bounding rect so the portal-rendered
+  // hover-card can position itself relative to it (the card lives in
+  // document.body to escape the position-grid's overflow-auto clip).
+  const hoverCellRectRef = useRef<DOMRect | null>(null);
 
   // Cancel pending edit when timeframe changes
   useEffect(() => cancelEdit(), [timeframe, cancelEdit]);
@@ -124,7 +128,7 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
   );
 
   return (
-    <div className="flex h-full flex-col p-3">
+    <div className="flex h-full w-full min-w-0 flex-1 flex-col p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-black/[0.06] pb-2">
         <div className="flex items-baseline gap-2">
           <h2 className="zone-header">Desired Positions</h2>
@@ -234,15 +238,17 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
                     const isEditing = pendingEdit?.key === key;
                     const hasOverride = viewMode === "position" && overrides.has(key);
                     const showHover = hoverCell?.key === key && !isEditing;
+                    const channelled = isCellChannelled(symbol, exp);
 
                     return (
                       <td
                         key={exp}
+                        ref={(el) => { if (showHover && el) hoverCellRectRef.current = el.getBoundingClientRect(); }}
                         onClick={() => setCellFocus(symbol, exp)}
                         onDoubleClick={(e) => { e.stopPropagation(); startEdit(key, symbol, exp, cell.pos, viewMode); }}
-                        onMouseEnter={() => onMouseEnter(symbol, exp, key)}
+                        onMouseEnter={(e) => { hoverCellRectRef.current = (e.currentTarget as HTMLElement).getBoundingClientRect(); onMouseEnter(symbol, exp, key); }}
                         onMouseLeave={onMouseLeave}
-                        className={`relative cursor-pointer rounded-md px-2 py-1.5 text-center text-[12px] font-medium tabular-nums transition-colors hover:bg-white/80 hover:ring-1 hover:ring-mm-accent/20 ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${isCellChannelled(symbol, exp) ? "channel-highlight-cell" : ""}`}
+                        className={`relative cursor-pointer rounded-md px-2 py-1.5 text-center text-[12px] font-medium tabular-nums transition-colors ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${channelled ? "channel-highlight-cell" : "hover:bg-white/80 hover:ring-1 hover:ring-mm-accent/20"}`}
                         style={{ backgroundColor: cellBg(val) }}
                       >
                         {isEditing ? (
@@ -278,7 +284,11 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
                           </button>
                         )}
                         {showHover && (
-                          <StreamAttributionHoverCard symbol={symbol} expiry={exp} />
+                          <StreamAttributionHoverCard
+                            symbol={symbol}
+                            expiry={exp}
+                            anchorRect={hoverCellRectRef.current}
+                          />
                         )}
                       </td>
                     );

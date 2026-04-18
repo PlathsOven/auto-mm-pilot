@@ -150,9 +150,15 @@ class StreamTimeseriesResponse(BaseModel):
 
     Groups the stream's snapshot rows by key-column combination so each unique
     key (e.g. ``{symbol: BTC, expiry: 27MAR26}``) gets its own value series.
+
+    `status` + `row_count` let the client distinguish between "stream missing"
+    (404), "stream registered but no rows yet" (empty series), and the
+    healthy case (populated series).
     """
     stream_name: str
     key_cols: list[str]
+    status: Literal["PENDING", "READY"]
+    row_count: int
     series: list[StreamKeyTimeseries]
 
 

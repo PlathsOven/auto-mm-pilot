@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { DesiredPositionGrid } from "../components/DesiredPositionGrid";
 import { StreamStatusList } from "../components/floor/StreamStatusList";
 import { EditableBlockTable } from "../components/studio/brain/EditableBlockTable";
-import { BlockDrawer, type DrawerMode } from "../components/studio/brain/BlockDrawer";
+import { BlockDrawer } from "../components/studio/brain/BlockDrawer";
 import { InspectorColumn } from "../components/workbench/InspectorColumn";
 import { UpdatesTicker } from "../components/workbench/UpdatesTicker";
 import { PipelineChartPanel } from "../components/workbench/PipelineChartPanel";
@@ -30,28 +30,20 @@ export function WorkbenchPage() {
   const [gridViewMode, setGridViewMode] = useState<ViewMode>("position");
 
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
-  const [selectedBlock, setSelectedBlock] = useState<BlockRow | null>(null);
   const [blockRefreshKey, setBlockRefreshKey] = useState(0);
 
   const openCreateBlock = useCallback(() => {
-    setDrawerMode("create");
-    setSelectedBlock(null);
     setDrawerOpen(true);
   }, []);
 
   const onBlockRowClick = useCallback(
     (block: BlockRow) => {
+      // Single-click → focus the block. Editing happens in the inspector
+      // (sidebar) for manual blocks; stream blocks render read-only there.
       setFocus({ kind: "block", name: block.block_name });
     },
     [setFocus],
   );
-
-  const onBlockRowEdit = useCallback((block: BlockRow) => {
-    setSelectedBlock(block);
-    setDrawerMode(block.source === "manual" ? "edit" : "inspect");
-    setDrawerOpen(true);
-  }, []);
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const onSaved = useCallback(() => setBlockRefreshKey((k) => k + 1), []);
@@ -66,7 +58,7 @@ export function WorkbenchPage() {
         </section>
 
         <section className="glass-panel flex min-h-0 flex-1 overflow-hidden">
-          <PipelineChartPanel gridViewMode={gridViewMode} />
+          <PipelineChartPanel gridViewMode={gridViewMode} onGridViewModeChange={setGridViewMode} />
         </section>
 
         <div className="flex h-[260px] shrink-0 gap-2">
@@ -77,7 +69,6 @@ export function WorkbenchPage() {
             <EditableBlockTable
               refreshKey={blockRefreshKey}
               onRowClick={onBlockRowClick}
-              onRowEdit={onBlockRowEdit}
               headerAction={
                 <button
                   type="button"
@@ -94,10 +85,12 @@ export function WorkbenchPage() {
 
       <InspectorColumn />
 
+      {/* BlockDrawer is now create-only — manual block edits happen in the
+          BlockInspector sidebar. */}
       <BlockDrawer
         open={drawerOpen}
-        mode={drawerMode}
-        block={selectedBlock}
+        mode="create"
+        block={null}
         onClose={closeDrawer}
         onSaved={onSaved}
       />

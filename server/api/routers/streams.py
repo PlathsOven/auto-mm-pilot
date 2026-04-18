@@ -178,6 +178,8 @@ async def stream_timeseries(
     return StreamTimeseriesResponse(
         stream_name=reg.stream_name,
         key_cols=list(reg.key_cols),
+        status=reg.status,
+        row_count=len(reg.snapshot_rows),
         series=series,
     )
 

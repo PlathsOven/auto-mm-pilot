@@ -36,10 +36,25 @@ function gridToPipelineView(grid: ViewMode): PipelineView {
   }
 }
 
+/** Canonical grid-view choice for each pipeline view, used when the user
+ *  changes the pipeline tab while linked is on (the change should propagate
+ *  back to the grid). Mapping is intentionally lossy — pipeline "fair" maps
+ *  to "edge" because that's the tab traders look at most often. */
+function pipelineToGridView(view: PipelineView): ViewMode {
+  switch (view) {
+    case "position": return "position";
+    case "fair": return "edge";
+    case "variance": return "variance";
+  }
+}
+
 interface PipelineChartPanelProps {
   /** The position grid's current view mode — pipeline mirrors it when "Linked"
    *  is on (default). */
   gridViewMode: ViewMode;
+  /** Setter so the pipeline can push its tab choice back to the grid (when
+   *  linked is on, the sync is bidirectional). */
+  onGridViewModeChange: (mode: ViewMode) => void;
 }
 
 /**
@@ -52,7 +67,7 @@ interface PipelineChartPanelProps {
  * different views (e.g. position grid showing change while inspecting
  * variance below).
  */
-export function PipelineChartPanel({ gridViewMode }: PipelineChartPanelProps) {
+export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: PipelineChartPanelProps) {
   const { focus } = useFocus();
   const { payload } = useWebSocket();
 
@@ -101,7 +116,7 @@ export function PipelineChartPanel({ gridViewMode }: PipelineChartPanelProps) {
   );
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex h-full w-full min-w-0 flex-1 flex-col overflow-hidden">
       <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-black/[0.06] px-3 py-1.5">
         <h2 className="zone-header">Pipeline</h2>
         <Tabs
@@ -109,9 +124,12 @@ export function PipelineChartPanel({ gridViewMode }: PipelineChartPanelProps) {
           value={effectiveView}
           onChange={(v) => {
             setLocalView(v);
-            // Manual change implies the user wants to override the grid.
-            // Disable linking so subsequent grid changes don't fight back.
-            if (linked) persistLinked(false);
+            // When linked, propagate the new pipeline view back to the grid
+            // so the two stay in sync (bidirectional). When unlinked, just
+            // update the local pipeline state and leave the grid alone.
+            if (linked) {
+              onGridViewModeChange(pipelineToGridView(v));
+            }
           }}
           variant="pill"
           size="sm"

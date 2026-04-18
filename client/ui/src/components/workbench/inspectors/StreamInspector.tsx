@@ -70,14 +70,24 @@ export function StreamInspector({ name }: StreamInspectorProps) {
   }, [visibleSeries]);
 
   return (
-    <div className="flex h-full flex-col gap-3 p-4">
+    <div className="flex h-full flex-col gap-2 p-3">
       <header className="flex items-start justify-between gap-2 border-b border-black/[0.06] pb-2">
         <div className="flex flex-col gap-0.5">
-          <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">Stream</span>
-          <span className="text-[14px] font-semibold text-mm-text">{name}</span>
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">
+            Stream {data && (
+              <span
+                className={`ml-1 rounded px-1 py-0.5 text-[8px] font-bold ${
+                  data.status === "READY" ? "bg-mm-accent/10 text-mm-accent" : "bg-mm-warn/15 text-mm-warn"
+                }`}
+              >
+                {data.status}
+              </span>
+            )}
+          </span>
+          <span className="text-[13px] font-semibold text-mm-text">{name}</span>
           {data && (
             <span className="text-[9px] text-mm-text-subtle">
-              {data.series.length} key{data.series.length === 1 ? "" : "s"} · {data.key_cols.join(", ") || "—"}
+              {data.row_count} row{data.row_count === 1 ? "" : "s"} · {data.series.length} key{data.series.length === 1 ? "" : "s"} · {data.key_cols.join(", ") || "—"}
             </span>
           )}
         </div>
@@ -103,10 +113,24 @@ export function StreamInspector({ name }: StreamInspectorProps) {
             opts={{ renderer: "canvas" }}
           />
         </div>
+      ) : loading ? (
+        <p className="text-[11px] text-mm-text-dim">Loading stream history…</p>
+      ) : data ? (
+        <div className="flex flex-col gap-2 rounded-md border border-black/[0.06] bg-white/40 p-3 text-[11px] text-mm-text-dim">
+          <p className="font-semibold text-mm-text">No snapshot rows in the registry.</p>
+          <p>
+            The stream is registered (<span className="font-mono text-mm-text">{data.status}</span>) but its
+            <span className="font-mono text-mm-text"> snapshot_rows</span> array is empty. Push rows via the SDK
+            (<span className="font-mono text-mm-text">POST /api/snapshots</span>) or, for manual blocks, edit
+            them via the Block Inspector when you focus a block.
+          </p>
+          <p className="text-[10px] text-mm-text-subtle">
+            Tip: cells in the position grid use the cached pipeline output, which can outlive a registry reset —
+            so values appear there even when the registry is empty.
+          </p>
+        </div>
       ) : (
-        <p className="text-[11px] text-mm-text-dim">
-          {loading ? "Loading stream history…" : "No snapshot rows yet for this stream."}
-        </p>
+        <p className="text-[11px] text-mm-text-dim">No data.</p>
       )}
 
       {data && data.series.length > MAX_SERIES_RENDERED && (

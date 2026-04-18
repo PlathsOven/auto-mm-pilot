@@ -108,18 +108,8 @@ function AnatomyCanvasInner() {
     [setMode],
   );
 
-  // After the sidebar opens or closes, the canvas column resizes via flexbox
-  // — refit the ReactFlow viewport so nodes don't get clipped or stranded
-  // off-screen. Watch `sidebarMode.kind` (not the object) to avoid extra
-  // recomputes from upstream identity churn.
-  useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      // Tighter padding + min zoom floor — earlier `padding: 0.2` zoomed out
-      // far enough on wide canvases that node labels became unreadable.
-      reactFlowInstance.fitView({ duration: 200, padding: 0.05, minZoom: 0.85 });
-    });
-    return () => cancelAnimationFrame(id);
-  }, [sidebarMode.kind, reactFlowInstance]);
+  // The viewport-recenter effect lives below the `nodes` useMemo so it
+  // can reference it without hitting a TDZ in the deps array.
 
   // Is the system "live"? Use the WS payload as the signal — when positions
   // are flowing, the DAG edges animate.
@@ -205,11 +195,33 @@ function AnatomyCanvasInner() {
     return buildAnatomyGraph(steps, streams, savingKey, live, highlightedStreamNames);
   }, [steps, streams, savingKey, live, highlightedStreamNames]);
 
+  // Recenter on the streams cluster (left side of the DAG) on mount + sidebar
+  // open/close. Earlier we used `fitView` over all nodes, which centred on
+  // the middle of the DAG and left the streams half-occluded behind the
+  // sidebar — making the entry point of the pipeline the hardest thing to
+  // see first.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      const streamNodes = nodes.filter((n) => n.type === "stream").map((n) => ({ id: n.id }));
+      if (streamNodes.length > 0) {
+        reactFlowInstance.fitView({ nodes: streamNodes, duration: 200, padding: 0.4, minZoom: 0.9, maxZoom: 1.4 });
+      } else {
+        reactFlowInstance.fitView({ duration: 200, padding: 0.1, minZoom: 0.9 });
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [sidebarMode.kind, reactFlowInstance, nodes]);
+
   // ---------------------------------------------------------------------
   // Node click handling
   // ---------------------------------------------------------------------
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
+      // Pan / zoom to the clicked node so it ends up centred regardless of
+      // which slice of the DAG was previously visible. Padding keeps the
+      // node from sitting flush against an edge.
+      reactFlowInstance.fitView({ nodes: [{ id: node.id }], duration: 250, padding: 0.5, minZoom: 1, maxZoom: 1.6 });
+
       if (node.type === "stream") {
         openSidebarList();
         setSelection({ kind: "none" });
@@ -219,7 +231,7 @@ function AnatomyCanvasInner() {
         setMode("workbench");
       }
     },
-    [setMode, openSidebarList],
+    [reactFlowInstance, setMode, openSidebarList],
   );
 
   const onPaneClick = useCallback(() => {

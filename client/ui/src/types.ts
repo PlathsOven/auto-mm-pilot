@@ -121,6 +121,8 @@ export interface StreamKeyTimeseries {
 export interface StreamTimeseriesResponse {
   stream_name: string;
   key_cols: string[];
+  status: "PENDING" | "READY";
+  row_count: number;
   series: StreamKeyTimeseries[];
 }
 

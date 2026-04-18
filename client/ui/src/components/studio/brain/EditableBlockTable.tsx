@@ -49,8 +49,8 @@ const ALL_COLUMNS: ColumnDef<BlockRow, any>[] = [
     enableSorting: false,
   }),
   col.accessor("stream_name", { header: "Stream" }),
-  col.accessor("symbol", { header: "Symbol" }),
-  col.accessor("expiry", { header: "Expiry" }),
+  col.accessor("symbol", { header: "Symbol", filterFn: "equals" }),
+  col.accessor("expiry", { header: "Expiry", filterFn: "equals" }),
   col.accessor("space_id", { header: "Space" }),
   col.accessor("fair", {
     header: "Fair",

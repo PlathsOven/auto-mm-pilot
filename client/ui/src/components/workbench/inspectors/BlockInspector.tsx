@@ -1,60 +1,78 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useFocus } from "../../../providers/FocusProvider";
 import { fetchBlocks } from "../../../services/blockApi";
 import type { BlockRow } from "../../../types";
 import { POLL_INTERVAL_BLOCKS_MS } from "../../../constants";
 import { valColor } from "../../../utils";
+import { Field } from "../../studio/sections/Field";
+import { SnapshotTable } from "../../studio/brain/BlockDrawerParts";
+import {
+  draftFromBlock,
+  type Draft,
+  type DraftBlockConfig,
+} from "../../studio/brain/blockDrawerState";
+import { useSnapshotEditor } from "../../studio/brain/useSnapshotEditor";
+import { useBlockDraftSubmit } from "../../studio/brain/useBlockDraftSubmit";
 
 interface BlockInspectorProps {
   name: string;
 }
 
 /**
- * Inspector view for a focused block.
+ * Full-detail block inspector — replaces the old read-only summary +
+ * separate BlockDrawer "inspect" mode. Everything that used to live in the
+ * drawer (engine params, outputs, snapshot rows) renders here in the rail.
  *
- * Read-only summary of the block's engine parameters and current outputs.
- * Editing still happens via the existing `<BlockDrawer/>` — opened from the
- * block table's explicit Edit button (or double-click), not from this panel,
- * so the inspector stays a pure read surface.
+ * Manual blocks are fully editable in place: change params + snapshot rows,
+ * hit Save → posts a PATCH and re-runs the pipeline. Stream-sourced blocks
+ * are read-only — they're driven by external snapshot ingestion via the
+ * SDK, and the registry rejects PATCHes against them anyway.
  */
 export function BlockInspector({ name }: BlockInspectorProps) {
   const { clearFocus } = useFocus();
   const [blocks, setBlocks] = useState<BlockRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Re-fetch blocks on a poll. We could subscribe directly to the
+  // EditableBlockTable's data but that requires a global cache — for one
+  // inspector at a time, polling is simpler and the refresh interval
+  // matches the table's.
   useEffect(() => {
     let aborted = false;
-
     const load = () => {
       fetchBlocks()
-        .then((rows) => {
-          if (aborted) return;
-          setBlocks(rows);
-          setError(null);
-        })
+        .then((rows) => { if (!aborted) { setBlocks(rows); setError(null); } })
         .catch((err: unknown) => {
-          if (aborted) return;
-          setError(err instanceof Error ? err.message : String(err));
+          if (!aborted) setError(err instanceof Error ? err.message : String(err));
         });
     };
-
     load();
     const id = setInterval(load, POLL_INTERVAL_BLOCKS_MS);
     return () => { aborted = true; clearInterval(id); };
   }, []);
 
   const block = blocks?.find((b) => b.block_name === name) ?? null;
-  const edge = block ? (block.fair ?? 0) - (block.market_fair ?? 0) : 0;
+  const isManual = block?.source === "manual";
 
   return (
-    <div className="flex h-full flex-col gap-3 p-4">
-      <header className="flex items-start justify-between gap-2 border-b border-black/[0.06] pb-2">
+    <div className="flex h-full flex-col overflow-hidden">
+      <header className="flex shrink-0 items-start justify-between gap-2 border-b border-black/[0.06] px-3 py-2">
         <div className="flex flex-col gap-0.5">
-          <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">Block</span>
-          <span className="text-[14px] font-semibold text-mm-text">{name}</span>
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">
+            Block {block && (
+              <span
+                className={`ml-1 rounded px-1 py-0.5 text-[8px] font-bold ${
+                  isManual ? "bg-mm-warn/15 text-mm-warn" : "bg-mm-accent/10 text-mm-accent"
+                }`}
+              >
+                {block.source}
+              </span>
+            )}
+          </span>
+          <span className="text-[13px] font-semibold text-mm-text">{name}</span>
           {block && (
             <span className="text-[9px] text-mm-text-subtle">
-              {block.symbol} · {block.expiry} · {block.space_id} · {block.source}
+              {block.symbol} · {block.expiry} · {block.space_id}
             </span>
           )}
         </div>
@@ -68,58 +86,177 @@ export function BlockInspector({ name }: BlockInspectorProps) {
         </button>
       </header>
 
-      {error && <p className="text-[10px] text-mm-error">{error}</p>}
+      {error && <p className="px-3 py-2 text-[10px] text-mm-error">{error}</p>}
 
       {block == null ? (
-        <p className="text-[11px] text-mm-text-dim">
+        <p className="px-3 py-2 text-[11px] text-mm-text-dim">
           {blocks == null ? "Loading block…" : `Block "${name}" no longer exists.`}
         </p>
       ) : (
-        <div className="flex flex-1 flex-col gap-3 overflow-y-auto">
-          <section className="grid grid-cols-2 gap-2">
-            <Stat label="Edge" value={edge} decimals={4} colored />
-            <Stat label="Variance" value={block.var ?? 0} decimals={4} />
-            <Stat label="Fair" value={block.fair ?? 0} decimals={4} />
-            <Stat label="Market Fair" value={block.market_fair ?? 0} decimals={4} />
-          </section>
-
-          <section className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-mm-text-dim">
-              Engine parameters
-            </span>
-            <ParamRow label="Stream" value={block.stream_name} />
-            <ParamRow label="Annualised" value={block.annualized ? "yes" : "no"} />
-            <ParamRow label="Size type" value={block.size_type} />
-            <ParamRow label="Aggregation" value={block.aggregation_logic} />
-            <ParamRow label="Temporal pos" value={block.temporal_position} />
-            <ParamRow label="Decay end" value={block.decay_end_size_mult.toFixed(4)} />
-            <ParamRow label="Decay rate (per min)" value={block.decay_rate_prop_per_min.toFixed(6)} />
-            <ParamRow label="Var/Fair ratio" value={block.var_fair_ratio.toFixed(4)} />
-            <ParamRow label="Scale" value={block.scale.toFixed(4)} />
-            <ParamRow label="Offset" value={block.offset.toFixed(4)} />
-            <ParamRow label="Exponent" value={block.exponent.toFixed(4)} />
-          </section>
-
-          <section className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-mm-text-dim">
-              Outputs
-            </span>
-            <ParamRow label="Target value" value={block.target_value.toFixed(4)} />
-            <ParamRow label="Raw value" value={block.raw_value.toFixed(4)} />
-            <ParamRow label="Market value" value={block.market_value?.toFixed(4) ?? "—"} />
-            <ParamRow label="Target mkt value" value={block.target_market_value?.toFixed(4) ?? "—"} />
-          </section>
-
-          <section className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-mm-text-dim">
-              Timing
-            </span>
-            <ParamRow label="Start" value={block.start_timestamp ?? "—"} />
-            <ParamRow label="Updated" value={block.updated_at ?? "—"} />
-          </section>
-        </div>
+        <BlockEditor block={block} isManual={isManual} />
       )}
     </div>
+  );
+}
+
+/**
+ * Editable / readonly block form. Hosts the same Field + SnapshotTable
+ * components used by the create-mode BlockDrawer so the two surfaces stay
+ * visually consistent.
+ */
+function BlockEditor({ block, isManual }: { block: BlockRow; isManual: boolean }) {
+  const [draft, setDraft] = useState<Draft>(() => draftFromBlock(block));
+  // Re-sync the draft whenever the underlying block identity changes so
+  // navigating between blocks doesn't show stale edits.
+  useEffect(() => { setDraft(draftFromBlock(block)); }, [block.block_name]);
+
+  const snapshotEditor = useSnapshotEditor(setDraft);
+
+  // Use a no-op onSaved/onClose since we want to stay in the inspector after
+  // saving (the parent's polling will refresh the data).
+  const noOp = useCallback(() => { /* noop */ }, []);
+  const { submitting, error, submit } = useBlockDraftSubmit(
+    isManual ? "edit" : "inspect",
+    noOp,
+    noOp,
+  );
+
+  const patch = useCallback(<K extends keyof Draft>(k: K, v: Draft[K]) => {
+    setDraft((d) => ({ ...d, [k]: v }));
+  }, []);
+  const patchBlock = useCallback(<K extends keyof DraftBlockConfig>(k: K, v: DraftBlockConfig[K]) => {
+    setDraft((d) => ({ ...d, block: { ...d.block, [k]: v } }));
+  }, []);
+
+  const valid =
+    isManual &&
+    draft.stream_name.trim().length > 0 &&
+    Number.isFinite(draft.scale) &&
+    draft.scale !== 0 &&
+    Number.isFinite(draft.offset) &&
+    Number.isFinite(draft.exponent) &&
+    draft.exponent !== 0 &&
+    draft.snapshot_rows.length > 0 &&
+    draft.block.var_fair_ratio > 0;
+
+  const edge = (block.fair ?? 0) - (block.market_fair ?? 0);
+
+  return (
+    <>
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 py-2 text-[10px]">
+        {/* Outputs (always read-only) */}
+        <section className="grid grid-cols-2 gap-1.5">
+          <Stat label="Edge" value={edge} decimals={4} colored />
+          <Stat label="Variance" value={block.var ?? 0} decimals={4} />
+          <Stat label="Fair" value={block.fair ?? 0} decimals={4} />
+          <Stat label="Market Fair" value={block.market_fair ?? 0} decimals={4} />
+        </section>
+
+        {/* Target mapping */}
+        <section className="flex flex-col gap-2 border-t border-black/[0.05] pt-2">
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">
+            Target mapping
+          </span>
+          <div className="grid grid-cols-3 gap-2">
+            <Field type="number" label="scale" value={draft.scale} onChange={(v) => isManual ? patch("scale", v) : undefined} />
+            <Field type="number" label="offset" value={draft.offset} onChange={(v) => isManual ? patch("offset", v) : undefined} />
+            <Field type="number" label="exponent" value={draft.exponent} onChange={(v) => isManual ? patch("exponent", v) : undefined} />
+          </div>
+        </section>
+
+        {/* Block shape */}
+        <section className="flex flex-col gap-2 border-t border-black/[0.05] pt-2">
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">
+            Block shape
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            <Field
+              type="toggle"
+              label="Annualized"
+              value={draft.block.annualized}
+              onChange={(v) => isManual ? patchBlock("annualized", v) : undefined}
+            />
+            <Field
+              type="select"
+              label="Size type"
+              value={draft.block.size_type}
+              options={["fixed", "relative"]}
+              onChange={(v) => isManual ? patchBlock("size_type", v as "fixed" | "relative") : undefined}
+            />
+            <Field
+              type="select"
+              label="Aggregation logic"
+              value={draft.block.aggregation_logic}
+              options={["average", "offset"]}
+              onChange={(v) => isManual ? patchBlock("aggregation_logic", v as "average" | "offset") : undefined}
+            />
+            <Field
+              type="select"
+              label="Temporal position"
+              value={draft.block.temporal_position}
+              options={["static", "shifting"]}
+              onChange={(v) => isManual ? patchBlock("temporal_position", v as "static" | "shifting") : undefined}
+            />
+            <Field
+              type="number"
+              label="decay_end_size_mult"
+              value={draft.block.decay_end_size_mult}
+              onChange={(v) => isManual ? patchBlock("decay_end_size_mult", v) : undefined}
+            />
+            <Field
+              type="number"
+              label="decay_rate_prop_per_min"
+              value={draft.block.decay_rate_prop_per_min}
+              onChange={(v) => isManual ? patchBlock("decay_rate_prop_per_min", v) : undefined}
+            />
+            <Field
+              type="number"
+              label="var_fair_ratio"
+              value={draft.block.var_fair_ratio}
+              onChange={(v) => isManual ? patchBlock("var_fair_ratio", v) : undefined}
+            />
+          </div>
+        </section>
+
+        {/* Snapshot rows */}
+        <section className="flex flex-col gap-1.5 border-t border-black/[0.05] pt-2">
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">
+            Snapshot rows
+          </span>
+          <SnapshotTable
+            headers={draft.snapshot_headers}
+            rows={draft.snapshot_rows}
+            readOnly={!isManual}
+            {...snapshotEditor}
+          />
+        </section>
+
+        {error && (
+          <p className="rounded-md border border-mm-error/40 bg-mm-error/10 p-2 text-[10px] text-mm-error">
+            {error}
+          </p>
+        )}
+
+        {!isManual && (
+          <p className="text-[10px] text-mm-text-dim">
+            Stream-sourced block — read-only. Edit via the SDK or push new snapshot rows on the client.
+          </p>
+        )}
+      </div>
+
+      {isManual && (
+        <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-black/[0.06] px-3 py-2">
+          <button
+            type="button"
+            disabled={!valid || submitting}
+            onClick={() => submit(draft)}
+            className="rounded-md bg-mm-accent px-3 py-1 text-[10px] font-semibold text-white transition-colors hover:bg-mm-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {submitting ? "Saving…" : "Save changes"}
+          </button>
+        </footer>
+      )}
+    </>
   );
 }
 
@@ -135,23 +272,12 @@ function Stat({
   colored?: boolean;
 }) {
   return (
-    <div className="glass-card flex flex-col gap-0.5 px-2.5 py-1.5">
-      <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">
-        {label}
-      </span>
-      <span className={`font-mono text-[12px] font-semibold tabular-nums ${colored ? valColor(value) : "text-mm-text"}`}>
+    <div className="glass-card flex flex-col gap-0.5 px-2 py-1">
+      <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">{label}</span>
+      <span className={`font-mono text-[11px] font-semibold tabular-nums ${colored ? valColor(value) : "text-mm-text"}`}>
         {colored && value > 0 ? "+" : ""}
         {value.toFixed(decimals)}
       </span>
-    </div>
-  );
-}
-
-function ParamRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-2 text-[10px]">
-      <span className="text-mm-text-dim">{label}</span>
-      <span className="font-mono tabular-nums text-mm-text">{value}</span>
     </div>
   );
 }
