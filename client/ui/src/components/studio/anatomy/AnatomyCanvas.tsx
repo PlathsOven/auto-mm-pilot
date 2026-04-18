@@ -236,9 +236,29 @@ function AnatomyCanvasInner() {
   }
 
   if (error) {
+    const isNetwork = /failed to fetch|networkerror/i.test(error);
     return (
       <div className="flex flex-1 items-center justify-center p-6">
-        <p className="text-xs text-mm-error">{error}</p>
+        <div className="glass-panel flex max-w-md flex-col gap-3 p-5 text-[11px]">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-mm-error">
+            Anatomy could not load
+          </span>
+          <p className="text-mm-text">{error}</p>
+          {isNetwork && (
+            <p className="text-mm-text-dim">
+              The pipeline-config endpoint (<code className="font-mono">/api/transforms</code>)
+              didn't respond. Check that the server is running and that
+              <code className="font-mono"> VITE_API_BASE</code> points at it.
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => { void refresh(); }}
+            className="self-start rounded-md border border-mm-accent/40 bg-mm-accent/10 px-3 py-1 text-[11px] font-semibold text-mm-accent transition-colors hover:bg-mm-accent/15"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }

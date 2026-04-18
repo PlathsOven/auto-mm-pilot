@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Sidebar } from "../ui/Sidebar";
 import { UserMenu } from "../UserMenu";
-import { useMode, MODE_LABELS, type ModeId } from "../../providers/ModeProvider";
+import { useMode, MODE_LABELS, PRIMARY_MODES, type ModeId } from "../../providers/ModeProvider";
 import { useChat } from "../../providers/ChatProvider";
 import { useCommandPalette } from "../../providers/CommandPaletteProvider";
 import { useOnboarding } from "../../providers/OnboardingProvider";
@@ -10,11 +10,6 @@ import {
   LEFTNAV_EXPANDED_WIDTH_PX,
   LEFTNAV_OPEN_KEY,
 } from "../../constants";
-
-interface LeftNavProps {
-  onOpenAccount: () => void;
-  onOpenAdmin: () => void;
-}
 
 interface NavItem {
   mode?: ModeId;
@@ -26,21 +21,27 @@ interface NavItem {
   pinned?: boolean;
 }
 
+const PRIMARY_ICONS: Record<ModeId, string> = {
+  workbench: "▦",
+  anatomy: "✶",
+  docs: "❀",
+  account: "◐",
+  admin: "★",
+};
+
 /**
  * Global left-side navigation.
  *
  * Industry-standard pattern: collapsible icon-strip on the left. Hosts the
- * brand at top, a primary mode list (Workbench, Anatomy, Docs), a small set
- * of pinned actions (search palette, chat, onboarding), and the user menu
- * pinned at the bottom. Replaces the multi-purpose `GlobalContextBar` —
- * mode + chat + search + account all live here now.
+ * brand at top, a primary mode list (Workbench, Anatomy, Docs), pinned
+ * actions (search palette, chat, onboarding), and the user menu pinned at
+ * the bottom (which routes to Account / Admin via the mode system).
  *
- * Collapse state persists via `LEFTNAV_OPEN_KEY`. The collapsed strip is
- * 52px wide (icons only, with hover tooltips); the expanded strip is 196px
- * wide (icons + labels). Width transition is owned by the `<Sidebar/>`
- * primitive.
+ * Account + Admin are NOT in the primary nav — they're not workspaces, just
+ * destinations. Reaching them goes through the user menu; leaving them is
+ * the same gesture as leaving any mode (click another sidebar entry).
  */
-export function LeftNav({ onOpenAccount, onOpenAdmin }: LeftNavProps) {
+export function LeftNav() {
   const { mode, setMode } = useMode();
   const { toggleDrawer } = useChat();
   const { openPalette } = useCommandPalette();
@@ -69,17 +70,17 @@ export function LeftNav({ onOpenAccount, onOpenAdmin }: LeftNavProps) {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const items: NavItem[] = [
-    { mode: "workbench", label: MODE_LABELS.workbench, icon: "▦" },
-    { mode: "anatomy", label: MODE_LABELS.anatomy, icon: "✶" },
-    { mode: "docs", label: MODE_LABELS.docs, icon: "❀" },
-    { label: "Search", icon: "⌘", onClick: openPalette, pinned: true },
-    { label: "Chat", icon: "✱", onClick: toggleDrawer, pinned: true },
-    { label: "Onboarding", icon: "?", onClick: openOnboarding, pinned: true },
-  ];
+  const primary: NavItem[] = PRIMARY_MODES.map((m) => ({
+    mode: m,
+    label: MODE_LABELS[m],
+    icon: PRIMARY_ICONS[m],
+  }));
 
-  const primary = items.filter((i) => !i.pinned);
-  const pinned = items.filter((i) => i.pinned);
+  const pinned: NavItem[] = [
+    { label: "Search", icon: "⌘", onClick: openPalette },
+    { label: "Chat", icon: "✱", onClick: toggleDrawer },
+    { label: "Onboarding", icon: "?", onClick: openOnboarding },
+  ];
 
   return (
     <Sidebar
@@ -135,9 +136,18 @@ export function LeftNav({ onOpenAccount, onOpenAdmin }: LeftNavProps) {
         ))}
       </div>
 
-      {/* User menu pinned at bottom */}
-      <div className="flex shrink-0 items-center border-t border-black/[0.05] px-2 py-2">
-        <UserMenu onOpenAccount={onOpenAccount} onOpenAdmin={onOpenAdmin} />
+      {/* User menu pinned at bottom — opens upward, routes Account/Admin via
+          the mode system so leaving them is "click any other sidebar entry". */}
+      <div className={`flex shrink-0 items-center border-t border-black/[0.05] py-2 ${
+        collapsed ? "justify-center px-1" : "px-2"
+      }`}>
+        <UserMenu
+          onOpenAccount={() => setMode("account")}
+          onOpenAdmin={() => setMode("admin")}
+          placement="top-left"
+          compact={collapsed}
+          activeMode={mode}
+        />
       </div>
     </Sidebar>
   );

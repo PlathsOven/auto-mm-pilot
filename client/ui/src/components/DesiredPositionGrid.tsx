@@ -110,14 +110,14 @@ export function DesiredPositionGrid() {
 
   return (
     <div className="flex h-full flex-col p-3">
-      <div className="mb-3 flex items-center justify-between border-b border-black/[0.06] pb-2">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-black/[0.06] pb-2">
         <div className="flex items-baseline gap-2">
           <h2 className="zone-header">Desired Positions</h2>
           {meta.unit && (
             <span className="text-[10px] text-mm-text-dim">({meta.unit})</span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {viewMode === "change" && (
             <Tabs
               items={timeframeTabs}

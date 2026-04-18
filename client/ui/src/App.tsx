@@ -23,9 +23,9 @@ const MODE_PAGES: Record<ModeId, React.FC> = {
   workbench: WorkbenchPage,
   anatomy: AnatomyPage,
   docs: DocsPage,
+  account: AccountPage,
+  admin: AdminPage,
 };
-
-type View = "dashboard" | "account" | "admin";
 
 export default function App() {
   const { user } = useAuth();
@@ -33,7 +33,6 @@ export default function App() {
   const { pendingBlockCommand, clearPendingBlockCommand, toggleDrawer } = useChat();
   const { clearFocus } = useFocus();
   const { togglePalette } = useCommandPalette();
-  const [view, setView] = useState<View>("dashboard");
   const [cheatsheetOpen, setCheatsheetOpen] = useState(false);
 
   // Instrument time-on-app only for authenticated users.
@@ -47,10 +46,10 @@ export default function App() {
     clearPendingBlockCommand();
   }, [clearPendingBlockCommand]);
 
-  const openAccount = useCallback(() => setView("account"), []);
-  const openAdmin = useCallback(() => setView("admin"), []);
-  const closeOverlay = useCallback(() => setView("dashboard"), []);
   const showCheatsheet = useCallback(() => setCheatsheetOpen(true), []);
+  // `?` is the canonical cheatsheet shortcut and should toggle, not just open
+  // — same key both directions matches the user's "one gesture" principle.
+  const toggleCheatsheet = useCallback(() => setCheatsheetOpen((v) => !v), []);
 
   // Bare-key workbench hotkeys. Modifier-bearing shortcuts (⌘K palette,
   // ⌘/ chat) are owned by their respective components — kept separate so
@@ -73,7 +72,7 @@ export default function App() {
     },
     "[": toggleRail,
     "]": toggleRail,
-    "?": showCheatsheet,
+    "?": toggleCheatsheet,
     "g c": () => toggleDrawer(),
     "g k": () => togglePalette(),
   });
@@ -86,18 +85,8 @@ export default function App() {
 
   return (
     <>
-      <AppShell
-        onOpenAccount={openAccount}
-        onOpenAdmin={openAdmin}
-        onShowCheatsheet={showCheatsheet}
-      >
-        {view === "account" ? (
-          <AccountPage onClose={closeOverlay} />
-        ) : view === "admin" ? (
-          <AdminPage onClose={closeOverlay} />
-        ) : (
-          <Page />
-        )}
+      <AppShell onShowCheatsheet={showCheatsheet}>
+        <Page />
       </AppShell>
       <CommandPalette />
       <HotkeyCheatsheet open={cheatsheetOpen} onClose={() => setCheatsheetOpen(false)} />

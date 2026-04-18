@@ -180,7 +180,9 @@ def _build_user_payload_sync(user_id: str, real_now: datetime) -> str:
             state.prev_positions[key] = pos["desiredPos"]
         state.last_ts_idx = ts_idx
 
-    streams = streams_from_blocks(blocks_df, timestamps[0])
+    registry = get_stream_registry(user_id)
+    allowed_stream_names = {r.stream_name for r in registry.list_streams()}
+    streams = streams_from_blocks(blocks_df, timestamps[0], allowed_names=allowed_stream_names)
     ts_ms = int(real_now.timestamp() * 1000)
     for s in streams:
         s["lastHeartbeat"] = ts_ms

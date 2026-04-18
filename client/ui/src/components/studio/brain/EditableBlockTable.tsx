@@ -7,6 +7,7 @@ import {
   getSortedRowModel,
   useReactTable,
   type ColumnDef,
+  type ColumnFiltersState,
   type SortingState,
   type VisibilityState,
 } from "@tanstack/react-table";
@@ -14,6 +15,7 @@ import { fetchBlocks } from "../../../services/blockApi";
 import type { BlockRow } from "../../../types";
 import { valColor } from "../../../utils";
 import { POLL_INTERVAL_BLOCKS_MS } from "../../../constants";
+import { useFocus } from "../../../providers/FocusProvider";
 
 const col = createColumnHelper<BlockRow>();
 
@@ -182,7 +184,11 @@ interface Props {
  * TanStack Table with column visibility toggle, multi-column sort,
  * global filter, and row click to open the detail drawer.
  */
+const FOLLOW_FOCUS_KEY = "posit-blocks-follow-focus";
+const ALL = "__all__";
+
 export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowClick, onRowEdit }: Props) {
+  const { focus } = useFocus();
   const [blocks, setBlocks] = useState<BlockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -190,6 +196,50 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
   const [sorting, setSorting] = useState<SortingState>([{ id: "fair", desc: true }]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(buildDefaultVisibility);
   const [colMenuOpen, setColMenuOpen] = useState(false);
+  const [symbolFilter, setSymbolFilter] = useState<string>(ALL);
+  const [expiryFilter, setExpiryFilter] = useState<string>(ALL);
+  const [followFocus, setFollowFocus] = useState<boolean>(() => {
+    try { return localStorage.getItem(FOLLOW_FOCUS_KEY) !== "false"; } catch { return true; }
+  });
+
+  // Auto-filter to the focused dimension when "follow focus" is on. Reverting
+  // is the same gesture: click the same focus again to unfocus, or toggle
+  // "follow focus" off to keep the manual filter selection.
+  useEffect(() => {
+    if (!followFocus) return;
+    if (!focus) {
+      setSymbolFilter(ALL);
+      setExpiryFilter(ALL);
+      return;
+    }
+    if (focus.kind === "cell") {
+      setSymbolFilter(focus.symbol);
+      setExpiryFilter(focus.expiry);
+    } else if (focus.kind === "symbol") {
+      setSymbolFilter(focus.symbol);
+      setExpiryFilter(ALL);
+    } else if (focus.kind === "expiry") {
+      setSymbolFilter(ALL);
+      setExpiryFilter(focus.expiry);
+    } else if (focus.kind === "block") {
+      // Block focus highlights a single row; clear axis filters so the row
+      // is visible in context.
+      setSymbolFilter(ALL);
+      setExpiryFilter(ALL);
+    }
+  }, [focus, followFocus]);
+
+  const persistFollowFocus = useCallback((next: boolean) => {
+    setFollowFocus(next);
+    try { localStorage.setItem(FOLLOW_FOCUS_KEY, String(next)); } catch { /* ignore */ }
+  }, []);
+
+  const columnFilters = useMemo<ColumnFiltersState>(() => {
+    const out: ColumnFiltersState = [];
+    if (symbolFilter !== ALL) out.push({ id: "symbol", value: symbolFilter });
+    if (expiryFilter !== ALL) out.push({ id: "expiry", value: expiryFilter });
+    return out;
+  }, [symbolFilter, expiryFilter]);
 
   const refresh = useCallback(async () => {
     try {
@@ -219,7 +269,7 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
   const table = useReactTable({
     data: blocks,
     columns,
-    state: { globalFilter, sorting, columnVisibility },
+    state: { globalFilter, sorting, columnVisibility, columnFilters },
     onGlobalFilterChange: setGlobalFilter,
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
@@ -239,19 +289,82 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
     },
   });
 
+  // Distinct symbol + expiry values for the filter dropdowns + source counts.
+  const { symbolOptions, expiryOptions, sourceCounts, visibleCount } = useMemo(() => {
+    const syms = new Set<string>();
+    const exps = new Set<string>();
+    let stream = 0;
+    let manual = 0;
+    for (const b of blocks) {
+      syms.add(b.symbol);
+      exps.add(b.expiry);
+      if (b.source === "manual") manual++;
+      else stream++;
+    }
+    return {
+      symbolOptions: Array.from(syms).sort(),
+      expiryOptions: Array.from(exps).sort(),
+      sourceCounts: { stream, manual },
+      visibleCount: table.getFilteredRowModel().rows.length,
+    };
+  }, [blocks, table]);
+
   return (
-    <section className="rounded-xl border border-black/[0.08] bg-black/[0.03] p-4">
+    <section className="flex h-full min-h-0 flex-col p-3">
       {/* Header row */}
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-2 flex shrink-0 flex-wrap items-center gap-2">
         <h3 className="zone-header">Block Inspector</h3>
-        <span className="text-[10px] text-mm-text-dim">({blocks.length} total)</span>
+        <span className="text-[10px] text-mm-text-dim" title={`${sourceCounts.stream} stream + ${sourceCounts.manual} manual = ${blocks.length} total`}>
+          {visibleCount === blocks.length
+            ? `${blocks.length} total · ${sourceCounts.stream} stream + ${sourceCounts.manual} manual`
+            : `${visibleCount} of ${blocks.length} (${sourceCounts.stream} stream + ${sourceCounts.manual} manual)`}
+        </span>
+
+        <select
+          value={symbolFilter}
+          onChange={(e) => { setSymbolFilter(e.target.value); persistFollowFocus(false); }}
+          className="form-input ml-auto max-w-[110px]"
+          title="Filter by symbol"
+        >
+          <option value={ALL}>All symbols</option>
+          {symbolOptions.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+        <select
+          value={expiryFilter}
+          onChange={(e) => { setExpiryFilter(e.target.value); persistFollowFocus(false); }}
+          className="form-input max-w-[120px]"
+          title="Filter by expiry"
+        >
+          <option value={ALL}>All expiries</option>
+          {expiryOptions.map((e) => (
+            <option key={e} value={e}>{e}</option>
+          ))}
+        </select>
+        <label
+          className={`flex items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] transition-colors ${
+            followFocus
+              ? "border-mm-accent/30 bg-mm-accent-soft text-mm-accent"
+              : "border-black/[0.08] text-mm-text-dim hover:bg-black/[0.04]"
+          }`}
+          title="When on, the table auto-filters to the workbench focus"
+        >
+          <input
+            type="checkbox"
+            checked={followFocus}
+            onChange={(e) => persistFollowFocus(e.target.checked)}
+            className="accent-mm-accent"
+          />
+          <span>Follow focus</span>
+        </label>
 
         <input
           type="text"
           value={globalFilter}
           onChange={(e) => setGlobalFilter(e.target.value)}
-          placeholder="Filter..."
-          className="form-input ml-auto max-w-xs"
+          placeholder="Filter…"
+          className="form-input max-w-[140px]"
         />
 
         {/* Column visibility toggle */}
@@ -299,7 +412,7 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
       {loading && blocks.length === 0 ? (
         <p className="text-[11px] text-mm-text-dim">Loading blocks...</p>
       ) : (
-        <div className="overflow-auto rounded-lg border border-black/[0.06]">
+        <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-black/[0.06]">
           <table className="w-full border-collapse text-[10px]">
             <thead className="bg-black/[0.03] text-mm-text-dim">
               {table.getHeaderGroups().map((hg) => (
@@ -324,12 +437,14 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
               ))}
             </thead>
             <tbody>
-              {table.getRowModel().rows.map((row) => (
+              {table.getRowModel().rows.map((row) => {
+                const isFocused = focus?.kind === "block" && focus.name === row.original.block_name;
+                return (
                 <tr
                   key={row.original.block_name}
-                  className={`border-t border-black/[0.03] transition-colors hover:bg-mm-accent/5 ${
-                    onRowClick ? "cursor-pointer" : ""
-                  }`}
+                  className={`border-t border-black/[0.03] transition-colors ${
+                    isFocused ? "bg-mm-accent-soft" : "hover:bg-mm-accent/5"
+                  } ${onRowClick ? "cursor-pointer" : ""}`}
                   onClick={() => onRowClick?.(row.original)}
                   onDoubleClick={(e) => {
                     if (!onRowEdit) return;
@@ -344,7 +459,8 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
                     </td>
                   ))}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -8,10 +8,15 @@ import {
   type ReactNode,
 } from "react";
 
-export type ModeId = "workbench" | "anatomy" | "docs";
+export type ModeId = "workbench" | "anatomy" | "docs" | "account" | "admin";
 
-const VALID_MODES: readonly ModeId[] = ["workbench", "anatomy", "docs"] as const;
+const VALID_MODES: readonly ModeId[] = ["workbench", "anatomy", "docs", "account", "admin"] as const;
 const DEFAULT_MODE: ModeId = "workbench";
+
+/** Modes that appear in the primary sidebar nav. Account/Admin are reachable
+ *  via the user menu instead — keeping the primary nav focused on the
+ *  trader's workspaces. */
+export const PRIMARY_MODES: readonly ModeId[] = ["workbench", "anatomy", "docs"] as const;
 
 /**
  * Legacy mode hashes redirected to the unified workbench. `eyes` (Floor) and
@@ -30,6 +35,8 @@ export const MODE_LABELS: Record<ModeId, string> = {
   workbench: "Workbench",
   anatomy: "Anatomy",
   docs: "Docs",
+  account: "Account",
+  admin: "Admin",
 };
 
 /**

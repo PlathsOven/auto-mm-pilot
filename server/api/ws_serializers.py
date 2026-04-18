@@ -106,9 +106,23 @@ def updates_from_diff(
     return updates
 
 
-def streams_from_blocks(blocks_df: pl.DataFrame, timestamp: datetime) -> list[dict[str, Any]]:
-    """Derive DataStream entries from block stream names."""
+def streams_from_blocks(
+    blocks_df: pl.DataFrame,
+    timestamp: datetime,
+    allowed_names: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Derive DataStream entries from block stream names.
+
+    When ``allowed_names`` is provided, the result is intersected with it so
+    stale stream names from older pipeline runs (renames, deletions) don't
+    appear in the WS payload. Caller passes the current per-user registry's
+    stream names — keeps the WS broadcast a single source of truth with the
+    registry, which prevents the StreamInspector from 404ing on a stream the
+    server no longer knows about.
+    """
     names = sorted(blocks_df["stream_name"].unique().to_list())
+    if allowed_names is not None:
+        names = [n for n in names if n in allowed_names]
     ts_ms = int(timestamp.timestamp() * 1000)
     return [
         {

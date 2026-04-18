@@ -16,6 +16,8 @@ interface ChatState {
   pendingBlockCommand: PendingBlockCommand | null;
   setChatMode: (mode: ChatMode) => void;
   sendMessage: (content: string) => void;
+  pushSystemMessage: (content: string) => void;
+  clearMessages: () => void;
   investigate: (ctx: InvestigationContext) => void;
   clearInvestigation: () => void;
   cancelStream: () => void;
@@ -34,6 +36,8 @@ const ChatContext = createContext<ChatState>({
   pendingBlockCommand: null,
   setChatMode: () => {},
   sendMessage: () => {},
+  pushSystemMessage: () => {},
+  clearMessages: () => {},
   investigate: () => {},
   clearInvestigation: () => {},
   cancelStream: () => {},
@@ -185,6 +189,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setInvestigation(null);
   }, []);
 
+  const pushSystemMessage = useCallback(
+    (content: string) => {
+      pushMessage("system", content);
+    },
+    [pushMessage],
+  );
+
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+    setInvestigation(null);
+  }, []);
+
   return (
     <ChatContext.Provider
       value={{
@@ -196,6 +212,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         pendingBlockCommand,
         setChatMode,
         sendMessage,
+        pushSystemMessage,
+        clearMessages,
         investigate,
         clearInvestigation,
         cancelStream,

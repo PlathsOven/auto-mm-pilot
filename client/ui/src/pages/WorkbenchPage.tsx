@@ -1,10 +1,11 @@
 import { useCallback, useState } from "react";
 import { DesiredPositionGrid } from "../components/DesiredPositionGrid";
 import { StreamStatusList } from "../components/floor/StreamStatusList";
-import { UpdatesFeed } from "../components/UpdatesFeed";
 import { EditableBlockTable } from "../components/studio/brain/EditableBlockTable";
 import { BlockDrawer, type DrawerMode } from "../components/studio/brain/BlockDrawer";
 import { WorkbenchRail } from "../components/workbench/WorkbenchRail";
+import { UpdatesTicker } from "../components/workbench/UpdatesTicker";
+import { PipelineChartPanel } from "../components/workbench/PipelineChartPanel";
 import { useFocus } from "../providers/FocusProvider";
 import type { BlockRow } from "../types";
 
@@ -12,14 +13,14 @@ import type { BlockRow } from "../types";
  * Unified workbench page — replaces the old Floor + Brain split.
  *
  * Layout:
- *  - **Main canvas** (flex-grow): the position grid sits on top, with the
- *    streams + block table along the bottom edge so the trader's primary
- *    surfaces are all visible without panel-juggling.
- *  - **Right rail** (`<WorkbenchRail/>`): focus-driven Inspector + Chat tabs.
+ *  - Top: Updates ticker (horizontal scroll, ~36px)
+ *  - Middle (flex-1): Position Grid (left) + Pipeline Chart (right)
+ *  - Bottom (h-[280px]): Data Streams (narrow) + Block Inspector (wide)
+ *  - Right rail: Inspector + Chat tabs (collapsible)
  *
- * Clicking anything in the canvas sets focus, which channels the rail. The
- * old fragile Floor↔Brain hop is gone — Brain's pipeline chart now lives in
- * the rail, channelled to whichever cell/symbol/expiry is focused.
+ * Clicking anything in the canvas sets workbench focus, which channels the
+ * pipeline chart, the inspector rail, and (when "follow focus" is on) the
+ * block table filters.
  */
 export function WorkbenchPage() {
   const { setFocus } = useFocus();
@@ -55,36 +56,39 @@ export function WorkbenchPage() {
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
-      <main className="flex min-w-0 flex-1 flex-col gap-3 overflow-hidden p-3">
-        <section className="glass-panel flex min-h-[280px] flex-1 overflow-hidden">
-          <DesiredPositionGrid />
-        </section>
+      <main className="flex min-w-0 flex-1 flex-col gap-2 overflow-hidden p-2">
+        <UpdatesTicker />
 
-        <section className="grid h-[200px] shrink-0 grid-cols-12 gap-3">
-          <div className="glass-panel col-span-3 overflow-hidden">
+        <div className="flex min-h-0 flex-1 gap-2">
+          <section className="glass-panel flex flex-1 min-w-0 overflow-hidden">
+            <DesiredPositionGrid />
+          </section>
+          <section className="glass-panel flex flex-1 min-w-0 overflow-hidden">
+            <PipelineChartPanel />
+          </section>
+        </div>
+
+        <div className="flex h-[300px] shrink-0 gap-2">
+          <section className="glass-panel w-[240px] shrink-0 overflow-hidden">
             <StreamStatusList />
-          </div>
-          <div className="glass-panel col-span-9 overflow-hidden">
-            <UpdatesFeed />
-          </div>
-        </section>
-
-        <section className="glass-panel max-h-[40%] shrink-0 overflow-hidden">
-          <EditableBlockTable
-            refreshKey={blockRefreshKey}
-            onRowClick={onBlockRowClick}
-            onRowEdit={onBlockRowEdit}
-            headerAction={
-              <button
-                type="button"
-                onClick={openCreateBlock}
-                className="rounded-lg bg-mm-accent px-3 py-1 text-[10px] font-semibold text-white transition-colors hover:bg-mm-accent/90"
-              >
-                + Add manual block
-              </button>
-            }
-          />
-        </section>
+          </section>
+          <section className="glass-panel flex min-w-0 flex-1 overflow-hidden">
+            <EditableBlockTable
+              refreshKey={blockRefreshKey}
+              onRowClick={onBlockRowClick}
+              onRowEdit={onBlockRowEdit}
+              headerAction={
+                <button
+                  type="button"
+                  onClick={openCreateBlock}
+                  className="rounded-md bg-mm-accent px-2.5 py-1 text-[10px] font-semibold text-white transition-colors hover:bg-mm-accent/90"
+                >
+                  + Manual block
+                </button>
+              }
+            />
+          </section>
+        </div>
       </main>
 
       <WorkbenchRail signal={railSignal} />

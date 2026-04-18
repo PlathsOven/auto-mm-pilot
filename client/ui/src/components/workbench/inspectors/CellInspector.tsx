@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useWebSocket } from "../../../providers/WebSocketProvider";
 import { useChat } from "../../../providers/ChatProvider";
 import { useFocus } from "../../../providers/FocusProvider";
@@ -10,20 +10,20 @@ interface CellInspectorProps {
   expiry: string;
 }
 
-const TOP_BLOCKS_LIMIT = 8;
+const TOP_BLOCKS_LIMIT = 12;
 
 /**
  * Inspector view for a focused (symbol, expiry) cell.
  *
- * Shows the current desired-position plus the per-block fair/edge breakdown
- * sourced from `useStreamContributions`. Includes an explicit "Ask @Posit"
- * button — the only way chat now learns about a cell, since the click-to-chat
- * side-effect was removed in Phase 1.
+ * The pipeline chart for this dimension lives on the main canvas (it's
+ * channelled to focus from there); the inspector stays lean — just the
+ * scalars, the explicit "Ask @Posit" affordance, and the per-block edge
+ * attribution list.
  */
 export function CellInspector({ symbol, expiry }: CellInspectorProps) {
   const { payload } = useWebSocket();
   const { investigate } = useChat();
-  const { clearFocus } = useFocus();
+  const { clearFocus, toggleFocus } = useFocus();
 
   const position = useMemo(
     () => payload?.positions.find((p) => p.symbol === symbol && p.expiry === expiry) ?? null,
@@ -37,74 +37,83 @@ export function CellInspector({ symbol, expiry }: CellInspectorProps) {
     investigate({ type: "position", symbol, expiry, position });
   };
 
+  const onBlockClick = useCallback(
+    (blockName: string) => toggleFocus({ kind: "block", name: blockName }),
+    [toggleFocus],
+  );
+
   return (
-    <div className="flex h-full flex-col gap-3 p-4">
-      <header className="flex items-start justify-between gap-2 border-b border-black/[0.06] pb-2">
+    <div className="flex h-full flex-col overflow-hidden">
+      <header className="flex shrink-0 items-start justify-between gap-2 border-b border-black/[0.06] px-3 py-2">
         <div className="flex flex-col gap-0.5">
           <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">Cell</span>
-          <span className="text-[14px] font-semibold text-mm-text">
+          <span className="text-[13px] font-semibold text-mm-text">
             {symbol} <span className="text-mm-text-dim">·</span> {expiry}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={clearFocus}
-          className="rounded-md p-1 text-[11px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
-          title="Clear focus (Esc)"
-        >
-          ✕
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleAskPosit}
+            disabled={!position}
+            className="rounded-md border border-mm-accent/30 bg-mm-accent/[0.06] px-2 py-0.5 text-[10px] font-semibold text-mm-accent transition-colors hover:bg-mm-accent/[0.12] disabled:opacity-40"
+            title="Ask @Posit about this cell"
+          >
+            Ask @Posit →
+          </button>
+          <button
+            type="button"
+            onClick={clearFocus}
+            className="rounded-md p-1 text-[11px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
+            title="Clear focus (Esc)"
+          >
+            ✕
+          </button>
+        </div>
       </header>
 
-      {position == null ? (
-        <p className="text-[11px] text-mm-text-dim">No live position for this cell yet.</p>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 gap-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 py-2">
+        {position == null ? (
+          <p className="text-[11px] text-mm-text-dim">No live position for this cell yet.</p>
+        ) : (
+          <section className="grid grid-cols-2 gap-1.5">
             <Stat label="Desired Pos" value={position.desiredPos} unit="$vega" decimals={2} />
             <Stat label="Raw Desired" value={position.rawDesiredPos} unit="$vega" decimals={2} />
             <Stat label="Edge" value={position.edge} unit="vp" decimals={4} />
             <Stat label="Variance" value={position.variance} unit="" decimals={4} />
             <Stat label="Total Fair" value={position.totalFair} unit="" decimals={4} />
             <Stat label="Market Fair" value={position.totalMarketFair} unit="" decimals={4} />
-          </div>
-
-          <button
-            type="button"
-            onClick={handleAskPosit}
-            className="rounded-lg border border-mm-accent/30 bg-mm-accent/[0.06] px-3 py-1.5 text-[11px] font-semibold text-mm-accent transition-colors hover:bg-mm-accent/[0.12]"
-          >
-            Ask @Posit about this cell →
-          </button>
-
-          <section className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-            <div className="flex items-baseline justify-between border-b border-black/[0.06] pb-1">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-mm-text-dim">
-                Contributing blocks
-              </span>
-              {loading && <span className="animate-pulse text-[9px] text-mm-text-dim">loading…</span>}
-            </div>
-            {error && <p className="text-[10px] text-mm-error">{error}</p>}
-            <div className="flex flex-col gap-1.5 overflow-y-auto">
-              {(contributions ?? []).slice(0, TOP_BLOCKS_LIMIT).map((c) => (
-                <div
-                  key={c.blockName}
-                  className="flex items-baseline justify-between gap-2 rounded-md bg-black/[0.02] px-2 py-1.5"
-                >
-                  <span className="truncate text-[11px] text-mm-text">{c.blockName}</span>
-                  <span className={`shrink-0 font-mono text-[10px] tabular-nums ${valColor(c.edge)}`}>
-                    {c.edge >= 0 ? "+" : ""}
-                    {c.edge.toFixed(4)}
-                  </span>
-                </div>
-              ))}
-              {contributions && contributions.length === 0 && (
-                <p className="text-[10px] text-mm-text-dim">No block contributions for this cell.</p>
-              )}
-            </div>
           </section>
-        </>
-      )}
+        )}
+
+        <section className="flex flex-col gap-1.5 border-t border-black/[0.05] pt-2">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">
+              Contributing blocks
+            </span>
+            {loading && <span className="animate-pulse text-[9px] text-mm-text-dim">loading…</span>}
+          </div>
+          {error && <p className="text-[10px] text-mm-error">{error}</p>}
+          {(contributions ?? []).slice(0, TOP_BLOCKS_LIMIT).map((c) => (
+            <button
+              key={c.blockName}
+              type="button"
+              onClick={() => onBlockClick(c.blockName)}
+              className="flex items-baseline justify-between gap-2 rounded-md bg-black/[0.02] px-2 py-1 text-left transition-colors hover:bg-black/[0.05]"
+              title="Inspect this block"
+            >
+              <span className="truncate text-[10px] text-mm-text">{c.blockName}</span>
+              <span className={`shrink-0 font-mono text-[10px] tabular-nums ${valColor(c.edge)}`}>
+                {c.edge >= 0 ? "+" : ""}
+                {c.edge.toFixed(4)}
+              </span>
+            </button>
+          ))}
+          {contributions && contributions.length === 0 && (
+            <p className="text-[10px] text-mm-text-dim">No block contributions for this cell.</p>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
@@ -121,11 +130,11 @@ function Stat({
   decimals: number;
 }) {
   return (
-    <div className="glass-card flex flex-col gap-0.5 px-2.5 py-1.5">
+    <div className="glass-card flex flex-col gap-0.5 px-2 py-1">
       <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">
         {label}
       </span>
-      <span className={`font-mono text-[12px] font-semibold tabular-nums ${valColor(value)}`}>
+      <span className={`font-mono text-[11px] font-semibold tabular-nums ${valColor(value)}`}>
         {value > 0 ? "+" : ""}
         {value.toFixed(decimals)}
         {unit && <span className="ml-1 text-[9px] text-mm-text-subtle">{unit}</span>}
