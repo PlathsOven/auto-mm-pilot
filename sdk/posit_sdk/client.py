@@ -9,6 +9,7 @@ from posit_sdk.exceptions import (
     PositApiError,
     PositAuthError,
     PositConnectionError,
+    PositStreamNotRegistered,
     PositValidationError,
 )
 from posit_sdk.models import (
@@ -95,6 +96,11 @@ class PositClient:
         # Streams for which we have already emitted the "no market_value →
         # edge will be 0" warning. One WARN per stream per client lifetime.
         self._market_value_warned: set[str] = set()
+        # Known-registered streams on the server. Populated on __aenter__,
+        # updated after every create/upsert/delete, and invalidated for a
+        # single stream when the server returns STREAM_NOT_REGISTERED. Used
+        # to block pushes to unregistered streams *before* any network call.
+        self._ready_streams: set[str] = set()
 
     async def __aenter__(self) -> "PositClient":
         self._rest = RestClient(self._url, self._api_key)
@@ -104,11 +110,12 @@ class PositClient:
         # key raises here, not on the first user action. The probe doubles as
         # our initial "which streams already exist" cache.
         try:
-            await self._rest.list_streams()
+            streams = await self._rest.list_streams()
         except PositAuthError:
             await self._rest.__aexit__(None, None, None)
             self._rest = None
             raise
+        self._ready_streams = {s.stream_name for s in streams}
 
         if self._connect_ws:
             self._ws = WsClient(
@@ -237,7 +244,9 @@ class PositClient:
         self, name: str, key_cols: list[str],
     ) -> StreamResponse:
         await self._validate_key_cols(key_cols)
-        return await self._require_rest().create_stream(name, key_cols)
+        resp = await self._require_rest().create_stream(name, key_cols)
+        self._ready_streams.add(name)
+        return resp
 
     async def update_stream(
         self,
@@ -265,6 +274,7 @@ class PositClient:
 
     async def delete_stream(self, stream_name: str) -> None:
         await self._require_rest().delete_stream(stream_name)
+        self._ready_streams.discard(stream_name)
 
     async def upsert_stream(
         self,
@@ -303,6 +313,7 @@ class PositClient:
         if created_fresh:
             await self._require_rest().create_stream(stream_name, key_cols)
 
+        self._ready_streams.add(stream_name)
         try:
             return await self._require_rest().configure_stream(
                 stream_name,
@@ -321,6 +332,7 @@ class PositClient:
                     log.exception(
                         "Rollback after failed configure of %r also failed", stream_name,
                     )
+                self._ready_streams.discard(stream_name)
             raise
 
     async def bootstrap_streams(
@@ -371,12 +383,44 @@ class PositClient:
 
     # ----- Snapshots (REST) -----
 
+    def _assert_registered(self, stream_name: str) -> None:
+        """Block pushes to unregistered streams before any network call.
+
+        The cache is populated on ``__aenter__`` and updated after every
+        create / delete / upsert. If it drifts (e.g. the server was restarted
+        and forgot the registry), the server will return a 409 that we
+        translate to the same exception — so callers see one error type
+        regardless of where the check fires.
+        """
+        if stream_name not in self._ready_streams:
+            raise PositStreamNotRegistered(stream_name)
+
+    def _handle_not_registered(self, stream_name: str, exc: PositApiError) -> bool:
+        """Return True if the server told us the stream is not registered.
+
+        Side-effect: drops the stream from the local cache so a subsequent
+        ``list_streams()`` or ``upsert_stream`` can rebuild from truth.
+        """
+        if exc.status_code != 409:
+            return False
+        # Structured detail from the server: {"code": "STREAM_NOT_REGISTERED", ...}
+        if "STREAM_NOT_REGISTERED" not in exc.message:
+            return False
+        self._ready_streams.discard(stream_name)
+        return True
+
     async def ingest_snapshot(
         self, stream_name: str, rows: list[SnapshotRow],
     ) -> SnapshotResponse:
         """Ingest snapshot rows via REST.  Use push_snapshot() for lower latency."""
+        self._assert_registered(stream_name)
         self._warn_if_missing_market_value(stream_name, rows)
-        return await self._require_rest().ingest_snapshot(stream_name, rows)
+        try:
+            return await self._require_rest().ingest_snapshot(stream_name, rows)
+        except PositApiError as exc:
+            if self._handle_not_registered(stream_name, exc):
+                raise PositStreamNotRegistered(stream_name) from exc
+            raise
 
     # ----- Bankroll -----
 
@@ -460,12 +504,22 @@ class PositClient:
         Uses the WebSocket when ``state == OPEN``; falls back to the REST
         ``ingest_snapshot`` otherwise so a downed WS never silently swallows
         pushes. The fallback logs one WARN per state transition, not per call.
+
+        Raises ``PositStreamNotRegistered`` synchronously if the target stream
+        is not known to be registered on the server — ensuring no snapshot
+        rows ever reach an unregistered stream.
         """
+        self._assert_registered(stream_name)
         self._warn_if_missing_market_value(stream_name, rows)
         if self._ws_state() == WsState.OPEN:
             return await self._require_ws().push_snapshot(stream_name, rows)
         self._maybe_warn_ws_fallback()
-        resp = await self._require_rest().ingest_snapshot(stream_name, rows)
+        try:
+            resp = await self._require_rest().ingest_snapshot(stream_name, rows)
+        except PositApiError as exc:
+            if self._handle_not_registered(stream_name, exc):
+                raise PositStreamNotRegistered(stream_name) from exc
+            raise
         return WsAck(
             type="ack",
             seq=-1,

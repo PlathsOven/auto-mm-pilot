@@ -29,7 +29,21 @@ async def ingest_snapshot(
             req.stream_name, [r.model_dump() for r in req.rows],
         )
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        # Distinguish "never registered" (409 STREAM_NOT_REGISTERED, machine-
+        # readable so the SDK can translate to PositStreamNotRegistered and
+        # hand-rolled clients get an actionable hint) from "registered but
+        # not READY" (422, handled below) and "server error" (500).
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "STREAM_NOT_REGISTERED",
+                "stream": req.stream_name,
+                "hint": (
+                    "Register the stream with POST /api/streams first, then "
+                    "POST /api/streams/{name}/configure to move it to READY."
+                ),
+            },
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

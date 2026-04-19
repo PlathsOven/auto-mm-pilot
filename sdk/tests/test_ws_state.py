@@ -95,7 +95,12 @@ async def test_push_snapshot_falls_back_to_rest_when_ws_down(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     respx.get(f"{URL}/api/streams").mock(
-        return_value=httpx.Response(200, json={"streams": []})
+        return_value=httpx.Response(
+            200,
+            json={"streams": [
+                {"stream_name": "rv", "key_cols": ["symbol", "expiry"], "status": "READY"},
+            ]},
+        )
     )
     respx.post(f"{URL}/api/snapshots").mock(
         return_value=httpx.Response(

@@ -37,6 +37,7 @@ from posit_sdk.exceptions import (
     PositAuthError,
     PositConnectionError,
     PositError,
+    PositStreamNotRegistered,
     PositValidationError,
 )
 from posit_sdk.models import (
@@ -68,6 +69,7 @@ __all__ = [
     "PositConnectionError",
     "PositApiError",
     "PositValidationError",
+    "PositStreamNotRegistered",
     # Input models
     "SnapshotRow",
     "MarketValueEntry",

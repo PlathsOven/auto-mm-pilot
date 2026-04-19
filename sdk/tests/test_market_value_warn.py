@@ -29,7 +29,15 @@ async def test_warn_fires_once_per_stream_when_market_value_missing(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     respx.get(f"{URL}/api/streams").mock(
-        return_value=httpx.Response(200, json={"streams": []})
+        return_value=httpx.Response(
+            200,
+            json={"streams": [
+                {"stream_name": "rv", "key_cols": ["symbol", "expiry"], "status": "READY"},
+                {"stream_name": "s1", "key_cols": ["symbol", "expiry"], "status": "READY"},
+                {"stream_name": "s2", "key_cols": ["symbol", "expiry"], "status": "READY"},
+                {"stream_name": "s", "key_cols": ["symbol", "expiry"], "status": "READY"},
+            ]},
+        )
     )
     respx.post(f"{URL}/api/snapshots").mock(
         return_value=httpx.Response(
@@ -58,7 +66,15 @@ async def test_no_warn_when_market_value_present(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     respx.get(f"{URL}/api/streams").mock(
-        return_value=httpx.Response(200, json={"streams": []})
+        return_value=httpx.Response(
+            200,
+            json={"streams": [
+                {"stream_name": "rv", "key_cols": ["symbol", "expiry"], "status": "READY"},
+                {"stream_name": "s1", "key_cols": ["symbol", "expiry"], "status": "READY"},
+                {"stream_name": "s2", "key_cols": ["symbol", "expiry"], "status": "READY"},
+                {"stream_name": "s", "key_cols": ["symbol", "expiry"], "status": "READY"},
+            ]},
+        )
     )
     respx.post(f"{URL}/api/snapshots").mock(
         return_value=httpx.Response(
@@ -81,7 +97,15 @@ async def test_warn_separate_per_stream(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     respx.get(f"{URL}/api/streams").mock(
-        return_value=httpx.Response(200, json={"streams": []})
+        return_value=httpx.Response(
+            200,
+            json={"streams": [
+                {"stream_name": "rv", "key_cols": ["symbol", "expiry"], "status": "READY"},
+                {"stream_name": "s1", "key_cols": ["symbol", "expiry"], "status": "READY"},
+                {"stream_name": "s2", "key_cols": ["symbol", "expiry"], "status": "READY"},
+                {"stream_name": "s", "key_cols": ["symbol", "expiry"], "status": "READY"},
+            ]},
+        )
     )
     respx.post(f"{URL}/api/snapshots").mock(
         return_value=httpx.Response(
