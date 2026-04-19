@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -195,12 +195,28 @@ function AnatomyCanvasInner() {
     return buildAnatomyGraph(steps, streams, savingKey, live, highlightedStreamNames);
   }, [steps, streams, savingKey, live, highlightedStreamNames]);
 
-  // Recenter on the streams cluster (left side of the DAG) on mount + sidebar
-  // open/close. Earlier we used `fitView` over all nodes, which centred on
-  // the middle of the DAG and left the streams half-occluded behind the
-  // sidebar — making the entry point of the pipeline the hardest thing to
-  // see first.
+  // Pre-compute stream node IDs so ReactFlow's initial `fitView` lands on
+  // the streams cluster, not the whole DAG. This is what eliminates the
+  // visible two-step zoom — the same fit our useEffect would do, but
+  // applied at first paint.
+  const streamNodeIds = useMemo(
+    () => nodes.filter((n) => n.type === "stream").map((n) => ({ id: n.id })),
+    [nodes],
+  );
+
+  // Recenter on the streams cluster (left side of the DAG) when the sidebar
+  // opens/closes. We deliberately skip the very first run because ReactFlow's
+  // own `fitView` prop already lands the viewport on the right place at
+  // mount — running our re-fit immediately after caused the visible
+  // two-step zoom (default fit → re-fit on streams). The ref ensures the
+  // first effect call is a no-op; subsequent sidebar toggles trigger a
+  // smooth refit.
+  const hasFittedOnceRef = useRef(false);
   useEffect(() => {
+    if (!hasFittedOnceRef.current) {
+      hasFittedOnceRef.current = true;
+      return;
+    }
     const id = requestAnimationFrame(() => {
       const streamNodes = nodes.filter((n) => n.type === "stream").map((n) => ({ id: n.id }));
       if (streamNodes.length > 0) {
@@ -348,7 +364,12 @@ function AnatomyCanvasInner() {
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
             fitView
-            fitViewOptions={{ padding: 0.2 }}
+            fitViewOptions={{
+              nodes: streamNodeIds.length > 0 ? streamNodeIds : undefined,
+              padding: 0.4,
+              minZoom: 0.9,
+              maxZoom: 1.4,
+            }}
             minZoom={0.2}
             maxZoom={1.5}
             proOptions={{ hideAttribution: true }}

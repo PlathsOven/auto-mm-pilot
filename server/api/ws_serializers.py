@@ -8,7 +8,7 @@ pure (no module-level state) and operate on Polars DataFrames.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 import polars as pl
@@ -21,9 +21,27 @@ from server.api.config import UPDATE_THRESHOLD
 # ---------------------------------------------------------------------------
 
 def format_expiry(val: Any) -> str:
-    """Format a datetime or string expiry to DDMMMYY (e.g. ``27MAR26``)."""
+    """Format a date / datetime / ISO string / DDMMMYY string to DDMMMYY.
+
+    Polars hands back ``date`` for ``pl.Date`` columns and ``datetime`` for
+    ``pl.Datetime`` columns; both need the same wire format. ISO-string
+    inputs (e.g. cached payloads) are also normalised. Strings that already
+    look like DDMMMYY pass through untouched.
+    """
+    # datetime is a subclass of date, so check it first.
     if isinstance(val, datetime):
         return val.strftime("%d%b%y").upper()
+    if isinstance(val, date):
+        return val.strftime("%d%b%y").upper()
+    if isinstance(val, str):
+        # Already DDMMMYY (length 7, ends with 2-digit year)?
+        if len(val) == 7 and val[2:5].isalpha():
+            return val.upper()
+        # Try parsing as ISO and reformat.
+        try:
+            return datetime.fromisoformat(val).strftime("%d%b%y").upper()
+        except ValueError:
+            pass
     return str(val)
 
 

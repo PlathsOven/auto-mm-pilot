@@ -27,16 +27,34 @@ export function createIdGenerator(prefix: string): () => string {
   return () => `${prefix}${++counter}`;
 }
 
-/** Converts an ISO-8601 expiry string to DDMMMYY format (e.g. "27MAR26"). */
-export function formatExpiry(iso: string): string {
+/** Converts an ISO-8601 (or already-formatted DDMMMYY) expiry to DDMMMYY.
+ *
+ *  Crucially, ISO strings without a timezone suffix (e.g.
+ *  "2026-04-22T00:00:00") are interpreted as UTC, not local. The browser's
+ *  default behaviour treats them as local time and converts to UTC on
+ *  `getUTCDate()`, which silently shifts the date by one for any user not
+ *  in UTC — making "22APR26" appear as "21APR26" in the West and breaking
+ *  the channel-by-expiry equality match against the position grid (which
+ *  uses the server's pre-formatted DDMMMYY string).
+ */
+export function formatExpiry(input: string): string {
+  // Already DDMMMYY — return upper-cased so the comparison is case-stable.
+  if (/^\d{2}[A-Za-z]{3}\d{2}$/.test(input)) return input.toUpperCase();
+
+  // Append 'Z' to naive ISO timestamps so they parse as UTC.
+  const normalised = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?(\.\d+)?)?$/.test(input)
+    ? `${input}${input.includes("T") ? "" : "T00:00:00"}Z`
+    : input;
+
   try {
-    const d = new Date(iso);
+    const d = new Date(normalised);
+    if (Number.isNaN(d.getTime())) return input;
     const day = String(d.getUTCDate()).padStart(2, "0");
     const mon = d.toLocaleString("en", { month: "short", timeZone: "UTC" }).toUpperCase();
     const yr = String(d.getUTCFullYear()).slice(2);
     return `${day}${mon}${yr}`;
   } catch {
-    return iso;
+    return input;
   }
 }
 
