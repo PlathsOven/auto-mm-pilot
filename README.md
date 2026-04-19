@@ -2,6 +2,7 @@
 
 Posit is an advisory trading terminal for crypto options market-making desks. It ingests configurable data streams, runs a proprietary pricing pipeline, and streams a recommended desired position (plus LLM-generated explanations) to the trader in real time.
 
+- **SDK quickstart** (integrate a data feed in ~20 lines): [`docs/sdk-quickstart.md`](docs/sdk-quickstart.md)
 - **Product theory** (Edge × Bankroll / Variance, stream epistemology, pipeline): [`docs/product.md`](docs/product.md)
 - **System map** (client/server barrier, lanes, Key Files table): [`docs/architecture.md`](docs/architecture.md)
 - **Component status** (PROD / MOCK / STUB / OFF per subsystem): [`docs/stack-status.md`](docs/stack-status.md)
