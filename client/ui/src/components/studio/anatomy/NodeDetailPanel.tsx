@@ -93,7 +93,12 @@ export function NodeDetailPanel({
               ✕
             </button>
           </header>
-          <div className="min-h-0 flex-1 overflow-hidden">
+          {/* flex-col here is load-bearing: StreamCanvas's top-level div
+              uses `flex-1` to take its parent's height, and `flex-1` only
+              works inside a flex container. Without this, StreamCanvas
+              stayed at content height and its internal `overflow-y-auto`
+              had nothing to scroll against. */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <StreamCanvas
               streamName={selection.streamName}
               templateId={null}
