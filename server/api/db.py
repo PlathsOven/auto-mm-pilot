@@ -9,11 +9,9 @@ the router layer — no async SQLAlchemy complexity.
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
-from contextlib import contextmanager
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from server.api.config import DATABASE_URL
 
@@ -43,17 +41,3 @@ def init_db() -> None:
 
     Base.metadata.create_all(bind=engine)
     log.info("DB initialised (url=%s)", DATABASE_URL)
-
-
-@contextmanager
-def session_scope() -> Iterator[Session]:
-    """Context-managed DB session with automatic commit / rollback."""
-    session = SessionLocal()
-    try:
-        yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
