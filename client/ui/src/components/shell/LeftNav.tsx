@@ -4,6 +4,7 @@ import { UserMenu } from "../UserMenu";
 import { useMode, MODE_LABELS, PRIMARY_MODES, type ModeId } from "../../providers/ModeProvider";
 import { useChat } from "../../providers/ChatProvider";
 import { useCommandPalette } from "../../providers/CommandPaletteProvider";
+import { useNotifications } from "../../providers/NotificationsProvider";
 import { useOnboarding } from "../../providers/OnboardingProvider";
 import {
   LEFTNAV_COLLAPSED_WIDTH_PX,
@@ -19,6 +20,8 @@ interface NavItem {
   onClick?: () => void;
   /** Pinned to the bottom (above the user menu). Used for utility actions. */
   pinned?: boolean;
+  /** Optional count rendered as a small badge to the right of the label. */
+  badge?: number;
 }
 
 const PRIMARY_ICONS: Record<ModeId, string> = {
@@ -46,6 +49,11 @@ export function LeftNav() {
   const { toggleDrawer } = useChat();
   const { openPalette } = useCommandPalette();
   const { openOnboarding } = useOnboarding();
+  const {
+    togglePanel: toggleNotifications,
+    count: notificationCount,
+    open: notificationsOpen,
+  } = useNotifications();
 
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(LEFTNAV_OPEN_KEY) === "false"; } catch { return false; }
@@ -79,6 +87,12 @@ export function LeftNav() {
   const pinned: NavItem[] = [
     { label: "Search", icon: "⌘", onClick: openPalette },
     { label: "Chat", icon: "✱", onClick: toggleDrawer },
+    {
+      label: "Notifications",
+      icon: "⚑",
+      onClick: toggleNotifications,
+      badge: notificationCount,
+    },
     { label: "Onboarding", icon: "?", onClick: openOnboarding },
   ];
 
@@ -130,7 +144,7 @@ export function LeftNav() {
             key={item.label}
             item={item}
             collapsed={collapsed}
-            active={false}
+            active={item.label === "Notifications" && notificationsOpen}
             onActivate={item.onClick ?? (() => {})}
           />
         ))}
@@ -169,7 +183,7 @@ function NavButton({
       type="button"
       onClick={onActivate}
       title={item.label}
-      className={`flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors ${
+      className={`relative flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors ${
         active
           ? "bg-mm-accent-soft text-mm-accent"
           : "text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
@@ -178,7 +192,19 @@ function NavButton({
       <span aria-hidden className={`text-[13px] leading-none ${active ? "text-mm-accent" : "text-mm-text-subtle"}`}>
         {item.icon}
       </span>
-      {!collapsed && <span className="truncate">{item.label}</span>}
+      {!collapsed && <span className="flex-1 truncate text-left">{item.label}</span>}
+      {item.badge !== undefined && item.badge > 0 && (
+        <span
+          className={`${
+            collapsed
+              ? "absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-mm-warn"
+              : "rounded-full bg-mm-warn/20 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-mm-warn"
+          }`}
+          aria-label={`${item.badge} pending`}
+        >
+          {collapsed ? "" : item.badge}
+        </span>
+      )}
     </button>
   );
 }

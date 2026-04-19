@@ -25,12 +25,15 @@ Design choices:
 
 from __future__ import annotations
 
+import logging
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
 from server.api.user_scope import UserRegistry
+
+log = logging.getLogger(__name__)
 
 
 _MAX_ENTRIES_PER_USER = 50
@@ -57,7 +60,12 @@ class UnregisteredPushStore:
         self._lock = threading.Lock()
 
     def record(self, stream_name: str, example_row: dict[str, Any]) -> None:
-        """Register or merge an unregistered-push attempt."""
+        """Register or merge an unregistered-push attempt.
+
+        Emits a ``WARNING`` log on every call so ``.logs/server.log`` is an
+        authoritative audit trail — proves the hard-block fired (no data
+        was accepted into the pipeline) even if nobody is watching the UI.
+        """
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         with self._lock:
             existing = self._entries.pop(stream_name, None)
@@ -65,6 +73,10 @@ class UnregisteredPushStore:
                 existing.attempt_count += 1
                 existing.last_seen = now
                 self._entries[stream_name] = existing
+                log.warning(
+                    "Unregistered push REJECTED (dedup): stream=%r attempt=%d",
+                    stream_name, existing.attempt_count,
+                )
                 return
             if len(self._entries) >= _MAX_ENTRIES_PER_USER:
                 oldest_key = next(iter(self._entries))
@@ -75,6 +87,10 @@ class UnregisteredPushStore:
                 attempt_count=1,
                 first_seen=now,
                 last_seen=now,
+            )
+            log.warning(
+                "Unregistered push REJECTED (first): stream=%r example_keys=%s",
+                stream_name, sorted(example_row.keys()),
             )
 
     def list(self) -> list[UnregisteredPushAttempt]:

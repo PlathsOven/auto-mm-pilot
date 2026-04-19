@@ -1,9 +1,10 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { LeftNav } from "./LeftNav";
 import { StatusBar } from "./StatusBar";
 import { TopBar } from "./TopBar";
 import { ChatDock } from "../workbench/ChatDock";
 import { NotificationsCenter } from "../notifications/NotificationsCenter";
+import { useNotifications } from "../../providers/NotificationsProvider";
 
 interface AppShellProps {
   onShowCheatsheet: () => void;
@@ -14,21 +15,19 @@ interface AppShellProps {
  * Top-level chrome for the authenticated app.
  *
  * Three regions:
- *  - Left: collapsible `<LeftNav/>` (brand, modes, palette/chat/onboarding,
- *    user menu pinned at the bottom). Account + Admin are reachable via the
- *    user menu — they route through the mode system so the user navigates
- *    away by clicking another mode (no "✕ close" button needed).
+ *  - Left: collapsible `<LeftNav/>` (brand, modes, palette/chat/notifications/
+ *    onboarding, user menu pinned at the bottom). Account + Admin are
+ *    reachable via the user menu.
  *  - Main: `<TopBar/>` (mode + focus breadcrumb) + page slot.
- *  - Bottom: 24px `<StatusBar/>` with WS state, last-tick freshness,
- *    Posit Control toggle, notifications flag, palette + cheatsheet hints.
+ *  - Bottom: 24px `<StatusBar/>` — WS state, last-tick freshness, Posit
+ *    Control toggle, ambient notifications badge, palette + cheatsheet hints.
  *
- * The `<NotificationsCenter/>` is rendered as a portal-style slide-over
- * anchored to this shell so the flag button in `StatusBar` can toggle it
- * without prop drilling through page content.
+ * Notifications state is owned by `<NotificationsProvider/>` (mounted in
+ * `main.tsx`) so the LeftNav tab, the StatusBar badge, and the slide-over
+ * panel all stay in sync.
  */
 export function AppShell({ onShowCheatsheet, children }: AppShellProps) {
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-
+  const { open, closePanel } = useNotifications();
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-mm-bg">
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -39,14 +38,8 @@ export function AppShell({ onShowCheatsheet, children }: AppShellProps) {
           <ChatDock />
         </div>
       </div>
-      <StatusBar
-        onShowCheatsheet={onShowCheatsheet}
-        onToggleNotifications={() => setNotificationsOpen((v) => !v)}
-      />
-      <NotificationsCenter
-        open={notificationsOpen}
-        onClose={() => setNotificationsOpen(false)}
-      />
+      <StatusBar onShowCheatsheet={onShowCheatsheet} />
+      <NotificationsCenter open={open} onClose={closePanel} />
     </div>
   );
 }

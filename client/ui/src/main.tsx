@@ -8,6 +8,7 @@ import { FocusProvider } from "./providers/FocusProvider";
 import { ModeProvider } from "./providers/ModeProvider";
 import { OnboardingProvider } from "./providers/OnboardingProvider";
 import { CommandPaletteProvider } from "./providers/CommandPaletteProvider";
+import { NotificationsProvider } from "./providers/NotificationsProvider";
 import { TransformsProvider } from "./providers/TransformsProvider";
 import { composeProviders } from "./providers/compose";
 import "./index.css";
@@ -23,6 +24,7 @@ if (import.meta.env.VITE_UI_GRAIN === "1") {
 const AppProviders = composeProviders([
   AuthProvider,
   WebSocketProvider,
+  NotificationsProvider,  // depends on WebSocket payload; must wrap LeftNav + StatusBar
   ChatProvider,
   FocusProvider,
   ModeProvider,

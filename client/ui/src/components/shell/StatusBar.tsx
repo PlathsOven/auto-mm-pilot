@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useWebSocket } from "../../providers/WebSocketProvider";
 import { useCommandPalette } from "../../providers/CommandPaletteProvider";
+import { useNotifications } from "../../providers/NotificationsProvider";
 import { formatUtcTime } from "../../utils";
 import { POSIT_CONTROL_KEY, STATUSBAR_HEIGHT_PX, STATUSBAR_TICK_MS } from "../../constants";
 
 interface StatusBarProps {
   onShowCheatsheet: () => void;
-  onToggleNotifications: () => void;
 }
 
 /**
@@ -23,11 +23,11 @@ interface StatusBarProps {
  * surface lands now so the eventual server hook can read from a stable
  * place.
  */
-export function StatusBar({ onShowCheatsheet, onToggleNotifications }: StatusBarProps) {
+export function StatusBar({ onShowCheatsheet }: StatusBarProps) {
   const { connectionStatus, payload } = useWebSocket();
   const { openPalette } = useCommandPalette();
+  const { togglePanel: toggleNotifications, count: notificationCount } = useNotifications();
   const [now, setNow] = useState(Date.now());
-  const notificationCount = payload?.unregisteredPushes?.length ?? 0;
   const [positEnabled, setPositEnabled] = useState<boolean>(() => {
     try { return localStorage.getItem(POSIT_CONTROL_KEY) !== "false"; } catch { return true; }
   });
@@ -84,7 +84,7 @@ export function StatusBar({ onShowCheatsheet, onToggleNotifications }: StatusBar
       <span className="ml-auto flex items-center gap-3">
         <button
           type="button"
-          onClick={onToggleNotifications}
+          onClick={toggleNotifications}
           className={`relative rounded px-1.5 py-0.5 transition-colors hover:bg-black/[0.04] hover:text-mm-text ${
             notificationCount > 0 ? "text-mm-warn" : ""
           }`}
