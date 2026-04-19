@@ -13,10 +13,14 @@ interface Props {
    *  existing one. Null for brand-new drafts — Activate creates it on the fly. */
   pendingStreamName: string | null;
   /** Fired when Activate had to create the stream before configuring it,
-   *  so the parent can update its local `pendingStreamName` + URL + registry
-   *  cache (they all need to stay in sync). */
+   *  so the parent can update its local `pendingStreamName` + registry
+   *  cache (they need to stay in sync). Does NOT navigate — the URL change
+   *  is deferred to `onActivated` to avoid a mid-activation remount. */
   onStreamCreated: (created: RegisteredStream) => void;
-  onActivated: () => void;
+  /** Fired once the full Activate lifecycle (create if needed → configure
+   *  → ingest) succeeds. Receives the final stream name so the parent can
+   *  navigate + pan the DAG. */
+  onActivated: (streamName: string) => void;
   dimmed?: boolean;
 }
 
@@ -94,7 +98,7 @@ export function PreviewSection({
         type: "success",
         message: `Activated ${targetName}. Floor positions will update on the next pipeline tick.`,
       });
-      onActivated();
+      onActivated(targetName);
     } catch (err) {
       setResult({
         type: "error",

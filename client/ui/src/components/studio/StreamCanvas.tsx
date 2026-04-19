@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useMode } from "../../providers/ModeProvider";
 import { useRegisteredStreams } from "../../hooks/useRegisteredStreams";
 import { IdentitySection } from "./sections/IdentitySection";
 import { DataShapeSection } from "./sections/DataShapeSection";
@@ -30,6 +29,11 @@ interface Props {
    *  Notifications center with a captured unregistered push. Only applied
    *  when `streamName === "new"` (templateId wins if also set). */
   prefill?: StreamDraftPrefill | null;
+  /** Fired after a successful Activate. Parent (AnatomyCanvas) is expected
+   *  to close the form, surface the Streams list, and pan the DAG to the
+   *  newly-registered stream node so the user has a clear "it worked"
+   *  signal — otherwise the form unmounting looks like an error. */
+  onActivated?: (streamName: string) => void;
 }
 
 const WALK_THROUGH_KEY = "posit.studio.walkthrough";
@@ -46,8 +50,7 @@ const NEW_STREAM_SENTINEL = "new";
  * is the single lifecycle trigger — it creates the stream if needed,
  * configures it, and ingests the sample rows in one call.
  */
-export function StreamCanvas({ streamName, templateId, prefill }: Props) {
-  const { navigate } = useMode();
+export function StreamCanvas({ streamName, templateId, prefill, onActivated }: Props) {
   const { streams: registry, refresh: refreshRegistry, addStream } = useRegisteredStreams();
   const [draft, setDraft] = useState<StreamDraft>(() =>
     initialDraft(streamName, templateId, prefill ?? null),
@@ -97,17 +100,27 @@ export function StreamCanvas({ streamName, templateId, prefill }: Props) {
     setDraft((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  /** Activate creates the stream on-the-fly when needed — this callback
-   *  lets PreviewSection tell us "I created a real stream" so we can
-   *  update the local pending state, inject it into the registry cache,
-   *  and pin the URL to the new name. */
+  /** PreviewSection fires this the moment Activate creates the stream on
+   *  the fly, so we can update the local pending-name state and seed the
+   *  shared registry cache. We deliberately do NOT navigate the URL here —
+   *  configure + ingest are still in-flight on the current instance, and a
+   *  URL change at this point would trigger a `<StreamCanvas/>` remount
+   *  that wipes the draft mid-activation. The post-success navigation
+   *  happens once the whole lifecycle completes, via `onActivated`. */
   const handleStreamCreated = useCallback(
     (created: RegisteredStream) => {
       setPendingStreamName(created.stream_name);
       addStream(created);
-      navigate(`anatomy?stream=${encodeURIComponent(created.stream_name)}`);
     },
-    [addStream, navigate],
+    [addStream],
+  );
+
+  const handleActivationSuccess = useCallback(
+    (name: string) => {
+      refreshRegistry();
+      onActivated?.(name);
+    },
+    [onActivated, refreshRegistry],
   );
 
   const dimmed = (id: SectionId) => walkThrough && focusedSection !== id;
@@ -195,7 +208,7 @@ export function StreamCanvas({ streamName, templateId, prefill }: Props) {
               allValid={allValid}
               pendingStreamName={pendingStreamName}
               onStreamCreated={handleStreamCreated}
-              onActivated={() => refreshRegistry()}
+              onActivated={handleActivationSuccess}
               dimmed={dimmed("preview")}
             />
           </div>

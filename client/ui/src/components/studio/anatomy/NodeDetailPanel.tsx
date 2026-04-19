@@ -23,6 +23,10 @@ interface Props {
   /** When the panel is in `list` mode and the user opens a specific stream
    *  from the table, the parent updates `selection` to the stream variant. */
   onOpenStream: (streamName: string) => void;
+  /** Fired after a successful stream Activate. Parent (AnatomyCanvas) jumps
+   *  to the Streams list and pans the DAG to the new node for clear
+   *  "it worked" feedback. */
+  onStreamActivated?: (streamName: string) => void;
   /** Optional pre-filled values when deep-linking into a new stream form
    *  from the Notifications center. Applied only when `streamName === "new"`. */
   streamPrefill?: StreamDraftPrefill | null;
@@ -49,6 +53,7 @@ export function NodeDetailPanel({
   onParamChange,
   onClose,
   onOpenStream,
+  onStreamActivated,
   streamPrefill,
 }: Props) {
   const [streamFilter, setStreamFilter] = useState("");
@@ -109,6 +114,7 @@ export function NodeDetailPanel({
               streamName={selection.streamName}
               templateId={null}
               prefill={streamPrefill ?? null}
+              onActivated={onStreamActivated}
             />
           </div>
         </div>

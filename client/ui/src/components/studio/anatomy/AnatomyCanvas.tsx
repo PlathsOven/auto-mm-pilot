@@ -139,6 +139,35 @@ function AnatomyCanvasInner() {
     [],
   );
 
+  /** Post-Activate feedback: jump to the Streams list (so the user sees
+   *  their new row) and pan the DAG to the new stream node so the canvas
+   *  visually signals "this is the thing you just created." Waiting until
+   *  the full lifecycle completes — before this point a navigation would
+   *  remount the form mid-activation and wipe the draft. */
+  const handleStreamActivated = useCallback(
+    (name: string) => {
+      setSelection({ kind: "list" });
+      // Defer fitView a tick so the node is guaranteed to be in the DAG
+      // (buildAnatomyGraph derives stream nodes from `streams`, which is
+      // refreshed by StreamCanvas via `refreshRegistry()` on activation).
+      setTimeout(() => {
+        try {
+          reactFlowInstance.fitView({
+            nodes: [{ id: name }],
+            padding: 0.5,
+            minZoom: 1,
+            maxZoom: 1.6,
+            duration: 500,
+          });
+        } catch {
+          // Node may not be in the graph yet on very first registration —
+          // fall back silently; the Streams list still surfaces it.
+        }
+      }, 0);
+    },
+    [reactFlowInstance],
+  );
+
   // The viewport-recenter effect lives below the `nodes` useMemo so it
   // can reference it without hitting a TDZ in the deps array.
 
@@ -404,6 +433,7 @@ function AnatomyCanvasInner() {
           onParamChange={onParamChange}
           onClose={closePanel}
           onOpenStream={openStream}
+          onStreamActivated={handleStreamActivated}
           streamPrefill={streamPrefill}
         />
       )}
