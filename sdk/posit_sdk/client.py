@@ -13,12 +13,14 @@ from posit_sdk.models import (
     BankrollResponse,
     BlockConfig,
     BlockRowResponse,
+    HealthResponse,
     MarketValueEntry,
     PositionPayload,
     SnapshotResponse,
     SnapshotRow,
     StreamResponse,
     StreamSpec,
+    StreamState,
     WsAck,
 )
 from posit_sdk.rest import RestClient
@@ -192,6 +194,19 @@ class PositClient:
             "Posit WS state=%s — push falling back to REST (slower but correct).",
             state.value,
         )
+
+    # ----- Observability -----
+
+    async def health(self) -> HealthResponse:
+        """Return the server ``/api/health`` status. Auth-exempt on the server."""
+        return await self._require_rest().health()
+
+    async def describe_stream(self, stream_name: str) -> StreamState:
+        """Return extended state for one stream (config + row_count + last ingest).
+
+        Raises ``PositApiError(404)`` if the stream is not registered.
+        """
+        return await self._require_rest().describe_stream(stream_name)
 
     # ----- Streams -----
 

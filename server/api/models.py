@@ -132,6 +132,25 @@ class StreamListResponse(BaseModel):
     streams: list[StreamResponse]
 
 
+class StreamStateResponse(BaseModel):
+    """Extended stream metadata — configuration plus ingestion state.
+
+    Returned from ``GET /api/streams/{name}``. A superset of ``StreamResponse``
+    with the operational fields integrators need when debugging ("is data
+    arriving? how many rows? when was the last push?") — the subset that
+    was only observable via `curl` + manual header juggling before.
+    """
+    stream_name: str
+    key_cols: list[str]
+    status: Literal["PENDING", "READY"]
+    scale: float | None = None
+    offset: float | None = None
+    exponent: float | None = None
+    block: BlockConfigPayload | None = None
+    row_count: int
+    last_ingest_ts: str | None = None
+
+
 class StreamTimeseriesPoint(BaseModel):
     """One point in a single stream-key time series."""
     timestamp: str

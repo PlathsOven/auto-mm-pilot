@@ -132,6 +132,30 @@ class SnapshotResponse(BaseModel):
     pipeline_rerun: bool
 
 
+class StreamState(BaseModel):
+    """Extended stream metadata returned by ``PositClient.describe_stream``.
+
+    Configuration fields mirror ``StreamResponse``; the operational fields
+    (``row_count``, ``last_ingest_ts``) surface the view integrators
+    previously had to curl for.
+    """
+
+    stream_name: str
+    key_cols: list[str]
+    status: Literal["PENDING", "READY"]
+    scale: float | None = None
+    offset: float | None = None
+    exponent: float | None = None
+    block: BlockConfig | None = None
+    row_count: int
+    last_ingest_ts: str | None = None
+
+
+class HealthResponse(BaseModel):
+    """Response for ``GET /api/health``."""
+    status: str
+
+
 class BankrollResponse(BaseModel):
     bankroll: float
     pipeline_rerun: bool

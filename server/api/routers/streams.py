@@ -15,6 +15,7 @@ from server.api.models import (
     StreamKeyTimeseries,
     StreamListResponse,
     StreamResponse,
+    StreamStateResponse,
     StreamTimeseriesPoint,
     StreamTimeseriesResponse,
     UpdateStreamRequest,
@@ -72,6 +73,58 @@ async def list_streams(
     registry = get_stream_registry(user.id)
     return StreamListResponse(
         streams=[_stream_to_response(r) for r in registry.list_streams()],
+    )
+
+
+@router.get("/api/streams/{stream_name}", response_model=StreamStateResponse)
+async def describe_stream(
+    stream_name: str,
+    user: User = Depends(current_user),
+) -> StreamStateResponse:
+    """Return extended stream metadata — config + ingestion state.
+
+    Used by the SDK's ``describe_stream`` helper. Sourced entirely from the
+    in-memory registry; does not touch the pipeline results.
+    """
+    registry = get_stream_registry(user.id)
+    reg = registry.get(stream_name)
+    if reg is None:
+        raise HTTPException(status_code=404, detail=f"Stream '{stream_name}' not found")
+
+    last_ts: str | None = None
+    if reg.snapshot_rows:
+        # Rows are coerced to native datetimes at seed-time; raw pushes may
+        # still be ISO strings. Handle both.
+        candidate = max(
+            (r.get("timestamp") for r in reg.snapshot_rows if r.get("timestamp") is not None),
+            default=None,
+        )
+        if candidate is not None:
+            last_ts = candidate.isoformat() if hasattr(candidate, "isoformat") else str(candidate)
+
+    block_payload = None
+    if reg.block is not None:
+        block_payload = BlockConfigPayload(
+            annualized=reg.block.annualized,
+            size_type=reg.block.size_type,
+            aggregation_logic=reg.block.aggregation_logic,
+            temporal_position=reg.block.temporal_position,
+            decay_end_size_mult=reg.block.decay_end_size_mult,
+            decay_rate_prop_per_min=reg.block.decay_rate_prop_per_min,
+            decay_profile=reg.block.decay_profile,
+            var_fair_ratio=reg.block.var_fair_ratio,
+        )
+
+    return StreamStateResponse(
+        stream_name=reg.stream_name,
+        key_cols=list(reg.key_cols),
+        status=reg.status,
+        scale=reg.scale,
+        offset=reg.offset,
+        exponent=reg.exponent,
+        block=block_payload,
+        row_count=len(reg.snapshot_rows),
+        last_ingest_ts=last_ts,
     )
 
 

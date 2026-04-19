@@ -46,12 +46,14 @@ from posit_sdk.models import (
     DataStream,
     DesiredPosition,
     GlobalContext,
+    HealthResponse,
     MarketValueEntry,
     PositionPayload,
     SnapshotResponse,
     SnapshotRow,
     StreamResponse,
     StreamSpec,
+    StreamState,
     UpdateCard,
     WsAck,
 )
@@ -73,9 +75,11 @@ __all__ = [
     "StreamSpec",
     # Response models
     "StreamResponse",
+    "StreamState",
     "SnapshotResponse",
     "BankrollResponse",
     "BlockRowResponse",
+    "HealthResponse",
     # WebSocket models
     "PositionPayload",
     "DesiredPosition",

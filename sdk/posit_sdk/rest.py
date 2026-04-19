@@ -8,10 +8,12 @@ from posit_sdk.models import (
     BankrollResponse,
     BlockConfig,
     BlockRowResponse,
+    HealthResponse,
     MarketValueEntry,
     SnapshotResponse,
     SnapshotRow,
     StreamResponse,
+    StreamState,
 )
 
 _DEFAULT_TIMEOUT = 30.0
@@ -74,6 +76,18 @@ class RestClient:
         data = resp.json()
         cols = data.get("dimensionCols") or data.get("dimension_cols") or []
         return list(cols)
+
+    # ----- Observability -----
+
+    async def health(self) -> HealthResponse:
+        resp = await self._client.get("/api/health")
+        self._raise_for_status(resp)
+        return HealthResponse(**resp.json())
+
+    async def describe_stream(self, stream_name: str) -> StreamState:
+        resp = await self._client.get(f"/api/streams/{stream_name}")
+        self._raise_for_status(resp)
+        return StreamState(**resp.json())
 
     # ----- Streams -----
 
