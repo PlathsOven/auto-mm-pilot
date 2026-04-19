@@ -92,16 +92,12 @@ export const BLOCKS_FOLLOW_FOCUS_KEY = "posit-blocks-follow-focus";
 export const CHAT_HISTORY_KEY = "posit-chat-history";
 export const CHAT_HISTORY_MAX = 50;
 
-// Stream Canvas walkthrough toggle (+ the legacy `apt.*` key we migrate from).
-export const STREAM_CANVAS_WALKTHROUGH_KEY = "posit.studio.walkthrough";
-export const STREAM_CANVAS_WALKTHROUGH_LEGACY_KEY = "apt.studio.walkthrough";
-
 // ---------------------------------------------------------------------------
 // Position grid — view modes + timeframe options
 // ---------------------------------------------------------------------------
 
 export const VIEW_MODE_META: Record<ViewMode, ViewModeMeta> = {
-  position: { label: "Position", unit: "$vega", decimals: 2, group: "primary" },
+  position: { label: "Desired", unit: "$vega", decimals: 2, group: "primary" },
   change: { label: "Change", unit: "$vega", decimals: 2, group: "primary" },
   edge: { label: "Edge", unit: "vp", decimals: 2, group: "primary" },
   variance: { label: "Variance", unit: "vp", decimals: 2, group: "primary" },

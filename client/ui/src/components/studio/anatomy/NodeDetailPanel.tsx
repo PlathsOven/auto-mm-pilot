@@ -29,6 +29,9 @@ interface Props {
   /** When the panel is in `list` mode and the user opens a specific stream
    *  from the table, the parent updates `selection` to the stream variant. */
   onOpenStream: (streamName: string) => void;
+  /** Switch the panel to the streams-list view (used by the in-editor
+   *  "All streams" back button). */
+  onShowList: () => void;
   /** Fired after a successful stream Activate. Parent (AnatomyCanvas) jumps
    *  to the Streams list and pans the DAG to the new node for clear
    *  "it worked" feedback. */
@@ -59,6 +62,7 @@ export function NodeDetailPanel({
   onParamChange,
   onClose,
   onOpenStream,
+  onShowList,
   onStreamActivated,
   streamPrefill,
 }: Props) {
@@ -90,10 +94,18 @@ export function NodeDetailPanel({
 
       {selection.kind === "stream" && (
         <div className="flex h-full flex-col">
-          <header className="flex shrink-0 items-center justify-between border-b border-black/[0.06] px-4 py-3">
-            <div>
+          <header className="flex shrink-0 items-center justify-between gap-2 border-b border-black/[0.06] px-4 py-3">
+            <div className="min-w-0">
+              <button
+                type="button"
+                onClick={onShowList}
+                className="mb-1 flex items-center gap-1 text-[10px] text-mm-text-dim transition-colors hover:text-mm-accent"
+                title="Back to all streams"
+              >
+                ← All streams
+              </button>
               <h3 className="zone-header">Stream</h3>
-              <p className="mt-0.5 font-mono text-[10px] text-mm-text-dim">{selection.streamName}</p>
+              <p className="mt-0.5 truncate font-mono text-[10px] text-mm-text-dim">{selection.streamName}</p>
             </div>
             <button
               type="button"

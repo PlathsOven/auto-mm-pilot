@@ -86,26 +86,75 @@ function parseIsoUtc(iso: string): Date | null {
 
 const pad2 = (n: number): string => String(n).padStart(2, "0");
 
-/** Build a category-axis label formatter that renders `MM/DD\nHH:MM` at
- *  the first tick and whenever the local date changes between adjacent
- *  timestamps, and just `HH:MM` elsewhere. Tick density is handled by
- *  ECharts' `hideOverlap: true` — this only shapes what each rendered
- *  tick reads. Labels render in the user's local timezone (same
- *  convention as the old HH:MM-only formatter). */
+/** Per-sample interval thresholds (ms) that pick the label resolution.
+ *  We choose granularity off the *median sample interval* rather than the
+ *  total span so dense intra-minute series render with seconds even on a
+ *  short window, and sparse hourly series collapse to dates on a long one. */
+const SECOND_GRAN_MS = 60 * 1000; // < 1 min between samples → HH:MM:SS
+const MINUTE_GRAN_MS = 24 * 60 * 60 * 1000; // < 1 day → HH:MM (with date breaks)
+
+type AxisGranularity = "second" | "minute" | "day";
+
+function pickAxisGranularity(timestamps: string[]): AxisGranularity {
+  if (timestamps.length < 2) return "minute";
+  const first = parseIsoUtc(timestamps[0]);
+  const last = parseIsoUtc(timestamps[timestamps.length - 1]);
+  if (!first || !last) return "minute";
+  const intervalMs = (last.getTime() - first.getTime()) / (timestamps.length - 1);
+  if (intervalMs < SECOND_GRAN_MS) return "second";
+  if (intervalMs < MINUTE_GRAN_MS) return "minute";
+  return "day";
+}
+
+/** Render an ISO timestamp in the chart's chosen granularity, in local time.
+ *  `prevDate` is consulted only for date-boundary handling. */
+function formatLocalTick(d: Date, gran: AxisGranularity, prevDate: Date | null): string {
+  const date = `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
+  const hm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const hms = `${hm}:${pad2(d.getSeconds())}`;
+  const dayChanged = !prevDate
+    || prevDate.getFullYear() !== d.getFullYear()
+    || prevDate.getMonth() !== d.getMonth()
+    || prevDate.getDate() !== d.getDate();
+  switch (gran) {
+    case "second": return dayChanged ? `${date}\n${hms}` : hms;
+    case "minute": return dayChanged ? `${date}\n${hm}` : hm;
+    case "day":    return dayChanged ? date : hm;
+  }
+}
+
+/** Full timestamp suitable for the tooltip header. Always renders with
+ *  date + HH:MM:SS in local time so the hover read matches the x-axis
+ *  convention regardless of granularity. */
+function formatTooltipTimestamp(iso: string): string {
+  const d = parseIsoUtc(iso);
+  if (!d) return iso;
+  const date = `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
+  const hms = `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+  return `${date} ${hms}`;
+}
+
+/** Build a category-axis label formatter that adapts to per-sample density
+ *  (HH:MM:SS for sub-minute, HH:MM for sub-day, MM/DD-led for sparser).
+ *
+ *  Suppresses consecutive duplicate labels — if a tick would render the
+ *  same string as the immediately preceding one, return "" so ECharts
+ *  draws the tick mark without a textual label. This is the safety net
+ *  for when ECharts requests more ticks than the chosen granularity can
+ *  uniquely label. Labels render in the user's local timezone. */
 function makeAxisLabelFormatter(timestamps: string[]) {
+  const gran = pickAxisGranularity(timestamps);
   return (value: string, index: number): string => {
     const d = parseIsoUtc(value);
     if (!d) return value;
-    const time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-    const date = `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
-    if (index === 0) return `${date}\n${time}`;
-    const prev = parseIsoUtc(timestamps[index - 1]);
-    if (!prev) return `${date}\n${time}`;
-    const dayChanged =
-      prev.getFullYear() !== d.getFullYear()
-      || prev.getMonth() !== d.getMonth()
-      || prev.getDate() !== d.getDate();
-    return dayChanged ? `${date}\n${time}` : time;
+    const prev = index > 0 ? parseIsoUtc(timestamps[index - 1]) : null;
+    const label = formatLocalTick(d, gran, prev);
+    if (prev) {
+      const prevPrev = index > 1 ? parseIsoUtc(timestamps[index - 2]) : null;
+      const prevLabel = formatLocalTick(prev, gran, prevPrev);
+      if (prevLabel === label) return "";
+    }
+    return label;
   };
 }
 
@@ -137,7 +186,7 @@ export function buildPipelineSingleViewOptions(
   let yAxisFormatter: (v: number) => string;
 
   if (view === "position") {
-    yAxisName = "Position ($)";
+    yAxisName = "Desired ($)";
     yAxisFormatter = (v: number) =>
       v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v));
     series.push(
@@ -212,10 +261,40 @@ export function buildPipelineSingleViewOptions(
     animation: false,
     tooltip: {
       trigger: "axis",
-      axisPointer: { type: "cross", crossStyle: { color: "#666" } },
+      axisPointer: {
+        type: "cross",
+        crossStyle: { color: "#666" },
+        // Cross-pointer's own bubble label on the X-axis. Without this,
+        // ECharts dumps the raw category value (an ISO UTC-naive string),
+        // which doesn't match the local-time x-axis ticks and is confusing.
+        label: {
+          formatter: (params) => {
+            if (params.axisDimension === "x") {
+              return formatTooltipTimestamp(String(params.value));
+            }
+            return typeof params.value === "number" ? sci(params.value) : String(params.value ?? "");
+          },
+        },
+      },
       ...TOOLTIP_STYLE,
       confine: true,
-      valueFormatter: (v) => (typeof v === "number" ? sci(v) : String(v ?? "—")),
+      // Custom formatter so the header renders the timestamp in local time
+      // (matching the x-axis), and series rows stay compactly aligned.
+      formatter: (paramsRaw) => {
+        const params = Array.isArray(paramsRaw) ? paramsRaw : [paramsRaw];
+        if (params.length === 0) return "";
+        // `name` is the category value (the ISO timestamp string) on
+        // `trigger: "axis"`. `axisValue` carries the same value at runtime
+        // but isn't on ECharts' typed surface.
+        const header = formatTooltipTimestamp(String(params[0].name ?? ""));
+        const rows = params
+          .map((p) => {
+            const v = typeof p.value === "number" ? sci(p.value) : String(p.value ?? "—");
+            return `<div style="display:flex;justify-content:space-between;gap:16px;"><span>${p.marker} ${p.seriesName}</span><span style="font-family:monospace;">${v}</span></div>`;
+          })
+          .join("");
+        return `<div style="font-weight:600;margin-bottom:4px;">${header}</div>${rows}`;
+      },
     },
     dataZoom: [
       { type: "inside", filterMode: "filter" },

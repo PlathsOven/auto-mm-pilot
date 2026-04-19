@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { useTransforms } from "../../../providers/TransformsProvider";
 import { useActivePositionSizing } from "../../../hooks/useActivePositionSizing";
 import type { ConfidenceDraft, SectionState } from "../canvasState";
@@ -8,8 +7,6 @@ interface Props {
   value: ConfidenceDraft;
   onChange: (next: ConfidenceDraft) => void;
   state: SectionState;
-  expanded?: boolean;
-  nav?: ReactNode;
 }
 
 const ANCHORS = [
@@ -48,7 +45,7 @@ function toSliderRaw(v: number): number {
  * Confidence is expressed as a `var_fair_ratio` — variance per unit fair value.
  * Lower values mean higher confidence (less variance for the same edge).
  */
-export function ConfidenceSection({ value, onChange, state, expanded, nav }: Props) {
+export function ConfidenceSection({ value, onChange, state }: Props) {
   const { steps } = useTransforms();
   const variance = steps?.variance?.selected ?? "fair_proportional";
   const positionSizing = useActivePositionSizing();
@@ -75,8 +72,6 @@ export function ConfidenceSection({ value, onChange, state, expanded, nav }: Pro
       number={6}
       status={state.status}
       message={state.message}
-      expanded={expanded}
-      nav={nav}
     >
       <div className="mb-2 flex items-center gap-1.5 text-[10px] text-mm-text-dim">
         <span>Variance transform</span>

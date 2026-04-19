@@ -41,6 +41,7 @@ export interface AnatomySelectionState {
   openStream: (name: string) => void;
   openTransform: (stepKey: StepKey) => void;
   toggleListPanel: () => void;
+  showList: () => void;
 }
 
 /**
@@ -86,6 +87,7 @@ export function useAnatomySelection(): AnatomySelectionState {
     () => setSelection((s) => (s.kind === "list" ? { kind: "none" } : { kind: "list" })),
     [],
   );
+  const showList = useCallback(() => setSelection({ kind: "list" }), []);
 
-  return { selection, streamPrefill, closePanel, openStream, openTransform, toggleListPanel };
+  return { selection, streamPrefill, closePanel, openStream, openTransform, toggleListPanel, showList };
 }
