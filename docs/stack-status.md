@@ -44,21 +44,32 @@
 | Component | File(s) | Status | Depends On | Notes |
 |-----------|---------|--------|------------|-------|
 | **Electron Shell** | `client/ui/electron/` | `PROD` | — | Vite + Electron |
-| **React App** | `client/ui/src/App.tsx` | `PROD` | All providers | react-grid-layout dashboard |
-| **Layout Provider** | `client/ui/src/providers/LayoutProvider.tsx` | `PROD` | — | Panel state, localStorage persistence |
+| **React App** | `client/ui/src/App.tsx` | `PROD` | All providers, AppShell | Auth gate + route table; renders inside `<AppShell/>` chrome |
+| **AppShell Chrome** | `client/ui/src/components/shell/AppShell.tsx` (+ `LeftNav.tsx`, `StatusBar.tsx`, `TopBar.tsx`) | `PROD` | AuthProvider, WebSocketProvider | Three-region chrome (LeftNav + main slot + StatusBar) — replaces deleted `GlobalContextBar` |
+| **Workbench Page** | `client/ui/src/pages/WorkbenchPage.tsx` (+ `components/workbench/`) | `PROD` | FocusProvider, WebSocketProvider | Focus-driven main page — InspectorRouter, ChatDock, PipelineChartPanel, UpdatesTicker, HotkeyCheatsheet |
+| **Anatomy Page** | `client/ui/src/pages/AnatomyPage.tsx` | `PROD` | TransformsProvider, stream API | Stream library + canvas — replaces old Studio Anatomy view |
+| **Focus Provider** | `client/ui/src/providers/FocusProvider.tsx` | `PROD` | — | Typed `Focus` union (cell / symbol / expiry / stream / block); replaces deleted `SelectionProvider` |
 | **WebSocket Provider** | `client/ui/src/providers/WebSocketProvider.tsx` | `PROD` | Server WS `/ws` endpoint | Connects to real pipeline WS, auto-reconnects |
-| ~~Mock Data Generator~~ | ~~`client/ui/src/providers/MockDataProvider.ts`~~ | — | — | Deleted — remaining mock seeds inlined where needed |
-| **Chat Provider** | `client/ui/src/providers/ChatProvider.tsx` | `PROD` | LLM API Client | Routes @Posit to server `/api/investigate` (SSE stream) |
-| **LLM API Client** | `client/ui/src/services/llmApi.ts` | `PROD` | FastAPI App | HTTP client for `/api/investigate` |
-| **Desired Position Grid** | `client/ui/src/components/DesiredPositionGrid.tsx` | `PROD` | WebSocket Provider, Chat Provider | Zone C — clickable cells push context |
-| **Updates Feed** | `client/ui/src/components/UpdatesFeed.tsx` | `PROD` | WebSocket Provider | Zone D — position-change cards with stream attribution |
-| **Team Chat (LLM Chat)** | `client/ui/src/components/LlmChat.tsx` | `PROD` | Chat Provider | Zone E — streaming assistant + system messages |
-| **Block Drawer** | `client/ui/src/components/studio/brain/BlockDrawer.tsx` | `PROD` | Block API | Unified create/edit/inspect drawer, replaces AddBlockDrawer |
+| **Auth Provider** | `client/ui/src/providers/AuthProvider.tsx` | `PROD` | Server `/api/auth/*` | Multi-user auth (added in #32); JWT + per-user state scoping |
+| **Mode Provider** | `client/ui/src/providers/ModeProvider.tsx` | `PROD` | — | Chat mode (investigate / build / general) |
+| **Command Palette** | `client/ui/src/providers/CommandPaletteProvider.tsx` | `PROD` | FocusProvider | Cmd-K jump-to surfaces |
+| **Notifications** | `client/ui/src/providers/NotificationsProvider.tsx` (+ `components/notifications/`) | `PROD` | Server push endpoint | Toasts + persisted notification feed |
+| **Onboarding Provider** | `client/ui/src/providers/OnboardingProvider.tsx` | `PROD` | — | First-run guidance |
+| **Chat Provider** | `client/ui/src/providers/ChatProvider.tsx` | `PROD` | LLM API Client, ModeProvider | Routes user messages to server `/api/investigate` (SSE) — mode-aware system prompt selected via ModeProvider |
+| **Transforms Provider** | `client/ui/src/providers/TransformsProvider.tsx` | `PROD` | transforms API | Stream-config draft state for Anatomy editor |
+| **LLM API Client** | `client/ui/src/services/llmApi.ts` | `PROD` | FastAPI App | SSE client for `/api/investigate` |
+| **Desired Position Grid** | `client/ui/src/components/DesiredPositionGrid.tsx` | `PROD` | WebSocketProvider, FocusProvider | Clickable cells set focus instead of opening chat |
+| **Pipeline Chart** | `client/ui/src/components/PipelineChart.tsx` (+ `components/PipelineChart/`) | `PROD` | WebSocketProvider, pipeline-timeseries endpoint | ECharts time-series for Position / Fair / Variance views |
+| **Team Chat (LLM Chat)** | `client/ui/src/components/LlmChat.tsx` | `PROD` | ChatProvider | Streaming assistant + system messages |
+| **Block Drawer** | `client/ui/src/components/studio/brain/BlockDrawer.tsx` | `PROD` | Block API | Unified create/edit/inspect drawer |
 | **Engine Commands** | `client/ui/src/services/engineCommands.ts` | `PROD` | Stream API, Block API | Parses + executes engine-command fenced blocks from LLM responses |
-| ~~Daily Wrap~~ | ~~`client/ui/src/components/DailyWrap.tsx`~~ | — | — | Deleted — will be rebuilt when LLM-generated wrap is ready |
-| **Stream Status List** | `client/ui/src/components/floor/StreamStatusList.tsx` | `PROD` | WebSocket Provider | Eyes read-only stream list (name + last update) |
+| **Stream Status List** | `client/ui/src/components/floor/StreamStatusList.tsx` | `PROD` | WebSocketProvider | Read-only stream list (name + last update) |
 | **Stream Library / Canvas** | `client/ui/src/components/studio/StreamLibrary.tsx`, `StreamCanvas.tsx` | `PROD` | stream API, TransformsProvider | Anatomy CRUD + activate flow with 7 sections |
-| **Global Context Bar** | `client/ui/src/components/GlobalContextBar.tsx` | `PROD` | WebSocket Provider | Zone B |
+| ~~Mock Data Generator~~ | ~~`client/ui/src/providers/MockDataProvider.ts`~~ | — | — | Deleted — remaining mock seeds inlined where needed |
+| ~~Daily Wrap~~ | ~~`client/ui/src/components/DailyWrap.tsx`~~ | — | — | Deleted — will be rebuilt when LLM-generated wrap is ready |
+| ~~Layout Provider~~ | ~~`client/ui/src/providers/LayoutProvider.tsx`~~ | — | — | Deleted in #34 (Phase 2) — focus-driven Workbench replaced react-grid-layout |
+| ~~Global Context Bar~~ | ~~`client/ui/src/components/GlobalContextBar.tsx`~~ | — | — | Deleted in #34 — replaced by `AppShell` (LeftNav + StatusBar) |
+| ~~Updates Feed~~ | ~~`client/ui/src/components/UpdatesFeed.tsx`~~ | — | — | Deleted — replaced by `components/workbench/UpdatesTicker.tsx` |
 
 ## Data Adapters (`client/adapter/`)
 
@@ -75,14 +86,14 @@
 │  CLIENT (Electron)                                          │
 │                                                             │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐   │
-│  │ DesiredPos   │    │ UpdatesFeed  │    │ LlmChat      │   │
-│  │ Grid (C)     │    │ (D)          │    │ (E)          │   │
+│  │ DesiredPos   │    │ UpdatesTicker│    │ LlmChat      │   │
+│  │ Grid         │    │ (workbench)  │    │ (ChatDock)   │   │
 │  └──────┬───────┘    └──────────────┘    └──────┬───────┘   │
-│         │ click ctx                             │ @Posit msg│
+│         │ set focus                             │ user msg  │
 │         ▼                                       ▼           │
 │  ┌──────────────┐                        ┌──────────────┐   │
-│  │ ChatProvider │                        │ ChatProvider │   │
-│  │ (investigate)│                        │ (investigate)│   │
+│  │ FocusProvider│                        │ ChatProvider │   │
+│  │ (cell/sym/…) │                        │ (mode-aware) │   │
 │  └──────┬───────┘                        └──────┬───────┘   │
 │         │                                       │           │
 │  ┌──────────────────────────────────────────────────────┐   │
