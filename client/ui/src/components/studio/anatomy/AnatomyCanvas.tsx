@@ -16,6 +16,7 @@ import { useMode } from "../../../providers/ModeProvider";
 import { useWebSocket } from "../../../providers/WebSocketProvider";
 import { useRegisteredStreams } from "../../../hooks/useRegisteredStreams";
 import { updateTransforms } from "../../../services/transformApi";
+import { ANATOMY_STARTUP_GRACE_MS } from "../../../constants";
 import type { TransformStep } from "../../../types";
 
 import { StreamNode } from "./nodes/StreamNode";
@@ -62,7 +63,7 @@ export function AnatomyCanvas() {
 }
 
 function AnatomyCanvasInner() {
-  const { steps, setSteps, loading, error, refresh } = useTransforms();
+  const { steps, setSteps, error, refresh } = useTransforms();
   const { streams } = useRegisteredStreams();
   const { query, setMode, navigate } = useMode();
   const { payload } = useWebSocket();
@@ -313,10 +314,32 @@ function AnatomyCanvasInner() {
   // ---------------------------------------------------------------------
   // Early returns
   // ---------------------------------------------------------------------
-  if (loading && !steps) {
+  // Startup grace window: the `/api/transforms` fetch races server boot +
+  // first snapshot ingestion. A transient failure flips `loading → false`
+  // and `error → "Failed to fetch"` before the next poll tick succeeds.
+  // Showing the full error panel during that normal window is alarming and
+  // wrong — fall through to the loading screen until the grace window
+  // closes without any successful load.
+  const [mountedAt] = useState(() => Date.now());
+  const [, setNow] = useState(mountedAt);
+  const withinGrace = !steps && Date.now() - mountedAt < ANATOMY_STARTUP_GRACE_MS;
+  useEffect(() => {
+    if (steps || !withinGrace) return;
+    const remaining = ANATOMY_STARTUP_GRACE_MS - (Date.now() - mountedAt);
+    const t = setTimeout(() => setNow(Date.now()), Math.max(remaining, 0));
+    return () => clearTimeout(t);
+  }, [steps, withinGrace, mountedAt]);
+
+  if (!steps && withinGrace) {
     return (
-      <div className="flex flex-1 items-center justify-center">
-        <p className="text-xs text-mm-text-dim">Loading transforms…</p>
+      <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+        <div className="glass-panel flex flex-col items-center gap-3 px-6 py-5 text-[11px]">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-mm-accent/30 border-t-mm-accent" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-mm-text-dim">
+            Anatomy
+          </span>
+          <p className="text-mm-text-dim">Connecting to pipeline…</p>
+        </div>
       </div>
     );
   }

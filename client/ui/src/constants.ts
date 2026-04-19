@@ -43,6 +43,11 @@ export const STATUSBAR_TICK_MS = 250;
 // Width of the bankroll-edit popover anchored off the StatusBar pill.
 export const BANKROLL_POPOVER_WIDTH_PX = 240;
 
+// Anatomy — how long to keep showing a "loading" screen while the initial
+// `/api/transforms` fetch is still racing server startup / snapshot ingestion.
+// After this window, if we still have no `steps`, surface the full error panel.
+export const ANATOMY_STARTUP_GRACE_MS = 6_000;
+
 // Pipeline chart — Position view lookback window options. Applied only to
 // the Position tab; Fair and Variance are forward-looking decay curves.
 // `seconds: null` renders whatever the server provides with no lookback
