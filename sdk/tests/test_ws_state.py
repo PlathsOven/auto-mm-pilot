@@ -109,15 +109,23 @@ async def test_push_snapshot_falls_back_to_rest_when_ws_down(
         with caplog.at_level(logging.WARNING, logger="posit_sdk.client"):
             ack = await client.push_snapshot(
                 "rv",
-                [SnapshotRow(timestamp="2026-01-01T00:00:00Z", raw_value=1.0, symbol="BTC", expiry="27MAR26")],
+                [SnapshotRow(
+                    timestamp="2026-01-01T00:00:00Z",
+                    raw_value=1.0,
+                    market_value=1.0,  # set so the market_value WARN stays quiet
+                    symbol="BTC",
+                    expiry="27MAR26",
+                )],
             )
         assert ack.rows_accepted == 1
         assert ack.pipeline_rerun is True
-        # One WARN per state transition — exactly one while state stays CLOSED.
-        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert len(warnings) == 1
+        fallback_warnings = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING and "falling back to REST" in r.getMessage()
+        ]
+        assert len(fallback_warnings) == 1
 
-        # Second push: same state, no new WARN.
+        # Second push: same state, no new fallback WARN.
         respx.post(f"{URL}/api/snapshots").mock(
             return_value=httpx.Response(
                 200,
@@ -128,6 +136,16 @@ async def test_push_snapshot_falls_back_to_rest_when_ws_down(
         with caplog.at_level(logging.WARNING, logger="posit_sdk.client"):
             await client.push_snapshot(
                 "rv",
-                [SnapshotRow(timestamp="2026-01-01T00:00:01Z", raw_value=2.0, symbol="BTC", expiry="27MAR26")],
+                [SnapshotRow(
+                    timestamp="2026-01-01T00:00:01Z",
+                    raw_value=2.0,
+                    market_value=2.0,
+                    symbol="BTC",
+                    expiry="27MAR26",
+                )],
             )
-        assert not any(r.levelno == logging.WARNING for r in caplog.records)
+        fallback_warnings = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING and "falling back to REST" in r.getMessage()
+        ]
+        assert fallback_warnings == []

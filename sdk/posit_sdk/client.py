@@ -87,6 +87,9 @@ class PositClient:
         # lazily on first create_stream and re-used thereafter — server config,
         # not per-request data, so caching is safe.
         self._dimension_cols: list[str] | None = None
+        # Streams for which we have already emitted the "no market_value →
+        # edge will be 0" warning. One WARN per stream per client lifetime.
+        self._market_value_warned: set[str] = set()
 
     async def __aenter__(self) -> "PositClient":
         self._rest = RestClient(self._url, self._api_key)
@@ -154,6 +157,29 @@ class PositClient:
 
     def _ws_state(self) -> WsState:
         return self._ws.state if self._ws is not None else WsState.CLOSED
+
+    def _warn_if_missing_market_value(
+        self, stream_name: str, rows: list[SnapshotRow],
+    ) -> None:
+        """Log once per stream when rows omit ``market_value``.
+
+        Without ``market_value``, each block's market defaults to its own
+        fair value → edge collapses to 0 → desired_pos collapses to 0. The
+        stream looks healthy; positions just silently stay flat. This was
+        the longest rabbit hole in the deribit-pricer integration.
+        """
+        if stream_name in self._market_value_warned:
+            return
+        missing = sum(1 for r in rows if r.market_value is None)
+        if missing == 0:
+            return
+        self._market_value_warned.add(stream_name)
+        log.warning(
+            "Stream %r: %d row(s) pushed without market_value; per-block "
+            "market defaults to fair, so edge will be 0. Set SnapshotRow."
+            "market_value or call set_market_values() to fix.",
+            stream_name, missing,
+        )
 
     def _maybe_warn_ws_fallback(self) -> None:
         """Log once per transition when pushes fall back to REST."""
@@ -228,6 +254,7 @@ class PositClient:
         self, stream_name: str, rows: list[SnapshotRow],
     ) -> SnapshotResponse:
         """Ingest snapshot rows via REST.  Use push_snapshot() for lower latency."""
+        self._warn_if_missing_market_value(stream_name, rows)
         return await self._require_rest().ingest_snapshot(stream_name, rows)
 
     # ----- Bankroll -----
@@ -313,6 +340,7 @@ class PositClient:
         ``ingest_snapshot`` otherwise so a downed WS never silently swallows
         pushes. The fallback logs one WARN per state transition, not per call.
         """
+        self._warn_if_missing_market_value(stream_name, rows)
         if self._ws_state() == WsState.OPEN:
             return await self._require_ws().push_snapshot(stream_name, rows)
         self._maybe_warn_ws_fallback()
