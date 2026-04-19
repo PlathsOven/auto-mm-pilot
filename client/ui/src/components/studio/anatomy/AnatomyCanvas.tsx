@@ -65,7 +65,7 @@ export function AnatomyCanvas() {
 function AnatomyCanvasInner() {
   const { steps, setSteps, loading, error, refresh } = useTransforms();
   const { streams } = useRegisteredStreams();
-  const { query, setMode } = useMode();
+  const { query, setMode, navigate } = useMode();
   const { payload } = useWebSocket();
   const positionCount = payload?.positions.length ?? 0;
   const reactFlowInstance = useReactFlow();
@@ -143,13 +143,21 @@ function AnatomyCanvasInner() {
    *  their new row) and pan the DAG to the new stream node so the canvas
    *  visually signals "this is the thing you just created." Waiting until
    *  the full lifecycle completes — before this point a navigation would
-   *  remount the form mid-activation and wipe the draft. */
+   *  remount the form mid-activation and wipe the draft.
+   *
+   *  `navigate` is load-bearing: if we only updated local `selection` and
+   *  left the URL as `?stream=new&prefill…`, a subsequent "Register this
+   *  stream" click from another notification would write the same
+   *  `stream=new` URL, `query.stream` wouldn't change, and the sync
+   *  useEffect wouldn't fire — the panel would stay stuck on the list.
+   *  Navigating here keeps URL and state consistent so the next
+   *  notification click produces a real `query.stream` transition. */
   const handleStreamActivated = useCallback(
     (name: string) => {
-      setSelection({ kind: "list" });
+      navigate("anatomy?streams=list");
       // Defer fitView a tick so the node is guaranteed to be in the DAG
       // (buildAnatomyGraph derives stream nodes from `streams`, which is
-      // refreshed by StreamCanvas via `refreshRegistry()` on activation).
+      // updated by StreamCanvas via `addStream()` on create).
       setTimeout(() => {
         try {
           reactFlowInstance.fitView({
@@ -165,7 +173,7 @@ function AnatomyCanvasInner() {
         }
       }, 0);
     },
-    [reactFlowInstance],
+    [navigate, reactFlowInstance],
   );
 
   // The viewport-recenter effect lives below the `nodes` useMemo so it
