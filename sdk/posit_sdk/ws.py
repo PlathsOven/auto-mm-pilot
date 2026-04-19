@@ -169,6 +169,10 @@ class WsClient:
                     self.last_error = err
                     self._ready.set()
                     self._fail_pending_acks(err)
+                    # Unblock any positions() iterator so the SDK caller can
+                    # degrade to REST polling instead of hanging on a queue
+                    # that will never receive another payload.
+                    await self._position_queue.put(_CLOSED)
                     return
                 self.state = WsState.RECONNECTING
                 self.last_error = exc

@@ -10,6 +10,7 @@ from posit_sdk.models import (
     BlockRowResponse,
     HealthResponse,
     MarketValueEntry,
+    PositionPayload,
     SnapshotResponse,
     SnapshotRow,
     StreamResponse,
@@ -88,6 +89,12 @@ class RestClient:
         resp = await self._client.get(f"/api/streams/{stream_name}")
         self._raise_for_status(resp)
         return StreamState(**resp.json())
+
+    async def get_positions(self) -> PositionPayload:
+        """One-shot REST snapshot of the latest pipeline broadcast payload."""
+        resp = await self._client.get("/api/positions")
+        self._raise_for_status(resp)
+        return PositionPayload.model_validate(resp.json())
 
     # ----- Streams -----
 

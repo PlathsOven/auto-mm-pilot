@@ -1,10 +1,12 @@
 """PositClient — main entry point for the Posit SDK."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import AsyncGenerator
 
 from posit_sdk.exceptions import (
+    PositApiError,
     PositAuthError,
     PositConnectionError,
     PositValidationError,
@@ -486,8 +488,64 @@ class PositClient:
         stored = await self._require_rest().set_market_values(entries)
         return WsAck(type="ack", seq=-1, rows_accepted=len(stored), pipeline_rerun=False)
 
-    async def positions(self) -> AsyncGenerator[PositionPayload, None]:
-        """Async generator that yields incoming pipeline position payloads."""
-        ws = self._require_ws()
-        async for payload in ws.positions():
+    async def get_positions(self) -> PositionPayload:
+        """One-shot REST snapshot of the latest pipeline broadcast payload.
+
+        Useful from notebooks or any context that does not want to keep a
+        WebSocket open. ``positions()`` polls this when the WS is down.
+        """
+        return await self._require_rest().get_positions()
+
+    async def positions(
+        self, *, poll_interval: float = 2.0,
+    ) -> AsyncGenerator[PositionPayload, None]:
+        """Yield pipeline position payloads, preferring WS and polling as fallback.
+
+        When the WS is ``OPEN`` at the time of the call, payloads stream
+        directly through the socket (live, lowest latency). Otherwise the
+        iterator degrades to polling ``GET /api/positions`` at ``poll_interval``
+        and yields only when the payload changes. Emits exactly one ``WARNING``
+        per degradation so the caller knows latency / freshness characteristics
+        have changed.
+        """
+        if self._ws is not None and self._ws.state == WsState.OPEN:
+            ws = self._ws
+            async for payload in ws.positions():
+                yield payload
+            # ws.positions() returns only on close()/FAILED_AUTH. If the
+            # client context is still open, degrade to polling.
+            if self._rest is None:
+                return
+            log.warning(
+                "Posit WS closed (state=%s); positions() degraded to REST polling.",
+                self._ws.state.value,
+            )
+            async for payload in self._poll_positions(poll_interval):
+                yield payload
+            return
+
+        log.warning(
+            "Posit WS not OPEN (state=%s); positions() degraded to REST polling.",
+            self._ws.state.value if self._ws is not None else "NONE",
+        )
+        async for payload in self._poll_positions(poll_interval):
             yield payload
+
+    async def _poll_positions(
+        self, poll_interval: float,
+    ) -> AsyncGenerator[PositionPayload, None]:
+        last_seen: str | None = None
+        while self._rest is not None:
+            try:
+                payload = await self.get_positions()
+            except PositApiError as exc:
+                # 404 = no tick yet; keep waiting. Anything else bubbles up.
+                if exc.status_code == 404:
+                    await asyncio.sleep(poll_interval)
+                    continue
+                raise
+            current = payload.model_dump_json(by_alias=True)
+            if current != last_seen:
+                last_seen = current
+                yield payload
+            await asyncio.sleep(poll_interval)

@@ -9,6 +9,8 @@ from datetime import datetime as _dt, timezone
 import polars as pl
 from fastapi import APIRouter, Depends, HTTPException
 
+from fastapi.responses import Response
+
 from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
 from server.api.engine_state import RISK_DIMENSION_COLS, get_pipeline_results
@@ -16,9 +18,10 @@ from server.api.market_value_store import to_dict as mv_to_dict
 from server.api.models import (
     PipelineDimensionsResponse,
     PipelineTimeSeriesResponse,
+    ServerPayload,
 )
 from server.api.stream_registry import parse_datetime_tolerant
-from server.api.ws import get_current_tick_ts
+from server.api.ws import get_current_tick_ts, get_latest_payload
 
 log = logging.getLogger(__name__)
 
@@ -202,6 +205,26 @@ def _pipeline_timeseries_sync(user_id: str, symbol: str, expiry_dt: _dt) -> dict
             "aggregateMarketValue": agg_mv,
         },
     }
+
+
+@router.get("/api/positions", response_model=ServerPayload)
+async def get_positions(user: User = Depends(current_user)) -> Response:
+    """Return the latest pipeline broadcast payload as a one-shot REST snapshot.
+
+    Same wire shape as the ``/ws`` broadcast (``ServerPayload``). Useful for
+    notebook-style consumers that don't want to keep a WebSocket open, and
+    as the fallback path the SDK polls when the WS is down.
+
+    The underlying payload is cached as a JSON string by the ticker, so the
+    handler returns it verbatim — no re-serialisation round-trip per request.
+    """
+    latest = get_latest_payload(user.id)
+    if latest is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No positions available yet — pipeline has not produced a tick",
+        )
+    return Response(content=latest, media_type="application/json")
 
 
 @router.get("/api/pipeline/dimensions", response_model=PipelineDimensionsResponse)
