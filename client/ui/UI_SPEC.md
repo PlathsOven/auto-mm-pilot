@@ -102,8 +102,6 @@ The UI is a fixed-height, single-page application (SPA) divided into four primar
 ## 4. Build Instructions
 1. Electron + React (Vite) + TypeScript boilerplate.
 2. TailwindCSS for styling with custom `mm-*` color tokens.
-3. `react-grid-layout` for the operator dashboard (Floor). Panels use `.glass-panel` surfaces.
-4. Mock WebSocket provider for immediate testing before the server is live.
-5. `rounded-lg` panels, `rounded-md` controls. Subtle gradient background. No box shadows on panels — glass surfaces with `backdrop-blur` and `ring-1 ring-black/[0.06]` for edge definition.
-6. ChatProvider context for shared investigation state across components.
-7. Grid margin `[6, 6]` with `[6, 6]` container padding for breathing room between glass panels.
+3. Focus-driven Workbench (`pages/WorkbenchPage.tsx`) inside the `AppShell` chrome — no draggable panel grid. Surfaces use `.glass-panel`.
+4. `rounded-lg` panels, `rounded-md` controls. Subtle gradient background. No box shadows on panels — glass surfaces with `backdrop-blur` and `ring-1 ring-black/[0.06]` for edge definition.
+5. ChatProvider context for shared investigation state across components.
