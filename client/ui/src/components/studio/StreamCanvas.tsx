@@ -42,13 +42,21 @@ const LEGACY_WALK_THROUGH_KEY = "apt.studio.walkthrough";
  * receives its slice + an updater. The Activate button (in PreviewSection)
  * commits via `POST /api/streams/{name}/configure` and `POST /api/snapshots`.
  */
+/** URL sentinel that means "open the form in create mode" — not a real name. */
+const NEW_STREAM_SENTINEL = "new";
+
 export function StreamCanvas({ streamName, templateId, prefill }: Props) {
   const { navigate } = useMode();
   const { streams: registry, refresh: refreshRegistry, addStream } = useRegisteredStreams();
   const [draft, setDraft] = useState<StreamDraft>(() =>
     initialDraft(streamName, templateId, prefill ?? null),
   );
-  const [pendingStreamName, setPendingStreamName] = useState<string | null>(streamName);
+  // `streamName === "new"` is a URL sentinel, not a registered stream — the
+  // pending name must start null so the "Register stream" banner shows and
+  // Activate stays gated until the user creates the real stream.
+  const [pendingStreamName, setPendingStreamName] = useState<string | null>(
+    streamName === NEW_STREAM_SENTINEL ? null : streamName,
+  );
   const [walkThrough, setWalkThrough] = useState(() => {
     migrateLegacyStorageKey(LEGACY_WALK_THROUGH_KEY, WALK_THROUGH_KEY);
     try {
@@ -243,10 +251,13 @@ function initialDraft(
   // carries more information (example row → sample CSV, inferred key_cols).
   // It only applies to a brand-new draft — we never stomp a stream the
   // user is editing in place.
-  if (prefill && (streamName === null || streamName === "new")) {
+  if (prefill && (streamName === null || streamName === NEW_STREAM_SENTINEL)) {
     return prefilledDraft(prefill);
   }
-  if (streamName) {
+  // `streamName === "new"` is the URL sentinel for create-mode; don't pre-fill
+  // the identity field with the literal string — the user needs an empty
+  // field to type the real name into.
+  if (streamName && streamName !== NEW_STREAM_SENTINEL) {
     return {
       ...EMPTY_DRAFT,
       identity: { ...EMPTY_DRAFT.identity, stream_name: streamName },
