@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { InspectorRouter } from "./InspectorRouter";
 import { useFocus } from "../../providers/FocusProvider";
+import { useHotkeys } from "../../hooks/useHotkeys";
 import { INSPECTOR_COLUMN_OPEN_KEY, INSPECTOR_COLUMN_WIDTH_PX } from "../../constants";
 
 const HANDLE_WIDTH_PX = 18;
@@ -15,6 +16,9 @@ const HANDLE_WIDTH_PX = 18;
  * Always visible in the layout (collapsible). The collapse handle is
  * anchored to the column's left edge so the affordance is in the same
  * location whether the column is expanded or collapsed.
+ *
+ * `[` / `]` hotkeys toggle visibility while the workbench is mounted; the
+ * last choice is persisted to localStorage so it survives a reload.
  */
 export function InspectorColumn() {
   const [open, setOpen] = useState<boolean>(() => {
@@ -27,16 +31,9 @@ export function InspectorColumn() {
     try { localStorage.setItem(INSPECTOR_COLUMN_OPEN_KEY, String(next)); } catch { /* ignore */ }
   }, []);
 
-  // External keyboard toggles ([ / ]) write to localStorage and dispatch a
-  // synthetic StorageEvent. Sync local state when the key is touched.
-  useEffect(() => {
-    function onStorage(e: StorageEvent) {
-      if (e.key !== INSPECTOR_COLUMN_OPEN_KEY) return;
-      try { setOpen(localStorage.getItem(INSPECTOR_COLUMN_OPEN_KEY) !== "false"); } catch { /* ignore */ }
-    }
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  const toggleOpen = useCallback(() => persistOpen(!open), [open, persistOpen]);
+
+  useHotkeys({ "[": toggleOpen, "]": toggleOpen });
 
   const totalWidth = open ? INSPECTOR_COLUMN_WIDTH_PX : HANDLE_WIDTH_PX;
 

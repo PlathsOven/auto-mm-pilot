@@ -17,7 +17,6 @@ import { useFocus } from "./providers/FocusProvider";
 import { useCommandPalette } from "./providers/CommandPaletteProvider";
 import { useTimeOnApp } from "./hooks/useTimeOnApp";
 import { useHotkeys } from "./hooks/useHotkeys";
-import { INSPECTOR_COLUMN_OPEN_KEY } from "./constants";
 
 const MODE_PAGES: Record<ModeId, React.FC> = {
   workbench: WorkbenchPage,
@@ -51,27 +50,16 @@ export function App() {
   // — same key both directions matches the user's "one gesture" principle.
   const toggleCheatsheet = useCallback(() => setCheatsheetOpen((v) => !v), []);
 
-  // Bare-key workbench hotkeys. Modifier-bearing shortcuts (⌘K palette,
-  // ⌘/ chat) are owned by their respective components — kept separate so
-  // useHotkeys can refuse modified events without conflict.
-  const toggleInspector = useCallback(() => {
-    try {
-      const v = localStorage.getItem(INSPECTOR_COLUMN_OPEN_KEY);
-      const next = v === "false" ? "true" : "false";
-      localStorage.setItem(INSPECTOR_COLUMN_OPEN_KEY, next);
-      window.dispatchEvent(new StorageEvent("storage", { key: INSPECTOR_COLUMN_OPEN_KEY }));
-    } catch {
-      // ignore — private mode
-    }
-  }, []);
-
+  // Bare-key hotkeys owned at the App level. Modifier-bearing shortcuts
+  // (⌘K palette, ⌘/ chat) belong to their respective components — kept
+  // separate so useHotkeys can refuse modified events without conflict.
+  // `[` / `]` (inspector toggle) are scoped to InspectorColumn itself and
+  // only fire while the workbench is mounted.
   useHotkeys({
     "Escape": () => {
       if (cheatsheetOpen) setCheatsheetOpen(false);
       else clearFocus();
     },
-    "[": toggleInspector,
-    "]": toggleInspector,
     "?": toggleCheatsheet,
     "g c": () => toggleDrawer(),
     "g k": () => togglePalette(),
