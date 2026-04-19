@@ -20,7 +20,7 @@
 - **`_WireModel` base for camelCase-on-wire responses.** `server/api/models.py` defines `_WireModel(BaseModel)` with `alias_generator=to_camel` + `populate_by_name=True`. Pipeline time-series (`PipelineTimeSeriesResponse`, `AggregatedTimeSeries`, `BlockTimeSeries`, etc.) and the WebSocket broadcast payload (`ServerPayload`, `DesiredPosition`, `UpdateCard`, `DataStream`, `GlobalContext`) inherit from it so their fields stay snake_case in Python but emit camelCase JSON. Snake-case-on-wire models (`BlockRowResponse`, `StreamResponse`, `BlockConfigPayload`) stay on plain `BaseModel`.
 - **Async httpx** for outbound HTTP (OpenRouter). Never `requests`.
 - **Polars columnar expressions** for all pipeline math. Lazy where possible.
-- **react-grid-layout** for the dashboard panel layout. Panels are declared in `LayoutProvider.tsx`.
+- **AppShell chrome.** Every authenticated page renders inside `client/ui/src/components/shell/AppShell.tsx` — `<LeftNav/>` + main slot + `<StatusBar/>`. The focus-driven Workbench (`pages/WorkbenchPage.tsx` + `providers/FocusProvider.tsx`) replaced the old draggable-panel dashboard.
 - **React Context providers** for cross-component state (WebSocket, Layout, Chat). No prop drilling beyond 2 levels.
 - **SSE streaming** from the server for LLM responses. Chunks are assembled on the client.
 - **Singleton WebSocket ticker** on the server. One source of truth for pipeline state across all clients.

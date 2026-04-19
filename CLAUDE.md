@@ -32,7 +32,7 @@ Client ingests + displays; server computes. Core math in `server/core/` is off-l
 - **Polars, never Pandas.** No `iterrows`, no scalar loops over DataFrames.
 - **Pydantic at API boundary** (server), TS interfaces at API boundary (client). No raw dicts.
 - **Async httpx** for outbound HTTP (OpenRouter). No `requests`.
-- **react-grid-layout** for panels; Context providers for cross-component state (no prop drilling >2 levels).
+- **AppShell chrome** (`client/ui/src/components/shell/AppShell.tsx` = LeftNav + main slot + StatusBar) wraps every authenticated page; the focus-driven Workbench replaces the old draggable-panel model. Context providers for cross-component state (no prop drilling >2 levels).
 - **Named exports only.** No barrel files, no default exports.
 - **No magic numbers** — hoist to a named constant with a comment if non-obvious.
 
