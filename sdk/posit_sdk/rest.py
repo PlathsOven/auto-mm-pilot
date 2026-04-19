@@ -8,10 +8,13 @@ from posit_sdk.models import (
     BankrollResponse,
     BlockConfig,
     BlockRowResponse,
+    HealthResponse,
     MarketValueEntry,
+    PositionPayload,
     SnapshotResponse,
     SnapshotRow,
     StreamResponse,
+    StreamState,
 )
 
 _DEFAULT_TIMEOUT = 30.0
@@ -59,6 +62,39 @@ class RestClient:
             except Exception:
                 detail = resp.text
             raise PositApiError(resp.status_code, str(detail))
+
+    # ----- Pipeline config -----
+
+    async def get_dimension_cols(self) -> list[str]:
+        """Return the server's required risk-dimension key columns.
+
+        The SDK caches this on first call — it is stable server config
+        (currently ``["symbol", "expiry"]``) but fetched rather than
+        hardcoded so it remains correct across server upgrades.
+        """
+        resp = await self._client.get("/api/pipeline/dimensions")
+        self._raise_for_status(resp)
+        data = resp.json()
+        cols = data.get("dimensionCols") or data.get("dimension_cols") or []
+        return list(cols)
+
+    # ----- Observability -----
+
+    async def health(self) -> HealthResponse:
+        resp = await self._client.get("/api/health")
+        self._raise_for_status(resp)
+        return HealthResponse(**resp.json())
+
+    async def describe_stream(self, stream_name: str) -> StreamState:
+        resp = await self._client.get(f"/api/streams/{stream_name}")
+        self._raise_for_status(resp)
+        return StreamState(**resp.json())
+
+    async def get_positions(self) -> PositionPayload:
+        """One-shot REST snapshot of the latest pipeline broadcast payload."""
+        resp = await self._client.get("/api/positions")
+        self._raise_for_status(resp)
+        return PositionPayload.model_validate(resp.json())
 
     # ----- Streams -----
 

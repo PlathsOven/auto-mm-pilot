@@ -29,8 +29,10 @@ from server.api.auth.tokens import resolve_user_id_from_session
 from server.api.config import TICK_INTERVAL_SECS
 from server.api.engine_state import get_pipeline_results, rerun_pipeline
 from server.api.market_value_store import clear_dirty, is_dirty
-from server.api.models import ServerPayload
+from server.api.models import ServerPayload, SilentStreamAlert, UnregisteredPushAttempt
+from server.api.silent_stream_store import get_store as get_silent_stream_store
 from server.api.stream_registry import get_stream_registry
+from server.api.unregistered_push_store import get_store as get_unregistered_push_store
 from server.api.ws_serializers import (
     context_at_tick,
     positions_at_tick,
@@ -92,22 +94,60 @@ def active_connection_counts() -> dict[str, int]:
 # Payload building
 # ---------------------------------------------------------------------------
 
-def _build_payload(streams: list, context: dict, positions: list, updates: list) -> str:
+def _build_payload(
+    streams: list,
+    context: dict,
+    positions: list,
+    updates: list,
+    unregistered_pushes: list | None = None,
+    silent_streams: list | None = None,
+) -> str:
     return ServerPayload(
         streams=streams,
         context=context,
         positions=positions,
         updates=updates,
+        unregistered_pushes=unregistered_pushes or [],
+        silent_streams=silent_streams or [],
     ).model_dump_json(by_alias=True)
 
 
-def _heartbeat_payload() -> str:
+def _unregistered_pushes_for(user_id: str) -> list[UnregisteredPushAttempt]:
+    return [
+        UnregisteredPushAttempt(
+            stream_name=a.stream_name,
+            example_row=a.example_row,
+            attempt_count=a.attempt_count,
+            first_seen=a.first_seen.isoformat(),
+            last_seen=a.last_seen.isoformat(),
+        )
+        for a in get_unregistered_push_store(user_id).list()
+    ]
+
+
+def _silent_streams_for(user_id: str) -> list[SilentStreamAlert]:
+    return [
+        SilentStreamAlert(
+            stream_name=c.stream_name,
+            rows_seen=c.rows_seen,
+            first_seen=c.first_seen.isoformat(),
+            last_seen=c.last_seen.isoformat(),
+        )
+        for c in get_silent_stream_store(user_id).list()
+    ]
+
+
+def _heartbeat_payload(user_id: str | None = None) -> str:
     now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    unregistered = _unregistered_pushes_for(user_id) if user_id else []
+    silent = _silent_streams_for(user_id) if user_id else []
     return _build_payload(
         streams=[],
         context={"lastUpdateTimestamp": now_ms},
         positions=[],
         updates=[],
+        unregistered_pushes=unregistered,
+        silent_streams=silent,
     )
 
 
@@ -147,11 +187,11 @@ def _build_user_payload_sync(user_id: str, real_now: datetime) -> str:
     """
     results = get_pipeline_results(user_id)
     if results is None:
-        return _heartbeat_payload()
+        return _heartbeat_payload(user_id)
 
     timeline = _extract_timeline(results)
     if timeline is None:
-        return _heartbeat_payload()
+        return _heartbeat_payload(user_id)
 
     desired_pos_df, blocks_df, timestamps = timeline
     state = _get_state(user_id)
@@ -180,13 +220,22 @@ def _build_user_payload_sync(user_id: str, real_now: datetime) -> str:
             state.prev_positions[key] = pos["desiredPos"]
         state.last_ts_idx = ts_idx
 
-    streams = streams_from_blocks(blocks_df, timestamps[0])
+    registry = get_stream_registry(user_id)
+    allowed_stream_names = {r.stream_name for r in registry.list_streams()}
+    streams = streams_from_blocks(blocks_df, timestamps[0], allowed_names=allowed_stream_names)
     ts_ms = int(real_now.timestamp() * 1000)
     for s in streams:
         s["lastHeartbeat"] = ts_ms
 
     state.tick_count += 1
-    return _build_payload(streams, context_at_tick(ts), positions, updates)
+    return _build_payload(
+        streams,
+        context_at_tick(ts),
+        positions,
+        updates,
+        _unregistered_pushes_for(user_id),
+        _silent_streams_for(user_id),
+    )
 
 
 # ---------------------------------------------------------------------------

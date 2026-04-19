@@ -47,24 +47,34 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `.claude/commands/*.md` | Claude Code slash commands (harness primary) |
 | `.windsurf/workflows/*.md` | Windsurf workflows (harness secondary, must mirror `.claude/commands/`) |
 | `.claude/settings.json` | Claude Code hooks: block `server/core/` writes, typecheck + drift-check on Stop |
-| `client/ui/src/App.tsx` | Root layout — modular dashboard (react-grid-layout) |
-| `client/ui/src/providers/LayoutProvider.tsx` | Panel state manager — open/close/duplicate panels, localStorage persistence |
-| `client/ui/src/components/PanelWindow.tsx` | Draggable/resizable panel wrapper with title bar |
-| `client/ui/src/types.ts` | **Canonical TypeScript interfaces for all client-side data shapes.** Read before any feature crossing the API boundary. |
+| `client/ui/src/App.tsx` | Mounts `<AppShell/>` + global overlays (CommandPalette, HotkeyCheatsheet, OnboardingFlow, BlockDrawer). Hotkey wiring (`?`, `[`, `]`, `g`-chords). |
+| `client/ui/src/components/shell/AppShell.tsx` | Three-region authenticated chrome — left `<LeftNav/>`, main slot, bottom `<StatusBar/>`. Replaces the deleted `GlobalContextBar`. |
+| `client/ui/src/components/shell/LeftNav.tsx` | Collapsible left sidebar — brand, mode nav, palette/chat/onboarding actions, `<UserMenu/>` pinned at the bottom. Persists collapsed state. |
+| `client/ui/src/components/shell/StatusBar.tsx` | 24px bottom strip — WS state, last-tick freshness, Posit Control toggle (advisory until server hook lands), palette + cheatsheet hints, UTC clock. |
+| `client/ui/src/components/ui/Tabs.tsx` | Reusable tab strip primitive (pill + underline variants). Used by WorkbenchRail, DesiredPositionGrid view modes, LlmChat mode select. |
+| `client/ui/src/components/ui/Sidebar.tsx` | Reusable sidebar shell (collapsible, glass). Used by LeftNav today; `WorkbenchRail` and Anatomy `StreamSidebar` keep their bespoke shells (Phase 3 cleanup candidate). |
+| `client/ui/src/pages/WorkbenchPage.tsx` | **Unified Workbench** — replaces the old Floor + Brain pages. Position grid + streams + updates + block table on the canvas, focus-driven Inspector + Chat in the right rail. |
+| `client/ui/src/components/workbench/WorkbenchRail.tsx` | Right rail with Inspector + Chat tabs; collapsible (persisted), responds to `[` / `]` and to `investigate()` from `ChatProvider`. |
+| `client/ui/src/components/workbench/InspectorRouter.tsx` | Routes Inspector content based on current `Focus` kind. |
+| `client/ui/src/components/workbench/inspectors/*.tsx` | One file per focus kind: `CellInspector`, `SymbolExpiryInspector`, `StreamInspector`, `BlockInspector`, `EmptyInspector`. |
+| `client/ui/src/components/workbench/HotkeyCheatsheet.tsx` | `?`-triggered overlay listing every workbench keyboard shortcut. |
+| `client/ui/src/providers/FocusProvider.tsx` | Workbench focus state — typed `Focus` union (cell / symbol / expiry / stream / block). Replaces the old `SelectionProvider`. |
+| `client/ui/src/hooks/useHotkeys.ts` | Bare-key + `g`-prefix chord hotkey hook. Skips events while typing in inputs. |
+| `client/ui/src/types.ts` | **Canonical TypeScript interfaces for all client-side data shapes.** Read before any feature crossing the API boundary. Includes `Focus` union + `StreamTimeseriesResponse`. |
 | `client/ui/src/providers/WebSocketProvider.tsx` | Central WS state manager — connects to server `/ws`, auto-reconnects |
 | `client/ui/src/constants.ts` | Shared UI constants — magic numbers hoisted from components (Phase 4) |
-| `client/ui/src/providers/ChatProvider.tsx` | Team chat + @Posit LLM routing context |
-| `client/ui/src/components/LlmChat.tsx` | Team Chat panel — messages, note threads, investigation context |
+| `client/ui/src/providers/ChatProvider.tsx` | Team chat + @Posit LLM routing context. `investigate()` no longer auto-opens a drawer — sets context only; the rail surfaces Chat in response. |
+| `client/ui/src/components/LlmChat.tsx` | Team Chat panel — messages, note threads, investigation context. Hosted as a tab inside `WorkbenchRail`. |
 | `client/ui/src/components/ApiDocs.tsx` | Client-facing API documentation panel — shell + short sections; long sections extracted under `apiDocs/` (`QuickstartSection`, `PublicWebSocketSection`, `ClientWebSocketSection`) |
-| `client/ui/src/components/DesiredPositionGrid.tsx` | Zone C — clickable cells push context to LlmChat |
-| `client/ui/src/components/UpdatesFeed.tsx` | Zone D — position-change cards with stream attribution |
-| `client/ui/src/components/PipelineChart.tsx` | Pipeline time-series chart (controlled child) — delegates to `PipelineChart/chartOptions.ts` (ECharts config); paired with `PipelineChart/DecompositionPanel.tsx` in BrainPage |
-| `client/ui/src/components/studio/brain/EditableBlockTable.tsx` | Block Inspector — TanStack Table with column visibility, multi-sort, global filter, row click to open detail drawer |
+| `client/ui/src/components/DesiredPositionGrid.tsx` | Position grid — single-click cell/row/col sets workbench focus (no chat side-effect); double-click edits the cell value. |
+| `client/ui/src/components/UpdatesFeed.tsx` | Position-change update cards — single-click sets focus to the corresponding cell. |
+| `client/ui/src/components/PipelineChart.tsx` | Pipeline time-series chart (controlled child) — reads block focus from `FocusProvider`; series-click toggles block focus. |
+| `client/ui/src/components/studio/brain/EditableBlockTable.tsx` | Block Inspector — TanStack Table; single-click sets block focus, double-click opens BlockDrawer for editing. |
 | `client/ui/src/components/studio/brain/BlockDrawer.tsx` | Unified block drawer — create (empty or LLM-prefilled), edit (manual blocks), inspect (stream blocks). Draft state in `blockDrawerState.ts`, sub-components in `BlockDrawerParts.tsx`, submit + snapshot-edit callbacks in `useBlockDraftSubmit` and `useSnapshotEditor` hooks. |
 | `client/ui/src/pages/AnatomyPage.tsx` | Top-level Anatomy mode — thin wrapper around `AnatomyCanvas` |
 | `client/ui/src/services/engineCommands.ts` | Engine-command parser + executor — strips `engine-command` fenced blocks from LLM text, routes to BlockDrawer or auto-executes |
-| `client/ui/src/components/GlobalContextBar.tsx` | Zone B — global context header |
-| `client/ui/src/components/floor/StreamStatusList.tsx` | Eyes read-only stream list (name + last update) |
+| `client/ui/src/components/floor/StreamStatusList.tsx` | Workbench data-streams list (name + last update). Single-click sets stream focus → opens `StreamInspector` in the rail. |
+| `client/ui/src/services/streamTimeseriesApi.ts` | HTTP client for `GET /api/streams/{name}/timeseries`. Sourced from in-memory snapshot rows. |
 | `client/ui/src/components/studio/StreamLibrary.tsx` | Anatomy — stream CRUD |
 | `client/ui/src/components/studio/StreamCanvas.tsx` | Anatomy — 7-section stream config |
 | `client/ui/src/services/api.ts` | `apiFetch` JSON wrapper + `streamFetchSSE` SSE helper — canonical HTTP/SSE path for every other service module |
@@ -117,6 +127,7 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 4. **Singleton WS ticker** (`server/api/ws.py`) broadcasts pipeline ticks to all connected clients — one source of truth for pipeline state. Restart via `restart_ticker()` when re-running.
 5. **Auth-gated `/ws/client`** (`server/api/client_ws_auth.py`) — API key + IP whitelist, runs before WS accept.
 6. **Pydantic at the server API boundary, TypeScript interfaces at the client API boundary.** No raw dicts crossing the wire.
+7. **Click-to-focus, never click-to-chat.** Single click on any cell, header, stream row, or block sets a typed `Focus` (`FocusProvider`); the right-rail `Inspector` channels to it. Chat is a deliberate second action ("Ask @Posit" button or `⌘/`). Removed the older "click cell → open chat with cell context attached" coupling so inspection stays separate from conversation.
 
 See `docs/decisions.md` for the full reasoning behind each.
 

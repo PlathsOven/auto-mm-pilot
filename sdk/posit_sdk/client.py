@@ -1,21 +1,35 @@
 """PositClient — main entry point for the Posit SDK."""
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import AsyncGenerator
 
+from posit_sdk.exceptions import (
+    PositApiError,
+    PositAuthError,
+    PositConnectionError,
+    PositStreamNotRegistered,
+    PositValidationError,
+)
 from posit_sdk.models import (
     BankrollResponse,
     BlockConfig,
     BlockRowResponse,
+    HealthResponse,
     MarketValueEntry,
     PositionPayload,
     SnapshotResponse,
     SnapshotRow,
     StreamResponse,
+    StreamSpec,
+    StreamState,
     WsAck,
 )
 from posit_sdk.rest import RestClient
-from posit_sdk.ws import WsClient
+from posit_sdk.ws import WsClient, WsState
+
+log = logging.getLogger(__name__)
 
 
 def _http_to_ws(url: str) -> str:
@@ -32,7 +46,8 @@ class PositClient:
             await client.create_stream("rv_btc", key_cols=["symbol", "expiry"])
             await client.configure_stream("rv_btc", scale=1.0)
 
-            # Push data via WebSocket (lower latency)
+            # Push data via WebSocket (lower latency); falls back to REST
+            # when the WS is not OPEN.
             await client.push_snapshot(
                 "rv_btc",
                 rows=[SnapshotRow(timestamp="2024-01-01T00:00:00Z", raw_value=0.65,
@@ -45,6 +60,12 @@ class PositClient:
                     print(pos.symbol, pos.desired_pos)
 
     Pass ``connect_ws=False`` for REST-only mode (no WebSocket connection).
+
+    ``__aenter__`` hard-blocks on auth: a bad API key raises
+    ``PositAuthError`` immediately, so no subsequent call can silently fail
+    against a dead key. Pass ``connect_timeout=None`` to disable the WS
+    readiness wait if you want eager REST access while the WS is still
+    handshaking in the background.
     """
 
     def __init__(
@@ -53,20 +74,49 @@ class PositClient:
         api_key: str,
         *,
         connect_ws: bool = True,
+        connect_timeout: float | None = 10.0,
         ws_reconnect_delay: float = 1.0,
         ws_max_reconnect_delay: float = 60.0,
     ) -> None:
         self._url = url.rstrip("/")
         self._api_key = api_key
         self._connect_ws = connect_ws
+        self._connect_timeout = connect_timeout
         self._ws_reconnect_delay = ws_reconnect_delay
         self._ws_max_reconnect_delay = ws_max_reconnect_delay
         self._rest: RestClient | None = None
         self._ws: WsClient | None = None
+        # Tracks the last WS state we emitted a WARN for, to avoid per-push
+        # log spam when the socket is down and every call is falling back.
+        self._last_warned_ws_state: WsState | None = None
+        # Cache of server's required risk-dimension column names. Fetched
+        # lazily on first create_stream and re-used thereafter — server config,
+        # not per-request data, so caching is safe.
+        self._dimension_cols: list[str] | None = None
+        # Streams for which we have already emitted the "no market_value →
+        # edge will be 0" warning. One WARN per stream per client lifetime.
+        self._market_value_warned: set[str] = set()
+        # Known-registered streams on the server. Populated on __aenter__,
+        # updated after every create/upsert/delete, and invalidated for a
+        # single stream when the server returns STREAM_NOT_REGISTERED. Used
+        # to block pushes to unregistered streams *before* any network call.
+        self._ready_streams: set[str] = set()
 
     async def __aenter__(self) -> "PositClient":
         self._rest = RestClient(self._url, self._api_key)
         await self._rest.__aenter__()
+
+        # Auth hard-block: probe a REST endpoint that requires auth so a bad
+        # key raises here, not on the first user action. The probe doubles as
+        # our initial "which streams already exist" cache.
+        try:
+            streams = await self._rest.list_streams()
+        except PositAuthError:
+            await self._rest.__aexit__(None, None, None)
+            self._rest = None
+            raise
+        self._ready_streams = {s.stream_name for s in streams}
+
         if self._connect_ws:
             self._ws = WsClient(
                 _http_to_ws(self._url) + "/ws/client",
@@ -75,13 +125,34 @@ class PositClient:
                 max_reconnect_delay=self._ws_max_reconnect_delay,
             )
             await self._ws.connect()
+            if self._connect_timeout is not None:
+                try:
+                    await self._ws.wait_until_open(timeout=self._connect_timeout)
+                except (PositAuthError, PositConnectionError):
+                    await self._ws.close()
+                    self._ws = None
+                    await self._rest.__aexit__(None, None, None)
+                    self._rest = None
+                    raise
         return self
 
     async def __aexit__(self, *args: object) -> None:
         if self._ws:
             await self._ws.close()
+            self._ws = None
         if self._rest:
             await self._rest.__aexit__(*args)
+            self._rest = None
+
+    async def wait_until_ready(self, timeout: float = 10.0) -> None:
+        """Block until the WS is OPEN or raise on auth / timeout.
+
+        No-op in REST-only mode (``connect_ws=False``). REST readiness is
+        already guaranteed by ``__aenter__`` — if we returned from the context
+        entry, the API key has been validated.
+        """
+        if self._ws is not None:
+            await self._ws.wait_until_open(timeout)
 
     def _require_rest(self) -> RestClient:
         if self._rest is None:
@@ -96,15 +167,86 @@ class PositClient:
             )
         return self._ws
 
+    def _ws_state(self) -> WsState:
+        return self._ws.state if self._ws is not None else WsState.CLOSED
+
+    def _warn_if_missing_market_value(
+        self, stream_name: str, rows: list[SnapshotRow],
+    ) -> None:
+        """Log once per stream when rows omit ``market_value``.
+
+        Without ``market_value``, each block's market defaults to its own
+        fair value → edge collapses to 0 → desired_pos collapses to 0. The
+        stream looks healthy; positions just silently stay flat. This was
+        the longest rabbit hole in the deribit-pricer integration.
+        """
+        if stream_name in self._market_value_warned:
+            return
+        missing = sum(1 for r in rows if r.market_value is None)
+        if missing == 0:
+            return
+        self._market_value_warned.add(stream_name)
+        log.warning(
+            "Stream %r: %d row(s) pushed without market_value; per-block "
+            "market defaults to fair, so edge will be 0. Set SnapshotRow."
+            "market_value or call set_market_values() to fix.",
+            stream_name, missing,
+        )
+
+    def _maybe_warn_ws_fallback(self) -> None:
+        """Log once per transition when pushes fall back to REST."""
+        state = self._ws_state()
+        if state == self._last_warned_ws_state:
+            return
+        self._last_warned_ws_state = state
+        log.warning(
+            "Posit WS state=%s — push falling back to REST (slower but correct).",
+            state.value,
+        )
+
+    # ----- Observability -----
+
+    async def health(self) -> HealthResponse:
+        """Return the server ``/api/health`` status. Auth-exempt on the server."""
+        return await self._require_rest().health()
+
+    async def describe_stream(self, stream_name: str) -> StreamState:
+        """Return extended state for one stream (config + row_count + last ingest).
+
+        Raises ``PositApiError(404)`` if the stream is not registered.
+        """
+        return await self._require_rest().describe_stream(stream_name)
+
     # ----- Streams -----
 
     async def list_streams(self) -> list[StreamResponse]:
         return await self._require_rest().list_streams()
 
+    async def _get_dimension_cols(self) -> list[str]:
+        """Fetch + cache the server's risk-dimension column names."""
+        if self._dimension_cols is None:
+            self._dimension_cols = await self._require_rest().get_dimension_cols()
+        return self._dimension_cols
+
+    async def _validate_key_cols(self, key_cols: list[str]) -> None:
+        if not key_cols:
+            raise PositValidationError("key_cols must be a non-empty list")
+        if len(set(key_cols)) != len(key_cols):
+            raise PositValidationError(f"key_cols contains duplicates: {key_cols}")
+        required = await self._get_dimension_cols()
+        missing = [c for c in required if c not in key_cols]
+        if missing:
+            raise PositValidationError(
+                f"key_cols must include risk dimensions {required}; missing {missing}"
+            )
+
     async def create_stream(
         self, name: str, key_cols: list[str],
     ) -> StreamResponse:
-        return await self._require_rest().create_stream(name, key_cols)
+        await self._validate_key_cols(key_cols)
+        resp = await self._require_rest().create_stream(name, key_cols)
+        self._ready_streams.add(name)
+        return resp
 
     async def update_stream(
         self,
@@ -132,14 +274,153 @@ class PositClient:
 
     async def delete_stream(self, stream_name: str) -> None:
         await self._require_rest().delete_stream(stream_name)
+        self._ready_streams.discard(stream_name)
+
+    async def upsert_stream(
+        self,
+        stream_name: str,
+        *,
+        key_cols: list[str],
+        scale: float = 1.0,
+        offset: float = 0.0,
+        exponent: float = 1.0,
+        block: BlockConfig | None = None,
+    ) -> StreamResponse:
+        """Idempotent stream setup — create-if-absent, reconfigure-if-present.
+
+        If ``key_cols`` has changed on a pre-existing stream, the stream is
+        deleted and recreated (snapshot rows are cleared as a side-effect;
+        an ``INFO`` log records the replacement). For everything else the
+        call is a no-op on already-matching state — safe to drop into a
+        startup script that runs on every process launch.
+
+        Returns the final ``StreamResponse`` (READY after configure).
+        """
+        await self._validate_key_cols(key_cols)
+
+        existing_by_name = {s.stream_name: s for s in await self.list_streams()}
+        existing = existing_by_name.get(stream_name)
+
+        if existing is not None and list(existing.key_cols) != list(key_cols):
+            log.info(
+                "Stream %r key_cols changed %s -> %s; recreating.",
+                stream_name, existing.key_cols, key_cols,
+            )
+            await self._require_rest().delete_stream(stream_name)
+            existing = None
+
+        created_fresh = existing is None
+        if created_fresh:
+            await self._require_rest().create_stream(stream_name, key_cols)
+
+        self._ready_streams.add(stream_name)
+        try:
+            return await self._require_rest().configure_stream(
+                stream_name,
+                scale=scale,
+                offset=offset,
+                exponent=exponent,
+                block=block,
+            )
+        except Exception:
+            # Self-rollback: if we just created the stream fresh, roll it back
+            # so upsert is atomic from the caller's point of view.
+            if created_fresh:
+                try:
+                    await self._require_rest().delete_stream(stream_name)
+                except Exception:
+                    log.exception(
+                        "Rollback after failed configure of %r also failed", stream_name,
+                    )
+                self._ready_streams.discard(stream_name)
+            raise
+
+    async def bootstrap_streams(
+        self,
+        specs: list[StreamSpec],
+        *,
+        bankroll: float | None = None,
+    ) -> list[StreamResponse]:
+        """Upsert a batch of streams and optionally set bankroll — atomically.
+
+        If any step raises, every stream this call newly created (not the
+        ones it merely reconfigured) is rolled back via ``delete_stream`` so
+        the desk is not left in a half-configured state. Pre-existing
+        streams that were reconfigured are left in their updated state —
+        we do not have the prior config to revert to, and the caller asked
+        for a setup that explicitly allows reconfiguration.
+        """
+        existing_names = {s.stream_name for s in await self.list_streams()}
+        created_by_us: list[str] = []
+        responses: list[StreamResponse] = []
+        try:
+            for spec in specs:
+                was_new = spec.stream_name not in existing_names
+                resp = await self.upsert_stream(
+                    spec.stream_name,
+                    key_cols=spec.key_cols,
+                    scale=spec.scale,
+                    offset=spec.offset,
+                    exponent=spec.exponent,
+                    block=spec.block,
+                )
+                if was_new:
+                    created_by_us.append(spec.stream_name)
+                responses.append(resp)
+
+            if bankroll is not None:
+                await self._require_rest().set_bankroll(bankroll)
+
+        except Exception:
+            for name in reversed(created_by_us):
+                try:
+                    await self._require_rest().delete_stream(name)
+                except Exception:
+                    log.exception("Rollback failed for stream %r", name)
+            raise
+
+        return responses
 
     # ----- Snapshots (REST) -----
+
+    def _assert_registered(self, stream_name: str) -> None:
+        """Block pushes to unregistered streams before any network call.
+
+        The cache is populated on ``__aenter__`` and updated after every
+        create / delete / upsert. If it drifts (e.g. the server was restarted
+        and forgot the registry), the server will return a 409 that we
+        translate to the same exception — so callers see one error type
+        regardless of where the check fires.
+        """
+        if stream_name not in self._ready_streams:
+            raise PositStreamNotRegistered(stream_name)
+
+    def _handle_not_registered(self, stream_name: str, exc: PositApiError) -> bool:
+        """Return True if the server told us the stream is not registered.
+
+        Side-effect: drops the stream from the local cache so a subsequent
+        ``list_streams()`` or ``upsert_stream`` can rebuild from truth.
+        """
+        if exc.status_code != 409:
+            return False
+        # Structured detail from the server: {"code": "STREAM_NOT_REGISTERED", ...}
+        if "STREAM_NOT_REGISTERED" not in exc.message:
+            return False
+        self._ready_streams.discard(stream_name)
+        return True
 
     async def ingest_snapshot(
         self, stream_name: str, rows: list[SnapshotRow],
     ) -> SnapshotResponse:
         """Ingest snapshot rows via REST.  Use push_snapshot() for lower latency."""
-        return await self._require_rest().ingest_snapshot(stream_name, rows)
+        self._assert_registered(stream_name)
+        self._warn_if_missing_market_value(stream_name, rows)
+        try:
+            return await self._require_rest().ingest_snapshot(stream_name, rows)
+        except PositApiError as exc:
+            if self._handle_not_registered(stream_name, exc):
+                raise PositStreamNotRegistered(stream_name) from exc
+            raise
 
     # ----- Bankroll -----
 
@@ -213,22 +494,112 @@ class PositClient:
     async def delete_market_value(self, symbol: str, expiry: str) -> None:
         await self._require_rest().delete_market_value(symbol, expiry)
 
-    # ----- WebSocket -----
+    # ----- Pushes (WS preferred, REST fallback) -----
 
     async def push_snapshot(
         self, stream_name: str, rows: list[SnapshotRow],
     ) -> WsAck:
-        """Push snapshot rows via WebSocket (lower latency than REST ingest)."""
-        return await self._require_ws().push_snapshot(stream_name, rows)
+        """Push snapshot rows.
+
+        Uses the WebSocket when ``state == OPEN``; falls back to the REST
+        ``ingest_snapshot`` otherwise so a downed WS never silently swallows
+        pushes. The fallback logs one WARN per state transition, not per call.
+
+        Raises ``PositStreamNotRegistered`` synchronously if the target stream
+        is not known to be registered on the server — ensuring no snapshot
+        rows ever reach an unregistered stream.
+        """
+        self._assert_registered(stream_name)
+        self._warn_if_missing_market_value(stream_name, rows)
+        if self._ws_state() == WsState.OPEN:
+            return await self._require_ws().push_snapshot(stream_name, rows)
+        self._maybe_warn_ws_fallback()
+        try:
+            resp = await self._require_rest().ingest_snapshot(stream_name, rows)
+        except PositApiError as exc:
+            if self._handle_not_registered(stream_name, exc):
+                raise PositStreamNotRegistered(stream_name) from exc
+            raise
+        return WsAck(
+            type="ack",
+            seq=-1,
+            rows_accepted=resp.rows_accepted,
+            pipeline_rerun=resp.pipeline_rerun,
+        )
 
     async def push_market_values(
         self, entries: list[MarketValueEntry],
     ) -> WsAck:
-        """Push market value entries via WebSocket."""
-        return await self._require_ws().push_market_values(entries)
+        """Push market value entries.
 
-    async def positions(self) -> AsyncGenerator[PositionPayload, None]:
-        """Async generator that yields incoming pipeline position payloads."""
-        ws = self._require_ws()
-        async for payload in ws.positions():
+        Uses the WebSocket when ``state == OPEN``; falls back to the REST
+        ``set_market_values`` otherwise. REST semantics replace the full set
+        (matches the WS behaviour — ``mv_set_entries`` on the server).
+        """
+        if self._ws_state() == WsState.OPEN:
+            return await self._require_ws().push_market_values(entries)
+        self._maybe_warn_ws_fallback()
+        stored = await self._require_rest().set_market_values(entries)
+        return WsAck(type="ack", seq=-1, rows_accepted=len(stored), pipeline_rerun=False)
+
+    async def get_positions(self) -> PositionPayload:
+        """One-shot REST snapshot of the latest pipeline broadcast payload.
+
+        Useful from notebooks or any context that does not want to keep a
+        WebSocket open. ``positions()`` polls this when the WS is down.
+        """
+        return await self._require_rest().get_positions()
+
+    async def positions(
+        self, *, poll_interval: float = 2.0,
+    ) -> AsyncGenerator[PositionPayload, None]:
+        """Yield pipeline position payloads, preferring WS and polling as fallback.
+
+        When the WS is ``OPEN`` at the time of the call, payloads stream
+        directly through the socket (live, lowest latency). Otherwise the
+        iterator degrades to polling ``GET /api/positions`` at ``poll_interval``
+        and yields only when the payload changes. Emits exactly one ``WARNING``
+        per degradation so the caller knows latency / freshness characteristics
+        have changed.
+        """
+        if self._ws is not None and self._ws.state == WsState.OPEN:
+            ws = self._ws
+            async for payload in ws.positions():
+                yield payload
+            # ws.positions() returns only on close()/FAILED_AUTH. If the
+            # client context is still open, degrade to polling.
+            if self._rest is None:
+                return
+            log.warning(
+                "Posit WS closed (state=%s); positions() degraded to REST polling.",
+                self._ws.state.value,
+            )
+            async for payload in self._poll_positions(poll_interval):
+                yield payload
+            return
+
+        log.warning(
+            "Posit WS not OPEN (state=%s); positions() degraded to REST polling.",
+            self._ws.state.value if self._ws is not None else "NONE",
+        )
+        async for payload in self._poll_positions(poll_interval):
             yield payload
+
+    async def _poll_positions(
+        self, poll_interval: float,
+    ) -> AsyncGenerator[PositionPayload, None]:
+        last_seen: str | None = None
+        while self._rest is not None:
+            try:
+                payload = await self.get_positions()
+            except PositApiError as exc:
+                # 404 = no tick yet; keep waiting. Anything else bubbles up.
+                if exc.status_code == 404:
+                    await asyncio.sleep(poll_interval)
+                    continue
+                raise
+            current = payload.model_dump_json(by_alias=True)
+            if current != last_seen:
+                last_seen = current
+                yield payload
+            await asyncio.sleep(poll_interval)

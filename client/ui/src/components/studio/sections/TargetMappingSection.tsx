@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useTransforms } from "../../../providers/TransformsProvider";
 import type { TargetMappingDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
@@ -7,7 +8,8 @@ interface Props {
   value: TargetMappingDraft;
   onChange: (next: TargetMappingDraft) => void;
   state: SectionState;
-  dimmed?: boolean;
+  expanded?: boolean;
+  nav?: ReactNode;
 }
 
 /**
@@ -18,7 +20,7 @@ interface Props {
  * stores the values in TargetMappingDraft (scale/offset/exponent), which
  * matches the existing `affine_power` shape used by the configure endpoint.
  */
-export function TargetMappingSection({ value, onChange, state, dimmed }: Props) {
+export function TargetMappingSection({ value, onChange, state, expanded, nav }: Props) {
   const { steps } = useTransforms();
   const activeName = steps?.unit_conversion?.selected ?? "affine_power";
 
@@ -44,26 +46,81 @@ export function TargetMappingSection({ value, onChange, state, dimmed }: Props) 
       number={3}
       status={state.status}
       message={state.message}
-      dimmed={dimmed}
-      mathDisclosure={
-        <p>
-          Active <code className="text-mm-accent">unit_conversion</code> = <strong>{activeName}</strong>.
-          Maps each raw row to a target-space value: <code>target = scale × raw^exponent + offset</code>.
-        </p>
-      }
+      expanded={expanded}
+      nav={nav}
     >
-      <div className="grid grid-cols-3 gap-3">
-        <Field type="number" label="scale" value={value.scale} onChange={(v) => patch("scale", v)} />
-        <Field type="number" label="offset" value={value.offset} onChange={(v) => patch("offset", v)} />
-        <Field type="number" label="exponent" value={value.exponent} onChange={(v) => patch("exponent", v)} />
+      <TransformBadge name={activeName} />
+      <div className="mt-2 grid grid-cols-3 gap-3">
+        <Field type="number" label="scale" required value={value.scale} onChange={(v) => patch("scale", v)} />
+        <Field type="number" label="offset" required value={value.offset} onChange={(v) => patch("offset", v)} />
+        <Field type="number" label="exponent" required value={value.exponent} onChange={(v) => patch("exponent", v)} />
       </div>
 
-      <div className="mt-3 rounded-md border border-black/[0.06] bg-black/[0.03] p-2">
-        <div className="mb-1 text-[10px] text-mm-text-dim">target = f(raw)</div>
-        <svg viewBox="0 0 100 50" preserveAspectRatio="none" className="h-12 w-full">
+      <div className="mt-3 grid gap-2 rounded-md border border-black/[0.06] bg-black/[0.03] px-3 py-2">
+        <div className="flex items-baseline justify-between">
+          <span className="text-[10px] uppercase tracking-wider text-mm-text-dim">Equation</span>
+          <span className="text-[9px] text-mm-text-dim/80">target = f(raw)</span>
+        </div>
+        <Equation scale={value.scale} offset={value.offset} exponent={value.exponent} />
+        <svg viewBox="0 0 100 50" preserveAspectRatio="none" className="h-10 w-full opacity-80">
           <polyline points={points} fill="none" stroke="#4f5bd5" strokeWidth="0.6" />
         </svg>
       </div>
     </SectionCard>
   );
+}
+
+/** Render `target = scale · raw^exponent + offset` with live parameter
+ *  substitution. Uses semantic `<sup>` for the exponent — no LaTeX dep. */
+function Equation({
+  scale,
+  offset,
+  exponent,
+}: {
+  scale: number;
+  offset: number;
+  exponent: number;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-[12px] leading-tight text-mm-text">
+      <span className="italic">target</span>
+      <span className="text-mm-text-dim">=</span>
+      <Num value={scale} />
+      <span className="text-mm-text-dim">·</span>
+      <span className="italic">raw</span>
+      <sup className="-ml-0.5 text-[10px]">
+        <Num value={exponent} />
+      </sup>
+      <span className="text-mm-text-dim">{offset >= 0 ? "+" : "−"}</span>
+      <Num value={Math.abs(offset)} />
+    </div>
+  );
+}
+
+/** Small inline pill naming the active pipeline transform behind this
+ *  section — replaces the old "Show me the math" disclosure. */
+function TransformBadge({ name }: { name: string }) {
+  return (
+    <div className="flex items-center gap-1.5 text-[10px] text-mm-text-dim">
+      <span>Transform</span>
+      <code className="rounded bg-mm-accent/10 px-1.5 py-0.5 font-mono text-mm-accent">
+        {name}
+      </code>
+    </div>
+  );
+}
+
+function Num({ value }: { value: number }) {
+  if (!Number.isFinite(value)) return <span className="text-mm-error">?</span>;
+  return <span className="tabular-nums text-mm-accent">{formatNum(value)}</span>;
+}
+
+/** Short human-friendly numeric formatter — keeps the equation readable when
+ *  the architect types 0.000001 or 1.23456789. */
+function formatNum(n: number): string {
+  if (n === 0) return "0";
+  const abs = Math.abs(n);
+  if (abs >= 1000 || abs < 0.001) return n.toExponential(2);
+  // Strip trailing zeros after the decimal point.
+  return Number.parseFloat(n.toFixed(4)).toString();
 }

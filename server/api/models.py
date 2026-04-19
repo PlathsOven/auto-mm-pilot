@@ -132,6 +132,55 @@ class StreamListResponse(BaseModel):
     streams: list[StreamResponse]
 
 
+class StreamStateResponse(BaseModel):
+    """Extended stream metadata — configuration plus ingestion state.
+
+    Returned from ``GET /api/streams/{name}``. A superset of ``StreamResponse``
+    with the operational fields integrators need when debugging ("is data
+    arriving? how many rows? when was the last push?") — the subset that
+    was only observable via `curl` + manual header juggling before.
+    """
+    stream_name: str
+    key_cols: list[str]
+    status: Literal["PENDING", "READY"]
+    scale: float | None = None
+    offset: float | None = None
+    exponent: float | None = None
+    block: BlockConfigPayload | None = None
+    row_count: int
+    last_ingest_ts: str | None = None
+
+
+class StreamTimeseriesPoint(BaseModel):
+    """One point in a single stream-key time series."""
+    timestamp: str
+    raw_value: float
+    market_value: float | None = None
+
+
+class StreamKeyTimeseries(BaseModel):
+    """Time series for one unique key-column combination within a stream."""
+    key: dict[str, str]
+    points: list[StreamTimeseriesPoint]
+
+
+class StreamTimeseriesResponse(BaseModel):
+    """Response for ``GET /api/streams/{stream_name}/timeseries``.
+
+    Groups the stream's snapshot rows by key-column combination so each unique
+    key (e.g. ``{symbol: BTC, expiry: 27MAR26}``) gets its own value series.
+
+    `status` + `row_count` let the client distinguish between "stream missing"
+    (404), "stream registered but no rows yet" (empty series), and the
+    healthy case (populated series).
+    """
+    stream_name: str
+    key_cols: list[str]
+    status: Literal["PENDING", "READY"]
+    row_count: int
+    series: list[StreamKeyTimeseries]
+
+
 # ---------------------------------------------------------------------------
 # Snapshot ingestion
 # ---------------------------------------------------------------------------
@@ -413,7 +462,15 @@ class GlobalContext(_WireModel):
 
 
 class DesiredPosition(_WireModel):
-    """One row of the desired-position grid."""
+    """One row of the desired-position grid.
+
+    Variance-space scalars (``edge`` / ``variance`` / ``total_fair`` / …) are
+    kept for the math-facing surfaces (``LiveEquationStrip``, pipeline chart).
+    The ``*_vol`` fields lift those back into annualised vol points via the
+    inverse of ``total_vol ** 2 → aggregate_var`` — sum the per-grid-cell
+    variance-unit value from the current tick to expiry, divide by T in
+    years, sign-preserving sqrt. That's the number an options trader reads.
+    """
     symbol: str
     expiry: str
     edge: float
@@ -425,6 +482,12 @@ class DesiredPosition(_WireModel):
     current_pos: float
     total_fair: float
     total_market_fair: float
+    edge_vol: float
+    smoothed_edge_vol: float
+    variance_vol: float
+    smoothed_var_vol: float
+    total_fair_vol: float
+    total_market_fair_vol: float
     change_magnitude: float
     updated_at: int
 
@@ -440,12 +503,47 @@ class UpdateCard(_WireModel):
     timestamp: int
 
 
+class UnregisteredPushAttempt(_WireModel):
+    """One entry in the unregistered-stream push notification list.
+
+    Populated by the snapshots router / client WS when a caller pushes to
+    a ``stream_name`` the server does not know, so the UI can render a
+    notification with an example row and a "Register this stream" CTA that
+    deep-links into Anatomy with the stream form pre-filled. The caller
+    itself still receives 409 ``STREAM_NOT_REGISTERED`` — this model is the
+    operator-side surface, not an ingest path.
+    """
+    stream_name: str
+    example_row: dict[str, Any]
+    attempt_count: int
+    first_seen: str  # ISO 8601 UTC
+    last_seen: str  # ISO 8601 UTC
+
+
+class SilentStreamAlert(_WireModel):
+    """A READY stream whose recent snapshots carried no ``market_value``.
+
+    When a stream emits only ``raw_value``, the pipeline defaults
+    market-implied value to match fair — edge collapses to zero and every
+    desired position reads zero with no explanation. Surfacing the alert
+    lets the trader see the cause. Threshold is ``SILENT_STREAM_THRESHOLD``
+    in ``config.py``; the counter resets the moment a row with a non-None
+    ``market_value`` arrives.
+    """
+    stream_name: str
+    rows_seen: int
+    first_seen: str  # ISO 8601 UTC
+    last_seen: str  # ISO 8601 UTC
+
+
 class ServerPayload(_WireModel):
     """Top-level payload broadcast on ``/ws`` each tick."""
     streams: list[DataStream]
     context: GlobalContext
     positions: list[DesiredPosition]
     updates: list[UpdateCard]
+    unregistered_pushes: list[UnregisteredPushAttempt] = Field(default_factory=list)
+    silent_streams: list[SilentStreamAlert] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -459,19 +557,34 @@ class TimeSeriesDimension(_WireModel):
 
 
 class PipelineDimensionsResponse(_WireModel):
-    """Response for ``GET /api/pipeline/dimensions``."""
+    """Response for ``GET /api/pipeline/dimensions``.
+
+    ``dimension_cols`` names the server-wide risk-dimension column set
+    (``RISK_DIMENSION_COLS``) that every stream's ``key_cols`` must be a
+    superset of. Clients fetch this once to validate ``create_stream``
+    arguments up-front — the field is stable server configuration, not
+    derived from the pipeline, so it's populated even when ``dimensions``
+    is empty (fresh account, no streams yet).
+    """
     dimensions: list[TimeSeriesDimension]
+    dimension_cols: list[str] = Field(default_factory=list)
 
 
 class BlockTimeSeries(_WireModel):
-    """Per-block time series for one block on one dimension."""
+    """Per-block time series for one block on one dimension.
+
+    Pivoted onto a shared `blockTimestamps` axis at the response level so
+    the chart can use one x-axis for all blocks. None values mark ticks
+    where this particular block doesn't have data (different blocks can
+    have different start_timestamps).
+    """
     block_name: str
     space_id: str
     aggregation_logic: str
     timestamps: list[str]
-    fair: list[float]
-    market_fair: list[float]
-    var: list[float]
+    fair: list[float | None]
+    market_fair: list[float | None]
+    var: list[float | None]
 
 
 class AggregatedTimeSeries(_WireModel):
@@ -523,10 +636,18 @@ class CurrentDecomposition(_WireModel):
 
 
 class PipelineTimeSeriesResponse(_WireModel):
-    """Response for ``GET /api/pipeline/timeseries``."""
+    """Response for ``GET /api/pipeline/timeseries``.
+
+    `aggregated.timestamps` is the historical position axis (used by the
+    Position view); `block_timestamps` is the forward-looking axis
+    spanning current_ts → expiry (used by the Fair / Variance views).
+    The two axes are independent on purpose — positions are
+    backward-looking and block fair/var curves project forward to expiry.
+    """
     symbol: str
     expiry: str
     blocks: list[BlockTimeSeries]
+    block_timestamps: list[str]
     aggregated: AggregatedTimeSeries
     current_decomposition: CurrentDecomposition
 

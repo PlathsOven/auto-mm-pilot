@@ -21,6 +21,7 @@ from server.api.models import (
 from server.api.routers.events import log_event
 from server.api.stream_registry import get_manual_block_store, get_stream_registry
 from server.api.ws import get_current_tick_ts
+from server.api.ws_serializers import format_expiry
 from server.core.config import BlockConfig
 
 log = logging.getLogger(__name__)
@@ -85,8 +86,13 @@ def _blocks_from_pipeline(user_id: str) -> list[BlockRowResponse]:
 
         source = "manual" if store.is_manual(stream_name) else "stream"
 
+        # Normalise expiry to the same DDMMMYY format the position grid uses
+        # (`format_expiry` shared with ws_serializers). Without this the block
+        # row's expiry was "2026-03-27T00:00:00" while the grid's was
+        # "27MAR26" — column-filter equality matched neither, breaking the
+        # follow-focus auto-filter.
         raw_expiry = block_dict.get("expiry")
-        expiry_str = raw_expiry.isoformat() if hasattr(raw_expiry, "isoformat") and raw_expiry is not None else str(raw_expiry) if raw_expiry is not None else ""
+        expiry_str = format_expiry(raw_expiry) if raw_expiry is not None else ""
 
         rows.append(BlockRowResponse(
             block_name=block_name,

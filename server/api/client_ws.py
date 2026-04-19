@@ -38,7 +38,9 @@ from server.api.models import (
     ClientWsInboundFrame,
     ClientWsMarketValueFrame,
 )
+from server.api.silent_stream_store import get_store as get_silent_stream_store
 from server.api.stream_registry import get_stream_registry
+from server.api.unregistered_push_store import get_store as get_unregistered_push_store
 from server.api.ws import get_latest_payload, register_client, unregister_client
 
 log = logging.getLogger(__name__)
@@ -84,8 +86,24 @@ async def _process_snapshot_frame(user_id: str, data: dict, websocket: WebSocket
     frame = ClientWsInboundFrame(**data)
 
     registry = get_stream_registry(user_id)
-    accepted = registry.ingest_snapshot(
-        frame.stream_name, [r.model_dump() for r in frame.rows],
+    try:
+        accepted = registry.ingest_snapshot(
+            frame.stream_name, [r.model_dump() for r in frame.rows],
+        )
+    except KeyError:
+        # Record the unregistered-push attempt so the UI notifies the operator.
+        # Re-raise — the generic handler in `_process_inbound_frame` still
+        # emits a ClientWsError back to the caller.
+        if frame.rows:
+            get_unregistered_push_store(user_id).record(
+                frame.stream_name, frame.rows[0].model_dump(mode="json"),
+            )
+        raise
+
+    # Silent-stream tracking — same as the HTTP snapshots endpoint.
+    rows_with_mv = sum(1 for r in frame.rows if r.market_value is not None)
+    get_silent_stream_store(user_id).record(
+        frame.stream_name, len(frame.rows), rows_with_mv,
     )
 
     stream_configs = registry.build_stream_configs()

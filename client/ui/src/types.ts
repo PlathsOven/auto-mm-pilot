@@ -40,7 +40,13 @@ export interface GlobalContext {
   lastUpdateTimestamp: number;
 }
 
-/** A single row in the desired-position table (mirrors pipeline output) */
+/** A single row in the desired-position table (mirrors pipeline output).
+ *
+ *  The `*Vol` fields are the same scalars expressed in annualised vol
+ *  points (sign-preserving sqrt of ``sum_forward_grid / T_years``) — what
+ *  options traders actually read. The raw variance-unit fields are kept
+ *  for math-facing surfaces (LiveEquationStrip, pipeline chart).
+ */
 export interface DesiredPosition {
   symbol: string;
   expiry: string;
@@ -53,6 +59,12 @@ export interface DesiredPosition {
   currentPos: number;
   totalFair: number;
   totalMarketFair: number;
+  edgeVol: number;
+  smoothedEdgeVol: number;
+  varianceVol: number;
+  smoothedVarVol: number;
+  totalFairVol: number;
+  totalMarketFairVol: number;
   changeMagnitude: number;
   updatedAt: number;
 }
@@ -68,12 +80,42 @@ export interface UpdateCard {
   timestamp: number;
 }
 
+/** One unregistered-stream push attempt captured by the server.
+ *
+ *  Surfaced on the WS tick payload and via GET /api/notifications/unregistered.
+ *  Rendered in the Notifications center with a "Register this stream" CTA
+ *  that deep-links into Anatomy with the form pre-filled.
+ */
+export interface UnregisteredPushAttempt {
+  streamName: string;
+  exampleRow: Record<string, unknown>;
+  attemptCount: number;
+  firstSeen: string;  // ISO 8601 UTC
+  lastSeen: string;   // ISO 8601 UTC
+}
+
+/** A READY stream whose recent snapshots carried no `market_value`.
+ *
+ *  When the feeder only sends `raw_value`, the pipeline defaults
+ *  market-implied value to match fair — edge collapses to zero and every
+ *  desired position reads zero. This alert tells the trader why. Surfaced
+ *  on the WS tick payload and via GET /api/notifications/silent-streams.
+ */
+export interface SilentStreamAlert {
+  streamName: string;
+  rowsSeen: number;
+  firstSeen: string;  // ISO 8601 UTC
+  lastSeen: string;   // ISO 8601 UTC
+}
+
 /** Top-level payload received over WebSocket */
 export interface ServerPayload {
   streams: DataStream[];
   context: GlobalContext;
   positions: DesiredPosition[];
   updates: UpdateCard[];
+  unregisteredPushes?: UnregisteredPushAttempt[];
+  silentStreams?: SilentStreamAlert[];
 }
 
 /** Context pushed to the LLM chat when a card or cell is clicked */
@@ -99,6 +141,52 @@ export interface EngineCommand {
 export interface PendingBlockCommand {
   params: Record<string, unknown>;
 }
+
+// ---------------------------------------------------------------------------
+// Stream time-series (per-key snapshot history)
+// ---------------------------------------------------------------------------
+
+/** One point in a stream-key time series. */
+export interface StreamTimeseriesPoint {
+  timestamp: string;
+  raw_value: number;
+  market_value: number | null;
+}
+
+/** Time series for one unique key-column combination within a stream. */
+export interface StreamKeyTimeseries {
+  key: Record<string, string>;
+  points: StreamTimeseriesPoint[];
+}
+
+/** GET /api/streams/{name}/timeseries response. */
+export interface StreamTimeseriesResponse {
+  stream_name: string;
+  key_cols: string[];
+  status: "PENDING" | "READY";
+  row_count: number;
+  series: StreamKeyTimeseries[];
+}
+
+// ---------------------------------------------------------------------------
+// Workbench focus — drives Inspector + channelled panels
+// ---------------------------------------------------------------------------
+
+/**
+ * Discriminated union of every focusable entity in the workbench.
+ *
+ * - `cell` — a single (symbol, expiry) cell from the desired-position grid.
+ * - `symbol` — an entire symbol row.
+ * - `expiry` — an entire expiry column.
+ * - `stream` — a registered data stream.
+ * - `block` — a single block by name.
+ */
+export type Focus =
+  | { kind: "cell"; symbol: string; expiry: string }
+  | { kind: "symbol"; symbol: string }
+  | { kind: "expiry"; expiry: string }
+  | { kind: "stream"; name: string }
+  | { kind: "block"; name: string };
 
 // ---------------------------------------------------------------------------
 // API request / response types
@@ -151,15 +239,18 @@ export interface TimeSeriesDimension {
   expiry: string;
 }
 
-/** Block-level time series for one block */
+/** Block-level time series for one block — pivoted onto the shared
+ *  `blockTimestamps` axis at the response level. `null` entries mark ticks
+ *  where this particular block doesn't have data (different blocks can
+ *  have different start_timestamps). */
 export interface BlockTimeSeries {
   blockName: string;
   spaceId: string;
   aggregationLogic: string;
   timestamps: string[];
-  fair: number[];
-  marketFair: number[];
-  var: number[];
+  fair: (number | null)[];
+  marketFair: (number | null)[];
+  var: (number | null)[];
 }
 
 /** Aggregated time series across all blocks */
@@ -228,11 +319,17 @@ export interface BlockRow {
   updated_at: string | null;
 }
 
-/** Full pipeline time series response */
+/** Full pipeline time series response.
+ *
+ *  `aggregated.timestamps` is the historical position axis (used by the
+ *  Position view); `blockTimestamps` is the forward-looking axis spanning
+ *  current_ts → expiry (used by the Fair / Variance views).
+ */
 export interface PipelineTimeSeriesResponse {
   symbol: string;
   expiry: string;
   blocks: BlockTimeSeries[];
+  blockTimestamps: string[];
   aggregated: AggregatedTimeSeries;
   currentDecomposition: {
     blocks: CurrentBlockDecomposition[];

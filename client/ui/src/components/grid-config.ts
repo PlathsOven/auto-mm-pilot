@@ -23,13 +23,13 @@ export interface ViewModeMeta {
 export const VIEW_MODE_META: Record<ViewMode, ViewModeMeta> = {
   position: { label: "Position", unit: "$vega", decimals: 2, group: "primary" },
   change: { label: "Change", unit: "$vega", decimals: 2, group: "primary" },
-  edge: { label: "Edge", unit: "", decimals: 6, group: "primary" },
-  variance: { label: "Variance", unit: "", decimals: 6, group: "primary" },
+  edge: { label: "Edge", unit: "vp", decimals: 2, group: "primary" },
+  variance: { label: "Variance", unit: "vp", decimals: 2, group: "primary" },
   rawPosition: { label: "Raw Position", unit: "$vega", decimals: 2, group: "secondary" },
-  smoothedEdge: { label: "Smoothed Edge", unit: "", decimals: 6, group: "secondary" },
-  smoothedVar: { label: "Smoothed Variance", unit: "", decimals: 6, group: "secondary" },
-  totalFair: { label: "Total Fair", unit: "", decimals: 6, group: "secondary" },
-  totalMarketFair: { label: "Market Fair", unit: "", decimals: 6, group: "secondary" },
+  smoothedEdge: { label: "Smoothed Edge", unit: "vp", decimals: 2, group: "secondary" },
+  smoothedVar: { label: "Smoothed Variance", unit: "vp", decimals: 2, group: "secondary" },
+  totalFair: { label: "Total Fair", unit: "vp", decimals: 2, group: "secondary" },
+  totalMarketFair: { label: "Market Fair", unit: "vp", decimals: 2, group: "secondary" },
 };
 
 export const PRIMARY_VIEW_MODES: ViewMode[] = ["position", "change", "edge", "variance"];
@@ -56,11 +56,11 @@ export function getCellValue(p: DesiredPosition, mode: ViewMode, change: number)
     case "position": return p.desiredPos;
     case "rawPosition": return p.rawDesiredPos;
     case "change": return change;
-    case "edge": return p.edge;
-    case "smoothedEdge": return p.smoothedEdge;
-    case "variance": return p.variance;
-    case "smoothedVar": return p.smoothedVar;
-    case "totalFair": return p.totalFair;
-    case "totalMarketFair": return p.totalMarketFair;
+    case "edge": return p.edgeVol;
+    case "smoothedEdge": return p.smoothedEdgeVol;
+    case "variance": return p.varianceVol;
+    case "smoothedVar": return p.smoothedVarVol;
+    case "totalFair": return p.totalFairVol;
+    case "totalMarketFair": return p.totalMarketFairVol;
   }
 }

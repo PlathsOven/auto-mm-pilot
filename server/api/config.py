@@ -83,6 +83,12 @@ TICK_INTERVAL_SECS: float = 2.0
 # Minimum |delta| in smoothed_desired_position required to emit an UpdateCard
 UPDATE_THRESHOLD: float = 50.0
 
+# Minimum rows_seen before a zero-market_value stream surfaces a
+# "silent stream" notification. Low values alert on teething snapshots;
+# high values let a genuinely silent stream run for a long time before
+# the trader sees why their desired positions all read zero.
+SILENT_STREAM_THRESHOLD: int = int(os.environ.get("SILENT_STREAM_THRESHOLD", "5"))
+
 # ── OpenRouter HTTP timeouts ─────────────────────────────────────────────
 
 OPENROUTER_TIMEOUT_SECS: float = 30.0

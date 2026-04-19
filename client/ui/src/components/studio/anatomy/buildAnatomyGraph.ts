@@ -24,6 +24,14 @@ const STEP_LABELS: Record<StepKey, string> = {
 const STREAM_EDGE_STYLE = { stroke: "rgba(129,140,248,0.5)", strokeWidth: 1.5 };
 const PIPELINE_EDGE_STYLE = { stroke: "rgba(129,140,248,0.6)", strokeWidth: 1.5 };
 
+// Explicit dimensions — matched to each custom node's Tailwind classes.
+// React Flow v12 uses these for layout immediately, so <MiniMap/> renders
+// the node rectangles on first paint instead of waiting for DOM
+// measurement (which produced a blank minimap earlier).
+const STREAM_NODE_SIZE = { width: 200, height: 90 };
+const TRANSFORM_NODE_SIZE = { width: 240, height: 140 };
+const OUTPUT_NODE_SIZE = { width: 220, height: 140 };
+
 export function buildAnatomyGraph(
   steps: Record<string, TransformStep>,
   streams: RegisteredStream[],
@@ -45,6 +53,7 @@ export function buildAnatomyGraph(
         x: STREAM_COLUMN_X,
         y: verticalCenter + i * STREAM_ROW_HEIGHT,
       },
+      ...STREAM_NODE_SIZE,
       data: {
         streamName: s.stream_name,
         status: s.status,
@@ -74,6 +83,7 @@ export function buildAnatomyGraph(
       id: key,
       type: "transform",
       position: STEP_NODE_POSITIONS[key],
+      ...TRANSFORM_NODE_SIZE,
       data: {
         stepNumber: i + 1,
         label: STEP_LABELS[key],
@@ -90,6 +100,7 @@ export function buildAnatomyGraph(
     id: "output",
     type: "output",
     position: OUTPUT_NODE_POSITION,
+    ...OUTPUT_NODE_SIZE,
     data: {},
     draggable: true,
   });

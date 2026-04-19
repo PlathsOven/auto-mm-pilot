@@ -1,7 +1,10 @@
+import { useMemo } from "react";
 import { useTransforms } from "../../providers/TransformsProvider";
-import { useFocusedCell } from "../../hooks/useFocusedCell";
+import { useFocus } from "../../providers/FocusProvider";
+import { useWebSocket } from "../../providers/WebSocketProvider";
 import { useActivePositionSizing } from "../../hooks/useActivePositionSizing";
 import { CANONICAL_GLYPH, renderFormula } from "./formulaTemplates";
+import type { DesiredPosition } from "../../types";
 
 /**
  * Three-size renderer for the canonical Posit equation.
@@ -64,14 +67,25 @@ function XsGlyph({ onClick }: { onClick?: () => void }) {
 // md / lg — live formula renderer
 // ---------------------------------------------------------------------------
 
+function useFocusedPosition(): { symbol: string; expiry: string; position: DesiredPosition } | null {
+  const { focus } = useFocus();
+  const { payload } = useWebSocket();
+  return useMemo(() => {
+    if (!focus || focus.kind !== "cell" || !payload) return null;
+    const position = payload.positions.find(
+      (p) => p.symbol === focus.symbol && p.expiry === focus.expiry,
+    );
+    if (!position) return null;
+    return { symbol: focus.symbol, expiry: focus.expiry, position };
+  }, [focus, payload]);
+}
+
 function MdLgStrip({ size }: { size: "md" | "lg" }) {
-  const focused = useFocusedCell();
+  const focused = useFocusedPosition();
   const positionSizing = useActivePositionSizing();
   const { bankroll } = useTransforms();
 
-  // No focused cell → render nothing. Inspection is now driven exclusively
-  // by selections from elsewhere in the app (e.g. CommandPalette), not by
-  // clicks on the positions grid.
+  // No focused cell → render nothing. Inspection is driven by FocusProvider.
   if (!positionSizing || !focused) return null;
 
   const rendered = renderFormula(positionSizing.formula, {

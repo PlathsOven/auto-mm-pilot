@@ -25,6 +25,7 @@ from server.api.config import (
     SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT,
 )
 from server.api.llm.snapshot_buffer import SnapshotBufferConfig, SnapshotRingBuffer
+from server.api.position_history import PositionHistoryBuffer, build_from_desired_pos_df
 from server.api.user_scope import UserRegistry
 from server.core.pipeline import run_pipeline
 from server.core.serializers import engine_state_from_pipeline, snapshot_from_pipeline
@@ -42,6 +43,13 @@ RISK_DIMENSION_COLS: list[str] = ["symbol", "expiry"]
 SMOOTHING_HL_SECS: int = 60
 TIME_GRID_INTERVAL: str = "1m"
 
+# Starter bankroll for a fresh account. Non-zero so newly-registered streams
+# produce a non-zero desired position out of the box (the sizing formula is
+# edge · bankroll / var — a zero default made every position collapse to 0
+# until the trader manually set a value). Small so no one mistakes it for
+# real sizing; the trader is expected to overwrite it in the StatusBar pill.
+DEFAULT_BANKROLL: float = 1000.0
+
 
 # ---------------------------------------------------------------------------
 # Per-user engine state
@@ -52,10 +60,11 @@ class EngineState:
 
     def __init__(self) -> None:
         self.snapshot_buffer: SnapshotRingBuffer | None = None
+        self.position_history: PositionHistoryBuffer = PositionHistoryBuffer()
         self.pipeline_snapshot: dict[str, Any] | None = None
         self.state: dict[str, Any] | None = None
         self.pipeline_results: dict[str, pl.DataFrame] | None = None
-        self.bankroll: float = 0.0
+        self.bankroll: float = DEFAULT_BANKROLL
         self.transform_config: dict[str, Any] | None = None
 
     def rerun_pipeline(
@@ -113,6 +122,12 @@ class EngineState:
                 lookback_offsets_seconds=SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT,
             ))
         self.snapshot_buffer.push(now, self.pipeline_snapshot)
+
+        # Capture per-dimension desired-position point at `now`. Separate from
+        # the LLM snapshot buffer so prompt payloads stay lean while the
+        # Position chart gets a full time series across reruns.
+        pos_rows = build_from_desired_pos_df(self.pipeline_results["desired_pos_df"], now)
+        self.position_history.push_rows(pos_rows, now)
 
         return self.pipeline_results
 
@@ -173,6 +188,10 @@ def get_pipeline_results(user_id: str) -> dict[str, pl.DataFrame] | None:
 
 def get_snapshot_buffer(user_id: str) -> SnapshotRingBuffer | None:
     return get_engine(user_id).snapshot_buffer
+
+
+def get_position_history(user_id: str) -> PositionHistoryBuffer:
+    return get_engine(user_id).position_history
 
 
 def get_transform_config(user_id: str) -> dict[str, Any] | None:

@@ -16,7 +16,7 @@ function fmtDuration(seconds: number): string {
   return `${mins}m`;
 }
 
-export function AdminPage({ onClose }: { onClose: () => void }) {
+export function AdminPage() {
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,14 +33,11 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
   return (
     <div className="flex h-full w-full flex-col overflow-y-auto bg-mm-bg p-8">
       <div className="mx-auto w-full max-w-5xl">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6">
           <h1 className="text-xl font-bold text-mm-text">Admin — Users</h1>
-          <button
-            onClick={onClose}
-            className="rounded-md border border-black/[0.06] px-3 py-1 text-xs text-mm-text-dim hover:bg-black/[0.04]"
-          >
-            Close
-          </button>
+          <p className="mt-1 text-[11px] text-mm-text-dim">
+            Click any sidebar entry (Workbench / Anatomy / Docs) to leave.
+          </p>
         </div>
 
         {loading ? (

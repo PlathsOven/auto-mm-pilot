@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { SectionStatus } from "../canvasState";
 
 interface SectionCardProps {
@@ -6,12 +6,13 @@ interface SectionCardProps {
   number: number;
   status: SectionStatus;
   message?: string;
-  /** Default collapsed state. Top-of-canvas sections start expanded. */
-  defaultOpen?: boolean;
-  /** Optional rich math disclosure shown via "Show me the math" link. */
-  mathDisclosure?: ReactNode;
-  /** Whether walk-through focus mode is active and another section has focus. */
-  dimmed?: boolean;
+  /** When false, the card shows only its header (collapsed). The body is
+   *  controlled by the parent via the walkthrough index — individual
+   *  cards are no longer independently collapsible. */
+  expanded?: boolean;
+  /** Optional footer rendered inside the expanded body — used by the
+   *  walkthrough to host Back/Next navigation. */
+  nav?: ReactNode;
   children: ReactNode;
 }
 
@@ -28,34 +29,24 @@ const STATUS_LABEL: Record<SectionStatus, string> = {
 };
 
 /**
- * Shared collapsible chrome for every Stream Canvas section.
+ * Shared chrome for every Stream Canvas section.
  *
- * Renders the section title, status dot, validation message, and an optional
- * "Show me the math" disclosure for the underlying transform formula.
+ * Renders the section title, status dot, and validation message. Whether
+ * the body is visible is driven by the parent (`expanded`) so the canvas
+ * can run a single-card-at-a-time walkthrough with Back/Next navigation.
  */
 export function SectionCard({
   title,
   number,
   status,
   message,
-  defaultOpen = true,
-  mathDisclosure,
-  dimmed = false,
+  expanded = true,
+  nav,
   children,
 }: SectionCardProps) {
-  const [open, setOpen] = useState(defaultOpen);
-  const [mathOpen, setMathOpen] = useState(false);
-
   return (
-    <section
-      className={`rounded-xl border bg-black/[0.03] transition-opacity ${
-        dimmed ? "border-black/[0.03] opacity-30" : "border-black/[0.08] opacity-100"
-      }`}
-    >
-      <header
-        onClick={() => setOpen((v) => !v)}
-        className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3"
-      >
+    <section className="rounded-xl border border-black/[0.08] bg-black/[0.03]">
+      <header className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-mm-bg-deep text-[10px] font-semibold text-mm-accent">
             {number}
@@ -67,32 +58,16 @@ export function SectionCard({
           <span className="text-[10px] uppercase tracking-wider text-mm-text-dim">
             {STATUS_LABEL[status]}
           </span>
-          <span className="text-[10px] text-mm-text-dim">{open ? "▲" : "▼"}</span>
         </div>
       </header>
 
-      {open && (
+      {expanded && (
         <div className="border-t border-black/[0.04] px-4 pb-4 pt-3">
           {message && status !== "valid" && (
             <p className="mb-2 text-[10px] text-mm-warn">{message}</p>
           )}
           {children}
-          {mathDisclosure && (
-            <div className="mt-3 border-t border-black/[0.04] pt-2">
-              <button
-                type="button"
-                onClick={() => setMathOpen((v) => !v)}
-                className="text-[10px] font-medium text-mm-accent transition-colors hover:text-mm-accent/80"
-              >
-                {mathOpen ? "Hide math" : "Show me the math"}
-              </button>
-              {mathOpen && (
-                <div className="mt-2 rounded-md bg-black/[0.04] p-2 text-[10px] text-mm-text-dim">
-                  {mathDisclosure}
-                </div>
-              )}
-            </div>
-          )}
+          {nav && <div className="mt-4 border-t border-black/[0.04] pt-3">{nav}</div>}
         </div>
       )}
     </section>

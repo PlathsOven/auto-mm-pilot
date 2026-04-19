@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useWebSocket } from "../providers/WebSocketProvider";
-import { useChat } from "../providers/ChatProvider";
+import { useFocus } from "../providers/FocusProvider";
 import { valColor, formatUtcTime } from "../utils";
 import { useStreamContributions } from "../hooks/useStreamContributions";
 
@@ -9,7 +9,7 @@ const ATTRIBUTION_TOP_N = 2;
 
 export function UpdatesFeed() {
   const { payload, updateHistory } = useWebSocket();
-  const { investigate } = useChat();
+  const { toggleFocus } = useFocus();
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -41,8 +41,8 @@ export function UpdatesFeed() {
           return (
             <div
               key={card.id}
-              onClick={() => investigate({ type: "update", card })}
-              className={`glass-card cursor-pointer p-3 transition-colors hover:bg-white/60 hover:ring-1 hover:ring-mm-accent/20 ${isRecent ? "row-highlight" : ""}`}
+              onClick={() => toggleFocus({ kind: "cell", symbol: card.symbol, expiry: card.expiry })}
+              className={`glass-card cursor-pointer p-2.5 transition-colors hover:bg-white/60 hover:ring-1 hover:ring-mm-accent/20 ${isRecent ? "row-highlight" : ""}`}
             >
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-xs font-medium text-mm-text">

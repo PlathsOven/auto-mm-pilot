@@ -23,9 +23,13 @@ export async function fetchDimensions(signal?: AbortSignal): Promise<TimeSeriesD
 export async function fetchTimeSeries(
   symbol: string,
   expiry: string,
+  lookbackSeconds: number | null,
   signal?: AbortSignal,
 ): Promise<PipelineTimeSeriesResponse> {
   const params = new URLSearchParams({ symbol, expiry });
+  if (lookbackSeconds !== null && lookbackSeconds > 0) {
+    params.set("lookback_seconds", String(lookbackSeconds));
+  }
   return apiFetch<PipelineTimeSeriesResponse>(
     `/api/pipeline/timeseries?${params}`,
     { signal },

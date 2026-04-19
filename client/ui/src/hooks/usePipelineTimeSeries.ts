@@ -19,8 +19,8 @@ import { POLL_INTERVAL_TIMESERIES_MS } from "../constants";
 const MAX_CACHE_ENTRIES = 12;
 const tsCache = new Map<string, PipelineTimeSeriesResponse>();
 
-function tsCacheKey(symbol: string, expiry: string): string {
-  return `${symbol}|${expiry}`;
+function tsCacheKey(symbol: string, expiry: string, lookbackSeconds: number | null): string {
+  return `${symbol}|${expiry}|${lookbackSeconds ?? 0}`;
 }
 
 function tsCacheSet(key: string, value: PipelineTimeSeriesResponse): void {
@@ -43,7 +43,10 @@ interface SelectedDimension {
   expiry: string;
 }
 
-export function usePipelineTimeSeries(selectedDimension: SelectedDimension | null) {
+export function usePipelineTimeSeries(
+  selectedDimension: SelectedDimension | null,
+  lookbackSeconds: number | null = null,
+) {
   const [dimensions, setDimensions] = useState<TimeSeriesDimension[]>([]);
   const [selected, setSelected] = useState<TimeSeriesDimension | null>(null);
   const [data, setData] = useState<PipelineTimeSeriesResponse | null>(null);
@@ -83,7 +86,7 @@ export function usePipelineTimeSeries(selectedDimension: SelectedDimension | nul
   // Fetch time series on selection change + poll every 5s to track ticks.
   useEffect(() => {
     if (!selected) return;
-    const key = tsCacheKey(selected.symbol, selected.expiry);
+    const key = tsCacheKey(selected.symbol, selected.expiry, lookbackSeconds);
     lastRequestedKeyRef.current = key;
     setError(null);
 
@@ -95,7 +98,7 @@ export function usePipelineTimeSeries(selectedDimension: SelectedDimension | nul
     const controller = new AbortController();
 
     const doFetch = () => {
-      fetchTimeSeries(selected.symbol, selected.expiry, controller.signal)
+      fetchTimeSeries(selected.symbol, selected.expiry, lookbackSeconds, controller.signal)
         .then((res) => {
           if (controller.signal.aborted) return;
           if (lastRequestedKeyRef.current !== key) return;
@@ -113,7 +116,7 @@ export function usePipelineTimeSeries(selectedDimension: SelectedDimension | nul
     const interval = setInterval(doFetch, POLL_INTERVAL_TIMESERIES_MS);
 
     return () => { controller.abort(); clearInterval(interval); };
-  }, [selected]);
+  }, [selected, lookbackSeconds]);
 
   // Auto-switch dimension when block channelling selects a different instrument
   useEffect(() => {

@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import { useCallback, useMemo, useState, useRef, useEffect } from "react";
 import { useWebSocket } from "../providers/WebSocketProvider";
-import { useChat } from "../providers/ChatProvider";
 import { valColor, cellBg } from "../utils";
-import { useSelection } from "../providers/SelectionProvider";
+import { useFocus } from "../providers/FocusProvider";
+import { Tabs, type TabItem } from "./ui/Tabs";
+import type { Focus } from "../types";
 import {
   VIEW_MODE_META,
   TIMEFRAME_OPTIONS,
@@ -23,13 +24,63 @@ import {
   OverrideStatusBar,
 } from "./grid-helpers";
 
-export function DesiredPositionGrid() {
+interface DesiredPositionGridProps {
+  /** Controlled view mode — when supplied, the grid lifts state to the
+   *  parent so other surfaces (e.g. PipelineChartPanel) can mirror it. */
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
+}
+
+export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeChange }: DesiredPositionGridProps = {}) {
   const { payload } = useWebSocket();
-  const { investigate } = useChat();
-  const { isDimensionSelected } = useSelection();
+  const { focus, toggleFocus, isFocused } = useFocus();
   const positions = payload?.positions ?? [];
 
-  const [viewMode, setViewMode] = useState<ViewMode>("position");
+  const setCellFocus = useCallback(
+    (symbol: string, expiry: string) => {
+      toggleFocus({ kind: "cell", symbol, expiry });
+    },
+    [toggleFocus],
+  );
+
+  const setSymbolFocus = useCallback(
+    (symbol: string) => {
+      toggleFocus({ kind: "symbol", symbol });
+    },
+    [toggleFocus],
+  );
+
+  const setExpiryFocus = useCallback(
+    (expiry: string) => {
+      toggleFocus({ kind: "expiry", expiry });
+    },
+    [toggleFocus],
+  );
+
+  /** Highlight any cell whose symbol or expiry matches the current focus. */
+  const isCellChannelled = useCallback(
+    (symbol: string, expiry: string): boolean => {
+      const focusVal: Focus | null = focus;
+      if (!focusVal) return false;
+      switch (focusVal.kind) {
+        case "cell": return focusVal.symbol === symbol && focusVal.expiry === expiry;
+        case "symbol": return focusVal.symbol === symbol;
+        case "expiry": return focusVal.expiry === expiry;
+        default: return false;
+      }
+    },
+    [focus],
+  );
+
+  const [internalViewMode, setInternalViewMode] = useState<ViewMode>("position");
+  const viewMode = controlledViewMode ?? internalViewMode;
+  const setViewMode = useCallback(
+    (m: ViewMode) => {
+      setInternalViewMode(m);
+      onViewModeChange?.(m);
+    },
+    [onViewModeChange],
+  );
   const [timeframe, setTimeframe] = useState<TimeframeLabel>("Latest");
   const [moreOpen, setMoreOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -41,6 +92,10 @@ export function DesiredPositionGrid() {
   } = usePositionEdit();
 
   const { hoverCell, onMouseEnter, onMouseLeave } = usePositionHover();
+  // Capture the hovered cell's bounding rect so the portal-rendered
+  // hover-card can position itself relative to it (the card lives in
+  // document.body to escape the position-grid's overflow-auto clip).
+  const hoverCellRectRef = useRef<DOMRect | null>(null);
 
   // Cancel pending edit when timeframe changes
   useEffect(() => cancelEdit(), [timeframe, cancelEdit]);
@@ -62,50 +117,44 @@ export function DesiredPositionGrid() {
   const meta = VIEW_MODE_META[viewMode];
   const secondaryActive = SECONDARY_VIEW_MODES.includes(viewMode);
 
+  const primaryTabs = useMemo<TabItem<ViewMode>[]>(
+    () => PRIMARY_VIEW_MODES.map((m) => ({ value: m, label: VIEW_MODE_META[m].label })),
+    [],
+  );
+
+  const timeframeTabs = useMemo<TabItem<TimeframeLabel>[]>(
+    () => TIMEFRAME_OPTIONS.map((tf) => ({ value: tf.label, label: tf.label })),
+    [],
+  );
+
   return (
-    <div className="flex h-full flex-col p-4">
-      <div className="mb-3 flex items-center justify-between border-b border-black/[0.06] pb-2">
+    <div className="flex h-full w-full min-w-0 flex-1 flex-col p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-black/[0.06] pb-2">
         <div className="flex items-baseline gap-2">
-          <h2 className="zone-header">Desired Positions</h2>
+          <h2 className="zone-header">Overview</h2>
           {meta.unit && (
             <span className="text-[10px] text-mm-text-dim">({meta.unit})</span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {viewMode === "change" && (
-            <div className="flex items-center gap-1">
-              {TIMEFRAME_OPTIONS.map((tf) => (
-                <button
-                  key={tf.label}
-                  onClick={() => setTimeframe(tf.label)}
-                  className={`px-2 py-0.5 text-[10px] transition-colors ${
-                    timeframe === tf.label
-                      ? "rounded-md bg-mm-accent/10 text-mm-accent"
-                      : "rounded-md text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
-                  }`}
-                >
-                  {tf.label}
-                </button>
-              ))}
-            </div>
+            <Tabs
+              items={timeframeTabs}
+              value={timeframe}
+              onChange={setTimeframe}
+              variant="pill"
+              size="sm"
+            />
           )}
 
           {/* Primary 4 view modes as a tab strip */}
-          <div className="flex items-center gap-0.5 rounded-lg border border-black/[0.06] bg-black/[0.03] p-0.5">
-            {PRIMARY_VIEW_MODES.map((m) => (
-              <button
-                key={m}
-                onClick={() => setViewMode(m)}
-                className={`rounded-md px-2 py-1 text-[10px] font-medium transition-colors ${
-                  viewMode === m
-                    ? "bg-mm-accent/10 text-mm-accent"
-                    : "text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
-                }`}
-              >
-                {VIEW_MODE_META[m].label}
-              </button>
-            ))}
-          </div>
+          <Tabs
+            items={primaryTabs}
+            value={PRIMARY_VIEW_MODES.includes(viewMode) ? viewMode : "position"}
+            onChange={setViewMode}
+            variant="pill"
+            size="sm"
+          />
 
           {/* "More" dropdown for secondary modes */}
           <div ref={moreMenuRef} className="relative">
@@ -142,7 +191,7 @@ export function DesiredPositionGrid() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto">
         {positions.length === 0 ? (
           <p className="px-3 py-8 text-center text-xs text-mm-text-dim">
             Awaiting engine output...
@@ -155,7 +204,10 @@ export function DesiredPositionGrid() {
                 {expiries.map((exp) => (
                   <th
                     key={exp}
-                    className="px-2 py-1.5 text-center font-medium"
+                    onClick={() => setExpiryFocus(exp)}
+                    className={`cursor-pointer px-2 py-1.5 text-center font-medium transition-colors hover:text-mm-accent ${
+                      isFocused({ kind: "expiry", expiry: exp }) ? "text-mm-accent" : ""
+                    }`}
                   >
                     {exp}
                   </th>
@@ -169,7 +221,12 @@ export function DesiredPositionGrid() {
                   key={symbol}
                   className="border-b border-black/[0.04]"
                 >
-                  <td className="px-3 py-2.5 text-[12px] font-medium text-mm-text">
+                  <td
+                    onClick={() => setSymbolFocus(symbol)}
+                    className={`cursor-pointer px-2 py-1.5 text-[12px] font-medium transition-colors hover:text-mm-accent ${
+                      isFocused({ kind: "symbol", symbol }) ? "text-mm-accent" : "text-mm-text"
+                    }`}
+                  >
                     {symbol}
                   </td>
                   {expiries.map((exp) => {
@@ -181,15 +238,17 @@ export function DesiredPositionGrid() {
                     const isEditing = pendingEdit?.key === key;
                     const hasOverride = viewMode === "position" && overrides.has(key);
                     const showHover = hoverCell?.key === key && !isEditing;
+                    const channelled = isCellChannelled(symbol, exp);
 
                     return (
                       <td
                         key={exp}
-                        onClick={() => investigate({ type: "position", symbol, expiry: exp, position: cell.pos })}
+                        ref={(el) => { if (showHover && el) hoverCellRectRef.current = el.getBoundingClientRect(); }}
+                        onClick={() => setCellFocus(symbol, exp)}
                         onDoubleClick={(e) => { e.stopPropagation(); startEdit(key, symbol, exp, cell.pos, viewMode); }}
-                        onMouseEnter={() => onMouseEnter(symbol, exp, key)}
+                        onMouseEnter={(e) => { hoverCellRectRef.current = (e.currentTarget as HTMLElement).getBoundingClientRect(); onMouseEnter(symbol, exp, key); }}
                         onMouseLeave={onMouseLeave}
-                        className={`relative cursor-pointer rounded-md px-3 py-2.5 text-center text-[12px] font-medium tabular-nums transition-colors hover:bg-white/80 hover:ring-1 hover:ring-mm-accent/20 ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${isDimensionSelected(symbol, exp) ? "channel-highlight-cell" : ""}`}
+                        className={`relative cursor-pointer rounded-md px-2 py-1.5 text-center text-[12px] font-medium tabular-nums transition-colors ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${channelled ? "channel-highlight-cell" : "hover:bg-white/80 hover:ring-1 hover:ring-mm-accent/20"}`}
                         style={{ backgroundColor: cellBg(val) }}
                       >
                         {isEditing ? (
@@ -225,7 +284,11 @@ export function DesiredPositionGrid() {
                           </button>
                         )}
                         {showHover && (
-                          <StreamAttributionHoverCard symbol={symbol} expiry={exp} />
+                          <StreamAttributionHoverCard
+                            symbol={symbol}
+                            expiry={exp}
+                            anchorRect={hoverCellRectRef.current}
+                          />
                         )}
                       </td>
                     );
@@ -237,7 +300,7 @@ export function DesiredPositionGrid() {
                 </tr>
               ))}
               <tr className="border-t border-black/[0.06]">
-                <td className="px-3 py-2.5 text-[11px] font-medium text-mm-text-dim">Total</td>
+                <td className="px-2 py-1.5 text-[11px] font-medium text-mm-text-dim">Total</td>
                 {expiries.map((exp) => (
                   <TotalCell
                     key={exp}

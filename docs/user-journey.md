@@ -38,9 +38,10 @@ This is the daily loop. The customer opens Posit, sees where his positions shoul
 
 1. **Connect.** Opens terminal → WS handshake to `/ws` → desired position grid populates live → updates feed shows tick-by-tick changes with stream attribution.
 2. **Notice a change.** A desired position has moved since he last checked — the grid highlights it, the updates feed attributes the move to a specific stream or block.
-3. **Investigate.** Clicks the cell → context (symbol, expiry, current edge, variance breakdown) is posted to LlmChat → @Posit investigation streams back via SSE, walking through the reasoning chain: what drove the change, which stream, how fair value and market-implied compare, directional effect on position.
-4. **Learn.** Over time, the investigation conversations teach the customer to think in Edge/Variance/Bankroll terms — building the positional intuition he currently lacks.
-5. **Reposition manually.** He decides whether to act and executes the trade himself on his firm's execution platform. Posit advises; it does not execute.
+3. **Inspect.** Clicks the cell → workbench focus snaps to it → the right-rail Inspector channels to that (symbol, expiry): edge / variance / desired position scalars, the top contributing blocks, and an "Ask @Posit" affordance. Clicking a row header focuses the symbol; clicking a column header focuses the expiry; clicking a stream in the streams list opens its key-column time series. No chat opens unless the trader explicitly asks for it — inspection and conversation are separate gestures.
+4. **Ask why.** When the trader needs a narrative, he hits "Ask @Posit" inside the Inspector (or `⌘/` to toggle the rail's Chat tab). Investigation context is primed automatically and the SSE stream walks through the reasoning chain: what drove the change, which stream, how fair value and market-implied compare, directional effect on position.
+5. **Learn.** Over time, the investigation conversations teach the customer to think in Edge/Variance/Bankroll terms — building the positional intuition he currently lacks.
+6. **Reposition manually.** He decides whether to act and executes the trade himself on his firm's execution platform. Posit advises; it does not execute.
 
 ### Flow 2: Onboarding a New Data Stream (Build mode — LLM-guided)
 

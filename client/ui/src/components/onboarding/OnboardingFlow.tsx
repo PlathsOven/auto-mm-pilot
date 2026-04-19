@@ -42,7 +42,10 @@ export function OnboardingFlow() {
   const isLast = index === CARDS.length - 1;
 
   const finish = () => {
-    setMode("anatomy");
+    // Land on the Workbench after onboarding — that's the default workspace
+    // for daily use. Anatomy is a separate "system" mode the trader visits
+    // when they want to inspect the pipeline DAG itself.
+    setMode("workbench");
     markCompleted();
   };
 
@@ -297,6 +300,6 @@ const CARDS: OnboardingCard[] = [
         engine parameters, and suggests improvements back when it spots something worth knowing.
       </>
     ),
-    ctaLabel: "Drop me into the Studio →",
+    ctaLabel: "Take me to the Workbench →",
   },
 ];

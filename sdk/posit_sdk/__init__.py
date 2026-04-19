@@ -37,6 +37,8 @@ from posit_sdk.exceptions import (
     PositAuthError,
     PositConnectionError,
     PositError,
+    PositStreamNotRegistered,
+    PositValidationError,
 )
 from posit_sdk.models import (
     BankrollResponse,
@@ -45,14 +47,18 @@ from posit_sdk.models import (
     DataStream,
     DesiredPosition,
     GlobalContext,
+    HealthResponse,
     MarketValueEntry,
     PositionPayload,
     SnapshotResponse,
     SnapshotRow,
     StreamResponse,
+    StreamSpec,
+    StreamState,
     UpdateCard,
     WsAck,
 )
+from posit_sdk.ws import WsState
 
 __all__ = [
     # Client
@@ -62,15 +68,20 @@ __all__ = [
     "PositAuthError",
     "PositConnectionError",
     "PositApiError",
+    "PositValidationError",
+    "PositStreamNotRegistered",
     # Input models
     "SnapshotRow",
     "MarketValueEntry",
     "BlockConfig",
+    "StreamSpec",
     # Response models
     "StreamResponse",
+    "StreamState",
     "SnapshotResponse",
     "BankrollResponse",
     "BlockRowResponse",
+    "HealthResponse",
     # WebSocket models
     "PositionPayload",
     "DesiredPosition",
@@ -78,4 +89,5 @@ __all__ = [
     "GlobalContext",
     "UpdateCard",
     "WsAck",
+    "WsState",
 ]

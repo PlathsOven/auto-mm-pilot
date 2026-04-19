@@ -46,8 +46,32 @@ Format per entry: **Rule.** Then `Why:` (what went wrong, so edge cases can be j
 
 ---
 
+## `desired_pos_df` is a forward projection, not historical data
+
+**Why:** `run_pipeline` calls `build_time_grid(start=now, end=expiry)`, so every downstream DataFrame — `block_fair_df`, `block_var_df`, `desired_pos_df` — is a forward-looking sequence from the rerun moment to expiry. The WS ticker advances `state.current_tick_ts` through that range as real wall-clock catches up; the "current" row is always the one at `current_tick_ts`, not the first row of the sorted frame. In the Position chart, forgetting this meant we plotted the unrevealed future (decaying to 0 at expiry) as if it were history, producing a phantom trailing-0 and showing "now" on the left edge instead of the right. Similarly, `pos_sorted.row(0)` (ascending sort) is the rerun_time snapshot, not the current tick — using it for `current_agg` worked only by accident when rerun was close to the call time.
+
+**How to apply:** To get the backward-looking slice for the Position view, filter `timestamp <= current_tick_ts`. For the "current" snapshot row, use the max timestamp `<= current_tick_ts` (i.e., `row(height - 1)` after the slice), not `row(0)`. For forward-looking block decay (Fair / Variance), keep `timestamp >= current_tick_ts`. When real history (surviving across reruns) is needed, a separate per-dimension ring buffer must be added — `desired_pos_df` alone can't provide it.
+
+---
+
+## ECharts `stack:` requires a category axis
+
+**Why:** After switching the pipeline chart's xAxis to `type: "time"` with `[timestamp, value]` pair data, clicking the Fair or Variance tab blanked the entire Workbench. With no ErrorBoundary mounted, ECharts throwing inside its stacker (triggered by `stack: "fair"` on a time axis with nullable series) unmounts the whole React tree. The `stack` feature is only officially supported on a category axis; with time it either produces garbage or throws.
+
+**How to apply:** For any stacked series, use `xAxis.type: "category"` with `data: timestamps` and plain value arrays (aligned by index) on each series. A `formatter` on `axisLabel` gives back the pretty HH:MM display. Reserve `type: "time"` for single-series or non-stacked charts only. Consider mounting an ErrorBoundary above the Workbench so ECharts (or any descendant) crashes don't take down the entire UI.
+
+---
+
 ## ECharts types are exported under aliased names
 
 **Why:** `CallbackDataParams` is the internal name in ECharts but it's exported as `DefaultLabelFormatterCallbackParams`. Using the internal name causes TS2460. The tooltip formatter signature also expects `TopLevelFormatterParams` (union of single + array), not just the single variant.
 
 **How to apply:** When typing ECharts callbacks, import `DefaultLabelFormatterCallbackParams` (alias to `CallbackDataParams` locally if desired), and for tooltip formatters accept `CallbackDataParams | CallbackDataParams[]` to match the expected `TopLevelFormatterParams` union. For chart click handlers, use `ECElementEvent` (exported directly).
+
+---
+
+## Don't `git stash push -- <path>` with an untracked path in the list
+
+**Why:** Running `git stash push -m "..." -- client/ui server/api/new_file.py` on a tree where `new_file.py` is untracked makes the push fail with "pathspec did not match any file(s) known to git" — and on this repo the subsequent command in the chain (`git stash pop`) fired against the pre-existing top stash, applying someone else's WIP onto the working tree and creating conflicts in unrelated files. The root cause is that `stash push -- <path>` rejects untracked paths by default; the intended way is `git stash push -u -- <paths>` (or adding the new file first).
+
+**How to apply:** Before using `git stash push -- <path>` to isolate a subset of changes, check whether any of those paths are untracked. If so, either `git add -N` them first to make them known to git, or use `git stash push -u` to include untracked files. Never chain a `git stash pop` after a stash push without verifying the push actually succeeded — shell `&&` doesn't save you when the push partially fails. When you inherit a repo with pre-existing entries in `git stash list`, avoid `stash pop` entirely unless you know the top stash is yours.

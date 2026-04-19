@@ -1,9 +1,14 @@
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useStreamContributions } from "../../hooks/useStreamContributions";
 import { valColor } from "../../utils";
 
 interface Props {
   symbol: string;
   expiry: string;
+  /** The cell's DOMRect — used to position the popover via fixed coords so
+   *  it isn't clipped by the position grid's overflow-auto scroller. */
+  anchorRect: DOMRect | null;
 }
 
 /**
@@ -17,11 +22,32 @@ interface Props {
  * the popup does not fire `mouseleave` on the td and the hover state
  * survives. Hence pointer events are enabled here.
  */
-export function StreamAttributionHoverCard({ symbol, expiry }: Props) {
+export function StreamAttributionHoverCard({ symbol, expiry, anchorRect }: Props) {
   const { loading, contributions, error } = useStreamContributions({ symbol, expiry });
+  const [mounted, setMounted] = useState(false);
 
-  return (
-    <div className="absolute left-1/2 top-full z-50 mt-1 w-64 -translate-x-1/2 rounded-lg border border-white/50 bg-white/85 p-3 shadow-lg shadow-black/[0.08] ring-1 ring-black/[0.06]" style={{ backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }}>
+  // SSR safety + ensure document.body exists (it always will in the browser
+  // but keeps Storybook/tests happy).
+  useEffect(() => { setMounted(typeof document !== "undefined"); }, []);
+  if (!mounted || !anchorRect) return null;
+
+  // Position below the anchor cell, clamped to the viewport so the card never
+  // hangs off the right edge or below the status bar.
+  const cardWidth = 256;
+  const margin = 8;
+  const top = Math.min(anchorRect.bottom + 4, window.innerHeight - 200);
+  let left = anchorRect.left + anchorRect.width / 2 - cardWidth / 2;
+  left = Math.max(margin, Math.min(left, window.innerWidth - cardWidth - margin));
+
+  return createPortal(
+    <div
+      className="fixed z-[120] rounded-lg border border-white/50 bg-white/85 p-3 shadow-elev-3 ring-1 ring-black/[0.06]"
+      style={{ top, left, width: cardWidth, backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }}
+      // Don't intercept pointer events — the hover lives on the underlying td.
+      // Setting pointer-events: none means moving over the card doesn't trigger
+      // mouseleave on the cell (the card is pinned but can't be interacted with).
+      onMouseDown={(e) => e.preventDefault()}
+    >
       <div className="mb-2 flex items-baseline justify-between border-b border-black/[0.06] pb-1.5">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-mm-accent">
           Stream Attribution
@@ -72,6 +98,7 @@ export function StreamAttributionHoverCard({ symbol, expiry }: Props) {
           ))}
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }

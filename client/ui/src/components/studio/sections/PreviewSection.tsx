@@ -1,96 +1,29 @@
-import { useState } from "react";
+import type { ReactNode } from "react";
 import type { StreamDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
 import { LiveEquationStrip } from "../../equation/LiveEquationStrip";
-import { configureStream, ingestSnapshot } from "../../../services/streamApi";
 
 interface Props {
   draft: StreamDraft;
   state: SectionState;
-  allValid: boolean;
-  /** Whether the stream is already registered (PENDING) — Activate uses configure. */
-  pendingStreamName: string | null;
-  onActivated: () => void;
-  dimmed?: boolean;
-}
-
-interface ActivationResult {
-  type: "success" | "error";
-  message: string;
+  expanded?: boolean;
+  nav?: ReactNode;
 }
 
 /**
- * Final canvas section. Shows live equation context and an Activate button.
- *
- * Activate flow:
- *   1. Call POST /api/streams/{name}/configure with target_mapping + block_shape
- *   2. If sample CSV is non-empty, ingest those rows via POST /api/snapshots
- *   3. Stream transitions PENDING → READY and Floor positions update
+ * Final canvas section. Shows live equation context and a read-only draft
+ * summary. The Activate button lives in `<StreamCanvasFooter/>` so it stays
+ * pinned at the bottom of the canvas — the architect doesn't have to scroll
+ * through every section to find the CTA.
  */
-export function PreviewSection({
-  draft,
-  state,
-  allValid,
-  pendingStreamName,
-  onActivated,
-  dimmed,
-}: Props) {
-  const [activating, setActivating] = useState(false);
-  const [result, setResult] = useState<ActivationResult | null>(null);
-
-  const handleActivate = async () => {
-    if (!pendingStreamName) {
-      setResult({
-        type: "error",
-        message: "Create the stream first by saving Identity (Studio Library handles this).",
-      });
-      return;
-    }
-    setActivating(true);
-    setResult(null);
-    try {
-      await configureStream(pendingStreamName, {
-        scale: draft.target_mapping.scale,
-        offset: draft.target_mapping.offset,
-        exponent: draft.target_mapping.exponent,
-        block: {
-          annualized: draft.block_shape.annualized,
-          size_type: draft.block_shape.size_type,
-          aggregation_logic: draft.aggregation.aggregation_logic,
-          temporal_position: draft.block_shape.temporal_position,
-          decay_end_size_mult: draft.block_shape.decay_end_size_mult,
-          decay_rate_prop_per_min: draft.block_shape.decay_rate_prop_per_min,
-          decay_profile: "linear",
-          var_fair_ratio: draft.confidence.var_fair_ratio,
-        },
-      });
-
-      const csvRows = parseCsvToRows(draft.data_shape.sample_csv);
-      if (csvRows.length > 0) {
-        await ingestSnapshot(pendingStreamName, csvRows);
-      }
-
-      setResult({
-        type: "success",
-        message: `Activated ${pendingStreamName}. Floor positions will update on the next pipeline tick.`,
-      });
-      onActivated();
-    } catch (err) {
-      setResult({
-        type: "error",
-        message: err instanceof Error ? err.message : String(err),
-      });
-    } finally {
-      setActivating(false);
-    }
-  };
-
+export function PreviewSection({ draft, state, expanded, nav }: Props) {
   return (
     <SectionCard
-      title="Preview & Activate"
+      title="Preview"
       number={7}
       status={state.status}
-      dimmed={dimmed}
+      expanded={expanded}
+      nav={nav}
     >
       <div className="grid gap-3">
         <LiveEquationStrip size="lg" />
@@ -110,27 +43,6 @@ export function PreviewSection({
             <DraftRow label="Temporal" value={draft.block_shape.temporal_position} />
           </dl>
         </div>
-
-        {result && (
-          <div
-            className={`rounded-md border p-2 text-[10px] ${
-              result.type === "success"
-                ? "border-mm-accent/40 bg-mm-accent/10 text-mm-accent"
-                : "border-mm-error/40 bg-mm-error/10 text-mm-error"
-            }`}
-          >
-            {result.message}
-          </div>
-        )}
-
-        <button
-          type="button"
-          disabled={!allValid || activating}
-          onClick={handleActivate}
-          className="rounded-lg bg-mm-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-mm-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {activating ? "Activating…" : pendingStreamName ? "Activate stream" : "Create stream first (Library)"}
-        </button>
       </div>
     </SectionCard>
   );
@@ -151,7 +63,7 @@ function DraftRow({ label, value }: { label: string; value: string }) {
 const NUMERIC_RE = /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
 
 /** Parse pasted CSV into row objects suitable for /api/snapshots. */
-function parseCsvToRows(csv: string): Record<string, unknown>[] {
+export function parseCsvToRows(csv: string): Record<string, unknown>[] {
   const lines = csv
     .trim()
     .split("\n")

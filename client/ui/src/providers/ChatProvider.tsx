@@ -9,13 +9,15 @@ interface ChatState {
   messages: ChatMessage[];
   investigation: InvestigationContext | null;
   isStreaming: boolean;
-  /** Whether the global ChatDrawer is currently visible. */
+  /** Whether the WorkbenchRail's Chat tab is currently surfaced. */
   drawerOpen: boolean;
   chatMode: ChatMode;
   /** Pending manual-block command awaiting review in BlockDrawer. */
   pendingBlockCommand: PendingBlockCommand | null;
   setChatMode: (mode: ChatMode) => void;
   sendMessage: (content: string) => void;
+  pushSystemMessage: (content: string) => void;
+  clearMessages: () => void;
   investigate: (ctx: InvestigationContext) => void;
   clearInvestigation: () => void;
   cancelStream: () => void;
@@ -34,6 +36,8 @@ const ChatContext = createContext<ChatState>({
   pendingBlockCommand: null,
   setChatMode: () => {},
   sendMessage: () => {},
+  pushSystemMessage: () => {},
+  clearMessages: () => {},
   investigate: () => {},
   clearInvestigation: () => {},
   cancelStream: () => {},
@@ -171,13 +175,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const investigate = useCallback(
     (ctx: InvestigationContext) => {
+      // Phase 1 redesign: investigate() no longer auto-opens any drawer. The
+      // workbench rail listens for `investigation` and surfaces its Chat tab
+      // when set. Cell clicks set focus only — chat is now a deliberate
+      // gesture from the Inspector ("Ask @Posit") or the explicit Chat
+      // toggle (⌘/), never a side-effect of clicking on a value.
       setInvestigation(ctx);
-      setDrawerOpen(true);
     },
     [],
   );
 
   const clearInvestigation = useCallback(() => {
+    setInvestigation(null);
+  }, []);
+
+  const pushSystemMessage = useCallback(
+    (content: string) => {
+      pushMessage("system", content);
+    },
+    [pushMessage],
+  );
+
+  const clearMessages = useCallback(() => {
+    setMessages([]);
     setInvestigation(null);
   }, []);
 
@@ -192,6 +212,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         pendingBlockCommand,
         setChatMode,
         sendMessage,
+        pushSystemMessage,
+        clearMessages,
         investigate,
         clearInvestigation,
         cancelStream,

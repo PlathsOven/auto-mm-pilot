@@ -73,6 +73,205 @@ export function sci(v: number): string {
 // ECharts option builder
 // ---------------------------------------------------------------------------
 
+/** Single-view rendering modes for the pipeline chart. Each maps to one of
+ *  the three substantive aggregates (position / fair / variance) that the
+ *  pipeline produces — same vocabulary as the position grid's view-mode tabs
+ *  so the two surfaces can stay in sync. */
+export type PipelineView = "position" | "fair" | "variance";
+
+/**
+ * Build a single-grid ECharts option for the requested view.
+ *
+ * Replaces the old three-stacked-grid layout. With one grid filling the
+ * panel the chart actually fills the canvas, gets significantly more y-axis
+ * resolution, and reads at small heights. The trader switches view via tabs
+ * up in PipelineChartPanel — by default, those tabs follow the position
+ * grid's active view-mode (linked).
+ */
+/** Parse a naive-UTC ISO timestamp. The server emits naive UTC; JS would
+ *  otherwise interpret naive ISO as local time on some browsers, shifting
+ *  the axis labels by the user's UTC offset. */
+function parseIsoUtc(iso: string): Date | null {
+  if (!iso) return null;
+  const normalised = /Z|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`;
+  const d = new Date(normalised);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+const pad2 = (n: number): string => String(n).padStart(2, "0");
+
+/** Build a category-axis label formatter that renders `MM/DD\nHH:MM` at
+ *  the first tick and whenever the local date changes between adjacent
+ *  timestamps, and just `HH:MM` elsewhere. Tick density is handled by
+ *  ECharts' `hideOverlap: true` — this only shapes what each rendered
+ *  tick reads. Labels render in the user's local timezone (same
+ *  convention as the old HH:MM-only formatter). */
+function makeAxisLabelFormatter(timestamps: string[]) {
+  return (value: string, index: number): string => {
+    const d = parseIsoUtc(value);
+    if (!d) return value;
+    const time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    const date = `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
+    if (index === 0) return `${date}\n${time}`;
+    const prev = parseIsoUtc(timestamps[index - 1]);
+    if (!prev) return `${date}\n${time}`;
+    const dayChanged =
+      prev.getFullYear() !== d.getFullYear()
+      || prev.getMonth() !== d.getMonth()
+      || prev.getDate() !== d.getDate();
+    return dayChanged ? `${date}\n${time}` : time;
+  };
+}
+
+export function buildPipelineSingleViewOptions(
+  data: PipelineTimeSeriesResponse,
+  view: PipelineView,
+  selectedBlocks: Set<string>,
+): EChartsOption {
+  const { blocks, aggregated, blockTimestamps } = data;
+  // Position view = backward-looking historical (axis ends at current_ts);
+  // Fair / Variance = forward-looking decay curves (axis runs current_ts →
+  // expiry). Each view uses its own timestamp axis.
+  const isPositionView = view === "position";
+  const axisTimestamps = isPositionView ? aggregated.timestamps : blockTimestamps;
+
+  const hasSelection = selectedBlocks.size > 0;
+
+  const series: EChartsOption["series"] = [];
+  let yAxisName = "";
+  let yAxisFormatter: (v: number) => string;
+
+  if (view === "position") {
+    yAxisName = "Position ($)";
+    yAxisFormatter = (v: number) =>
+      v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v));
+    series.push(
+      {
+        name: "Raw",
+        type: "line",
+        data: aggregated.rawDesiredPosition,
+        showSymbol: false,
+        lineStyle: { width: 1, color: RAW_COLOR },
+        itemStyle: { color: RAW_COLOR },
+        z: 1,
+      },
+      {
+        name: "Smoothed",
+        type: "line",
+        data: aggregated.smoothedDesiredPosition,
+        showSymbol: false,
+        lineStyle: { width: 2, color: SMOOTHED_COLOR },
+        itemStyle: { color: SMOOTHED_COLOR },
+        z: 2,
+      },
+    );
+  } else if (view === "fair") {
+    yAxisName = "Fair Value";
+    yAxisFormatter = sci;
+    blocks.forEach((b, i) => {
+      const dimmed = hasSelection && !selectedBlocks.has(b.blockName);
+      series.push({
+        name: `${b.blockName} (fair)`,
+        type: "line",
+        data: b.fair,
+        showSymbol: false,
+        stack: "fair",
+        connectNulls: false,
+        areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
+        lineStyle: {
+          width: dimmed ? 0.3 : 0,
+          color: BLOCK_COLORS[i % BLOCK_COLORS.length],
+          opacity: dimmed ? 0.3 : 1,
+        },
+        itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
+        emphasis: { focus: "series" },
+      });
+    });
+  } else {
+    // variance
+    yAxisName = "Variance";
+    yAxisFormatter = sci;
+    blocks.forEach((b, i) => {
+      const dimmed = hasSelection && !selectedBlocks.has(b.blockName);
+      series.push({
+        name: `${b.blockName} (var)`,
+        type: "line",
+        data: b.var,
+        showSymbol: false,
+        stack: "var",
+        connectNulls: false,
+        areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
+        lineStyle: {
+          width: dimmed ? 0.3 : 0,
+          color: BLOCK_COLORS[i % BLOCK_COLORS.length],
+          opacity: dimmed ? 0.3 : 1,
+        },
+        itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
+        emphasis: { focus: "series" },
+      });
+    });
+  }
+
+  return {
+    backgroundColor: "transparent",
+    animation: false,
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "cross", crossStyle: { color: "#666" } },
+      ...TOOLTIP_STYLE,
+      confine: true,
+      valueFormatter: (v) => (typeof v === "number" ? sci(v) : String(v ?? "—")),
+    },
+    dataZoom: [
+      { type: "inside", filterMode: "filter" },
+      {
+        type: "slider",
+        bottom: 6,
+        height: 12,
+        borderColor: "transparent",
+        backgroundColor: "rgba(0,0,0,0.03)",
+        fillerColor: "rgba(79,91,213,0.10)",
+        handleStyle: { color: "#4f5bd5", borderColor: "rgba(255,255,255,0.6)" },
+        textStyle: { color: "#6e6e82", fontSize: 9 },
+      },
+    ],
+    // bottom leaves room for the dataZoom slider (bottom 6 + height 12)
+    // + a two-line axis label (~22px) — single-line labels used 36px.
+    grid: { left: 56, right: 16, top: 12, bottom: 48 },
+    xAxis: {
+      // Category axis aligned to the backing timestamp array. Series data
+      // are plain value arrays (aligned by index) — this is the only shape
+      // ECharts' `stack:` supports reliably. A time axis with stacked
+      // nullable series throws inside the internal stacker and, because no
+      // ErrorBoundary is mounted above the chart, the whole workbench
+      // unmounts — that was the "blank screen on Fair" crash.
+      type: "category",
+      data: axisTimestamps,
+      boundaryGap: false,
+      axisLabel: {
+        color: "#6e6e82",
+        fontSize: 9,
+        hideOverlap: true,
+        lineHeight: 11,
+        formatter: makeAxisLabelFormatter(axisTimestamps),
+      },
+      axisTick: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
+      axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
+      splitLine: { show: false },
+    },
+    yAxis: {
+      type: "value",
+      name: yAxisName,
+      nameTextStyle: { color: "#6e6e82", fontSize: 10, padding: [0, 0, 0, -10] },
+      axisLabel: { color: "#6e6e82", fontSize: 10, formatter: yAxisFormatter },
+      splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
+      axisLine: { show: false },
+    },
+    series,
+  };
+}
+
+
 export function buildPipelineChartOptions(
   data: PipelineTimeSeriesResponse,
   selectedBlocks: Set<string>,
@@ -291,14 +490,9 @@ export function buildPipelineChartOptions(
         axisLabel: {
           color: "#6e6e82",
           fontSize: 10,
-          formatter: (v: string) => {
-            try {
-              const d = new Date(v);
-              return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
-            } catch {
-              return v;
-            }
-          },
+          hideOverlap: true,
+          lineHeight: 12,
+          formatter: makeAxisLabelFormatter(timestamps),
         },
         axisTick: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
         axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
