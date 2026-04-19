@@ -3,15 +3,13 @@ import { useWebSocket } from "../providers/WebSocketProvider";
 import { valColor, cellBg } from "../utils";
 import { useFocus } from "../providers/FocusProvider";
 import { Tabs, type TabItem } from "./ui/Tabs";
-import type { Focus } from "../types";
+import type { Focus, ViewMode, TimeframeLabel } from "../types";
 import {
   VIEW_MODE_META,
   TIMEFRAME_OPTIONS,
   PRIMARY_VIEW_MODES,
   SECONDARY_VIEW_MODES,
-  type ViewMode,
-  type TimeframeLabel,
-} from "./grid-config";
+} from "../constants";
 import { usePositionHistory } from "../hooks/usePositionHistory";
 import { usePositionEdit } from "../hooks/usePositionEdit";
 import { usePositionHover } from "../hooks/usePositionHover";

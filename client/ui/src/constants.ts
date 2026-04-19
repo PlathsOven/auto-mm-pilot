@@ -1,11 +1,30 @@
 /** UI constants. Any magic number that appears inline in a component belongs here. */
 
+import type { ViewMode, ViewModeMeta } from "./types";
+
 export const POLL_INTERVAL_TRANSFORMS_MS = 10_000;
 export const POLL_INTERVAL_BLOCKS_MS = 5_000;
 export const POLL_INTERVAL_TIMESERIES_MS = 5_000;
 export const POLL_INTERVAL_SELECTION_MS = 5_000;
+export const POLL_INTERVAL_STREAMS_MS = 5_000;
 
 export const HOVER_DELAY_MS = 350;
+
+// WebSocket reconnection backoff when the /ws connection drops.
+export const WS_RECONNECT_DELAY_MS = 3_000;
+
+// useHotkeys — how long a chord prefix (`g…`) stays live waiting for the
+// second key. 1.2s is comfortable without stealing bare-key shortcuts.
+export const CHORD_WINDOW_MS = 1_200;
+
+// useStreamContributions — per-cell block decomposition TTL.
+export const CONTRIBUTIONS_CACHE_TTL_MS = 5_000;
+
+// usePipelineTimeSeries — LRU cap on cached time-series responses.
+export const PIPELINE_TIMESERIES_CACHE_MAX_ENTRIES = 12;
+
+// DesiredPositionGrid — how long a recently-updated cell stays highlighted.
+export const HIGHLIGHT_DURATION_MS = 2_000;
 
 export const SIDEBAR_DEFAULT_WIDTH_PX = 176;
 export const SIDEBAR_MIN_WIDTH_PX = 120;
@@ -57,3 +76,35 @@ export const POSITION_LOOKBACK_OPTIONS: readonly { label: string; seconds: numbe
 
 export const DEFAULT_POSITION_LOOKBACK_LABEL = "15m";
 export const POSITION_LOOKBACK_KEY = "posit-position-lookback";
+
+// ---------------------------------------------------------------------------
+// Position grid — view modes + timeframe options
+// ---------------------------------------------------------------------------
+
+export const VIEW_MODE_META: Record<ViewMode, ViewModeMeta> = {
+  position: { label: "Position", unit: "$vega", decimals: 2, group: "primary" },
+  change: { label: "Change", unit: "$vega", decimals: 2, group: "primary" },
+  edge: { label: "Edge", unit: "vp", decimals: 2, group: "primary" },
+  variance: { label: "Variance", unit: "vp", decimals: 2, group: "primary" },
+  rawPosition: { label: "Raw Position", unit: "$vega", decimals: 2, group: "secondary" },
+  smoothedEdge: { label: "Smoothed Edge", unit: "vp", decimals: 2, group: "secondary" },
+  smoothedVar: { label: "Smoothed Variance", unit: "vp", decimals: 2, group: "secondary" },
+  totalFair: { label: "Total Fair", unit: "vp", decimals: 2, group: "secondary" },
+  totalMarketFair: { label: "Market Fair", unit: "vp", decimals: 2, group: "secondary" },
+};
+
+export const PRIMARY_VIEW_MODES: ViewMode[] = ["position", "change", "edge", "variance"];
+export const SECONDARY_VIEW_MODES: ViewMode[] = [
+  "rawPosition",
+  "smoothedEdge",
+  "smoothedVar",
+  "totalFair",
+  "totalMarketFair",
+];
+
+export const TIMEFRAME_OPTIONS = [
+  { label: "Latest", ms: 0 },
+  { label: "1 min", ms: 60_000 },
+  { label: "5 min", ms: 300_000 },
+  { label: "15 min", ms: 900_000 },
+] as const;

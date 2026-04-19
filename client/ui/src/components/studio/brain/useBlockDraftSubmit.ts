@@ -5,7 +5,9 @@ import {
   type ManualBlockPayload,
   type UpdateBlockPayload,
 } from "../../../services/blockApi";
-import { NUMERIC_RE, type Draft, type DrawerMode } from "./blockDrawerState";
+import { type Draft, type DrawerMode } from "./blockDrawerState";
+import type { SnapshotRow } from "../../../types";
+import { NUMERIC_RE } from "../../../utils";
 
 /**
  * Submit hook for ``BlockDrawer`` — owns ``submitting`` + ``error`` state
@@ -40,7 +42,7 @@ export function useBlockDraftSubmit(
             if (cell === "") continue;
             out[h] = NUMERIC_RE.test(cell) ? parseFloat(cell) : cell;
           }
-          return out;
+          return out as SnapshotRow;
         });
 
         const blockConfig = {

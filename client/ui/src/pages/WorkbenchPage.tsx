@@ -7,8 +7,7 @@ import { InspectorColumn } from "../components/workbench/InspectorColumn";
 import { UpdatesTicker } from "../components/workbench/UpdatesTicker";
 import { PipelineChartPanel } from "../components/workbench/PipelineChartPanel";
 import { useFocus } from "../providers/FocusProvider";
-import type { BlockRow } from "../types";
-import type { ViewMode } from "../components/grid-config";
+import type { BlockRow, ViewMode } from "../types";
 
 /**
  * Unified workbench — vertical-stack canvas + right-side InspectorColumn.

@@ -1,5 +1,4 @@
-import type { DesiredPosition } from "../types";
-import type { ViewMode } from "./grid-config";
+import type { DesiredPosition, ViewMode } from "../types";
 import type { PendingEdit } from "../hooks/usePositionEdit";
 import { valColor, cellBg } from "../utils";
 

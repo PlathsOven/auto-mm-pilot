@@ -1,7 +1,6 @@
 import { useMemo, useRef } from "react";
-import type { DesiredPosition } from "../types";
-import { HIGHLIGHT_DURATION_MS, TIMEFRAME_OPTIONS } from "../components/grid-config";
-import type { TimeframeLabel } from "../components/grid-config";
+import type { DesiredPosition, TimeframeLabel } from "../types";
+import { HIGHLIGHT_DURATION_MS, TIMEFRAME_OPTIONS } from "../constants";
 import { parseExpiry } from "../utils";
 
 interface HistoryEntry {

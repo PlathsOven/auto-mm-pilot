@@ -38,10 +38,6 @@ export function registerAuthHandlers(
   _onUnauthorized = onUnauthorized;
 }
 
-export function getSessionToken(): string | null {
-  return _tokenGetter();
-}
-
 function buildHeaders(init?: RequestInit): HeadersInit {
   const headers = new Headers(init?.headers);
   if (!headers.has("Content-Type")) {

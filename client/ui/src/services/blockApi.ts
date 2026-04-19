@@ -6,7 +6,7 @@
  *   POST  /api/blocks  — Create a manual block
  */
 
-import type { BlockConfigPayload, BlockRow } from "../types";
+import type { BlockConfigPayload, BlockRow, SnapshotRow } from "../types";
 import { apiFetch } from "./api";
 
 // ---------------------------------------------------------------------------
@@ -29,7 +29,7 @@ export interface ManualBlockPayload {
   offset: number;
   exponent: number;
   block: BlockConfigPayload;
-  snapshot_rows: Record<string, unknown>[];
+  snapshot_rows: SnapshotRow[];
   space_id?: string;
 }
 
@@ -51,7 +51,7 @@ export interface UpdateBlockPayload {
   offset?: number;
   exponent?: number;
   block?: BlockConfigPayload;
-  snapshot_rows?: Record<string, unknown>[];
+  snapshot_rows?: SnapshotRow[];
 }
 
 export async function updateBlock(

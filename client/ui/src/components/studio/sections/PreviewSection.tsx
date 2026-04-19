@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { StreamDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
 import { LiveEquationStrip } from "../../equation/LiveEquationStrip";
+import { NUMERIC_RE } from "../../../utils";
 
 interface Props {
   draft: StreamDraft;
@@ -56,11 +57,6 @@ function DraftRow({ label, value }: { label: string; value: string }) {
     </>
   );
 }
-
-// Strict numeric — matches whole-string integers, decimals, scientific
-// notation, with an optional leading sign. Critically rejects `"27MAR26"`
-// which `parseFloat` would otherwise parse as `27`.
-const NUMERIC_RE = /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
 
 /** Parse pasted CSV into row objects suitable for /api/snapshots. */
 export function parseCsvToRows(csv: string): Record<string, unknown>[] {

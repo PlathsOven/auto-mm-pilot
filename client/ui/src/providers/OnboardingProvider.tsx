@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -55,10 +56,13 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     setOpen(false);
   }, []);
 
+  const value = useMemo(
+    () => ({ completed, open, openOnboarding, closeOnboarding, markCompleted }),
+    [completed, open, openOnboarding, closeOnboarding, markCompleted],
+  );
+
   return (
-    <OnboardingContext.Provider
-      value={{ completed, open, openOnboarding, closeOnboarding, markCompleted }}
-    >
+    <OnboardingContext.Provider value={value}>
       {children}
     </OnboardingContext.Provider>
   );

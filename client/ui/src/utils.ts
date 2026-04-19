@@ -104,3 +104,52 @@ export function formatUtcTime(ts: number): string {
   const ms = String(d.getUTCMilliseconds()).padStart(3, "0");
   return `${h}:${m}:${s}.${ms}`;
 }
+
+/**
+ * Whole-string numeric regex — integers, decimals, scientific notation, with
+ * an optional leading sign. Critically rejects `"27MAR26"` which `parseFloat`
+ * would otherwise happily parse as `27`. Used by snapshot/CSV cell coercion.
+ */
+export const NUMERIC_RE = /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
+
+/**
+ * Short human-friendly numeric formatter. Scientific notation for extreme
+ * magnitudes (|n| ≥ 1000 or |n| < 0.001); otherwise trims trailing zeros up
+ * to ``maxDecimals``. Returns ``"?"`` for non-finite input.
+ */
+export function formatNumber(n: number, maxDecimals = 4): string {
+  if (!Number.isFinite(n)) return "?";
+  if (n === 0) return "0";
+  const abs = Math.abs(n);
+  if (abs >= 1000 || abs < 0.001) return n.toExponential(2);
+  return Number.parseFloat(n.toFixed(maxDecimals)).toString();
+}
+
+/** Fixed-decimal formatter with null/undefined sentinel for data tables. */
+export function formatNullable(v: number | null | undefined, decimals = 4): string {
+  if (v == null) return "—";
+  return v.toFixed(decimals);
+}
+
+// ---------------------------------------------------------------------------
+// Position grid value accessor (shared by grid + hooks)
+// ---------------------------------------------------------------------------
+
+import type { DesiredPosition, ViewMode } from "./types";
+
+/** Pull the value for a given view mode from a ``DesiredPosition`` row.
+ *  ``change`` is passed through because the grid computes it outside the
+ *  position object (it depends on the selected timeframe). */
+export function getCellValue(p: DesiredPosition, mode: ViewMode, change: number): number {
+  switch (mode) {
+    case "position": return p.desiredPos;
+    case "rawPosition": return p.rawDesiredPos;
+    case "change": return change;
+    case "edge": return p.edgeVol;
+    case "smoothedEdge": return p.smoothedEdgeVol;
+    case "variance": return p.varianceVol;
+    case "smoothedVar": return p.smoothedVarVol;
+    case "totalFair": return p.totalFairVol;
+    case "totalMarketFair": return p.totalMarketFairVol;
+  }
+}

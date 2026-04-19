@@ -13,16 +13,15 @@ import {
 } from "@tanstack/react-table";
 import { fetchBlocks } from "../../../services/blockApi";
 import type { BlockRow } from "../../../types";
-import { valColor } from "../../../utils";
+import { valColor, formatNullable } from "../../../utils";
 import { POLL_INTERVAL_BLOCKS_MS } from "../../../constants";
 import { useFocus } from "../../../providers/FocusProvider";
 
 const col = createColumnHelper<BlockRow>();
 
-/** Format a number to fixed decimals, or "—" if null/undefined. */
-function fmt(v: number | null | undefined, dp = 4): string {
-  if (v == null) return "—";
-  return v.toFixed(dp);
+/** fair − market_fair, with nulls treated as 0. Shared by cell + sortingFn. */
+function edgeOf(row: BlockRow): number {
+  return (row.fair ?? 0) - (row.market_fair ?? 0);
 }
 
 /** All column definitions. The `id` doubles as the visibility key. */
@@ -54,19 +53,19 @@ const ALL_COLUMNS: ColumnDef<BlockRow, any>[] = [
   col.accessor("space_id", { header: "Space" }),
   col.accessor("fair", {
     header: "Fair",
-    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
     sortingFn: "basic",
   }),
   col.accessor("market_fair", {
     header: "Mkt Fair",
-    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
     sortingFn: "basic",
   }),
   col.display({
     id: "edge",
     header: "Edge",
     cell: ({ row }) => {
-      const edge = (row.original.fair ?? 0) - (row.original.market_fair ?? 0);
+      const edge = edgeOf(row.original);
       return (
         <span className={`font-mono tabular-nums ${valColor(edge)}`}>
           {edge >= 0 ? "+" : ""}
@@ -74,15 +73,11 @@ const ALL_COLUMNS: ColumnDef<BlockRow, any>[] = [
         </span>
       );
     },
-    sortingFn: (a, b) => {
-      const ae = (a.original.fair ?? 0) - (a.original.market_fair ?? 0);
-      const be = (b.original.fair ?? 0) - (b.original.market_fair ?? 0);
-      return Math.abs(ae) - Math.abs(be);
-    },
+    sortingFn: (a, b) => Math.abs(edgeOf(a.original)) - Math.abs(edgeOf(b.original)),
   }),
   col.accessor("var", {
     header: "Variance",
-    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
     sortingFn: "basic",
   }),
   // Engine parameters (hidden by default)
@@ -95,44 +90,44 @@ const ALL_COLUMNS: ColumnDef<BlockRow, any>[] = [
   col.accessor("temporal_position", { header: "Temporal Pos" }),
   col.accessor("decay_end_size_mult", {
     header: "Decay End",
-    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
   }),
   col.accessor("decay_rate_prop_per_min", {
     header: "Decay Rate",
-    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue(), 6)}</span>,
+    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue(), 6)}</span>,
   }),
   col.accessor("var_fair_ratio", {
     header: "Var/Fair Ratio",
-    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
   }),
   col.accessor("scale", {
     header: "Scale",
-    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
   }),
   col.accessor("offset", {
     header: "Offset",
-    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
   }),
   col.accessor("exponent", {
     header: "Exponent",
-    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
   }),
   // Output values (hidden by default)
   col.accessor("target_value", {
     header: "Target Value",
-    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
   }),
   col.accessor("raw_value", {
     header: "Raw Value",
-    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
   }),
   col.accessor("market_value", {
     header: "Market Value",
-    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
   }),
   col.accessor("target_market_value", {
     header: "Target Mkt Value",
-    cell: (info) => <span className="font-mono tabular-nums">{fmt(info.getValue())}</span>,
+    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
   }),
   // Timing (hidden by default)
   col.accessor("start_timestamp", { header: "Start TS" }),

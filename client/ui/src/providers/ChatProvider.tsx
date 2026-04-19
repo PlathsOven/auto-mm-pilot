@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { ChatMessage, ChatMode, InvestigationContext, PendingBlockCommand } from "../types";
 import { streamFetchSSE } from "../services/api";
@@ -27,28 +27,12 @@ interface ChatState {
   clearPendingBlockCommand: () => void;
 }
 
-const ChatContext = createContext<ChatState>({
-  messages: [],
-  investigation: null,
-  isStreaming: false,
-  drawerOpen: false,
-  chatMode: "investigate",
-  pendingBlockCommand: null,
-  setChatMode: () => {},
-  sendMessage: () => {},
-  pushSystemMessage: () => {},
-  clearMessages: () => {},
-  investigate: () => {},
-  clearInvestigation: () => {},
-  cancelStream: () => {},
-  openDrawer: () => {},
-  closeDrawer: () => {},
-  toggleDrawer: () => {},
-  clearPendingBlockCommand: () => {},
-});
+const ChatContext = createContext<ChatState | null>(null);
 
-export function useChat() {
-  return useContext(ChatContext);
+export function useChat(): ChatState {
+  const ctx = useContext(ChatContext);
+  if (!ctx) throw new Error("useChat must be used within ChatProvider");
+  return ctx;
 }
 
 const nextId = createIdGenerator("msg-");
@@ -201,29 +185,45 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setInvestigation(null);
   }, []);
 
-  return (
-    <ChatContext.Provider
-      value={{
-        messages,
-        investigation,
-        isStreaming,
-        drawerOpen,
-        chatMode,
-        pendingBlockCommand,
-        setChatMode,
-        sendMessage,
-        pushSystemMessage,
-        clearMessages,
-        investigate,
-        clearInvestigation,
-        cancelStream,
-        openDrawer,
-        closeDrawer,
-        toggleDrawer,
-        clearPendingBlockCommand,
-      }}
-    >
-      {children}
-    </ChatContext.Provider>
+  const value = useMemo<ChatState>(
+    () => ({
+      messages,
+      investigation,
+      isStreaming,
+      drawerOpen,
+      chatMode,
+      pendingBlockCommand,
+      setChatMode,
+      sendMessage,
+      pushSystemMessage,
+      clearMessages,
+      investigate,
+      clearInvestigation,
+      cancelStream,
+      openDrawer,
+      closeDrawer,
+      toggleDrawer,
+      clearPendingBlockCommand,
+    }),
+    [
+      messages,
+      investigation,
+      isStreaming,
+      drawerOpen,
+      chatMode,
+      pendingBlockCommand,
+      sendMessage,
+      pushSystemMessage,
+      clearMessages,
+      investigate,
+      clearInvestigation,
+      cancelStream,
+      openDrawer,
+      closeDrawer,
+      toggleDrawer,
+      clearPendingBlockCommand,
+    ],
   );
+
+  return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 }

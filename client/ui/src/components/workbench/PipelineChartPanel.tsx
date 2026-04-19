@@ -6,7 +6,7 @@ import { useWebSocket } from "../../providers/WebSocketProvider";
 import { usePipelineTimeSeries } from "../../hooks/usePipelineTimeSeries";
 import { formatExpiry } from "../../utils";
 import type { PipelineView } from "../PipelineChart/chartOptions";
-import type { ViewMode } from "../grid-config";
+import type { ViewMode } from "../../types";
 import {
   POSITION_LOOKBACK_OPTIONS,
   DEFAULT_POSITION_LOOKBACK_LABEL,

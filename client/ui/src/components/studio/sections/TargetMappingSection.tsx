@@ -3,6 +3,7 @@ import { useTransforms } from "../../../providers/TransformsProvider";
 import type { TargetMappingDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
 import { Field } from "./Field";
+import { formatNumber } from "../../../utils";
 
 interface Props {
   value: TargetMappingDraft;
@@ -112,15 +113,5 @@ function TransformBadge({ name }: { name: string }) {
 
 function Num({ value }: { value: number }) {
   if (!Number.isFinite(value)) return <span className="text-mm-error">?</span>;
-  return <span className="tabular-nums text-mm-accent">{formatNum(value)}</span>;
-}
-
-/** Short human-friendly numeric formatter — keeps the equation readable when
- *  the architect types 0.000001 or 1.23456789. */
-function formatNum(n: number): string {
-  if (n === 0) return "0";
-  const abs = Math.abs(n);
-  if (abs >= 1000 || abs < 0.001) return n.toExponential(2);
-  // Strip trailing zeros after the decimal point.
-  return Number.parseFloat(n.toFixed(4)).toString();
+  return <span className="tabular-nums text-mm-accent">{formatNumber(value)}</span>;
 }

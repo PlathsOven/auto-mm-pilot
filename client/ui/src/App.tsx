@@ -27,7 +27,7 @@ const MODE_PAGES: Record<ModeId, React.FC> = {
   admin: AdminPage,
 };
 
-export default function App() {
+export function App() {
   const { user } = useAuth();
   const { mode } = useMode();
   const { pendingBlockCommand, clearPendingBlockCommand, toggleDrawer } = useChat();

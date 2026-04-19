@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CurrentBlockDecomposition } from "../types";
 import { fetchTimeSeries } from "../services/pipelineApi";
+import { CONTRIBUTIONS_CACHE_TTL_MS } from "../constants";
 
 export interface StreamContribution {
   blockName: string;
@@ -19,7 +20,6 @@ interface CacheEntry {
   contributions: StreamContribution[];
 }
 
-const CACHE_TTL_MS = 5_000;
 const cache = new Map<string, CacheEntry>();
 
 function cacheKey(symbol: string, expiry: string): string {
@@ -80,7 +80,7 @@ export function useStreamContributions(
 
     // Cache hit
     const cached = cache.get(key);
-    if (cached && now - cached.fetchedAt < CACHE_TTL_MS) {
+    if (cached && now - cached.fetchedAt < CONTRIBUTIONS_CACHE_TTL_MS) {
       setState({ loading: false, contributions: cached.contributions, error: null });
       lastKeyRef.current = key;
       return;
