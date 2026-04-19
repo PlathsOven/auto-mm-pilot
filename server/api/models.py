@@ -489,12 +489,30 @@ class UpdateCard(_WireModel):
     timestamp: int
 
 
+class UnregisteredPushAttempt(_WireModel):
+    """One entry in the unregistered-stream push notification list.
+
+    Populated by the snapshots router / client WS when a caller pushes to
+    a ``stream_name`` the server does not know, so the UI can render a
+    notification with an example row and a "Register this stream" CTA that
+    deep-links into Anatomy with the stream form pre-filled. The caller
+    itself still receives 409 ``STREAM_NOT_REGISTERED`` — this model is the
+    operator-side surface, not an ingest path.
+    """
+    stream_name: str
+    example_row: dict[str, Any]
+    attempt_count: int
+    first_seen: str  # ISO 8601 UTC
+    last_seen: str  # ISO 8601 UTC
+
+
 class ServerPayload(_WireModel):
     """Top-level payload broadcast on ``/ws`` each tick."""
     streams: list[DataStream]
     context: GlobalContext
     positions: list[DesiredPosition]
     updates: list[UpdateCard]
+    unregistered_pushes: list[UnregisteredPushAttempt] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

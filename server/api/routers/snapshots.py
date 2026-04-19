@@ -11,6 +11,7 @@ from server.api.auth.models import User
 from server.api.engine_state import rerun_and_broadcast
 from server.api.models import SnapshotRequest, SnapshotResponse
 from server.api.stream_registry import get_stream_registry
+from server.api.unregistered_push_store import get_store as get_unregistered_push_store
 
 log = logging.getLogger(__name__)
 
@@ -29,6 +30,13 @@ async def ingest_snapshot(
             req.stream_name, [r.model_dump() for r in req.rows],
         )
     except KeyError as exc:
+        # Record the attempt for the UI notification surface before raising.
+        # The first row is representative — same-name attempts dedupe, so
+        # subsequent pushes only bump the counter + last_seen timestamp.
+        if req.rows:
+            get_unregistered_push_store(user.id).record(
+                req.stream_name, req.rows[0].model_dump(mode="json"),
+            )
         # Distinguish "never registered" (409 STREAM_NOT_REGISTERED, machine-
         # readable so the SDK can translate to PositStreamNotRegistered and
         # hand-rolled clients get an actionable hint) from "registered but

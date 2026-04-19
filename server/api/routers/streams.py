@@ -21,6 +21,7 @@ from server.api.models import (
     UpdateStreamRequest,
 )
 from server.api.stream_registry import StreamRegistration, get_stream_registry
+from server.api.unregistered_push_store import get_store as get_unregistered_push_store
 from server.core.config import BlockConfig
 
 log = logging.getLogger(__name__)
@@ -63,6 +64,10 @@ async def create_stream(
         reg = registry.create(req.stream_name, req.key_cols)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    # Operator closed the loop — the notification for this stream is no
+    # longer actionable. Safe to call even if no entry exists (dismiss is a
+    # no-op on missing keys).
+    get_unregistered_push_store(user.id).dismiss(req.stream_name)
     return _stream_to_response(reg)
 
 
