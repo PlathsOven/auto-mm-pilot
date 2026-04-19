@@ -52,36 +52,68 @@ def _pipeline_timeseries_sync(user_id: str, symbol: str, expiry_dt: _dt) -> dict
     pos_df = results["desired_pos_df"]
 
     current_ts = get_current_tick_ts(user_id)
+    expiry_date = expiry_dt.date()
 
+    # Cast expiry to date for the equality check so columns stored as
+    # `pl.Datetime` and `pl.Date` both match — different stream-config
+    # paths can leave one or the other dtype, and a strict `== expiry_dt`
+    # silently drops everything in the mismatched case (the bug behind
+    # "no contributing blocks for any cell").
     block_var_filtered = block_var_df.filter(
-        (pl.col("symbol") == symbol) & (pl.col("expiry") == expiry_dt)
+        (pl.col("symbol") == symbol)
+        & (pl.col("expiry").cast(pl.Date) == expiry_date)
     ).drop_nulls(subset=["fair"])
     pos_filtered = pos_df.filter(
-        (pl.col("symbol") == symbol) & (pl.col("expiry") == expiry_dt)
+        (pl.col("symbol") == symbol)
+        & (pl.col("expiry").cast(pl.Date) == expiry_date)
     ).drop_nulls(subset=["raw_desired_position"])
 
+    # Independent slicing: positions are backward-looking (full history → now)
+    # so the trader sees how the position evolved; block fair/variance are
+    # forward-looking (now → expiry decay curves). The earlier shared-OR
+    # condition wiped out one when the other had data, breaking the chart's
+    # current-decomposition snapshot in either direction.
     if current_ts is not None:
         bv_sliced = block_var_filtered.filter(pl.col("timestamp") >= current_ts)
-        pos_sliced = pos_filtered.filter(pl.col("timestamp") >= current_ts)
-        if not bv_sliced.is_empty() or not pos_sliced.is_empty():
+        if not bv_sliced.is_empty():
             block_var_filtered = bv_sliced
-            pos_filtered = pos_sliced
+        # pos: leave as-is (full history). The position chart wants the past.
 
     if block_var_filtered.is_empty() and pos_filtered.is_empty():
         return None
 
     block_names = sorted(block_var_filtered["block_name"].unique().to_list())
+    # Canonical forward-looking timestamp axis for fair/variance views — the
+    # union of every block's timestamps. Each block's data array is then
+    # pivoted onto this axis (None where the block doesn't have a value at
+    # that tick) so the chart can use one shared x-axis for all blocks.
+    block_axis = (
+        block_var_filtered.select("timestamp").unique().sort("timestamp")["timestamp"].to_list()
+    )
+    block_timestamps = [t.isoformat() for t in block_axis]
+    block_axis_index = {t: i for i, t in enumerate(block_axis)}
+
     blocks = []
     for bn in block_names:
         bd = block_var_filtered.filter(pl.col("block_name") == bn).sort("timestamp")
+        fair_arr: list[float | None] = [None] * len(block_axis)
+        market_fair_arr: list[float | None] = [None] * len(block_axis)
+        var_arr: list[float | None] = [None] * len(block_axis)
+        for row in bd.select("timestamp", "fair", "market_fair", "var").to_dicts():
+            idx = block_axis_index.get(row["timestamp"])
+            if idx is None:
+                continue
+            fair_arr[idx] = row["fair"]
+            market_fair_arr[idx] = row["market_fair"]
+            var_arr[idx] = row["var"]
         blocks.append({
             "blockName": bn,
             "spaceId": bd["space_id"][0] if bd.height > 0 else "",
             "aggregationLogic": bd["aggregation_logic"][0] if bd.height > 0 else "",
-            "timestamps": [t.isoformat() for t in bd["timestamp"].to_list()],
-            "fair": bd["fair"].to_list(),
-            "marketFair": bd["market_fair"].to_list(),
-            "var": bd["var"].to_list(),
+            "timestamps": block_timestamps,
+            "fair": fair_arr,
+            "marketFair": market_fair_arr,
+            "var": var_arr,
         })
 
     pos_sorted = pos_filtered.sort("timestamp")
@@ -137,6 +169,7 @@ def _pipeline_timeseries_sync(user_id: str, symbol: str, expiry_dt: _dt) -> dict
     return {
         "symbol": symbol,
         "blocks": blocks,
+        "blockTimestamps": block_timestamps,
         "aggregated": aggregated,
         "currentDecomposition": {
             "blocks": current_blocks,

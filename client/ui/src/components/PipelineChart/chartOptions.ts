@@ -93,8 +93,18 @@ export function buildPipelineSingleViewOptions(
   view: PipelineView,
   selectedBlocks: Set<string>,
 ): EChartsOption {
-  const { blocks, aggregated } = data;
-  const timestamps = aggregated.timestamps;
+  const { blocks, aggregated, blockTimestamps } = data;
+  // Position view = backward-looking historical; Fair/Variance = forward-
+  // looking decay curves to expiry. Each axis uses the appropriate
+  // timestamp source.
+  const isPositionView = view === "position";
+  const axisTimestamps = isPositionView ? aggregated.timestamps : blockTimestamps;
+  // Datasets vary in length (block ticks vs position ticks) — convert to
+  // [timestamp, value] tuples so ECharts' time axis correctly aligns each
+  // point regardless of the underlying array length.
+  const toTimePoints = <T>(timestamps: string[], values: T[]): [number, T][] =>
+    values.map((v, i) => [new Date(timestamps[i]).getTime(), v] as [number, T]);
+
   const hasSelection = selectedBlocks.size > 0;
 
   const series: EChartsOption["series"] = [];
@@ -109,7 +119,7 @@ export function buildPipelineSingleViewOptions(
       {
         name: "Raw",
         type: "line",
-        data: aggregated.rawDesiredPosition,
+        data: toTimePoints(aggregated.timestamps, aggregated.rawDesiredPosition),
         showSymbol: false,
         lineStyle: { width: 1, color: RAW_COLOR },
         itemStyle: { color: RAW_COLOR },
@@ -118,7 +128,7 @@ export function buildPipelineSingleViewOptions(
       {
         name: "Smoothed",
         type: "line",
-        data: aggregated.smoothedDesiredPosition,
+        data: toTimePoints(aggregated.timestamps, aggregated.smoothedDesiredPosition),
         showSymbol: false,
         lineStyle: { width: 2, color: SMOOTHED_COLOR },
         itemStyle: { color: SMOOTHED_COLOR },
@@ -133,9 +143,10 @@ export function buildPipelineSingleViewOptions(
       series.push({
         name: `${b.blockName} (fair)`,
         type: "line",
-        data: b.fair,
+        data: toTimePoints(blockTimestamps, b.fair),
         showSymbol: false,
         stack: "fair",
+        connectNulls: false,
         areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
         lineStyle: {
           width: dimmed ? 0.3 : 0,
@@ -145,24 +156,6 @@ export function buildPipelineSingleViewOptions(
         itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
         emphasis: { focus: "series" },
       });
-    });
-    series.push({
-      name: "Total Fair",
-      type: "line",
-      data: aggregated.totalFair,
-      showSymbol: false,
-      lineStyle: { width: 2, color: FAIR_COLOR },
-      itemStyle: { color: FAIR_COLOR },
-      z: 10,
-    });
-    series.push({
-      name: "Market Fair",
-      type: "line",
-      data: aggregated.totalMarketFair,
-      showSymbol: false,
-      lineStyle: { width: 2, type: "dashed", color: MARKET_FAIR_COLOR },
-      itemStyle: { color: MARKET_FAIR_COLOR },
-      z: 10,
     });
   } else {
     // variance
@@ -173,9 +166,10 @@ export function buildPipelineSingleViewOptions(
       series.push({
         name: `${b.blockName} (var)`,
         type: "line",
-        data: b.var,
+        data: toTimePoints(blockTimestamps, b.var),
         showSymbol: false,
         stack: "var",
+        connectNulls: false,
         areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
         lineStyle: {
           width: dimmed ? 0.3 : 0,
@@ -185,15 +179,6 @@ export function buildPipelineSingleViewOptions(
         itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
         emphasis: { focus: "series" },
       });
-    });
-    series.push({
-      name: "Total Variance",
-      type: "line",
-      data: aggregated.var,
-      showSymbol: false,
-      lineStyle: { width: 2, color: VARIANCE_COLOR },
-      itemStyle: { color: VARIANCE_COLOR },
-      z: 10,
     });
   }
 
@@ -222,19 +207,20 @@ export function buildPipelineSingleViewOptions(
     ],
     grid: { left: 56, right: 16, top: 12, bottom: 36 },
     xAxis: {
-      type: "category",
-      data: timestamps,
+      // Time axis renders real datetime ticks at smart intervals — much
+      // clearer than the category axis we used to use, and lets the
+      // forward-looking fair/var charts show the run from "now" to the
+      // expiry date directly on the axis.
+      type: "time",
+      // `min` / `max` pin the axis to the visible range so positions land
+      // backward-looking (axis ends at "now") and fair/var land forward-
+      // looking (axis ends at expiry).
+      min: axisTimestamps.length > 0 ? new Date(axisTimestamps[0]).getTime() : undefined,
+      max: axisTimestamps.length > 0 ? new Date(axisTimestamps[axisTimestamps.length - 1]).getTime() : undefined,
       axisLabel: {
         color: "#6e6e82",
         fontSize: 9,
-        formatter: (v: string) => {
-          try {
-            const d = new Date(v);
-            return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
-          } catch {
-            return v;
-          }
-        },
+        hideOverlap: true,
       },
       axisTick: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
       axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },

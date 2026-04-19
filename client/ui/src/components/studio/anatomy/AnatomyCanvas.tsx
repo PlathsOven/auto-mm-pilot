@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -22,7 +22,6 @@ import { StreamNode } from "./nodes/StreamNode";
 import { TransformNode } from "./nodes/TransformNode";
 import { OutputNode } from "./nodes/OutputNode";
 import { NodeDetailPanel, type AnatomySelection } from "./NodeDetailPanel";
-import { StreamSidebar, type StreamSidebarMode } from "./StreamSidebar";
 import { PipelineConfigPopover } from "./PipelineConfigPopover";
 import { PIPELINE_ORDER, type StepKey } from "./anatomyGraph";
 import { buildAnatomyGraph } from "./buildAnatomyGraph";
@@ -38,14 +37,15 @@ const NODE_TYPES: NodeTypes = {
  *
  * Horizontal pipeline system diagram rendered with React Flow.
  *
- * - **Streams** are stacked vertically on the left; each one is a draggable
- *   node that feeds `unit_conversion`. Clicking a stream node opens the
- *   left-side `StreamSidebar` with that stream's `StreamCanvas` editor.
- * - **Transform nodes** are positioned in a left-to-right DAG with the
- *   fair-value / variance branch visible: `temporal_fair_value` has edges to
- *   both `variance` and `aggregation` (fair); `variance` rejoins at
- *   `aggregation`. Clicking a transform node opens the right-side
- *   `NodeDetailPanel` with the implementation picker + parameter editor.
+ * - **Stream nodes** stack vertically on the left, each draggable, each
+ *   feeding `unit_conversion`. Click → opens the unified right-side
+ *   `<NodeDetailPanel/>` with that stream's `<StreamCanvas/>` editor.
+ * - **Transform nodes** sit in a left-to-right DAG with the fair-value /
+ *   variance branch visible. Click → same right panel, with implementation
+ *   picker + parameter editor.
+ * - **The header "Streams list" button** opens the same right panel in
+ *   list mode (browse/sort all streams). One panel, three contents — click
+ *   any node again to close.
  * - **The "Desired Positions" output node** links through to Floor.
  * - **Default view**: just the canvas — no side panels. The detail panel and
  *   streams sidebar are opt-in based on user interaction.
@@ -64,48 +64,34 @@ export function AnatomyCanvas() {
 function AnatomyCanvasInner() {
   const { steps, setSteps, loading, error, refresh } = useTransforms();
   const { streams } = useRegisteredStreams();
-  const { query, setMode, navigate } = useMode();
+  const { query, setMode } = useMode();
   const { payload } = useWebSocket();
   const positionCount = payload?.positions.length ?? 0;
   const reactFlowInstance = useReactFlow();
 
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [selection, setSelection] = useState<AnatomySelection>({ kind: "none" });
+  // Initial selection comes from the URL query so deep links still work:
+  //   #anatomy?streams=list   → right panel open in "list" mode
+  //   #anatomy?stream=<name>  → right panel open on that stream
+  // After mount the right panel is driven entirely by node clicks + the
+  // header "Streams list" toggle (NOT routed through the URL — keeps the
+  // hash clean during normal use).
+  const [selection, setSelection] = useState<AnatomySelection>(() => {
+    if (query.stream) return { kind: "stream", streamName: query.stream };
+    if (query.streams === "list") return { kind: "list" };
+    return { kind: "none" };
+  });
   const [configOpen, setConfigOpen] = useState(false);
 
-  // Sidebar mode is driven by URL query so it's shareable and survives nav:
-  //   #anatomy                       → sidebar closed
-  //   #anatomy?streams=list          → sidebar in list mode
-  //   #anatomy?stream=<name>         → sidebar in canvas mode
-  const sidebarMode: StreamSidebarMode = useMemo(() => {
-    if (query.stream) {
-      return {
-        kind: "canvas",
-        streamName: query.stream,
-        templateId: query.template ?? null,
-      };
-    }
-    if (query.streams === "list") return { kind: "list" };
-    return { kind: "closed" };
-  }, [query.stream, query.template, query.streams]);
-
-  const openSidebarList = useCallback(
-    () => navigate("anatomy?streams=list"),
-    [navigate],
+  const closePanel = useCallback(() => setSelection({ kind: "none" }), []);
+  const openStream = useCallback(
+    (name: string) => setSelection({ kind: "stream", streamName: name }),
+    [],
   );
-  const openSidebarCanvas = useCallback(
-    (name: string | null, templateId: string | null) => {
-      const params = new URLSearchParams();
-      params.set("stream", name ?? "new");
-      if (templateId) params.set("template", templateId);
-      navigate(`anatomy?${params.toString()}`);
-    },
-    [navigate],
-  );
-  const closeSidebar = useCallback(
-    () => setMode("anatomy"),
-    [setMode],
+  const toggleListPanel = useCallback(
+    () => setSelection((s) => (s.kind === "list" ? { kind: "none" } : { kind: "list" })),
+    [],
   );
 
   // The viewport-recenter effect lives below the `nodes` useMemo so it
@@ -116,18 +102,14 @@ function AnatomyCanvasInner() {
   const live = positionCount > 0;
 
   // Which stream nodes should the DAG highlight?
-  //   - sidebar in "list" mode → every stream
-  //   - sidebar in "canvas" mode for a specific stream → just that one
-  //   - sidebar closed → none
+  //   - right panel inspecting a stream → just that one
+  //   - right panel showing the stream list → every stream
+  //   - otherwise → none
   const highlightedStreamNames = useMemo(() => {
-    if (sidebarMode.kind === "list") {
-      return new Set(streams.map((s) => s.stream_name));
-    }
-    if (sidebarMode.kind === "canvas" && sidebarMode.streamName) {
-      return new Set([sidebarMode.streamName]);
-    }
+    if (selection.kind === "stream") return new Set([selection.streamName]);
+    if (selection.kind === "list") return new Set(streams.map((s) => s.stream_name));
     return new Set<string>();
-  }, [sidebarMode, streams]);
+  }, [selection, streams]);
 
   // ---------------------------------------------------------------------
   // Transform state machine (lifted from the old PipelineComposer)
@@ -204,50 +186,42 @@ function AnatomyCanvasInner() {
     [nodes],
   );
 
-  // Recenter on the streams cluster (left side of the DAG) when the sidebar
-  // opens/closes. We deliberately skip the very first run because ReactFlow's
-  // own `fitView` prop already lands the viewport on the right place at
-  // mount — running our re-fit immediately after caused the visible
-  // two-step zoom (default fit → re-fit on streams). The ref ensures the
-  // first effect call is a no-op; subsequent sidebar toggles trigger a
-  // smooth refit.
-  const hasFittedOnceRef = useRef(false);
-  useEffect(() => {
-    if (!hasFittedOnceRef.current) {
-      hasFittedOnceRef.current = true;
-      return;
-    }
-    const id = requestAnimationFrame(() => {
-      const streamNodes = nodes.filter((n) => n.type === "stream").map((n) => ({ id: n.id }));
-      if (streamNodes.length > 0) {
-        reactFlowInstance.fitView({ nodes: streamNodes, duration: 200, padding: 0.4, minZoom: 0.9, maxZoom: 1.4 });
-      } else {
-        reactFlowInstance.fitView({ duration: 200, padding: 0.1, minZoom: 0.9 });
-      }
-    });
-    return () => cancelAnimationFrame(id);
-  }, [sidebarMode.kind, reactFlowInstance, nodes]);
+  // No automatic refit — the initial view comes from ReactFlow's own
+  // `fitView` prop with `streamNodeIds`, and subsequent fits are owned by
+  // explicit user actions (node clicks). This is what eliminates the
+  // historical two-step zoom on every interaction. Drag + pan + zoom
+  // happen freely without us interfering.
 
   // ---------------------------------------------------------------------
   // Node click handling
   // ---------------------------------------------------------------------
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
-      // Pan / zoom to the clicked node so it ends up centred regardless of
-      // which slice of the DAG was previously visible. Padding keeps the
-      // node from sitting flush against an edge.
+      // Toggle: clicking the currently-focused node closes the panel.
+      const isAlreadyFocused =
+        (selection.kind === "transform" && node.type === "transform" && selection.stepKey === node.id)
+        || (selection.kind === "stream" && node.type === "stream" && selection.streamName === node.id);
+
+      if (isAlreadyFocused) {
+        setSelection({ kind: "none" });
+        return;
+      }
+
+      // Pan/zoom to the clicked node so it ends up centred regardless of
+      // which slice of the DAG was previously visible. The sidebar-mode
+      // useEffect no longer fires on node clicks, so this is the only fit
+      // that runs (single zoom step).
       reactFlowInstance.fitView({ nodes: [{ id: node.id }], duration: 250, padding: 0.5, minZoom: 1, maxZoom: 1.6 });
 
       if (node.type === "stream") {
-        openSidebarList();
-        setSelection({ kind: "none" });
+        setSelection({ kind: "stream", streamName: node.id });
       } else if (node.type === "transform") {
         setSelection({ kind: "transform", stepKey: node.id as StepKey });
       } else if (node.type === "output") {
         setMode("workbench");
       }
     },
-    [reactFlowInstance, setMode, openSidebarList],
+    [reactFlowInstance, setMode, selection],
   );
 
   const onPaneClick = useCallback(() => {
@@ -302,15 +276,6 @@ function AnatomyCanvasInner() {
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
-      {sidebarMode.kind !== "closed" && (
-        <StreamSidebar
-          mode={sidebarMode}
-          onOpenList={openSidebarList}
-          onOpenCanvas={openSidebarCanvas}
-          onClose={closeSidebar}
-        />
-      )}
-
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <header className="flex shrink-0 items-center justify-between border-b border-black/[0.06] bg-white/45 px-4 py-2">
           <div>
@@ -334,16 +299,14 @@ function AnatomyCanvasInner() {
             </button>
             <button
               type="button"
-              onClick={() =>
-                sidebarMode.kind === "closed" ? openSidebarList() : closeSidebar()
-              }
+              onClick={toggleListPanel}
               className={`rounded-md border px-2 py-1 text-[10px] transition-colors ${
-                sidebarMode.kind !== "closed"
+                selection.kind === "list"
                   ? "border-mm-accent/60 bg-mm-accent/10 text-mm-accent"
                   : "border-black/[0.06] text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
               }`}
             >
-              {sidebarMode.kind === "closed" ? "Streams list" : "Hide streams"}
+              {selection.kind === "list" ? "Hide streams" : "Streams list"}
             </button>
           </div>
         </header>
@@ -394,7 +357,8 @@ function AnatomyCanvasInner() {
           savingKey={savingKey}
           onSelectTransform={onSelectTransform}
           onParamChange={onParamChange}
-          onClose={() => setSelection({ kind: "none" })}
+          onClose={closePanel}
+          onOpenStream={openStream}
         />
       )}
     </div>

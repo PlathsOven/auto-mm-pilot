@@ -494,14 +494,20 @@ class PipelineDimensionsResponse(_WireModel):
 
 
 class BlockTimeSeries(_WireModel):
-    """Per-block time series for one block on one dimension."""
+    """Per-block time series for one block on one dimension.
+
+    Pivoted onto a shared `blockTimestamps` axis at the response level so
+    the chart can use one x-axis for all blocks. None values mark ticks
+    where this particular block doesn't have data (different blocks can
+    have different start_timestamps).
+    """
     block_name: str
     space_id: str
     aggregation_logic: str
     timestamps: list[str]
-    fair: list[float]
-    market_fair: list[float]
-    var: list[float]
+    fair: list[float | None]
+    market_fair: list[float | None]
+    var: list[float | None]
 
 
 class AggregatedTimeSeries(_WireModel):
@@ -553,10 +559,18 @@ class CurrentDecomposition(_WireModel):
 
 
 class PipelineTimeSeriesResponse(_WireModel):
-    """Response for ``GET /api/pipeline/timeseries``."""
+    """Response for ``GET /api/pipeline/timeseries``.
+
+    `aggregated.timestamps` is the historical position axis (used by the
+    Position view); `block_timestamps` is the forward-looking axis
+    spanning current_ts → expiry (used by the Fair / Variance views).
+    The two axes are independent on purpose — positions are
+    backward-looking and block fair/var curves project forward to expiry.
+    """
     symbol: str
     expiry: str
     blocks: list[BlockTimeSeries]
+    block_timestamps: list[str]
     aggregated: AggregatedTimeSeries
     current_decomposition: CurrentDecomposition
 

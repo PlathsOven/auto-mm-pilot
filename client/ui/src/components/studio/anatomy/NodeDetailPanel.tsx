@@ -1,9 +1,15 @@
+import { useState } from "react";
 import type { TransformParam, TransformStep } from "../../../types";
 import type { StepKey } from "./anatomyGraph";
 import { PIPELINE_NARRATIVE } from "./anatomyGraph";
+import { StreamCanvas } from "../StreamCanvas";
+import { StreamTable } from "../StreamTable";
+import { NewStreamMenu } from "../NewStreamMenu";
 
 export type AnatomySelection =
   | { kind: "transform"; stepKey: StepKey }
+  | { kind: "stream"; streamName: string }
+  | { kind: "list" }
   | { kind: "none" };
 
 interface Props {
@@ -13,16 +19,23 @@ interface Props {
   onSelectTransform: (stepKey: string, name: string) => void;
   onParamChange: (stepKey: string, paramName: string, value: unknown) => void;
   onClose: () => void;
+  /** When the panel is in `list` mode and the user opens a specific stream
+   *  from the table, the parent updates `selection` to the stream variant. */
+  onOpenStream: (streamName: string) => void;
 }
 
 /**
- * Right-side inspector panel for the Anatomy canvas.
+ * Unified right-side inspector panel for the Anatomy canvas.
  *
- * Only mounted when a transform node is selected — default Anatomy has no
- * side panels at all. Stream nodes open the left StreamSidebar instead.
+ * Mounted whenever any node is selected — stream, transform, or otherwise.
+ * Earlier the anatomy view had two competing sidebars (left for streams,
+ * right for transforms); this single panel keeps the visual model
+ * consistent: click a node → panel opens with that node's editor, click
+ * the same node again or hit ✕ to close.
  *
- * Hosts the implementation picker + parameter editor (lifted from the old
- * PipelineStepCard) plus the "Show me the math" formula disclosure.
+ * For stream nodes the panel hosts the existing `<StreamCanvas/>` editor
+ * (the same one the legacy left sidebar mounted), so stream configuration
+ * lives in the same surface as transform configuration.
  */
 export function NodeDetailPanel({
   selection,
@@ -31,21 +44,92 @@ export function NodeDetailPanel({
   onSelectTransform,
   onParamChange,
   onClose,
+  onOpenStream,
 }: Props) {
-  if (selection.kind !== "transform") return null;
-  const step = steps?.[selection.stepKey];
-  if (!step) return null;
+  const [streamFilter, setStreamFilter] = useState("");
+  if (selection.kind === "none") return null;
 
   return (
-    <aside className="flex w-[340px] shrink-0 flex-col gap-3 overflow-y-auto border-l border-black/[0.08] bg-white/45 p-4">
-      <TransformDetail
-        stepKey={selection.stepKey}
-        step={step}
-        saving={savingKey === selection.stepKey}
-        onSelectTransform={onSelectTransform}
-        onParamChange={onParamChange}
-        onClose={onClose}
-      />
+    <aside className="flex w-[420px] shrink-0 flex-col overflow-hidden border-l border-black/[0.08] bg-white/55">
+      {selection.kind === "transform" && (
+        <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
+          {(() => {
+            const step = steps?.[selection.stepKey];
+            if (!step) {
+              return <p className="text-[11px] text-mm-text-dim">Step not loaded.</p>;
+            }
+            return (
+              <TransformDetail
+                stepKey={selection.stepKey}
+                step={step}
+                saving={savingKey === selection.stepKey}
+                onSelectTransform={onSelectTransform}
+                onParamChange={onParamChange}
+                onClose={onClose}
+              />
+            );
+          })()}
+        </div>
+      )}
+
+      {selection.kind === "stream" && (
+        <div className="flex h-full flex-col">
+          <header className="flex shrink-0 items-center justify-between border-b border-black/[0.06] px-4 py-3">
+            <div>
+              <h3 className="zone-header">Stream</h3>
+              <p className="mt-0.5 font-mono text-[10px] text-mm-text-dim">{selection.streamName}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-black/[0.04] hover:text-mm-text"
+              title="Close (Esc)"
+            >
+              ✕
+            </button>
+          </header>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <StreamCanvas streamName={selection.streamName} templateId={null} />
+          </div>
+        </div>
+      )}
+
+      {selection.kind === "list" && (
+        <div className="flex h-full flex-col">
+          <header className="flex shrink-0 items-center justify-between border-b border-black/[0.06] px-4 py-3">
+            <div>
+              <h3 className="zone-header">Streams</h3>
+              <p className="mt-0.5 text-[10px] text-mm-text-dim">Every data source feeding the pipeline.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <NewStreamMenu
+                onOpenBlank={() => onOpenStream("new")}
+                onOpenTemplate={(_id) => onOpenStream("new")}
+              />
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-black/[0.04] hover:text-mm-text"
+                title="Close (Esc)"
+              >
+                ✕
+              </button>
+            </div>
+          </header>
+          <div className="border-b border-black/[0.06] px-4 py-3">
+            <input
+              type="text"
+              value={streamFilter}
+              onChange={(e) => setStreamFilter(e.target.value)}
+              placeholder="Filter by name or key column…"
+              className="form-input w-full"
+            />
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto p-3">
+            <StreamTable filter={streamFilter} onFilterChange={setStreamFilter} onOpenStream={onOpenStream} />
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

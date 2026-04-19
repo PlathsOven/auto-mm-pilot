@@ -197,15 +197,18 @@ export interface TimeSeriesDimension {
   expiry: string;
 }
 
-/** Block-level time series for one block */
+/** Block-level time series for one block — pivoted onto the shared
+ *  `blockTimestamps` axis at the response level. `null` entries mark ticks
+ *  where this particular block doesn't have data (different blocks can
+ *  have different start_timestamps). */
 export interface BlockTimeSeries {
   blockName: string;
   spaceId: string;
   aggregationLogic: string;
   timestamps: string[];
-  fair: number[];
-  marketFair: number[];
-  var: number[];
+  fair: (number | null)[];
+  marketFair: (number | null)[];
+  var: (number | null)[];
 }
 
 /** Aggregated time series across all blocks */
@@ -274,11 +277,17 @@ export interface BlockRow {
   updated_at: string | null;
 }
 
-/** Full pipeline time series response */
+/** Full pipeline time series response.
+ *
+ *  `aggregated.timestamps` is the historical position axis (used by the
+ *  Position view); `blockTimestamps` is the forward-looking axis spanning
+ *  current_ts → expiry (used by the Fair / Variance views).
+ */
 export interface PipelineTimeSeriesResponse {
   symbol: string;
   expiry: string;
   blocks: BlockTimeSeries[];
+  blockTimestamps: string[];
   aggregated: AggregatedTimeSeries;
   currentDecomposition: {
     blocks: CurrentBlockDecomposition[];
