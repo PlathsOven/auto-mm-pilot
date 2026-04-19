@@ -22,7 +22,6 @@ import { StreamNode } from "./nodes/StreamNode";
 import { TransformNode } from "./nodes/TransformNode";
 import { OutputNode } from "./nodes/OutputNode";
 import { NodeDetailPanel, type AnatomySelection } from "./NodeDetailPanel";
-import { PipelineConfigPopover } from "./PipelineConfigPopover";
 import { PIPELINE_ORDER, type StepKey } from "./anatomyGraph";
 import { buildAnatomyGraph } from "./buildAnatomyGraph";
 import type { StreamDraftPrefill } from "../canvasState";
@@ -83,8 +82,6 @@ function AnatomyCanvasInner() {
     if (query.streams === "list") return { kind: "list" };
     return { kind: "none" };
   });
-  const [configOpen, setConfigOpen] = useState(false);
-
   // When the URL changes while Anatomy is already mounted (e.g. the
   // Notifications "Register this stream" CTA navigates to
   // `#anatomy?stream=new&prefill…`), sync the panel to the new target.
@@ -158,10 +155,13 @@ function AnatomyCanvasInner() {
       // Defer fitView a tick so the node is guaranteed to be in the DAG
       // (buildAnatomyGraph derives stream nodes from `streams`, which is
       // updated by StreamCanvas via `addStream()` on create).
+      // Node ids are prefixed `stream-` in buildAnatomyGraph — passing the
+      // bare name silently fits to nothing and the viewport stays wherever
+      // it was, which is exactly the "centred on the wrong place" bug.
       setTimeout(() => {
         try {
           reactFlowInstance.fitView({
-            nodes: [{ id: name }],
+            nodes: [{ id: `stream-${name}` }],
             padding: 0.5,
             minZoom: 1,
             maxZoom: 1.6,
@@ -369,18 +369,6 @@ function AnatomyCanvasInner() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setConfigOpen((v) => !v)}
-              className={`rounded-md border px-2 py-1 text-[10px] transition-colors ${
-                configOpen
-                  ? "border-mm-accent/60 bg-mm-accent/10 text-mm-accent"
-                  : "border-black/[0.06] text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
-              }`}
-              title="Pipeline configuration (bankroll)"
-            >
-              ⚙ Config
-            </button>
-            <button
-              type="button"
               onClick={toggleListPanel}
               className={`rounded-md border px-2 py-1 text-[10px] transition-colors ${
                 selection.kind === "list"
@@ -392,8 +380,6 @@ function AnatomyCanvasInner() {
             </button>
           </div>
         </header>
-
-        <PipelineConfigPopover open={configOpen} onClose={() => setConfigOpen(false)} />
 
         {saveError && (
           <p className="mx-4 mt-2 rounded-md border border-mm-error/40 bg-mm-error/10 p-2 text-[10px] text-mm-error">
@@ -426,7 +412,10 @@ function AnatomyCanvasInner() {
               pannable
               zoomable
               nodeColor="#4f5bd5"
-              maskColor="rgba(244,244,247,0.7)"
+              nodeStrokeColor="#4f5bd5"
+              nodeStrokeWidth={2}
+              nodeBorderRadius={4}
+              maskColor="rgba(15,23,42,0.18)"
             />
           </ReactFlow>
         </div>

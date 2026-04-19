@@ -90,7 +90,7 @@ export function useStreamContributions(
     const controller = new AbortController();
     setState({ loading: true, contributions: null, error: null });
 
-    fetchTimeSeries(cell.symbol, cell.expiry, controller.signal)
+    fetchTimeSeries(cell.symbol, cell.expiry, null, controller.signal)
       .then((res) => {
         if (controller.signal.aborted) return;
         if (lastKeyRef.current !== key) return;

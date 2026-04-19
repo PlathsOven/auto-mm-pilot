@@ -39,3 +39,21 @@ export const POSIT_CONTROL_KEY = "posit-control-enabled";
 // Status-bar tick freshness updates (ms). Keep separate from the
 // global-context-bar tick — different cadence, different consumer.
 export const STATUSBAR_TICK_MS = 250;
+
+// Width of the bankroll-edit popover anchored off the StatusBar pill.
+export const BANKROLL_POPOVER_WIDTH_PX = 240;
+
+// Pipeline chart — Position view lookback window options. Applied only to
+// the Position tab; Fair and Variance are forward-looking decay curves.
+// `seconds: null` renders whatever the server provides with no lookback
+// param (the single-point-at-now fallback).
+export const POSITION_LOOKBACK_OPTIONS: readonly { label: string; seconds: number | null }[] = [
+  { label: "5m", seconds: 5 * 60 },
+  { label: "15m", seconds: 15 * 60 },
+  { label: "1h", seconds: 60 * 60 },
+  { label: "4h", seconds: 4 * 60 * 60 },
+  { label: "1d", seconds: 24 * 60 * 60 },
+];
+
+export const DEFAULT_POSITION_LOOKBACK_LABEL = "15m";
+export const POSITION_LOOKBACK_KEY = "posit-position-lookback";

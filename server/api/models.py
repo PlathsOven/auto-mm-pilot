@@ -462,7 +462,15 @@ class GlobalContext(_WireModel):
 
 
 class DesiredPosition(_WireModel):
-    """One row of the desired-position grid."""
+    """One row of the desired-position grid.
+
+    Variance-space scalars (``edge`` / ``variance`` / ``total_fair`` / …) are
+    kept for the math-facing surfaces (``LiveEquationStrip``, pipeline chart).
+    The ``*_vol`` fields lift those back into annualised vol points via the
+    inverse of ``total_vol ** 2 → aggregate_var`` — sum the per-grid-cell
+    variance-unit value from the current tick to expiry, divide by T in
+    years, sign-preserving sqrt. That's the number an options trader reads.
+    """
     symbol: str
     expiry: str
     edge: float
@@ -474,6 +482,12 @@ class DesiredPosition(_WireModel):
     current_pos: float
     total_fair: float
     total_market_fair: float
+    edge_vol: float
+    smoothed_edge_vol: float
+    variance_vol: float
+    smoothed_var_vol: float
+    total_fair_vol: float
+    total_market_fair_vol: float
     change_magnitude: float
     updated_at: int
 
@@ -506,6 +520,22 @@ class UnregisteredPushAttempt(_WireModel):
     last_seen: str  # ISO 8601 UTC
 
 
+class SilentStreamAlert(_WireModel):
+    """A READY stream whose recent snapshots carried no ``market_value``.
+
+    When a stream emits only ``raw_value``, the pipeline defaults
+    market-implied value to match fair — edge collapses to zero and every
+    desired position reads zero with no explanation. Surfacing the alert
+    lets the trader see the cause. Threshold is ``SILENT_STREAM_THRESHOLD``
+    in ``config.py``; the counter resets the moment a row with a non-None
+    ``market_value`` arrives.
+    """
+    stream_name: str
+    rows_seen: int
+    first_seen: str  # ISO 8601 UTC
+    last_seen: str  # ISO 8601 UTC
+
+
 class ServerPayload(_WireModel):
     """Top-level payload broadcast on ``/ws`` each tick."""
     streams: list[DataStream]
@@ -513,6 +543,7 @@ class ServerPayload(_WireModel):
     positions: list[DesiredPosition]
     updates: list[UpdateCard]
     unregistered_pushes: list[UnregisteredPushAttempt] = Field(default_factory=list)
+    silent_streams: list[SilentStreamAlert] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

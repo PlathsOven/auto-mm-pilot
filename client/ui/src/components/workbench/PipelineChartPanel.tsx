@@ -7,6 +7,11 @@ import { usePipelineTimeSeries } from "../../hooks/usePipelineTimeSeries";
 import { formatExpiry } from "../../utils";
 import type { PipelineView } from "../PipelineChart/chartOptions";
 import type { ViewMode } from "../grid-config";
+import {
+  POSITION_LOOKBACK_OPTIONS,
+  DEFAULT_POSITION_LOOKBACK_LABEL,
+  POSITION_LOOKBACK_KEY,
+} from "../../constants";
 
 const VIEW_TABS: TabItem<PipelineView>[] = [
   { value: "position", label: "Position" },
@@ -75,6 +80,23 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
     try { return localStorage.getItem(PIPELINE_LINK_KEY) !== "false"; } catch { return true; }
   });
   const [localView, setLocalView] = useState<PipelineView>("position");
+  const [lookbackLabel, setLookbackLabel] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(POSITION_LOOKBACK_KEY);
+      if (saved && POSITION_LOOKBACK_OPTIONS.some((o) => o.label === saved)) return saved;
+    } catch { /* ignore */ }
+    return DEFAULT_POSITION_LOOKBACK_LABEL;
+  });
+
+  const persistLookback = useCallback((next: string) => {
+    setLookbackLabel(next);
+    try { localStorage.setItem(POSITION_LOOKBACK_KEY, next); } catch { /* ignore */ }
+  }, []);
+
+  const lookbackTabs = useMemo<TabItem<string>[]>(
+    () => POSITION_LOOKBACK_OPTIONS.map((o) => ({ value: o.label, label: o.label })),
+    [],
+  );
 
   const persistLinked = useCallback((next: boolean) => {
     setLinked(next);
@@ -99,7 +121,18 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
     return null;
   }, [focus, payload]);
 
-  const { dimensions, selected, setSelected, data, error, loading } = usePipelineTimeSeries(focusDimension);
+  // Only send a lookback param in Position view — Fair/Variance are
+  // forward-looking decay curves, not historical series.
+  const lookbackSeconds = useMemo<number | null>(() => {
+    if (effectiveView !== "position") return null;
+    const opt = POSITION_LOOKBACK_OPTIONS.find((o) => o.label === lookbackLabel);
+    return opt?.seconds ?? null;
+  }, [effectiveView, lookbackLabel]);
+
+  const { dimensions, selected, setSelected, data, error, loading } = usePipelineTimeSeries(
+    focusDimension,
+    lookbackSeconds,
+  );
 
   // Keep localView in sync the first time the user disables linking, so the
   // pipeline doesn't visually jump.
@@ -150,6 +183,15 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
           />
           <span>Link grid</span>
         </label>
+        {effectiveView === "position" && (
+          <Tabs
+            items={lookbackTabs}
+            value={lookbackLabel}
+            onChange={persistLookback}
+            variant="pill"
+            size="sm"
+          />
+        )}
         <select
           className="ml-auto rounded-md border border-black/[0.08] bg-white/70 px-2 py-0.5 text-[10px] text-mm-text focus:border-mm-accent/40 focus:outline-none"
           value={selected ? `${selected.symbol}|${selected.expiry}` : ""}

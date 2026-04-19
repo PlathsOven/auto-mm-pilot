@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime as _dt, timezone
+from datetime import datetime as _dt, timedelta, timezone
 
 import polars as pl
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,7 +13,11 @@ from fastapi.responses import Response
 
 from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
-from server.api.engine_state import RISK_DIMENSION_COLS, get_pipeline_results
+from server.api.engine_state import (
+    RISK_DIMENSION_COLS,
+    get_pipeline_results,
+    get_position_history,
+)
 from server.api.market_value_store import to_dict as mv_to_dict
 from server.api.models import (
     PipelineDimensionsResponse,
@@ -49,7 +53,12 @@ def _pipeline_dimensions_sync(user_id: str) -> dict:
     return {"dimensions": dim_rows, "dimension_cols": list(RISK_DIMENSION_COLS)}
 
 
-def _pipeline_timeseries_sync(user_id: str, symbol: str, expiry_dt: _dt) -> dict | None:
+def _pipeline_timeseries_sync(
+    user_id: str,
+    symbol: str,
+    expiry_dt: _dt,
+    lookback_seconds: int | None = None,
+) -> dict | None:
     results = get_pipeline_results(user_id)
     if results is None:
         return None
@@ -143,18 +152,41 @@ def _pipeline_timeseries_sync(user_id: str, symbol: str, expiry_dt: _dt) -> dict
         })
 
     pos_sorted = pos_filtered.sort("timestamp")
-    timestamps = [t.isoformat() for t in pos_sorted["timestamp"].to_list()]
-    aggregated = {
-        "timestamps": timestamps,
-        "totalFair": pos_sorted["total_fair"].to_list(),
-        "totalMarketFair": pos_sorted["total_market_fair"].to_list(),
-        "edge": pos_sorted["edge"].to_list(),
-        "smoothedEdge": pos_sorted["smoothed_edge"].to_list(),
-        "var": pos_sorted["var"].to_list(),
-        "smoothedVar": pos_sorted["smoothed_var"].to_list(),
-        "rawDesiredPosition": pos_sorted["raw_desired_position"].to_list(),
-        "smoothedDesiredPosition": pos_sorted["smoothed_desired_position"].to_list(),
-    }
+
+    if lookback_seconds is not None and lookback_seconds > 0:
+        # Position view wants a true historical window. `desired_pos_df` is
+        # a forward projection wiped at every rerun, so for anything beyond
+        # the last few ticks we must read from the per-dimension ring buffer
+        # that accumulates across reruns (see `server/api/position_history`).
+        history = get_position_history(user_id).get_range(
+            symbol=symbol,
+            expiry=expiry_dt.isoformat(),
+            since=slice_ts - timedelta(seconds=lookback_seconds),
+        )
+        aggregated = {
+            "timestamps": [p.timestamp.isoformat() for p in history],
+            "totalFair": [p.total_fair for p in history],
+            "totalMarketFair": [p.total_market_fair for p in history],
+            "edge": [p.edge for p in history],
+            "smoothedEdge": [p.smoothed_edge for p in history],
+            "var": [p.var for p in history],
+            "smoothedVar": [p.smoothed_var for p in history],
+            "rawDesiredPosition": [p.raw_desired_position for p in history],
+            "smoothedDesiredPosition": [p.smoothed_desired_position for p in history],
+        }
+    else:
+        timestamps = [t.isoformat() for t in pos_sorted["timestamp"].to_list()]
+        aggregated = {
+            "timestamps": timestamps,
+            "totalFair": pos_sorted["total_fair"].to_list(),
+            "totalMarketFair": pos_sorted["total_market_fair"].to_list(),
+            "edge": pos_sorted["edge"].to_list(),
+            "smoothedEdge": pos_sorted["smoothed_edge"].to_list(),
+            "var": pos_sorted["var"].to_list(),
+            "smoothedVar": pos_sorted["smoothed_var"].to_list(),
+            "rawDesiredPosition": pos_sorted["raw_desired_position"].to_list(),
+            "smoothedDesiredPosition": pos_sorted["smoothed_desired_position"].to_list(),
+        }
 
     current_blocks = []
     if block_var_filtered.height > 0:
@@ -239,6 +271,7 @@ async def pipeline_dimensions(
 async def pipeline_timeseries(
     symbol: str,
     expiry: str,
+    lookback_seconds: int | None = None,
     user: User = Depends(current_user),
 ) -> PipelineTimeSeriesResponse:
     try:
@@ -246,7 +279,9 @@ async def pipeline_timeseries(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=f"Invalid expiry format: {exc}") from exc
 
-    payload = await asyncio.to_thread(_pipeline_timeseries_sync, user.id, symbol, expiry_dt)
+    payload = await asyncio.to_thread(
+        _pipeline_timeseries_sync, user.id, symbol, expiry_dt, lookback_seconds,
+    )
     if payload is None:
         results = get_pipeline_results(user.id)
         if results is None:

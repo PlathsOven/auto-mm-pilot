@@ -40,7 +40,13 @@ export interface GlobalContext {
   lastUpdateTimestamp: number;
 }
 
-/** A single row in the desired-position table (mirrors pipeline output) */
+/** A single row in the desired-position table (mirrors pipeline output).
+ *
+ *  The `*Vol` fields are the same scalars expressed in annualised vol
+ *  points (sign-preserving sqrt of ``sum_forward_grid / T_years``) — what
+ *  options traders actually read. The raw variance-unit fields are kept
+ *  for math-facing surfaces (LiveEquationStrip, pipeline chart).
+ */
 export interface DesiredPosition {
   symbol: string;
   expiry: string;
@@ -53,6 +59,12 @@ export interface DesiredPosition {
   currentPos: number;
   totalFair: number;
   totalMarketFair: number;
+  edgeVol: number;
+  smoothedEdgeVol: number;
+  varianceVol: number;
+  smoothedVarVol: number;
+  totalFairVol: number;
+  totalMarketFairVol: number;
   changeMagnitude: number;
   updatedAt: number;
 }
@@ -82,6 +94,20 @@ export interface UnregisteredPushAttempt {
   lastSeen: string;   // ISO 8601 UTC
 }
 
+/** A READY stream whose recent snapshots carried no `market_value`.
+ *
+ *  When the feeder only sends `raw_value`, the pipeline defaults
+ *  market-implied value to match fair — edge collapses to zero and every
+ *  desired position reads zero. This alert tells the trader why. Surfaced
+ *  on the WS tick payload and via GET /api/notifications/silent-streams.
+ */
+export interface SilentStreamAlert {
+  streamName: string;
+  rowsSeen: number;
+  firstSeen: string;  // ISO 8601 UTC
+  lastSeen: string;   // ISO 8601 UTC
+}
+
 /** Top-level payload received over WebSocket */
 export interface ServerPayload {
   streams: DataStream[];
@@ -89,6 +115,7 @@ export interface ServerPayload {
   positions: DesiredPosition[];
   updates: UpdateCard[];
   unregisteredPushes?: UnregisteredPushAttempt[];
+  silentStreams?: SilentStreamAlert[];
 }
 
 /** Context pushed to the LLM chat when a card or cell is clicked */

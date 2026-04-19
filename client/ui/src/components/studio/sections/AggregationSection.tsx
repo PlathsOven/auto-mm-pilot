@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useTransforms } from "../../../providers/TransformsProvider";
 import type { AggregationDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
@@ -6,7 +7,8 @@ interface Props {
   value: AggregationDraft;
   onChange: (next: AggregationDraft) => void;
   state: SectionState;
-  dimmed?: boolean;
+  expanded?: boolean;
+  nav?: ReactNode;
 }
 
 const EXPLANATIONS = {
@@ -16,7 +18,7 @@ const EXPLANATIONS = {
     "Stacks as an independent additive layer on top of existing fair value. Use when this stream contributes new information not captured by other streams.",
 };
 
-export function AggregationSection({ value, onChange, state, dimmed }: Props) {
+export function AggregationSection({ value, onChange, state, expanded, nav }: Props) {
   const { steps } = useTransforms();
   const aggName = steps?.aggregation?.selected ?? "average_offset";
   const isSumAll = aggName === "sum_all";
@@ -27,14 +29,15 @@ export function AggregationSection({ value, onChange, state, dimmed }: Props) {
       number={5}
       status={state.status}
       message={state.message}
-      dimmed={dimmed}
-      mathDisclosure={
-        <p>
-          Active <code className="text-mm-accent">aggregation</code> = <strong>{aggName}</strong>.
-          Determines how multiple blocks contributing to the same risk dimension are combined.
-        </p>
-      }
+      expanded={expanded}
+      nav={nav}
     >
+      <div className="mb-2 flex items-center gap-1.5 text-[10px] text-mm-text-dim">
+        <span>Transform</span>
+        <code className="rounded bg-mm-accent/10 px-1.5 py-0.5 font-mono text-mm-accent">
+          {aggName}
+        </code>
+      </div>
       {isSumAll && (
         <p className="mb-3 rounded-md border border-mm-warn/40 bg-mm-warn/10 p-2 text-[10px] text-mm-warn">
           The global aggregation transform is currently <code>sum_all</code>, which ignores per-block

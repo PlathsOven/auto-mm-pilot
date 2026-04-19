@@ -1,78 +1,55 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback } from "react";
 import { useMode } from "../../providers/ModeProvider";
-import { useWebSocket } from "../../providers/WebSocketProvider";
-import {
-  dismissUnregisteredPush,
-  fetchUnregisteredPushes,
-} from "../../services/notificationsApi";
+import { useNotifications } from "../../providers/NotificationsProvider";
 import type { UnregisteredPushAttempt } from "../../types";
+import {
+  UnregisteredPushCard,
+  inferKeyColsFromExampleRow,
+} from "./UnregisteredPushCard";
+import { SilentStreamCard } from "./SilentStreamCard";
 
 interface Props {
   open: boolean;
   onClose: () => void;
 }
 
-const RESERVED_COLS = new Set(["timestamp", "raw_value", "market_value"]);
-
 /**
  * Slide-over notifications panel.
  *
- * Source of truth: the WS tick payload (`payload.unregisteredPushes`). We
- * hydrate once from `GET /api/notifications/unregistered` on first open
- * so the list is populated before the first tick arrives, then track the
- * WS payload thereafter. Dismissing calls the server to remove the entry
- * from the shared store; other tabs / devices stop seeing it on the next
- * tick.
- *
- * The "Register this stream" CTA deep-links into Anatomy:
- *   #anatomy?stream=new&prefillName=<name>&prefillKeyCols=<csv>&prefillRow=<json>
- * `AnatomyCanvas` parses those params and passes them through to
- * `StreamCanvas`, which merges them into the initial `StreamDraft`.
+ * Entries + hydration + dismissal come from `<NotificationsProvider/>` so
+ * the unregistered list is shared with the Anatomy → Streams list banner.
+ * "Register this stream" deep-links into Anatomy with the form pre-filled;
+ * silent-stream "Open stream" deep-links into Anatomy on the existing
+ * stream so the operator can inspect / fix the feed.
  */
 export function NotificationsCenter({ open, onClose }: Props) {
-  const { payload } = useWebSocket();
   const { navigate } = useMode();
-  const [hydrated, setHydrated] = useState<UnregisteredPushAttempt[] | null>(null);
+  const {
+    unregistered,
+    silentStreams,
+    dismissUnregistered,
+    dismissSilentStream,
+  } = useNotifications();
 
-  // Hydrate once on first open so the panel is populated before the next tick.
-  useEffect(() => {
-    if (!open || hydrated !== null) return;
-    const controller = new AbortController();
-    fetchUnregisteredPushes(controller.signal)
-      .then(setHydrated)
-      .catch(() => setHydrated([]));
-    return () => controller.abort();
-  }, [open, hydrated]);
-
-  // WS payload is the live source once we have one; fall back to the
-  // hydrate result until the first tick arrives.
-  const entries: UnregisteredPushAttempt[] = useMemo(
-    () => payload?.unregisteredPushes ?? hydrated ?? [],
-    [payload, hydrated],
-  );
-
-  const handleDismiss = useCallback(async (streamName: string) => {
-    try {
-      await dismissUnregisteredPush(streamName);
-      // Optimistically drop from hydrated cache too — the WS tick will
-      // converge to empty on the next broadcast.
-      setHydrated((prev) => (prev ? prev.filter((e) => e.streamName !== streamName) : prev));
-    } catch {
-      // Surface silently — the server list is authoritative on the next tick.
-    }
-  }, []);
+  const totalCount = unregistered.length + silentStreams.length;
 
   const handleRegister = useCallback(
     (entry: UnregisteredPushAttempt) => {
-      const inferredKeyCols = Object.keys(entry.exampleRow).filter(
-        (k) => !RESERVED_COLS.has(k),
-      );
       const params = new URLSearchParams({
         stream: "new",
         prefillName: entry.streamName,
-        prefillKeyCols: inferredKeyCols.join(","),
+        prefillKeyCols: inferKeyColsFromExampleRow(entry.exampleRow).join(","),
         prefillRow: JSON.stringify(entry.exampleRow),
       });
+      navigate(`anatomy?${params.toString()}`);
+      onClose();
+    },
+    [navigate, onClose],
+  );
+
+  const handleOpenStream = useCallback(
+    (streamName: string) => {
+      const params = new URLSearchParams({ stream: streamName });
       navigate(`anatomy?${params.toString()}`);
       onClose();
     },
@@ -97,9 +74,9 @@ export function NotificationsCenter({ open, onClose }: Props) {
           <div>
             <h3 className="zone-header">Notifications</h3>
             <p className="mt-0.5 text-[10px] text-mm-text-dim">
-              {entries.length === 0
+              {totalCount === 0
                 ? "No pending items."
-                : `${entries.length} unregistered stream${entries.length === 1 ? "" : "s"}`}
+                : `${totalCount} pending item${totalCount === 1 ? "" : "s"}`}
             </p>
           </div>
           <button
@@ -113,24 +90,33 @@ export function NotificationsCenter({ open, onClose }: Props) {
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          {entries.length === 0 ? (
+          {totalCount === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
               <span className="text-[11px] text-mm-text-dim">
                 You're all caught up.
               </span>
               <span className="text-[10px] text-mm-text-subtle">
                 Notifications appear here when a feeder pushes data for a stream that
-                hasn't been registered yet.
+                hasn't been registered yet, or when a registered stream's snapshots
+                stop carrying market_value.
               </span>
             </div>
           ) : (
             <ul className="flex flex-col gap-3">
-              {entries.map((e) => (
+              {unregistered.map((e) => (
                 <UnregisteredPushCard
-                  key={e.streamName}
+                  key={`u:${e.streamName}`}
                   entry={e}
                   onRegister={() => handleRegister(e)}
-                  onDismiss={() => handleDismiss(e.streamName)}
+                  onDismiss={() => { void dismissUnregistered(e.streamName); }}
+                />
+              ))}
+              {silentStreams.map((e) => (
+                <SilentStreamCard
+                  key={`s:${e.streamName}`}
+                  entry={e}
+                  onOpenStream={handleOpenStream}
+                  onDismiss={() => { void dismissSilentStream(e.streamName); }}
                 />
               ))}
             </ul>
@@ -138,67 +124,5 @@ export function NotificationsCenter({ open, onClose }: Props) {
         </div>
       </aside>
     </>
-  );
-}
-
-function UnregisteredPushCard({
-  entry,
-  onRegister,
-  onDismiss,
-}: {
-  entry: UnregisteredPushAttempt;
-  onRegister: () => void;
-  onDismiss: () => void;
-}) {
-  return (
-    <li className="rounded-lg border border-mm-warn/40 bg-mm-warn/[0.08] p-3">
-      <header className="mb-2 flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-mm-warn">
-            Unregistered stream
-          </div>
-          <div className="mt-0.5 truncate font-mono text-[12px] text-mm-text">
-            {entry.streamName}
-          </div>
-        </div>
-        <span
-          className="shrink-0 rounded-full bg-mm-warn/20 px-2 py-0.5 text-[9px] font-semibold text-mm-warn"
-          title={`First seen ${entry.firstSeen}\nLast seen ${entry.lastSeen}`}
-        >
-          {entry.attemptCount} attempt{entry.attemptCount === 1 ? "" : "s"}
-        </span>
-      </header>
-
-      <p className="mb-2 text-[10px] text-mm-text-dim">
-        A client pushed data to this stream, but no matching stream is registered.
-        Register it to start feeding the pipeline.
-      </p>
-
-      <div className="mb-3 rounded-md border border-black/[0.06] bg-black/[0.03] p-2">
-        <div className="mb-1 text-[9px] uppercase tracking-wider text-mm-text-dim">
-          Example row
-        </div>
-        <pre className="overflow-x-auto font-mono text-[10px] leading-snug text-mm-text">
-{JSON.stringify(entry.exampleRow, null, 2)}
-        </pre>
-      </div>
-
-      <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="rounded-md border border-black/[0.06] px-2 py-1 text-[10px] text-mm-text-dim transition-colors hover:bg-black/[0.04] hover:text-mm-text"
-        >
-          Dismiss
-        </button>
-        <button
-          type="button"
-          onClick={onRegister}
-          className="rounded-md bg-mm-warn/20 px-3 py-1 text-[10px] font-semibold text-mm-warn transition-colors hover:bg-mm-warn/30"
-        >
-          Register this stream
-        </button>
-      </div>
-    </li>
   );
 }

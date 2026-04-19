@@ -38,6 +38,7 @@ from server.api.models import (
     ClientWsInboundFrame,
     ClientWsMarketValueFrame,
 )
+from server.api.silent_stream_store import get_store as get_silent_stream_store
 from server.api.stream_registry import get_stream_registry
 from server.api.unregistered_push_store import get_store as get_unregistered_push_store
 from server.api.ws import get_latest_payload, register_client, unregister_client
@@ -98,6 +99,12 @@ async def _process_snapshot_frame(user_id: str, data: dict, websocket: WebSocket
                 frame.stream_name, frame.rows[0].model_dump(mode="json"),
             )
         raise
+
+    # Silent-stream tracking — same as the HTTP snapshots endpoint.
+    rows_with_mv = sum(1 for r in frame.rows if r.market_value is not None)
+    get_silent_stream_store(user_id).record(
+        frame.stream_name, len(frame.rows), rows_with_mv,
+    )
 
     stream_configs = registry.build_stream_configs()
     pipeline_rerun = False

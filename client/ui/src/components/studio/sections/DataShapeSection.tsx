@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { DataShapeDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
 import { Field } from "./Field";
@@ -7,7 +7,8 @@ interface Props {
   value: DataShapeDraft;
   onChange: (next: DataShapeDraft) => void;
   state: SectionState;
-  dimmed?: boolean;
+  expanded?: boolean;
+  nav?: ReactNode;
 }
 
 interface ParsedSchema {
@@ -31,7 +32,7 @@ function parseCsv(raw: string): ParsedSchema | null {
   return { headers, rowCount: rows.length, numericColumns };
 }
 
-export function DataShapeSection({ value, onChange, state, dimmed }: Props) {
+export function DataShapeSection({ value, onChange, state, expanded, nav }: Props) {
   const schema = useMemo(() => parseCsv(value.sample_csv), [value.sample_csv]);
 
   const patch = <K extends keyof DataShapeDraft>(k: K, v: DataShapeDraft[K]) =>
@@ -43,12 +44,14 @@ export function DataShapeSection({ value, onChange, state, dimmed }: Props) {
       number={2}
       status={state.status}
       message={state.message}
-      dimmed={dimmed}
+      expanded={expanded}
+      nav={nav}
     >
       <div className="grid gap-3">
         <Field
           type="textarea"
           label="Paste a sample (CSV with header row)"
+          required
           placeholder={"timestamp,symbol,expiry,raw_value,market_value\n2026-01-15T16:00:00Z,BTC,27MAR26,0.74,0.68"}
           rows={5}
           mono
@@ -83,6 +86,7 @@ export function DataShapeSection({ value, onChange, state, dimmed }: Props) {
           <Field
             type="select"
             label="Value column"
+            required
             value={value.value_column}
             options={schema.numericColumns}
             onChange={(v) => patch("value_column", v)}

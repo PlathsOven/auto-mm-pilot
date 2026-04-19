@@ -1,11 +1,17 @@
-import { useState } from "react";
-import type { TransformParam, TransformStep } from "../../../types";
+import { useCallback, useState } from "react";
+import type { TransformParam, TransformStep, UnregisteredPushAttempt } from "../../../types";
 import type { StepKey } from "./anatomyGraph";
 import { PIPELINE_NARRATIVE } from "./anatomyGraph";
 import { StreamCanvas } from "../StreamCanvas";
 import { StreamTable } from "../StreamTable";
 import { NewStreamMenu } from "../NewStreamMenu";
 import type { StreamDraftPrefill } from "../canvasState";
+import { useNotifications } from "../../../providers/NotificationsProvider";
+import { useMode } from "../../../providers/ModeProvider";
+import {
+  UnregisteredPushCard,
+  inferKeyColsFromExampleRow,
+} from "../../notifications/UnregisteredPushCard";
 
 export type AnatomySelection =
   | { kind: "transform"; stepKey: StepKey }
@@ -152,11 +158,61 @@ export function NodeDetailPanel({
             />
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-3">
+            <UnregisteredStreamsBanner />
             <StreamTable filter={streamFilter} onFilterChange={setStreamFilter} onOpenStream={onOpenStream} />
           </div>
         </div>
       )}
     </aside>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Unregistered streams banner — mirrors the Notifications center inline so
+// the user can register the next pending stream without leaving the list.
+// ---------------------------------------------------------------------------
+
+function UnregisteredStreamsBanner() {
+  const { unregistered, dismissUnregistered } = useNotifications();
+  const { navigate } = useMode();
+
+  const handleRegister = useCallback(
+    (entry: UnregisteredPushAttempt) => {
+      const params = new URLSearchParams({
+        stream: "new",
+        prefillName: entry.streamName,
+        prefillKeyCols: inferKeyColsFromExampleRow(entry.exampleRow).join(","),
+        prefillRow: JSON.stringify(entry.exampleRow),
+      });
+      navigate(`anatomy?${params.toString()}`);
+    },
+    [navigate],
+  );
+
+  if (unregistered.length === 0) return null;
+
+  return (
+    <section className="mb-3">
+      <div className="mb-1.5 flex items-center justify-between">
+        <h4 className="text-[10px] font-semibold uppercase tracking-wider text-mm-warn">
+          Unregistered streams
+        </h4>
+        <span className="text-[9px] text-mm-text-dim">
+          Register each to feed the pipeline.
+        </span>
+      </div>
+      <ul className="flex flex-col gap-2">
+        {unregistered.map((e) => (
+          <UnregisteredPushCard
+            key={e.streamName}
+            entry={e}
+            compact
+            onRegister={() => handleRegister(e)}
+            onDismiss={() => { void dismissUnregistered(e.streamName); }}
+          />
+        ))}
+      </ul>
+    </section>
   );
 }
 

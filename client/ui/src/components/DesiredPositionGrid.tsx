@@ -131,7 +131,7 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
     <div className="flex h-full w-full min-w-0 flex-1 flex-col p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-black/[0.06] pb-2">
         <div className="flex items-baseline gap-2">
-          <h2 className="zone-header">Desired Positions</h2>
+          <h2 className="zone-header">Overview</h2>
           {meta.unit && (
             <span className="text-[10px] text-mm-text-dim">({meta.unit})</span>
           )}

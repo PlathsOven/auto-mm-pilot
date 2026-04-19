@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useWebSocket } from "../../providers/WebSocketProvider";
 import { useCommandPalette } from "../../providers/CommandPaletteProvider";
 import { useNotifications } from "../../providers/NotificationsProvider";
+import { useTransforms } from "../../providers/TransformsProvider";
 import { formatUtcTime } from "../../utils";
 import { POSIT_CONTROL_KEY, STATUSBAR_HEIGHT_PX, STATUSBAR_TICK_MS } from "../../constants";
+import { BankrollControl } from "./BankrollControl";
 
 interface StatusBarProps {
   onShowCheatsheet: () => void;
@@ -27,7 +29,10 @@ export function StatusBar({ onShowCheatsheet }: StatusBarProps) {
   const { connectionStatus, payload } = useWebSocket();
   const { openPalette } = useCommandPalette();
   const { togglePanel: toggleNotifications, count: notificationCount } = useNotifications();
+  const { bankroll } = useTransforms();
   const [now, setNow] = useState(Date.now());
+  const [bankrollOpen, setBankrollOpen] = useState(false);
+  const bankrollTriggerRef = useRef<HTMLButtonElement>(null);
   const [positEnabled, setPositEnabled] = useState<boolean>(() => {
     try { return localStorage.getItem(POSIT_CONTROL_KEY) !== "false"; } catch { return true; }
   });
@@ -63,6 +68,30 @@ export function StatusBar({ onShowCheatsheet }: StatusBarProps) {
           {elapsedMs == null ? "—" : `+${elapsedMs}ms`}
         </span>
       </span>
+
+      <Divider />
+
+      <div className="relative flex items-center">
+        <button
+          ref={bankrollTriggerRef}
+          type="button"
+          onClick={() => setBankrollOpen((v) => !v)}
+          className={`flex items-baseline gap-1 rounded px-1.5 py-0.5 transition-colors hover:bg-black/[0.04] ${
+            bankrollOpen ? "bg-black/[0.04] text-mm-text" : ""
+          }`}
+          title="Edit bankroll"
+        >
+          <span className="text-mm-text-subtle">bankroll</span>
+          <span className="font-mono tabular-nums text-mm-text">
+            {Number.isFinite(bankroll) ? bankroll.toLocaleString() : "—"}
+          </span>
+        </button>
+        <BankrollControl
+          open={bankrollOpen}
+          onClose={() => setBankrollOpen(false)}
+          anchorRef={bankrollTriggerRef}
+        />
+      </div>
 
       <Divider />
 

@@ -29,7 +29,8 @@ from server.api.auth.tokens import resolve_user_id_from_session
 from server.api.config import TICK_INTERVAL_SECS
 from server.api.engine_state import get_pipeline_results, rerun_pipeline
 from server.api.market_value_store import clear_dirty, is_dirty
-from server.api.models import ServerPayload, UnregisteredPushAttempt
+from server.api.models import ServerPayload, SilentStreamAlert, UnregisteredPushAttempt
+from server.api.silent_stream_store import get_store as get_silent_stream_store
 from server.api.stream_registry import get_stream_registry
 from server.api.unregistered_push_store import get_store as get_unregistered_push_store
 from server.api.ws_serializers import (
@@ -99,6 +100,7 @@ def _build_payload(
     positions: list,
     updates: list,
     unregistered_pushes: list | None = None,
+    silent_streams: list | None = None,
 ) -> str:
     return ServerPayload(
         streams=streams,
@@ -106,6 +108,7 @@ def _build_payload(
         positions=positions,
         updates=updates,
         unregistered_pushes=unregistered_pushes or [],
+        silent_streams=silent_streams or [],
     ).model_dump_json(by_alias=True)
 
 
@@ -122,15 +125,29 @@ def _unregistered_pushes_for(user_id: str) -> list[UnregisteredPushAttempt]:
     ]
 
 
+def _silent_streams_for(user_id: str) -> list[SilentStreamAlert]:
+    return [
+        SilentStreamAlert(
+            stream_name=c.stream_name,
+            rows_seen=c.rows_seen,
+            first_seen=c.first_seen.isoformat(),
+            last_seen=c.last_seen.isoformat(),
+        )
+        for c in get_silent_stream_store(user_id).list()
+    ]
+
+
 def _heartbeat_payload(user_id: str | None = None) -> str:
     now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
     unregistered = _unregistered_pushes_for(user_id) if user_id else []
+    silent = _silent_streams_for(user_id) if user_id else []
     return _build_payload(
         streams=[],
         context={"lastUpdateTimestamp": now_ms},
         positions=[],
         updates=[],
         unregistered_pushes=unregistered,
+        silent_streams=silent,
     )
 
 
@@ -217,6 +234,7 @@ def _build_user_payload_sync(user_id: str, real_now: datetime) -> str:
         positions,
         updates,
         _unregistered_pushes_for(user_id),
+        _silent_streams_for(user_id),
     )
 
 

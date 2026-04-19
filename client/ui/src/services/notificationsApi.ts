@@ -10,7 +10,7 @@
  *     tabs / devices stop seeing it on the next tick.
  */
 
-import type { UnregisteredPushAttempt } from "../types";
+import type { SilentStreamAlert, UnregisteredPushAttempt } from "../types";
 import { apiFetch } from "./api";
 
 export async function fetchUnregisteredPushes(
@@ -27,6 +27,24 @@ export async function dismissUnregisteredPush(
 ): Promise<void> {
   await apiFetch<void>(
     `/api/notifications/unregistered/${encodeURIComponent(streamName)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function fetchSilentStreams(
+  signal?: AbortSignal,
+): Promise<SilentStreamAlert[]> {
+  return apiFetch<SilentStreamAlert[]>(
+    "/api/notifications/silent-streams",
+    { signal },
+  );
+}
+
+export async function dismissSilentStream(
+  streamName: string,
+): Promise<void> {
+  await apiFetch<void>(
+    `/api/notifications/silent-streams/${encodeURIComponent(streamName)}`,
     { method: "DELETE" },
   );
 }

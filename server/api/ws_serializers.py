@@ -14,6 +14,30 @@ from typing import Any
 import polars as pl
 
 from server.api.config import UPDATE_THRESHOLD
+from server.core.config import SECONDS_PER_YEAR
+
+
+# Names of the variance-unit columns in ``desired_pos_df`` that we expose as
+# annualised-vol aggregates to the client. Edge and smoothed-edge carry sign;
+# variance / fair are non-negative but the signed formula is safe either way.
+_VOL_SOURCE_COLS: tuple[str, ...] = (
+    "edge",
+    "smoothed_edge",
+    "var",
+    "smoothed_var",
+    "total_fair",
+    "total_market_fair",
+)
+
+# Wire-field names mirrored in ``DesiredPosition`` (server) + ``types.ts`` (client).
+_VOL_WIRE_FIELDS: dict[str, str] = {
+    "edge":              "edge_vol",
+    "smoothed_edge":     "smoothed_edge_vol",
+    "var":               "variance_vol",
+    "smoothed_var":      "smoothed_var_vol",
+    "total_fair":        "total_fair_vol",
+    "total_market_fair": "total_market_fair_vol",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -49,6 +73,53 @@ def format_expiry(val: Any) -> str:
 # Tick serialization
 # ---------------------------------------------------------------------------
 
+def _vol_aggregates(
+    desired_pos_df: pl.DataFrame,
+    timestamp: datetime,
+) -> pl.DataFrame:
+    """Per-(symbol, expiry) variance-units-to-vol-points aggregate.
+
+    For each source column s in ``_VOL_SOURCE_COLS``:
+
+        s_vol = sign(sum_s) * sqrt(|sum_s| / T)
+
+    where ``sum_s`` sums ``s`` over the forward grid from ``timestamp`` to
+    ``expiry``, and ``T`` is that span in years. This is the inverse of the
+    ``total_vol ** 2 → aggregate_var`` mapping used in
+    ``market_value_inference``, lifting variance-space scalars back into
+    annualised vol points that options traders can read directly.
+    """
+    forward = desired_pos_df.filter(pl.col("timestamp") >= timestamp)
+
+    agg_exprs = [pl.col(c).sum().alias(f"_{c}_sum") for c in _VOL_SOURCE_COLS]
+    if forward.is_empty():
+        dims = desired_pos_df.select("symbol", "expiry").unique()
+        sums = dims.with_columns(*(pl.lit(0.0).alias(f"_{c}_sum") for c in _VOL_SOURCE_COLS))
+    else:
+        sums = forward.group_by(["symbol", "expiry"]).agg(agg_exprs)
+
+    t_years = (
+        (pl.col("expiry").cast(pl.Datetime("us")) - pl.lit(timestamp))
+        .dt.total_seconds() / SECONDS_PER_YEAR
+    )
+    with_t = sums.with_columns(t_years.alias("_t_years"))
+
+    vol_exprs = []
+    for src, wire_name in _VOL_WIRE_FIELDS.items():
+        s = pl.col(f"_{src}_sum")
+        vol_exprs.append(
+            pl.when(pl.col("_t_years") <= 0.0)
+            .then(0.0)
+            .otherwise(s.sign() * (s.abs() / pl.col("_t_years")).sqrt())
+            .fill_null(0.0)
+            .alias(wire_name)
+        )
+
+    return with_t.with_columns(vol_exprs).select(
+        "symbol", "expiry", *_VOL_WIRE_FIELDS.values(),
+    )
+
+
 def positions_at_tick(
     desired_pos_df: pl.DataFrame,
     timestamp: datetime,
@@ -57,7 +128,10 @@ def positions_at_tick(
     """Build the ``positions`` array for a single tick.
 
     Uses "latest at or before" semantics per risk dimension so that
-    dimensions with different time grids always have data.
+    dimensions with different time grids always have data. Alongside the
+    variance-unit scalars, emits annualised-vol-point versions (``edgeVol``,
+    ``varianceVol``, …) sourced from the forward-grid integral — see
+    ``_vol_aggregates``.
     """
     at_or_before = desired_pos_df.filter(pl.col("timestamp") <= timestamp)
     if at_or_before.is_empty():
@@ -65,6 +139,9 @@ def positions_at_tick(
 
     # Per (symbol, expiry), take the row with the latest timestamp
     rows = at_or_before.sort("timestamp").group_by(["symbol", "expiry"]).agg(pl.all().last())
+
+    vol_rows = _vol_aggregates(desired_pos_df, timestamp)
+    rows = rows.join(vol_rows, on=["symbol", "expiry"], how="left")
 
     ts_ms = int(timestamp.timestamp() * 1000)
 
@@ -86,6 +163,12 @@ def positions_at_tick(
         pl.lit(0.0).alias("currentPos"),
         pl.col("total_fair").fill_null(0.0).alias("totalFair"),
         pl.col("total_market_fair").fill_null(0.0).alias("totalMarketFair"),
+        pl.col("edge_vol").fill_null(0.0).alias("edgeVol"),
+        pl.col("smoothed_edge_vol").fill_null(0.0).alias("smoothedEdgeVol"),
+        pl.col("variance_vol").fill_null(0.0).alias("varianceVol"),
+        pl.col("smoothed_var_vol").fill_null(0.0).alias("smoothedVarVol"),
+        pl.col("total_fair_vol").fill_null(0.0).alias("totalFairVol"),
+        pl.col("total_market_fair_vol").fill_null(0.0).alias("totalMarketFairVol"),
         pl.lit(ts_ms).alias("updatedAt"),
     )
 

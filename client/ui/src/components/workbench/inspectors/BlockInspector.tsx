@@ -158,9 +158,9 @@ function BlockEditor({ block, isManual }: { block: BlockRow; isManual: boolean }
             Target mapping
           </span>
           <div className="grid grid-cols-3 gap-2">
-            <Field type="number" label="scale" value={draft.scale} onChange={(v) => isManual ? patch("scale", v) : undefined} />
-            <Field type="number" label="offset" value={draft.offset} onChange={(v) => isManual ? patch("offset", v) : undefined} />
-            <Field type="number" label="exponent" value={draft.exponent} onChange={(v) => isManual ? patch("exponent", v) : undefined} />
+            <Field type="number" label="scale" value={draft.scale} disabled={!isManual} onChange={(v) => patch("scale", v)} />
+            <Field type="number" label="offset" value={draft.offset} disabled={!isManual} onChange={(v) => patch("offset", v)} />
+            <Field type="number" label="exponent" value={draft.exponent} disabled={!isManual} onChange={(v) => patch("exponent", v)} />
           </div>
         </section>
 
@@ -174,46 +174,53 @@ function BlockEditor({ block, isManual }: { block: BlockRow; isManual: boolean }
               type="toggle"
               label="Annualized"
               value={draft.block.annualized}
-              onChange={(v) => isManual ? patchBlock("annualized", v) : undefined}
+              disabled={!isManual}
+              onChange={(v) => patchBlock("annualized", v)}
             />
             <Field
               type="select"
               label="Size type"
               value={draft.block.size_type}
               options={["fixed", "relative"]}
-              onChange={(v) => isManual ? patchBlock("size_type", v as "fixed" | "relative") : undefined}
+              disabled={!isManual}
+              onChange={(v) => patchBlock("size_type", v as "fixed" | "relative")}
             />
             <Field
               type="select"
               label="Aggregation logic"
               value={draft.block.aggregation_logic}
               options={["average", "offset"]}
-              onChange={(v) => isManual ? patchBlock("aggregation_logic", v as "average" | "offset") : undefined}
+              disabled={!isManual}
+              onChange={(v) => patchBlock("aggregation_logic", v as "average" | "offset")}
             />
             <Field
               type="select"
               label="Temporal position"
               value={draft.block.temporal_position}
               options={["static", "shifting"]}
-              onChange={(v) => isManual ? patchBlock("temporal_position", v as "static" | "shifting") : undefined}
+              disabled={!isManual}
+              onChange={(v) => patchBlock("temporal_position", v as "static" | "shifting")}
             />
             <Field
               type="number"
               label="decay_end_size_mult"
               value={draft.block.decay_end_size_mult}
-              onChange={(v) => isManual ? patchBlock("decay_end_size_mult", v) : undefined}
+              disabled={!isManual}
+              onChange={(v) => patchBlock("decay_end_size_mult", v)}
             />
             <Field
               type="number"
               label="decay_rate_prop_per_min"
               value={draft.block.decay_rate_prop_per_min}
-              onChange={(v) => isManual ? patchBlock("decay_rate_prop_per_min", v) : undefined}
+              disabled={!isManual}
+              onChange={(v) => patchBlock("decay_rate_prop_per_min", v)}
             />
             <Field
               type="number"
               label="var_fair_ratio"
               value={draft.block.var_fair_ratio}
-              onChange={(v) => isManual ? patchBlock("var_fair_ratio", v) : undefined}
+              disabled={!isManual}
+              onChange={(v) => patchBlock("var_fair_ratio", v)}
             />
           </div>
         </section>

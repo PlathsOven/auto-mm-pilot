@@ -44,6 +44,10 @@ server/api/llm/test_data/
 *.log
 npm-debug.log*
 
+# Local SQLite database (multi-user persistence layer)
+posit.db
+posit.db-journal
+
 # LLM harness — version-controlled config only; session state stays ignored
 .claude/*
 !.claude/commands/

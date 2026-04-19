@@ -61,10 +61,10 @@ export function CellInspector({ symbol, expiry }: CellInspectorProps) {
           <section className="grid grid-cols-2 gap-1.5">
             <Stat label="Desired Pos" value={position.desiredPos} unit="$vega" decimals={2} />
             <Stat label="Raw Desired" value={position.rawDesiredPos} unit="$vega" decimals={2} />
-            <Stat label="Edge" value={position.edge} unit="vp" decimals={4} />
-            <Stat label="Variance" value={position.variance} unit="" decimals={4} />
-            <Stat label="Total Fair" value={position.totalFair} unit="" decimals={4} />
-            <Stat label="Market Fair" value={position.totalMarketFair} unit="" decimals={4} />
+            <Stat label="Edge" value={position.edgeVol} unit="vp" decimals={2} />
+            <Stat label="Variance" value={position.varianceVol} unit="vp" decimals={2} />
+            <Stat label="Total Fair" value={position.totalFairVol} unit="vp" decimals={2} />
+            <Stat label="Market Fair" value={position.totalMarketFairVol} unit="vp" decimals={2} />
           </section>
         )}
 
