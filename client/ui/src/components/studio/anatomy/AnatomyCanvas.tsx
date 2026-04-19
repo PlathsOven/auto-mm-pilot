@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -84,6 +84,23 @@ function AnatomyCanvasInner() {
     return { kind: "none" };
   });
   const [configOpen, setConfigOpen] = useState(false);
+
+  // When the URL changes while Anatomy is already mounted (e.g. the
+  // Notifications "Register this stream" CTA navigates to
+  // `#anatomy?stream=new&prefill…`), sync the panel to the new target.
+  // The `useState` initializer above only runs once on mount, so without
+  // this effect subsequent deep-link navigations are silent.
+  //
+  // We only react to the positive cases — a URL that explicitly names a
+  // stream or requests the list mode. Clearing the hash should not stomp
+  // a panel the user opened via node clicks.
+  useEffect(() => {
+    if (query.stream) {
+      setSelection({ kind: "stream", streamName: query.stream });
+    } else if (query.streams === "list") {
+      setSelection({ kind: "list" });
+    }
+  }, [query.stream, query.streams]);
 
   // Parse prefill query params (from the Notifications center deep-link).
   // Only applied when the panel is opened on a "new" stream — editing an

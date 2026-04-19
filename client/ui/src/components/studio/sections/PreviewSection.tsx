@@ -2,14 +2,20 @@ import { useState } from "react";
 import type { StreamDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
 import { LiveEquationStrip } from "../../equation/LiveEquationStrip";
-import { configureStream, ingestSnapshot } from "../../../services/streamApi";
+import { configureStream, createStream, ingestSnapshot } from "../../../services/streamApi";
+import type { RegisteredStream } from "../../../types";
 
 interface Props {
   draft: StreamDraft;
   state: SectionState;
   allValid: boolean;
-  /** Whether the stream is already registered (PENDING) — Activate uses configure. */
+  /** Name of the already-registered stream when the form is editing an
+   *  existing one. Null for brand-new drafts — Activate creates it on the fly. */
   pendingStreamName: string | null;
+  /** Fired when Activate had to create the stream before configuring it,
+   *  so the parent can update its local `pendingStreamName` + URL + registry
+   *  cache (they all need to stay in sync). */
+  onStreamCreated: (created: RegisteredStream) => void;
   onActivated: () => void;
   dimmed?: boolean;
 }
@@ -32,6 +38,7 @@ export function PreviewSection({
   state,
   allValid,
   pendingStreamName,
+  onStreamCreated,
   onActivated,
   dimmed,
 }: Props) {
@@ -39,17 +46,30 @@ export function PreviewSection({
   const [result, setResult] = useState<ActivationResult | null>(null);
 
   const handleActivate = async () => {
-    if (!pendingStreamName) {
-      setResult({
-        type: "error",
-        message: "Create the stream first by saving Identity (Studio Library handles this).",
-      });
-      return;
-    }
+    if (!allValid) return;
     setActivating(true);
     setResult(null);
     try {
-      await configureStream(pendingStreamName, {
+      // Create-on-the-fly: if the form is in create mode (no pendingStreamName),
+      // Activate owns the full lifecycle — create, configure, ingest — so the
+      // user doesn't have to press two separate buttons. Configure + ingest
+      // stay identical to the edit-mode flow below, just with the freshly
+      // created name.
+      let targetName = pendingStreamName;
+      if (!targetName) {
+        if (!draft.identity.stream_name) {
+          setResult({ type: "error", message: "Stream name is required." });
+          return;
+        }
+        const created = await createStream(
+          draft.identity.stream_name,
+          draft.identity.key_cols,
+        );
+        targetName = created.stream_name;
+        onStreamCreated(created);
+      }
+
+      await configureStream(targetName, {
         scale: draft.target_mapping.scale,
         offset: draft.target_mapping.offset,
         exponent: draft.target_mapping.exponent,
@@ -67,12 +87,12 @@ export function PreviewSection({
 
       const csvRows = parseCsvToRows(draft.data_shape.sample_csv);
       if (csvRows.length > 0) {
-        await ingestSnapshot(pendingStreamName, csvRows);
+        await ingestSnapshot(targetName, csvRows);
       }
 
       setResult({
         type: "success",
-        message: `Activated ${pendingStreamName}. Floor positions will update on the next pipeline tick.`,
+        message: `Activated ${targetName}. Floor positions will update on the next pipeline tick.`,
       });
       onActivated();
     } catch (err) {
@@ -129,7 +149,7 @@ export function PreviewSection({
           onClick={handleActivate}
           className="rounded-lg bg-mm-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-mm-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {activating ? "Activating…" : pendingStreamName ? "Activate stream" : "Create stream first (Library)"}
+          {activating ? "Activating…" : "Activate stream"}
         </button>
       </div>
     </SectionCard>

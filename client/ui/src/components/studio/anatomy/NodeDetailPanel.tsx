@@ -99,7 +99,13 @@ export function NodeDetailPanel({
               stayed at content height and its internal `overflow-y-auto`
               had nothing to scroll against. */}
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {/* The `key` forces a remount when either the target stream or
+                the prefill identity changes. StreamCanvas uses `useState`
+                initializers for its draft + pending-name state, so without
+                remounting a second "Register this stream" CTA from the
+                Notifications panel would see stale draft values. */}
             <StreamCanvas
+              key={`${selection.streamName}:${streamPrefill?.streamName ?? ""}`}
               streamName={selection.streamName}
               templateId={null}
               prefill={streamPrefill ?? null}

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createStream } from "../../services/streamApi";
 import { useMode } from "../../providers/ModeProvider";
 import { useRegisteredStreams } from "../../hooks/useRegisteredStreams";
 import { IdentitySection } from "./sections/IdentitySection";
@@ -20,6 +19,7 @@ import {
 } from "./canvasState";
 import { STREAM_TEMPLATES } from "./streamTemplates";
 import { migrateLegacyStorageKey } from "../../utils";
+import type { RegisteredStream } from "../../types";
 
 interface Props {
   /** Stream name from the URL (#anatomy?stream={name}) — empty for a new draft. */
@@ -35,16 +35,17 @@ interface Props {
 const WALK_THROUGH_KEY = "posit.studio.walkthrough";
 const LEGACY_WALK_THROUGH_KEY = "apt.studio.walkthrough";
 
+/** URL sentinel that means "open the form in create mode" — not a real name. */
+const NEW_STREAM_SENTINEL = "new";
+
 /**
  * The Studio Stream Canvas. Hosts all 7 sections.
  *
  * State model: a single `StreamDraft` lives in this component. Each section
  * receives its slice + an updater. The Activate button (in PreviewSection)
- * commits via `POST /api/streams/{name}/configure` and `POST /api/snapshots`.
+ * is the single lifecycle trigger — it creates the stream if needed,
+ * configures it, and ingests the sample rows in one call.
  */
-/** URL sentinel that means "open the form in create mode" — not a real name. */
-const NEW_STREAM_SENTINEL = "new";
-
 export function StreamCanvas({ streamName, templateId, prefill }: Props) {
   const { navigate } = useMode();
   const { streams: registry, refresh: refreshRegistry, addStream } = useRegisteredStreams();
@@ -52,8 +53,7 @@ export function StreamCanvas({ streamName, templateId, prefill }: Props) {
     initialDraft(streamName, templateId, prefill ?? null),
   );
   // `streamName === "new"` is a URL sentinel, not a registered stream — the
-  // pending name must start null so the "Register stream" banner shows and
-  // Activate stays gated until the user creates the real stream.
+  // pending name stays null until Activate creates the real one.
   const [pendingStreamName, setPendingStreamName] = useState<string | null>(
     streamName === NEW_STREAM_SENTINEL ? null : streamName,
   );
@@ -67,8 +67,6 @@ export function StreamCanvas({ streamName, templateId, prefill }: Props) {
     }
   });
   const [focusedSection, setFocusedSection] = useState<SectionId>("identity");
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
 
   // Sync stream name draft → registry status
   useEffect(() => {
@@ -99,28 +97,18 @@ export function StreamCanvas({ streamName, templateId, prefill }: Props) {
     setDraft((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-
-  const handleCreateStream = async () => {
-    if (!draft.identity.stream_name) return;
-    setCreating(true);
-    setCreateError(null);
-    try {
-      const created = await createStream(draft.identity.stream_name, draft.identity.key_cols);
+  /** Activate creates the stream on-the-fly when needed — this callback
+   *  lets PreviewSection tell us "I created a real stream" so we can
+   *  update the local pending state, inject it into the registry cache,
+   *  and pin the URL to the new name. */
+  const handleStreamCreated = useCallback(
+    (created: RegisteredStream) => {
       setPendingStreamName(created.stream_name);
-      // Optimistically inject into the shared registry cache so subscribers
-      // re-render immediately. We deliberately do NOT await refreshRegistry()
-      // here — joining its in-flight polling promise was the source of the
-      // "Creating…" hang.
       addStream(created);
-      // Update URL so refresh keeps the canvas pinned to this stream inside
-      // the Anatomy streams sidebar.
       navigate(`anatomy?stream=${encodeURIComponent(created.stream_name)}`);
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setCreating(false);
-    }
-  };
+    },
+    [addStream, navigate],
+  );
 
   const dimmed = (id: SectionId) => walkThrough && focusedSection !== id;
 
@@ -147,28 +135,6 @@ export function StreamCanvas({ streamName, templateId, prefill }: Props) {
             </label>
           </div>
         </div>
-
-        {!pendingStreamName && draft.identity.stream_name && (
-          <div className="mb-3 flex items-center justify-between rounded-lg border border-mm-warn/40 bg-mm-warn/10 px-3 py-2">
-            <span className="text-[11px] text-mm-warn">
-              Stream <strong>{draft.identity.stream_name}</strong> is not yet registered. Create it to enable Activate.
-            </span>
-            <button
-              type="button"
-              disabled={creating || states.identity.status !== "valid"}
-              onClick={handleCreateStream}
-              className="rounded-md bg-mm-warn/20 px-3 py-1 text-[10px] font-semibold text-mm-warn transition-colors hover:bg-mm-warn/30 disabled:opacity-40"
-            >
-              {creating ? "Creating…" : "Register stream"}
-            </button>
-          </div>
-        )}
-
-        {createError && (
-          <p className="mb-3 rounded-md border border-mm-error/40 bg-mm-error/10 p-2 text-[10px] text-mm-error">
-            {createError}
-          </p>
-        )}
 
         <div
           className="flex flex-col gap-3"
@@ -228,6 +194,7 @@ export function StreamCanvas({ streamName, templateId, prefill }: Props) {
               state={states.preview}
               allValid={allValid}
               pendingStreamName={pendingStreamName}
+              onStreamCreated={handleStreamCreated}
               onActivated={() => refreshRegistry()}
               dimmed={dimmed("preview")}
             />
