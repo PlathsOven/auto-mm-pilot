@@ -14,9 +14,10 @@ import { useEffect, useRef } from "react";
  * shortcuts never steal characters.
  */
 
+import { CHORD_WINDOW_MS } from "../constants";
+
 type HotkeyMap = Record<string, (e: KeyboardEvent) => void>;
 
-const CHORD_WINDOW_MS = 1200;
 const CHORD_PREFIXES = new Set(["g"]);
 
 function isTypingTarget(target: EventTarget | null): boolean {

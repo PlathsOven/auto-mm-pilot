@@ -5,7 +5,10 @@ import type {
 } from "../types";
 import { fetchDimensions, fetchTimeSeries } from "../services/pipelineApi";
 import { formatExpiry } from "../utils";
-import { POLL_INTERVAL_TIMESERIES_MS } from "../constants";
+import {
+  POLL_INTERVAL_TIMESERIES_MS,
+  PIPELINE_TIMESERIES_CACHE_MAX_ENTRIES,
+} from "../constants";
 
 // ---------------------------------------------------------------------------
 // Module-level LRU cache for time series responses
@@ -16,7 +19,6 @@ import { POLL_INTERVAL_TIMESERIES_MS } from "../constants";
 // through "pipeline is loading". The polling effect refreshes cache entries
 // in the background so cached data never goes more than ~5s stale.
 
-const MAX_CACHE_ENTRIES = 12;
 const tsCache = new Map<string, PipelineTimeSeriesResponse>();
 
 function tsCacheKey(symbol: string, expiry: string, lookbackSeconds: number | null): string {
@@ -27,7 +29,7 @@ function tsCacheSet(key: string, value: PipelineTimeSeriesResponse): void {
   // Re-insert to mark as most-recently-used (Map preserves insertion order).
   if (tsCache.has(key)) tsCache.delete(key);
   tsCache.set(key, value);
-  while (tsCache.size > MAX_CACHE_ENTRIES) {
+  while (tsCache.size > PIPELINE_TIMESERIES_CACHE_MAX_ENTRIES) {
     const oldest = tsCache.keys().next().value;
     if (oldest === undefined) break;
     tsCache.delete(oldest);

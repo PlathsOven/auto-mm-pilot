@@ -3,6 +3,7 @@ import { useTransforms } from "../../../providers/TransformsProvider";
 import type { BlockShapeDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
 import { Field } from "./Field";
+import { formatNumber } from "../../../utils";
 
 interface Props {
   value: BlockShapeDraft;
@@ -252,7 +253,7 @@ function BlockPreview({
           fontSize="9"
           fill="rgba(0,0,0,0.7)"
         >
-          {formatMult(endMult)}
+          {formatNumber(endMult, 3)}
         </text>
 
         {/* X-axis labels (block start + block end) */}
@@ -279,8 +280,3 @@ function BlockPreview({
   );
 }
 
-function formatMult(n: number): string {
-  if (!Number.isFinite(n)) return "?";
-  if (n === 0) return "0";
-  return Number.parseFloat(n.toFixed(3)).toString();
-}

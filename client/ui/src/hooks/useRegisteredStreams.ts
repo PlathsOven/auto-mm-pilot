@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { RegisteredStream } from "../types";
 import { listStreams } from "../services/streamApi";
-
-const POLL_INTERVAL_MS = 5000;
+import { POLL_INTERVAL_STREAMS_MS } from "../constants";
 
 interface StreamsState {
   streams: RegisteredStream[];
@@ -63,7 +62,7 @@ function ensurePolling() {
   if (cache.intervalId !== null) return;
   cache.intervalId = setInterval(() => {
     if (cache.subscribers.size > 0) doFetch();
-  }, POLL_INTERVAL_MS);
+  }, POLL_INTERVAL_STREAMS_MS);
 }
 
 function stopPolling() {
@@ -91,7 +90,7 @@ export function useRegisteredStreams(): StreamsState {
     cache.subscribers.add(subscriber);
     ensurePolling();
     // First mount kicks a fetch if the cache is stale (or empty).
-    if (cache.lastFetch === 0 || Date.now() - cache.lastFetch > POLL_INTERVAL_MS) {
+    if (cache.lastFetch === 0 || Date.now() - cache.lastFetch > POLL_INTERVAL_STREAMS_MS) {
       doFetch();
     }
     return () => {

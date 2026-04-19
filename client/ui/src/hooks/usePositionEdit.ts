@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import type { DesiredPosition } from "../types";
-import { getCellValue } from "../components/grid-config";
-import type { ViewMode } from "../components/grid-config";
+import type { DesiredPosition, ViewMode } from "../types";
+import { getCellValue } from "../utils";
 
 export interface PendingEdit {
   key: string;

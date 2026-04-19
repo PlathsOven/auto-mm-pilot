@@ -10,10 +10,8 @@ import {
 import type { ReactNode } from "react";
 import type { ServerPayload, UpdateCard } from "../types";
 import { WS_URL } from "../config";
-import { UPDATE_HISTORY_MAX_LENGTH } from "../constants";
+import { UPDATE_HISTORY_MAX_LENGTH, WS_RECONNECT_DELAY_MS } from "../constants";
 import { useAuth } from "./AuthProvider";
-
-const RECONNECT_DELAY_MS = 3000;
 
 type ConnectionStatus = "CONNECTED" | "CONNECTING" | "DISCONNECTED";
 
@@ -23,14 +21,12 @@ interface WebSocketState {
   connectionStatus: ConnectionStatus;
 }
 
-const WebSocketContext = createContext<WebSocketState>({
-  payload: null,
-  updateHistory: [],
-  connectionStatus: "DISCONNECTED",
-});
+const WebSocketContext = createContext<WebSocketState | null>(null);
 
-export function useWebSocket() {
-  return useContext(WebSocketContext);
+export function useWebSocket(): WebSocketState {
+  const ctx = useContext(WebSocketContext);
+  if (!ctx) throw new Error("useWebSocket must be used within WebSocketProvider");
+  return ctx;
 }
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
@@ -86,13 +82,13 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           // we don't want to keep retrying.
           reconnectTimerRef.current = setTimeout(() => {
             if (wsRef.current === ws) connect(token);
-          }, RECONNECT_DELAY_MS);
+          }, WS_RECONNECT_DELAY_MS);
         };
 
         ws.onerror = () => ws.close();
       } catch {
         setConnectionStatus("DISCONNECTED");
-        reconnectTimerRef.current = setTimeout(() => connect(token), RECONNECT_DELAY_MS);
+        reconnectTimerRef.current = setTimeout(() => connect(token), WS_RECONNECT_DELAY_MS);
       }
     },
     [applyPayload],

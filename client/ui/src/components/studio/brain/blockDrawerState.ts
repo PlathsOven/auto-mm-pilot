@@ -90,9 +90,6 @@ export const EMPTY_DRAFT: Draft = {
   ],
 };
 
-/** Strict numeric — matches integers, decimals, scientific notation. */
-export const NUMERIC_RE = /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
-
 // ---------------------------------------------------------------------------
 // Draft builders
 // ---------------------------------------------------------------------------

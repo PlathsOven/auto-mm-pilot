@@ -137,6 +137,34 @@ export interface EngineCommand {
   params: Record<string, unknown>;
 }
 
+// ---------------------------------------------------------------------------
+// Position grid — view modes + timeframes
+// ---------------------------------------------------------------------------
+
+export type ViewMode =
+  | "position"
+  | "rawPosition"
+  | "change"
+  | "edge"
+  | "smoothedEdge"
+  | "variance"
+  | "smoothedVar"
+  | "totalFair"
+  | "totalMarketFair";
+
+export type ViewModeGroup = "primary" | "secondary";
+
+export interface ViewModeMeta {
+  label: string;
+  unit: string;
+  decimals: number;
+  group: ViewModeGroup;
+}
+
+/** One of the TIMEFRAME_OPTIONS labels. Kept as a string-literal union via
+ *  the ``typeof`` on the canonical constants array. */
+export type TimeframeLabel = "Latest" | "1 min" | "5 min" | "15 min";
+
 /** Pending manual-block command awaiting user review in the BlockDrawer */
 export interface PendingBlockCommand {
   params: Record<string, unknown>;
