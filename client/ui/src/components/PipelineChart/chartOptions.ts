@@ -1,5 +1,4 @@
 import type { EChartsOption } from "echarts";
-import type { DefaultLabelFormatterCallbackParams as CallbackDataParams } from "echarts/types/dist/echarts";
 import type {
   PipelineTimeSeriesResponse,
 } from "../../types";
@@ -41,15 +40,6 @@ export const MARKET_FAIR_COLOR = "rgba(26,26,46,0.28)";
 export const STACK_AREA_OPACITY = 0.32;
 export const STACK_AREA_OPACITY_DIMMED = 0.08;
 
-export type DecompositionMode = "variance" | "fair_value" | "desired_position" | "smoothed_desired_position";
-
-export const MODE_LABELS: Record<DecompositionMode, string> = {
-  desired_position: "Desired Pos (Raw)",
-  smoothed_desired_position: "Desired Pos (Smooth)",
-  fair_value: "Fair Value",
-  variance: "Variance",
-};
-
 export const TOOLTIP_STYLE = {
   backgroundColor: "rgba(255,255,255,0.92)",
   borderColor: "rgba(0,0,0,0.08)",
@@ -79,15 +69,6 @@ export function sci(v: number): string {
  *  so the two surfaces can stay in sync. */
 export type PipelineView = "position" | "fair" | "variance";
 
-/**
- * Build a single-grid ECharts option for the requested view.
- *
- * Replaces the old three-stacked-grid layout. With one grid filling the
- * panel the chart actually fills the canvas, gets significantly more y-axis
- * resolution, and reads at small heights. The trader switches view via tabs
- * up in PipelineChartPanel — by default, those tabs follow the position
- * grid's active view-mode (linked).
- */
 /** Parse a naive-UTC ISO timestamp. The server emits naive UTC; JS would
  *  otherwise interpret naive ISO as local time on some browsers, shifting
  *  the axis labels by the user's UTC offset. */
@@ -123,6 +104,15 @@ function makeAxisLabelFormatter(timestamps: string[]) {
   };
 }
 
+/**
+ * Build a single-grid ECharts option for the requested view.
+ *
+ * Replaces the old three-stacked-grid layout. With one grid filling the
+ * panel the chart actually fills the canvas, gets significantly more y-axis
+ * resolution, and reads at small heights. The trader switches view via tabs
+ * up in PipelineChartPanel — by default, those tabs follow the position
+ * grid's active view-mode (linked).
+ */
 export function buildPipelineSingleViewOptions(
   data: PipelineTimeSeriesResponse,
   view: PipelineView,
@@ -269,271 +259,4 @@ export function buildPipelineSingleViewOptions(
     },
     series,
   };
-}
-
-
-export function buildPipelineChartOptions(
-  data: PipelineTimeSeriesResponse,
-  selectedBlocks: Set<string>,
-): EChartsOption {
-  const { blocks, aggregated } = data;
-  const timestamps = aggregated.timestamps;
-
-  // --- Chart 1: Desired Position (top) ---
-  const positionSeries: EChartsOption["series"] = [
-    {
-      name: "Raw",
-      type: "line",
-      xAxisIndex: 0,
-      yAxisIndex: 0,
-      data: aggregated.rawDesiredPosition,
-      showSymbol: false,
-      lineStyle: { width: 1, color: RAW_COLOR },
-      itemStyle: { color: RAW_COLOR },
-      z: 1,
-    },
-    {
-      name: "Smoothed",
-      type: "line",
-      xAxisIndex: 0,
-      yAxisIndex: 0,
-      data: aggregated.smoothedDesiredPosition,
-      showSymbol: false,
-      lineStyle: { width: 2, color: SMOOTHED_COLOR },
-      itemStyle: { color: SMOOTHED_COLOR },
-      z: 2,
-    },
-  ];
-
-  // --- Chart 2: Fair Value by Block (middle, stacked area) ---
-  const hasSelection = selectedBlocks.size > 0;
-  const fairSeries: EChartsOption["series"] = blocks.map((b, i) => {
-    const dimmed = hasSelection && !selectedBlocks.has(b.blockName);
-    return {
-      name: `${b.blockName} (fair)`,
-      type: "line" as const,
-      xAxisIndex: 1,
-      yAxisIndex: 1,
-      data: b.fair,
-      showSymbol: false,
-      stack: "fair",
-      areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
-      lineStyle: { width: dimmed ? 0.3 : 0, color: BLOCK_COLORS[i % BLOCK_COLORS.length], opacity: dimmed ? 0.3 : 1 },
-      itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
-      emphasis: { focus: "series" as const },
-    };
-  });
-
-  // Total Fair outline (bold line showing actual aggregated value)
-  fairSeries.push({
-    name: "Total Fair",
-    type: "line" as const,
-    xAxisIndex: 1,
-    yAxisIndex: 1,
-    data: aggregated.totalFair,
-    showSymbol: false,
-    lineStyle: { width: 2, color: FAIR_COLOR },
-    itemStyle: { color: FAIR_COLOR },
-    z: 10,
-  });
-
-  // Market fair overlay (dashed line, not stacked)
-  fairSeries.push({
-    name: "Market Fair",
-    type: "line" as const,
-    xAxisIndex: 1,
-    yAxisIndex: 1,
-    data: aggregated.totalMarketFair,
-    showSymbol: false,
-    lineStyle: { width: 2, type: "dashed" as const, color: MARKET_FAIR_COLOR },
-    itemStyle: { color: MARKET_FAIR_COLOR },
-    z: 10,
-  });
-
-  // --- Chart 3: Variance by Block (bottom, stacked area) ---
-  const varSeries: EChartsOption["series"] = blocks.map((b, i) => {
-    const dimmed = hasSelection && !selectedBlocks.has(b.blockName);
-    return {
-      name: `${b.blockName} (var)`,
-      type: "line" as const,
-      xAxisIndex: 2,
-      yAxisIndex: 2,
-      data: b.var,
-      showSymbol: false,
-      stack: "var",
-      areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
-      lineStyle: { width: dimmed ? 0.3 : 0, color: BLOCK_COLORS[i % BLOCK_COLORS.length], opacity: dimmed ? 0.3 : 1 },
-      itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
-      emphasis: { focus: "series" as const },
-    };
-  });
-
-  // Total Variance outline (bold line showing actual aggregated value)
-  varSeries.push({
-    name: "Total Variance",
-    type: "line" as const,
-    xAxisIndex: 2,
-    yAxisIndex: 2,
-    data: aggregated.var,
-    showSymbol: false,
-    lineStyle: { width: 2, color: VARIANCE_COLOR },
-    itemStyle: { color: VARIANCE_COLOR },
-    z: 10,
-  });
-
-  const option: EChartsOption = {
-    backgroundColor: "transparent",
-    animation: false,
-    tooltip: {
-      trigger: "axis",
-      axisPointer: { type: "cross", crossStyle: { color: "#666" } },
-      ...TOOLTIP_STYLE,
-      confine: true,
-      formatter: (params: CallbackDataParams | CallbackDataParams[]) => {
-        const items = Array.isArray(params) ? params : [params];
-        if (items.length === 0) return "";
-        const ts = (items[0] as CallbackDataParams & { axisValue?: string }).axisValue ?? "";
-        let tsLabel = ts;
-        try {
-          const d = new Date(ts);
-          tsLabel = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}:${String(d.getUTCSeconds()).padStart(2, "0")}`;
-        } catch { /* keep raw */ }
-
-        // Group items by chart (axisIndex)
-        const groups: Record<number, CallbackDataParams[]> = {};
-        for (const p of items) {
-          const idx = (p as CallbackDataParams & { axisIndex?: number }).axisIndex ?? 0;
-          (groups[idx] ??= []).push(p);
-        }
-
-        let html = `<div style="font-size:10px;margin-bottom:4px;color:#6e6e82">${tsLabel}</div>`;
-
-        for (const axisIdx of Object.keys(groups).map(Number).sort()) {
-          const groupItems = groups[axisIdx];
-          // Compute block total for % (exclude aggregate lines)
-          const isFair = axisIdx === 1;
-          const isVar = axisIdx === 2;
-          const suffix = isFair ? " (fair)" : isVar ? " (var)" : "";
-          const blockItems = suffix
-            ? groupItems.filter((p) => (p.seriesName ?? "").endsWith(suffix))
-            : [];
-          const blockAbsSum = blockItems.reduce(
-            (s: number, p) => s + Math.abs((p.value as number) ?? 0), 0,
-          );
-
-          for (const p of groupItems) {
-            const v = (p.value as number) ?? 0;
-            const name: string = p.seriesName ?? "";
-            const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:4px"></span>`;
-            const isBlock = suffix && name.endsWith(suffix);
-            const pctStr = isBlock && blockAbsSum > 0
-              ? ` <span style="color:#6e6e82">(${((Math.abs(v) / blockAbsSum) * 100).toFixed(1)}%)</span>`
-              : "";
-            html += `<div>${dot}${name}: <b>${sci(v)}</b>${pctStr}</div>`;
-          }
-        }
-        return html;
-      },
-    },
-    // No right-rail legend — the DecompositionPanel above the chart serves
-    // as the colour key (same palette, same names, clickable for selection).
-    // Removing the legend reclaims ~100px of horizontal space across all 3
-    // grids; the inline strip in PipelineChart's header explains the
-    // smoothed/raw/market-fair overlays that aren't tied to a block.
-    axisPointer: { link: [{ xAxisIndex: "all" }] },
-    dataZoom: [
-      {
-        type: "inside",
-        xAxisIndex: [0, 1, 2],
-        filterMode: "filter",
-      },
-      {
-        type: "slider",
-        xAxisIndex: [0, 1, 2],
-        bottom: 24,
-        height: 14,
-        borderColor: "transparent",
-        backgroundColor: "rgba(0,0,0,0.03)",
-        fillerColor: "rgba(79,91,213,0.10)",
-        handleStyle: { color: "#4f5bd5", borderColor: "rgba(255,255,255,0.6)" },
-        textStyle: { color: "#6e6e82", fontSize: 9 },
-      },
-    ],
-    grid: [
-      { left: 60, right: 24, top: 30, height: "22%" },
-      { left: 60, right: 24, top: "36%", height: "22%" },
-      { left: 60, right: 24, top: "66%", height: "22%" },
-    ],
-    xAxis: [
-      {
-        type: "category",
-        data: timestamps,
-        gridIndex: 0,
-        axisLabel: { show: false },
-        axisTick: { show: false },
-        axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
-        splitLine: { show: false },
-      },
-      {
-        type: "category",
-        data: timestamps,
-        gridIndex: 1,
-        axisLabel: { show: false },
-        axisTick: { show: false },
-        axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
-        splitLine: { show: false },
-      },
-      {
-        type: "category",
-        data: timestamps,
-        gridIndex: 2,
-        axisLabel: {
-          color: "#6e6e82",
-          fontSize: 10,
-          hideOverlap: true,
-          lineHeight: 12,
-          formatter: makeAxisLabelFormatter(timestamps),
-        },
-        axisTick: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
-        axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
-        splitLine: { show: false },
-      },
-    ],
-    yAxis: [
-      {
-        type: "value",
-        gridIndex: 0,
-        name: "Position ($)",
-        nameTextStyle: { color: "#6e6e82", fontSize: 10, padding: [0, 0, 0, -10] },
-        axisLabel: { color: "#6e6e82", fontSize: 10, formatter: (v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v)) },
-        splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
-        axisLine: { show: false },
-      },
-      {
-        type: "value",
-        gridIndex: 1,
-        name: "Fair Value",
-        nameTextStyle: { color: "#6e6e82", fontSize: 10, padding: [0, 0, 0, -10] },
-        axisLabel: { color: "#6e6e82", fontSize: 10, formatter: (v: number) => sci(v) },
-        splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
-        axisLine: { show: false },
-      },
-      {
-        type: "value",
-        gridIndex: 2,
-        name: "Variance",
-        nameTextStyle: { color: "#6e6e82", fontSize: 10, padding: [0, 0, 0, -10] },
-        axisLabel: { color: "#6e6e82", fontSize: 10, formatter: (v: number) => sci(v) },
-        splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
-        axisLine: { show: false },
-      },
-    ],
-    series: [
-      ...(positionSeries as object[]),
-      ...(fairSeries as object[]),
-      ...(varSeries as object[]),
-    ],
-  };
-
-  return option;
 }

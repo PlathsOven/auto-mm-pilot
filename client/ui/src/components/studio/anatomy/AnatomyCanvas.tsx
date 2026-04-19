@@ -15,17 +15,16 @@ import { useTransforms } from "../../../providers/TransformsProvider";
 import { useMode } from "../../../providers/ModeProvider";
 import { useWebSocket } from "../../../providers/WebSocketProvider";
 import { useRegisteredStreams } from "../../../hooks/useRegisteredStreams";
-import { updateTransforms } from "../../../services/transformApi";
 import { ANATOMY_STARTUP_GRACE_MS } from "../../../constants";
-import type { TransformStep } from "../../../types";
 
 import { StreamNode } from "./nodes/StreamNode";
 import { TransformNode } from "./nodes/TransformNode";
 import { OutputNode } from "./nodes/OutputNode";
-import { NodeDetailPanel, type AnatomySelection } from "./NodeDetailPanel";
+import { NodeDetailPanel } from "./NodeDetailPanel";
 import { PIPELINE_ORDER, type StepKey } from "./anatomyGraph";
 import { buildAnatomyGraph } from "./buildAnatomyGraph";
-import type { StreamDraftPrefill } from "../canvasState";
+import { useAnatomySelection } from "./useAnatomySelection";
+import { useTransformEditors } from "./useTransformEditors";
 
 const NODE_TYPES: NodeTypes = {
   stream: StreamNode,
@@ -63,79 +62,23 @@ export function AnatomyCanvas() {
 }
 
 function AnatomyCanvasInner() {
-  const { steps, setSteps, error, refresh } = useTransforms();
+  const { steps, error, refresh } = useTransforms();
   const { streams } = useRegisteredStreams();
-  const { query, setMode, navigate } = useMode();
+  const { setMode, navigate } = useMode();
   const { payload } = useWebSocket();
   const positionCount = payload?.positions.length ?? 0;
   const reactFlowInstance = useReactFlow();
 
-  const [savingKey, setSavingKey] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  // Initial selection comes from the URL query so deep links still work:
-  //   #anatomy?streams=list   → right panel open in "list" mode
-  //   #anatomy?stream=<name>  → right panel open on that stream
-  // After mount the right panel is driven entirely by node clicks + the
-  // header "Streams list" toggle (NOT routed through the URL — keeps the
-  // hash clean during normal use).
-  const [selection, setSelection] = useState<AnatomySelection>(() => {
-    if (query.stream) return { kind: "stream", streamName: query.stream };
-    if (query.streams === "list") return { kind: "list" };
-    return { kind: "none" };
-  });
-  // When the URL changes while Anatomy is already mounted (e.g. the
-  // Notifications "Register this stream" CTA navigates to
-  // `#anatomy?stream=new&prefill…`), sync the panel to the new target.
-  // The `useState` initializer above only runs once on mount, so without
-  // this effect subsequent deep-link navigations are silent.
-  //
-  // We only react to the positive cases — a URL that explicitly names a
-  // stream or requests the list mode. Clearing the hash should not stomp
-  // a panel the user opened via node clicks.
-  useEffect(() => {
-    if (query.stream) {
-      setSelection({ kind: "stream", streamName: query.stream });
-    } else if (query.streams === "list") {
-      setSelection({ kind: "list" });
-    }
-  }, [query.stream, query.streams]);
+  const {
+    selection,
+    streamPrefill,
+    closePanel,
+    openStream,
+    openTransform,
+    toggleListPanel,
+  } = useAnatomySelection();
 
-  // Parse prefill query params (from the Notifications center deep-link).
-  // Only applied when the panel is opened on a "new" stream — editing an
-  // existing stream must not have its draft stomped.
-  const streamPrefill = useMemo<StreamDraftPrefill | null>(() => {
-    if (query.stream !== "new") return null;
-    let exampleRow: Record<string, unknown> | undefined;
-    if (query.prefillRow) {
-      try {
-        const parsed = JSON.parse(query.prefillRow);
-        if (parsed && typeof parsed === "object") {
-          exampleRow = parsed as Record<string, unknown>;
-        }
-      } catch {
-        // Ignore — malformed prefillRow shouldn't block the form from opening.
-      }
-    }
-    const keyCols = query.prefillKeyCols
-      ? query.prefillKeyCols.split(",").map((s) => s.trim()).filter(Boolean)
-      : undefined;
-    if (!query.prefillName && !keyCols && !exampleRow) return null;
-    return {
-      streamName: query.prefillName || undefined,
-      keyCols,
-      exampleRow,
-    };
-  }, [query.stream, query.prefillName, query.prefillKeyCols, query.prefillRow]);
-
-  const closePanel = useCallback(() => setSelection({ kind: "none" }), []);
-  const openStream = useCallback(
-    (name: string) => setSelection({ kind: "stream", streamName: name }),
-    [],
-  );
-  const toggleListPanel = useCallback(
-    () => setSelection((s) => (s.kind === "list" ? { kind: "none" } : { kind: "list" })),
-    [],
-  );
+  const { savingKey, saveError, onSelectTransform, onParamChange } = useTransformEditors();
 
   /** Post-Activate feedback: jump to the Streams list (so the user sees
    *  their new row) and pan the DAG to the new stream node so the canvas
@@ -177,9 +120,6 @@ function AnatomyCanvasInner() {
     [navigate, reactFlowInstance],
   );
 
-  // The viewport-recenter effect lives below the `nodes` useMemo so it
-  // can reference it without hitting a TDZ in the deps array.
-
   // Is the system "live"? Use the WS payload as the signal — when positions
   // are flowing, the DAG edges animate.
   const live = positionCount > 0;
@@ -193,64 +133,6 @@ function AnatomyCanvasInner() {
     if (selection.kind === "list") return new Set(streams.map((s) => s.stream_name));
     return new Set<string>();
   }, [selection, streams]);
-
-  // ---------------------------------------------------------------------
-  // Transform state machine (lifted from the old PipelineComposer)
-  // ---------------------------------------------------------------------
-  const persist = useCallback(
-    async (stepKey: string, nextStep: TransformStep) => {
-      setSavingKey(stepKey);
-      setSaveError(null);
-      try {
-        const config: Record<string, unknown> = {
-          [stepKey]: nextStep.selected,
-          [`${stepKey}_params`]: nextStep.params,
-        };
-        const res = await updateTransforms(config);
-        setSteps(res.steps);
-        refresh();
-      } catch (err) {
-        setSaveError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setSavingKey(null);
-      }
-    },
-    [refresh, setSteps],
-  );
-
-  const onSelectTransform = useCallback(
-    (stepKey: string, name: string) => {
-      setSteps((prev) => {
-        if (!prev) return prev;
-        const step = prev[stepKey];
-        if (!step) return prev;
-        const info = step.transforms.find((t) => t.name === name);
-        const defaults: Record<string, unknown> = {};
-        if (info) for (const p of info.params) defaults[p.name] = p.default;
-        const nextStep: TransformStep = { ...step, selected: name, params: defaults };
-        persist(stepKey, nextStep);
-        return { ...prev, [stepKey]: nextStep };
-      });
-    },
-    [persist, setSteps],
-  );
-
-  const onParamChange = useCallback(
-    (stepKey: string, paramName: string, value: unknown) => {
-      setSteps((prev) => {
-        if (!prev) return prev;
-        const step = prev[stepKey];
-        if (!step) return prev;
-        const nextStep: TransformStep = {
-          ...step,
-          params: { ...step.params, [paramName]: value },
-        };
-        persist(stepKey, nextStep);
-        return { ...prev, [stepKey]: nextStep };
-      });
-    },
-    [persist, setSteps],
-  );
 
   // ---------------------------------------------------------------------
   // Build React Flow nodes + edges
@@ -269,12 +151,6 @@ function AnatomyCanvasInner() {
     [nodes],
   );
 
-  // No automatic refit — the initial view comes from ReactFlow's own
-  // `fitView` prop with `streamNodeIds`, and subsequent fits are owned by
-  // explicit user actions (node clicks). This is what eliminates the
-  // historical two-step zoom on every interaction. Drag + pan + zoom
-  // happen freely without us interfering.
-
   // ---------------------------------------------------------------------
   // Node click handling
   // ---------------------------------------------------------------------
@@ -286,7 +162,7 @@ function AnatomyCanvasInner() {
         || (selection.kind === "stream" && node.type === "stream" && selection.streamName === node.id);
 
       if (isAlreadyFocused) {
-        setSelection({ kind: "none" });
+        closePanel();
         return;
       }
 
@@ -297,19 +173,19 @@ function AnatomyCanvasInner() {
       reactFlowInstance.fitView({ nodes: [{ id: node.id }], duration: 250, padding: 0.5, minZoom: 1, maxZoom: 1.6 });
 
       if (node.type === "stream") {
-        setSelection({ kind: "stream", streamName: node.id });
+        openStream(node.id);
       } else if (node.type === "transform") {
-        setSelection({ kind: "transform", stepKey: node.id as StepKey });
+        openTransform(node.id as StepKey);
       } else if (node.type === "output") {
         setMode("workbench");
       }
     },
-    [reactFlowInstance, setMode, selection],
+    [reactFlowInstance, setMode, selection, closePanel, openStream, openTransform],
   );
 
   const onPaneClick = useCallback(() => {
-    setSelection({ kind: "none" });
-  }, []);
+    closePanel();
+  }, [closePanel]);
 
   // ---------------------------------------------------------------------
   // Early returns

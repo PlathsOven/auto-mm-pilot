@@ -82,6 +82,22 @@ export const POSITION_LOOKBACK_OPTIONS: readonly { label: string; seconds: numbe
 export const DEFAULT_POSITION_LOOKBACK_LABEL = "15m";
 export const POSITION_LOOKBACK_KEY = "posit-position-lookback";
 
+// Pipeline chart "Link grid" toggle — when on, the pipeline view mirrors the
+// position grid's active view mode.
+export const PIPELINE_LINK_KEY = "posit-pipeline-linked";
+
+// Block inspector "Follow focus" toggle — auto-filters the table to the
+// workbench focus dimension when on.
+export const BLOCKS_FOLLOW_FOCUS_KEY = "posit-blocks-follow-focus";
+
+// LlmChat command history persistence.
+export const CHAT_HISTORY_KEY = "posit-chat-history";
+export const CHAT_HISTORY_MAX = 50;
+
+// Stream Canvas walkthrough toggle (+ the legacy `apt.*` key we migrate from).
+export const STREAM_CANVAS_WALKTHROUGH_KEY = "posit.studio.walkthrough";
+export const STREAM_CANVAS_WALKTHROUGH_LEGACY_KEY = "apt.studio.walkthrough";
+
 // ---------------------------------------------------------------------------
 // Position grid — view modes + timeframe options
 // ---------------------------------------------------------------------------

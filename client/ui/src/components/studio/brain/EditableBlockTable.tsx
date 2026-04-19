@@ -14,7 +14,7 @@ import {
 import { fetchBlocks } from "../../../services/blockApi";
 import type { BlockRow } from "../../../types";
 import { valColor, formatNullable } from "../../../utils";
-import { POLL_INTERVAL_BLOCKS_MS } from "../../../constants";
+import { POLL_INTERVAL_BLOCKS_MS, BLOCKS_FOLLOW_FOCUS_KEY } from "../../../constants";
 import { useFocus } from "../../../providers/FocusProvider";
 
 const col = createColumnHelper<BlockRow>();
@@ -179,7 +179,6 @@ interface Props {
  * TanStack Table with column visibility toggle, multi-column sort,
  * global filter, and row click to open the detail drawer.
  */
-const FOLLOW_FOCUS_KEY = "posit-blocks-follow-focus";
 const ALL = "__all__";
 
 export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowClick, onRowEdit }: Props) {
@@ -194,7 +193,7 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
   const [symbolFilter, setSymbolFilter] = useState<string>(ALL);
   const [expiryFilter, setExpiryFilter] = useState<string>(ALL);
   const [followFocus, setFollowFocus] = useState<boolean>(() => {
-    try { return localStorage.getItem(FOLLOW_FOCUS_KEY) !== "false"; } catch { return true; }
+    try { return localStorage.getItem(BLOCKS_FOLLOW_FOCUS_KEY) !== "false"; } catch { return true; }
   });
 
   // Auto-filter to the focused dimension when "follow focus" is on. Reverting
@@ -226,7 +225,7 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
 
   const persistFollowFocus = useCallback((next: boolean) => {
     setFollowFocus(next);
-    try { localStorage.setItem(FOLLOW_FOCUS_KEY, String(next)); } catch { /* ignore */ }
+    try { localStorage.setItem(BLOCKS_FOLLOW_FOCUS_KEY, String(next)); } catch { /* ignore */ }
   }, []);
 
   const columnFilters = useMemo<ColumnFiltersState>(() => {

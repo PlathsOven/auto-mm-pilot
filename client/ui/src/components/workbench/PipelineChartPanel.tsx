@@ -11,6 +11,7 @@ import {
   POSITION_LOOKBACK_OPTIONS,
   DEFAULT_POSITION_LOOKBACK_LABEL,
   POSITION_LOOKBACK_KEY,
+  PIPELINE_LINK_KEY,
 } from "../../constants";
 
 const VIEW_TABS: TabItem<PipelineView>[] = [
@@ -18,8 +19,6 @@ const VIEW_TABS: TabItem<PipelineView>[] = [
   { value: "fair", label: "Fair" },
   { value: "variance", label: "Variance" },
 ];
-
-const PIPELINE_LINK_KEY = "posit-pipeline-linked";
 
 /** Map a position-grid view mode to the matching pipeline view. Several grid
  *  modes resolve to the same pipeline view (smoothed/raw position both →
