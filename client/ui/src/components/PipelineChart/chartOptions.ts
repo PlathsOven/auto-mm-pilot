@@ -69,6 +69,11 @@ export function sci(v: number): string {
  *  so the two surfaces can stay in sync. */
 export type PipelineView = "position" | "fair" | "variance";
 
+// Axis type locked to "category" because the stacked fair/variance series
+// rely on ECharts' `stack:` feature. See xAxis comment + assertion in the
+// option builder.
+const STACK_SAFE_XAXIS_TYPE = "category" as const;
+
 /** Parse a naive-UTC ISO timestamp. The server emits naive UTC; JS would
  *  otherwise interpret naive ISO as local time on some browsers, shifting
  *  the axis labels by the user's UTC offset. */
@@ -229,13 +234,13 @@ export function buildPipelineSingleViewOptions(
     // + a two-line axis label (~22px) — single-line labels used 36px.
     grid: { left: 56, right: 16, top: 12, bottom: 48 },
     xAxis: {
-      // Category axis aligned to the backing timestamp array. Series data
-      // are plain value arrays (aligned by index) — this is the only shape
-      // ECharts' `stack:` supports reliably. A time axis with stacked
-      // nullable series throws inside the internal stacker and, because no
-      // ErrorBoundary is mounted above the chart, the whole workbench
-      // unmounts — that was the "blank screen on Fair" crash.
-      type: "category",
+      // Invariant (asserted below): ECharts' `stack:` feature only works
+      // on a category axis. Time-axis with stacked nullable series throws
+      // inside the internal stacker and — with no ErrorBoundary above the
+      // chart — unmounts the whole workbench (the "blank screen on Fair"
+      // bug). If you change this, the assertion at the end of the builder
+      // fires.
+      type: STACK_SAFE_XAXIS_TYPE,
       data: axisTimestamps,
       boundaryGap: false,
       axisLabel: {
