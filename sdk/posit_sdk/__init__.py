@@ -53,6 +53,7 @@ from posit_sdk.models import (
     UpdateCard,
     WsAck,
 )
+from posit_sdk.ws import WsState
 
 __all__ = [
     # Client
@@ -78,4 +79,5 @@ __all__ = [
     "GlobalContext",
     "UpdateCard",
     "WsAck",
+    "WsState",
 ]

@@ -1,8 +1,10 @@
 """PositClient — main entry point for the Posit SDK."""
 from __future__ import annotations
 
+import logging
 from typing import AsyncGenerator
 
+from posit_sdk.exceptions import PositAuthError, PositConnectionError
 from posit_sdk.models import (
     BankrollResponse,
     BlockConfig,
@@ -15,7 +17,9 @@ from posit_sdk.models import (
     WsAck,
 )
 from posit_sdk.rest import RestClient
-from posit_sdk.ws import WsClient
+from posit_sdk.ws import WsClient, WsState
+
+log = logging.getLogger(__name__)
 
 
 def _http_to_ws(url: str) -> str:
@@ -32,7 +36,8 @@ class PositClient:
             await client.create_stream("rv_btc", key_cols=["symbol", "expiry"])
             await client.configure_stream("rv_btc", scale=1.0)
 
-            # Push data via WebSocket (lower latency)
+            # Push data via WebSocket (lower latency); falls back to REST
+            # when the WS is not OPEN.
             await client.push_snapshot(
                 "rv_btc",
                 rows=[SnapshotRow(timestamp="2024-01-01T00:00:00Z", raw_value=0.65,
@@ -45,6 +50,12 @@ class PositClient:
                     print(pos.symbol, pos.desired_pos)
 
     Pass ``connect_ws=False`` for REST-only mode (no WebSocket connection).
+
+    ``__aenter__`` hard-blocks on auth: a bad API key raises
+    ``PositAuthError`` immediately, so no subsequent call can silently fail
+    against a dead key. Pass ``connect_timeout=None`` to disable the WS
+    readiness wait if you want eager REST access while the WS is still
+    handshaking in the background.
     """
 
     def __init__(
@@ -53,20 +64,36 @@ class PositClient:
         api_key: str,
         *,
         connect_ws: bool = True,
+        connect_timeout: float | None = 10.0,
         ws_reconnect_delay: float = 1.0,
         ws_max_reconnect_delay: float = 60.0,
     ) -> None:
         self._url = url.rstrip("/")
         self._api_key = api_key
         self._connect_ws = connect_ws
+        self._connect_timeout = connect_timeout
         self._ws_reconnect_delay = ws_reconnect_delay
         self._ws_max_reconnect_delay = ws_max_reconnect_delay
         self._rest: RestClient | None = None
         self._ws: WsClient | None = None
+        # Tracks the last WS state we emitted a WARN for, to avoid per-push
+        # log spam when the socket is down and every call is falling back.
+        self._last_warned_ws_state: WsState | None = None
 
     async def __aenter__(self) -> "PositClient":
         self._rest = RestClient(self._url, self._api_key)
         await self._rest.__aenter__()
+
+        # Auth hard-block: probe a REST endpoint that requires auth so a bad
+        # key raises here, not on the first user action. The probe doubles as
+        # our initial "which streams already exist" cache.
+        try:
+            await self._rest.list_streams()
+        except PositAuthError:
+            await self._rest.__aexit__(None, None, None)
+            self._rest = None
+            raise
+
         if self._connect_ws:
             self._ws = WsClient(
                 _http_to_ws(self._url) + "/ws/client",
@@ -75,13 +102,34 @@ class PositClient:
                 max_reconnect_delay=self._ws_max_reconnect_delay,
             )
             await self._ws.connect()
+            if self._connect_timeout is not None:
+                try:
+                    await self._ws.wait_until_open(timeout=self._connect_timeout)
+                except (PositAuthError, PositConnectionError):
+                    await self._ws.close()
+                    self._ws = None
+                    await self._rest.__aexit__(None, None, None)
+                    self._rest = None
+                    raise
         return self
 
     async def __aexit__(self, *args: object) -> None:
         if self._ws:
             await self._ws.close()
+            self._ws = None
         if self._rest:
             await self._rest.__aexit__(*args)
+            self._rest = None
+
+    async def wait_until_ready(self, timeout: float = 10.0) -> None:
+        """Block until the WS is OPEN or raise on auth / timeout.
+
+        No-op in REST-only mode (``connect_ws=False``). REST readiness is
+        already guaranteed by ``__aenter__`` — if we returned from the context
+        entry, the API key has been validated.
+        """
+        if self._ws is not None:
+            await self._ws.wait_until_open(timeout)
 
     def _require_rest(self) -> RestClient:
         if self._rest is None:
@@ -95,6 +143,20 @@ class PositClient:
                 "and enter the context manager first."
             )
         return self._ws
+
+    def _ws_state(self) -> WsState:
+        return self._ws.state if self._ws is not None else WsState.CLOSED
+
+    def _maybe_warn_ws_fallback(self) -> None:
+        """Log once per transition when pushes fall back to REST."""
+        state = self._ws_state()
+        if state == self._last_warned_ws_state:
+            return
+        self._last_warned_ws_state = state
+        log.warning(
+            "Posit WS state=%s — push falling back to REST (slower but correct).",
+            state.value,
+        )
 
     # ----- Streams -----
 
@@ -213,19 +275,42 @@ class PositClient:
     async def delete_market_value(self, symbol: str, expiry: str) -> None:
         await self._require_rest().delete_market_value(symbol, expiry)
 
-    # ----- WebSocket -----
+    # ----- Pushes (WS preferred, REST fallback) -----
 
     async def push_snapshot(
         self, stream_name: str, rows: list[SnapshotRow],
     ) -> WsAck:
-        """Push snapshot rows via WebSocket (lower latency than REST ingest)."""
-        return await self._require_ws().push_snapshot(stream_name, rows)
+        """Push snapshot rows.
+
+        Uses the WebSocket when ``state == OPEN``; falls back to the REST
+        ``ingest_snapshot`` otherwise so a downed WS never silently swallows
+        pushes. The fallback logs one WARN per state transition, not per call.
+        """
+        if self._ws_state() == WsState.OPEN:
+            return await self._require_ws().push_snapshot(stream_name, rows)
+        self._maybe_warn_ws_fallback()
+        resp = await self._require_rest().ingest_snapshot(stream_name, rows)
+        return WsAck(
+            type="ack",
+            seq=-1,
+            rows_accepted=resp.rows_accepted,
+            pipeline_rerun=resp.pipeline_rerun,
+        )
 
     async def push_market_values(
         self, entries: list[MarketValueEntry],
     ) -> WsAck:
-        """Push market value entries via WebSocket."""
-        return await self._require_ws().push_market_values(entries)
+        """Push market value entries.
+
+        Uses the WebSocket when ``state == OPEN``; falls back to the REST
+        ``set_market_values`` otherwise. REST semantics replace the full set
+        (matches the WS behaviour — ``mv_set_entries`` on the server).
+        """
+        if self._ws_state() == WsState.OPEN:
+            return await self._require_ws().push_market_values(entries)
+        self._maybe_warn_ws_fallback()
+        stored = await self._require_rest().set_market_values(entries)
+        return WsAck(type="ack", seq=-1, rows_accepted=len(stored), pipeline_rerun=False)
 
     async def positions(self) -> AsyncGenerator[PositionPayload, None]:
         """Async generator that yields incoming pipeline position payloads."""
