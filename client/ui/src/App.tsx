@@ -5,7 +5,7 @@ import { BlockDrawer } from "./components/studio/brain/BlockDrawer";
 import { HotkeyCheatsheet } from "./components/workbench/HotkeyCheatsheet";
 import { AppShell } from "./components/shell/AppShell";
 import { WorkbenchPage } from "./pages/WorkbenchPage";
-import { AnatomyPage } from "./pages/AnatomyPage";
+import { AnatomyCanvas } from "./components/studio/anatomy/AnatomyCanvas";
 import { DocsPage } from "./pages/DocsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { AccountPage } from "./pages/AccountPage";
@@ -21,7 +21,7 @@ import { INSPECTOR_COLUMN_OPEN_KEY } from "./constants";
 
 const MODE_PAGES: Record<ModeId, React.FC> = {
   workbench: WorkbenchPage,
-  anatomy: AnatomyPage,
+  anatomy: AnatomyCanvas,
   docs: DocsPage,
   account: AccountPage,
   admin: AdminPage,
