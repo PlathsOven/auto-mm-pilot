@@ -51,6 +51,7 @@ from posit_sdk.models import (
     SnapshotResponse,
     SnapshotRow,
     StreamResponse,
+    StreamSpec,
     UpdateCard,
     WsAck,
 )
@@ -69,6 +70,7 @@ __all__ = [
     "SnapshotRow",
     "MarketValueEntry",
     "BlockConfig",
+    "StreamSpec",
     # Response models
     "StreamResponse",
     "SnapshotResponse",

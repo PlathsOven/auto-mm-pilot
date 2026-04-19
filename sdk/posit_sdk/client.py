@@ -18,6 +18,7 @@ from posit_sdk.models import (
     SnapshotResponse,
     SnapshotRow,
     StreamResponse,
+    StreamSpec,
     WsAck,
 )
 from posit_sdk.rest import RestClient
@@ -247,6 +248,109 @@ class PositClient:
 
     async def delete_stream(self, stream_name: str) -> None:
         await self._require_rest().delete_stream(stream_name)
+
+    async def upsert_stream(
+        self,
+        stream_name: str,
+        *,
+        key_cols: list[str],
+        scale: float = 1.0,
+        offset: float = 0.0,
+        exponent: float = 1.0,
+        block: BlockConfig | None = None,
+    ) -> StreamResponse:
+        """Idempotent stream setup — create-if-absent, reconfigure-if-present.
+
+        If ``key_cols`` has changed on a pre-existing stream, the stream is
+        deleted and recreated (snapshot rows are cleared as a side-effect;
+        an ``INFO`` log records the replacement). For everything else the
+        call is a no-op on already-matching state — safe to drop into a
+        startup script that runs on every process launch.
+
+        Returns the final ``StreamResponse`` (READY after configure).
+        """
+        await self._validate_key_cols(key_cols)
+
+        existing_by_name = {s.stream_name: s for s in await self.list_streams()}
+        existing = existing_by_name.get(stream_name)
+
+        if existing is not None and list(existing.key_cols) != list(key_cols):
+            log.info(
+                "Stream %r key_cols changed %s -> %s; recreating.",
+                stream_name, existing.key_cols, key_cols,
+            )
+            await self._require_rest().delete_stream(stream_name)
+            existing = None
+
+        created_fresh = existing is None
+        if created_fresh:
+            await self._require_rest().create_stream(stream_name, key_cols)
+
+        try:
+            return await self._require_rest().configure_stream(
+                stream_name,
+                scale=scale,
+                offset=offset,
+                exponent=exponent,
+                block=block,
+            )
+        except Exception:
+            # Self-rollback: if we just created the stream fresh, roll it back
+            # so upsert is atomic from the caller's point of view.
+            if created_fresh:
+                try:
+                    await self._require_rest().delete_stream(stream_name)
+                except Exception:
+                    log.exception(
+                        "Rollback after failed configure of %r also failed", stream_name,
+                    )
+            raise
+
+    async def bootstrap_streams(
+        self,
+        specs: list[StreamSpec],
+        *,
+        bankroll: float | None = None,
+    ) -> list[StreamResponse]:
+        """Upsert a batch of streams and optionally set bankroll — atomically.
+
+        If any step raises, every stream this call newly created (not the
+        ones it merely reconfigured) is rolled back via ``delete_stream`` so
+        the desk is not left in a half-configured state. Pre-existing
+        streams that were reconfigured are left in their updated state —
+        we do not have the prior config to revert to, and the caller asked
+        for a setup that explicitly allows reconfiguration.
+        """
+        existing_names = {s.stream_name for s in await self.list_streams()}
+        created_by_us: list[str] = []
+        responses: list[StreamResponse] = []
+        try:
+            for spec in specs:
+                was_new = spec.stream_name not in existing_names
+                resp = await self.upsert_stream(
+                    spec.stream_name,
+                    key_cols=spec.key_cols,
+                    scale=spec.scale,
+                    offset=spec.offset,
+                    exponent=spec.exponent,
+                    block=spec.block,
+                )
+                if was_new:
+                    created_by_us.append(spec.stream_name)
+                responses.append(resp)
+
+            if bankroll is not None:
+                await self._require_rest().set_bankroll(bankroll)
+
+        except Exception:
+            for name in reversed(created_by_us):
+                try:
+                    await self._require_rest().delete_stream(name)
+                except Exception:
+                    log.exception("Rollback failed for stream %r", name)
+            raise
+
+        return responses
 
     # ----- Snapshots (REST) -----
 

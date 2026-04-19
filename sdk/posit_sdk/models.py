@@ -80,6 +80,28 @@ class BlockConfig(BaseModel):
         return self
 
 
+class StreamSpec(BaseModel):
+    """Bundled arguments for ``PositClient.upsert_stream``.
+
+    Lets callers describe a full stream (name + key_cols + conversion
+    params + block) in one object so ``bootstrap_streams`` can take a list
+    of them and set up an entire desk in one call.
+    """
+
+    stream_name: str = Field(..., min_length=1)
+    key_cols: list[str] = Field(..., min_length=1)
+    scale: float = 1.0
+    offset: float = 0.0
+    exponent: float = 1.0
+    block: "BlockConfig | None" = None
+
+    @model_validator(mode="after")
+    def _no_duplicate_key_cols(self) -> "StreamSpec":
+        if len(set(self.key_cols)) != len(self.key_cols):
+            raise ValueError(f"key_cols contains duplicates: {self.key_cols}")
+        return self
+
+
 class StreamResponse(BaseModel):
     """Response for stream CRUD endpoints.
 
