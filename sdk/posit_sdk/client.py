@@ -4,7 +4,11 @@ from __future__ import annotations
 import logging
 from typing import AsyncGenerator
 
-from posit_sdk.exceptions import PositAuthError, PositConnectionError
+from posit_sdk.exceptions import (
+    PositAuthError,
+    PositConnectionError,
+    PositValidationError,
+)
 from posit_sdk.models import (
     BankrollResponse,
     BlockConfig,
@@ -79,6 +83,10 @@ class PositClient:
         # Tracks the last WS state we emitted a WARN for, to avoid per-push
         # log spam when the socket is down and every call is falling back.
         self._last_warned_ws_state: WsState | None = None
+        # Cache of server's required risk-dimension column names. Fetched
+        # lazily on first create_stream and re-used thereafter — server config,
+        # not per-request data, so caching is safe.
+        self._dimension_cols: list[str] | None = None
 
     async def __aenter__(self) -> "PositClient":
         self._rest = RestClient(self._url, self._api_key)
@@ -163,9 +171,28 @@ class PositClient:
     async def list_streams(self) -> list[StreamResponse]:
         return await self._require_rest().list_streams()
 
+    async def _get_dimension_cols(self) -> list[str]:
+        """Fetch + cache the server's risk-dimension column names."""
+        if self._dimension_cols is None:
+            self._dimension_cols = await self._require_rest().get_dimension_cols()
+        return self._dimension_cols
+
+    async def _validate_key_cols(self, key_cols: list[str]) -> None:
+        if not key_cols:
+            raise PositValidationError("key_cols must be a non-empty list")
+        if len(set(key_cols)) != len(key_cols):
+            raise PositValidationError(f"key_cols contains duplicates: {key_cols}")
+        required = await self._get_dimension_cols()
+        missing = [c for c in required if c not in key_cols]
+        if missing:
+            raise PositValidationError(
+                f"key_cols must include risk dimensions {required}; missing {missing}"
+            )
+
     async def create_stream(
         self, name: str, key_cols: list[str],
     ) -> StreamResponse:
+        await self._validate_key_cols(key_cols)
         return await self._require_rest().create_stream(name, key_cols)
 
     async def update_stream(

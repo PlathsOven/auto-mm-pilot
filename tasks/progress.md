@@ -4,6 +4,39 @@ Mid-session handoff notes. When a task is not finished at the end of a session, 
 
 ## Status
 
+## Manual Brain handoff — SDK integration audit Section 4.3 — 2026-04-19
+
+**Goal:** Stop the `pl.vstack` dtype crash when mock and user-supplied streams
+coexist with different-typed `exponent` values (Int32 vs Float64).
+
+**Where:** `server/core/pipeline.py:124` —
+```python
+pl.lit(sc.exponent).alias("exponent"),
+```
+currently literal-infers the Polars dtype from `sc.exponent` at each call.
+When one stream's `StreamConfig.exponent` is an `int` (e.g. the mock
+scenario's `exponent=2`) and another is a `float` (SDK-supplied
+`exponent=1.0`), `pl.concat(parts)` raises on dtype mismatch. Suggested fix:
+
+```python
+pl.lit(sc.exponent).cast(pl.Float64).alias("exponent"),
+```
+
+**Why this is parked:** `server/core/pipeline.py` is HUMAN ONLY (Manual
+Brain Rule, `CLAUDE.md` + `tasks/lessons.md`). An LLM must not edit this
+file; the rule is enforced by a PreToolUse hook in `.claude/settings.json`.
+
+**Blockers:** none — one-line cast, surrounded by tested code. Reviewer
+should also verify whether `sc.scale` / `sc.offset` need the same treatment
+for safety (they are likely already always `float` in practice but the
+same literal-inference risk applies).
+
+**Next step:** human makes the one-line cast, runs
+`python -m compileall server/ -q`, and runs the SDK integration test added
+alongside the Section 4 SDK PR to confirm the vstack no longer raises.
+
+---
+
 ## Convergence refactor (spec-refactor-convergence.md) — 2026-04-09
 
 **Goal:** Execute all 4 phases of `tasks/spec-refactor-convergence.md` — pattern convergence + root-cause cleanup — on branch `generalisation`, single PR at the end.

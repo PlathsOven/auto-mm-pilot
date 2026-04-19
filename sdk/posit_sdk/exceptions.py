@@ -21,3 +21,13 @@ class PositApiError(PositError):
         super().__init__(f"HTTP {status_code}: {message}")
         self.status_code = status_code
         self.message = message
+
+
+class PositValidationError(PositError):
+    """A client-side argument failed validation before any network call.
+
+    Raised in preference to letting the server return 422 — catching problems
+    here gives the caller a clearer stack frame and avoids round-trips on
+    obviously bad input (missing risk-dimension key_cols, incompatible
+    BlockConfig flags, unparseable timestamps, etc.).
+    """

@@ -489,8 +489,17 @@ class TimeSeriesDimension(_WireModel):
 
 
 class PipelineDimensionsResponse(_WireModel):
-    """Response for ``GET /api/pipeline/dimensions``."""
+    """Response for ``GET /api/pipeline/dimensions``.
+
+    ``dimension_cols`` names the server-wide risk-dimension column set
+    (``RISK_DIMENSION_COLS``) that every stream's ``key_cols`` must be a
+    superset of. Clients fetch this once to validate ``create_stream``
+    arguments up-front — the field is stable server configuration, not
+    derived from the pipeline, so it's populated even when ``dimensions``
+    is empty (fresh account, no streams yet).
+    """
     dimensions: list[TimeSeriesDimension]
+    dimension_cols: list[str] = Field(default_factory=list)
 
 
 class BlockTimeSeries(_WireModel):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime as _dt
+from datetime import datetime as _dt, timezone
 
 import polars as pl
 from fastapi import APIRouter, Depends, HTTPException
@@ -26,9 +26,12 @@ router = APIRouter()
 
 
 def _pipeline_dimensions_sync(user_id: str) -> dict:
+    # `dimension_cols` is server-wide config — emit it even when the user
+    # has no pipeline results yet so the SDK can validate `create_stream`
+    # key_cols on a fresh account.
     results = get_pipeline_results(user_id)
     if results is None:
-        return {"dimensions": []}
+        return {"dimensions": [], "dimension_cols": list(RISK_DIMENSION_COLS)}
 
     pos_df = results["desired_pos_df"]
     dims = (
@@ -40,7 +43,7 @@ def _pipeline_dimensions_sync(user_id: str) -> dict:
     for d in dim_rows:
         exp = d["expiry"]
         d["expiry"] = exp.isoformat() if hasattr(exp, "isoformat") else str(exp)
-    return {"dimensions": dim_rows}
+    return {"dimensions": dim_rows, "dimension_cols": list(RISK_DIMENSION_COLS)}
 
 
 def _pipeline_timeseries_sync(user_id: str, symbol: str, expiry_dt: _dt) -> dict | None:
@@ -68,16 +71,36 @@ def _pipeline_timeseries_sync(user_id: str, symbol: str, expiry_dt: _dt) -> dict
         & (pl.col("expiry").cast(pl.Date) == expiry_date)
     ).drop_nulls(subset=["raw_desired_position"])
 
-    # Independent slicing: positions are backward-looking (full history → now)
+    # Independent slicing: positions are backward-looking (rerun_time → now)
     # so the trader sees how the position evolved; block fair/variance are
     # forward-looking (now → expiry decay curves). The earlier shared-OR
     # condition wiped out one when the other had data, breaking the chart's
     # current-decomposition snapshot in either direction.
-    if current_ts is not None:
-        bv_sliced = block_var_filtered.filter(pl.col("timestamp") >= current_ts)
-        if not bv_sliced.is_empty():
-            block_var_filtered = bv_sliced
-        # pos: leave as-is (full history). The position chart wants the past.
+    #
+    # `desired_pos_df` is computed at rerun as a forward projection from
+    # rerun_time → expiry, and the ticker advances `current_ts` through that
+    # range as real time catches up. Rows with `timestamp <= current_ts` are
+    # the "already-revealed" projections — those are the backward-looking
+    # history the Position view wants. Without the upper-bound filter the
+    # chart also plotted the unrevealed future decay (which ends at 0 at
+    # expiry), producing the phantom trailing-0 the user reported.
+    # Slice anchor for past-vs-future: prefer the WS ticker's `current_tick_ts`
+    # (which advances through `desired_pos_df`'s forward grid as real time
+    # passes), and fall back to wall-clock UTC so the chart is still correct
+    # on a fresh request where the ticker hasn't set state yet.
+    slice_ts = current_ts if current_ts is not None else _dt.now(timezone.utc).replace(tzinfo=None)
+    bv_sliced = block_var_filtered.filter(pl.col("timestamp") >= slice_ts)
+    if not bv_sliced.is_empty():
+        block_var_filtered = bv_sliced
+    pos_sliced = pos_filtered.filter(pl.col("timestamp") <= slice_ts)
+    log.info(
+        "pipeline timeseries: user=%s sym=%s exp=%s slice_ts=%s current_ts=%s "
+        "pos_full=%d pos_sliced=%d",
+        user_id, symbol, expiry_date, slice_ts, current_ts,
+        pos_filtered.height, pos_sliced.height,
+    )
+    if not pos_sliced.is_empty():
+        pos_filtered = pos_sliced
 
     if block_var_filtered.is_empty() and pos_filtered.is_empty():
         return None
@@ -149,7 +172,9 @@ def _pipeline_timeseries_sync(user_id: str, symbol: str, expiry_dt: _dt) -> dict
 
     current_agg: dict | None = None
     if pos_sorted.height > 0:
-        last = pos_sorted.row(0, named=True)
+        # pos_sorted is ascending; the current-decomposition snapshot is the
+        # most recent revealed row (== current_ts after the slice above).
+        last = pos_sorted.row(pos_sorted.height - 1, named=True)
         current_agg = {
             "totalFair": last["total_fair"],
             "totalMarketFair": last["total_market_fair"],

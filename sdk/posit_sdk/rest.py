@@ -60,6 +60,21 @@ class RestClient:
                 detail = resp.text
             raise PositApiError(resp.status_code, str(detail))
 
+    # ----- Pipeline config -----
+
+    async def get_dimension_cols(self) -> list[str]:
+        """Return the server's required risk-dimension key columns.
+
+        The SDK caches this on first call — it is stable server config
+        (currently ``["symbol", "expiry"]``) but fetched rather than
+        hardcoded so it remains correct across server upgrades.
+        """
+        resp = await self._client.get("/api/pipeline/dimensions")
+        self._raise_for_status(resp)
+        data = resp.json()
+        cols = data.get("dimensionCols") or data.get("dimension_cols") or []
+        return list(cols)
+
     # ----- Streams -----
 
     async def list_streams(self) -> list[StreamResponse]:
