@@ -48,19 +48,24 @@ log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Live SDK connections keyed by API key — used to force-close on rotation.
+#
+# The socket also lives in the broadcast map (``ws._clients``) keyed by
+# user_id. We keep user_id next to each socket here so rotation can
+# deregister from the broadcast set atomically with the close, without the
+# ticker racing a send against a half-closed socket.
 # ---------------------------------------------------------------------------
 
-_connections_by_key: dict[str, set[WebSocket]] = {}
+_connections_by_key: dict[str, set[tuple[WebSocket, str]]] = {}
 
 
-def _track_key(api_key: str, ws: WebSocket) -> None:
-    _connections_by_key.setdefault(api_key, set()).add(ws)
+def _track_key(api_key: str, ws: WebSocket, user_id: str) -> None:
+    _connections_by_key.setdefault(api_key, set()).add((ws, user_id))
 
 
-def _untrack_key(api_key: str, ws: WebSocket) -> None:
+def _untrack_key(api_key: str, ws: WebSocket, user_id: str) -> None:
     sockets = _connections_by_key.get(api_key)
     if sockets is not None:
-        sockets.discard(ws)
+        sockets.discard((ws, user_id))
         if not sockets:
             _connections_by_key.pop(api_key, None)
 
@@ -71,7 +76,10 @@ async def close_connections_for_key(api_key: str, *, reason: str = "key_rotated"
     if not sockets:
         return
     log.info("Closing %d client WS connections for rotated key", len(sockets))
-    for ws in list(sockets):
+    for ws, user_id in list(sockets):
+        # Pull from the broadcast set first so the ticker won't attempt
+        # a send against the socket we are about to close.
+        unregister_client(user_id, ws)
         try:
             await ws.close(code=1008, reason=reason)
         except Exception:
@@ -185,7 +193,7 @@ async def client_ws(websocket: WebSocket) -> None:
         except Exception:
             return
 
-    _track_key(api_key, websocket)
+    _track_key(api_key, websocket, user_id)
     register_client(user_id, websocket)
     try:
         while True:
@@ -196,6 +204,6 @@ async def client_ws(websocket: WebSocket) -> None:
     except Exception:
         log.exception("Client WS connection error from %s", client_host)
     finally:
-        _untrack_key(api_key, websocket)
+        _untrack_key(api_key, websocket, user_id)
         unregister_client(user_id, websocket)
         log.info("Client WS disconnected from %s (user=%s)", client_host, user_id)
