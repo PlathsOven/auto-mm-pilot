@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { logEvent } from "../services/eventsApi";
 
@@ -6,16 +6,15 @@ import { logEvent } from "../services/eventsApi";
  * Fire ``app_focus`` / ``app_blur`` events as the tab's ``visibilitychange``
  * state flips. The admin dashboard aggregates these into total time-on-app
  * per user.
- *
- * One listener per mount; the guard prevents duplicate events if multiple
- * consumers ever mount the hook simultaneously.
  */
-let _mounted = false;
-
 export function useTimeOnApp(): void {
+  // Per-instance guard so React StrictMode's double-mount doesn't emit a
+  // second focus event on the initial render.
+  const attached = useRef(false);
+
   useEffect(() => {
-    if (_mounted) return;
-    _mounted = true;
+    if (attached.current) return;
+    attached.current = true;
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
@@ -32,7 +31,7 @@ export function useTimeOnApp(): void {
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
-      _mounted = false;
+      attached.current = false;
     };
   }, []);
 }
