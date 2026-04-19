@@ -20,6 +20,10 @@ import {
 import { STREAM_TEMPLATES } from "./streamTemplates";
 import { migrateLegacyStorageKey } from "../../utils";
 import { configureStream, createStream, ingestSnapshot } from "../../services/streamApi";
+import {
+  STREAM_CANVAS_WALKTHROUGH_KEY,
+  STREAM_CANVAS_WALKTHROUGH_LEGACY_KEY,
+} from "../../constants";
 import type { RegisteredStream } from "../../types";
 
 interface Props {
@@ -37,9 +41,6 @@ interface Props {
    *  signal — otherwise the form unmounting looks like an error. */
   onActivated?: (streamName: string) => void;
 }
-
-const WALK_THROUGH_KEY = "posit.studio.walkthrough";
-const LEGACY_WALK_THROUGH_KEY = "apt.studio.walkthrough";
 
 /** URL sentinel that means "open the form in create mode" — not a real name. */
 const NEW_STREAM_SENTINEL = "new";
@@ -79,9 +80,9 @@ export function StreamCanvas({ streamName, templateId, prefill, onActivated }: P
     streamName === NEW_STREAM_SENTINEL ? null : streamName,
   );
   const [walkThrough, setWalkThrough] = useState(() => {
-    migrateLegacyStorageKey(LEGACY_WALK_THROUGH_KEY, WALK_THROUGH_KEY);
+    migrateLegacyStorageKey(STREAM_CANVAS_WALKTHROUGH_LEGACY_KEY, STREAM_CANVAS_WALKTHROUGH_KEY);
     try {
-      const v = localStorage.getItem(WALK_THROUGH_KEY);
+      const v = localStorage.getItem(STREAM_CANVAS_WALKTHROUGH_KEY);
       return v === null ? true : v === "true";
     } catch {
       return true;
@@ -107,7 +108,7 @@ export function StreamCanvas({ streamName, templateId, prefill, onActivated }: P
   // Persist walk-through preference
   useEffect(() => {
     try {
-      localStorage.setItem(WALK_THROUGH_KEY, String(walkThrough));
+      localStorage.setItem(STREAM_CANVAS_WALKTHROUGH_KEY, String(walkThrough));
     } catch {
       // ignore
     }

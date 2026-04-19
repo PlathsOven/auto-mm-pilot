@@ -3,16 +3,17 @@ import Markdown from "react-markdown";
 import { useChat } from "../providers/ChatProvider";
 import { Tabs, type TabItem } from "./ui/Tabs";
 import type { ChatMode } from "../types";
-import { CHAT_INPUT_MAX_HEIGHT_PX } from "../constants";
+import {
+  CHAT_INPUT_MAX_HEIGHT_PX,
+  CHAT_HISTORY_KEY,
+  CHAT_HISTORY_MAX,
+} from "../constants";
 
 const MODE_LABELS: Record<ChatMode, string> = {
   investigate: "Investigate",
   build: "Build",
   general: "General",
 };
-
-const HISTORY_KEY = "posit-chat-history";
-const HISTORY_MAX = 50;
 
 interface SlashCommand {
   name: string;
@@ -103,7 +104,7 @@ function investigationLabel(ctx: NonNullable<ReturnType<typeof useChat>["investi
 
 function loadHistory(): string[] {
   try {
-    const v = localStorage.getItem(HISTORY_KEY);
+    const v = localStorage.getItem(CHAT_HISTORY_KEY);
     if (!v) return [];
     const parsed = JSON.parse(v);
     return Array.isArray(parsed) ? parsed.filter((s) => typeof s === "string") : [];
@@ -113,7 +114,7 @@ function loadHistory(): string[] {
 }
 
 function persistHistory(history: string[]): void {
-  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-HISTORY_MAX))); } catch { /* ignore */ }
+  try { localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(history.slice(-CHAT_HISTORY_MAX))); } catch { /* ignore */ }
 }
 
 export function LlmChat() {
@@ -161,7 +162,7 @@ export function LlmChat() {
     setHistory((prev) => {
       // Drop consecutive duplicates.
       const next = prev[prev.length - 1] === entry ? prev : [...prev, entry];
-      const trimmed = next.slice(-HISTORY_MAX);
+      const trimmed = next.slice(-CHAT_HISTORY_MAX);
       persistHistory(trimmed);
       return trimmed;
     });
