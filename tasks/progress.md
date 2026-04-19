@@ -4,6 +4,54 @@ Mid-session handoff notes. When a task is not finished at the end of a session, 
 
 ## Status
 
+## Manual Brain handoff — Position chart initial-spike artifact — 2026-04-20
+
+**Goal:** Eliminate the huge negative value (~-300k on a $1000 default-bankroll
+setup, 300× Kelly cap) the Position chart renders at the left edge before it
+stabilises at ~-25k. Separate, sibling issue to the "blips to 0" artifact —
+blips were fixed api-side by filtering pipeline sentinel-zero rows out of the
+ring buffer (commit pending on `PlathsOven/desired-pos-spikes`). The spike is
+not a sentinel, so the api-layer filter does not address it.
+
+**Where:** `server/core/pipeline.py:252-262` — position-sizing block:
+```python
+VAR_FLOOR = 1e-18
+desired_pos_df = smoothed_df.with_columns(
+    pl.when(pl.col("var").abs() < VAR_FLOOR).then(0.0)
+    .otherwise(pos_fn.fn(pl.col("edge"), pl.col("var"), bankroll, **pos_params))
+    .alias("raw_desired_position"),
+    pl.when(pl.col("smoothed_var").abs() < VAR_FLOOR).then(0.0)
+    .otherwise(pos_fn.fn(pl.col("smoothed_edge"), pl.col("smoothed_var"), bankroll, **pos_params))
+    .alias("smoothed_desired_position"),
+)
+```
+Pos_fn here is Kelly: `edge * bankroll / var`. When `var` is just above
+`VAR_FLOOR` (say 1e-15..1e-10) the division produces positions orders of
+magnitude above `bankroll`. The sentinel only catches variances strictly below
+the floor, so anything just above the floor flows through unbounded.
+
+**Why the history buffer cannot hide it:** `build_from_desired_pos_df`
+captures one row per pipeline rerun, always at `timestamp = rerun_time` (the
+first row of the forward grid). A rerun with `var` in the bad-but-not-floored
+band writes a genuine outlier into history. Api-layer magnitude clamping
+would be arbitrary policy — the fix belongs in the Kelly step.
+
+**Blockers:** Manual Brain Rule — `server/core/pipeline.py` and
+`server/core/transforms/position_sizing.py` are human-only. PreToolUse hook
+enforces this.
+
+**Next step (human):** pick one of
+  1. Raise `VAR_FLOOR` high enough that Kelly output is bounded (requires
+     deciding what "degenerate variance" means in the domain, not just
+     numerically).
+  2. Bound the Kelly output directly in
+     `server/core/transforms/position_sizing.py` — e.g. clamp
+     `|position| ≤ K * bankroll` for a small K, since the fractional-Kelly
+     assumption already implies this.
+Run `python -m compileall server/ -q` after.
+
+---
+
 ## Manual Brain handoff — SDK integration audit Section 4.3 — 2026-04-19
 
 **Goal:** Stop the `pl.vstack` dtype crash when mock and user-supplied streams

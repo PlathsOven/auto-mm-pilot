@@ -143,5 +143,13 @@ def build_from_desired_pos_df(df: pl.DataFrame, current_ts: datetime) -> list[di
         .sort("timestamp")
         .group_by(["symbol", "expiry"], maintain_order=True)
         .tail(1)
+        # Drop pipeline sentinel rows: position_sizing zeroes both raw and
+        # smoothed desired_position when |var| < VAR_FLOOR (see
+        # server/core/pipeline.py). Pushing those to history makes the
+        # Position chart blip to 0 for one rerun; preferring a gap is honest.
+        .filter(
+            (pl.col("raw_desired_position") != 0.0)
+            | (pl.col("smoothed_desired_position") != 0.0)
+        )
     )
     return latest.to_dicts()
