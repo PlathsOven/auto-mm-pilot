@@ -5,6 +5,7 @@ import { PIPELINE_NARRATIVE } from "./anatomyGraph";
 import { StreamCanvas } from "../StreamCanvas";
 import { StreamTable } from "../StreamTable";
 import { NewStreamMenu } from "../NewStreamMenu";
+import type { StreamDraftPrefill } from "../canvasState";
 
 export type AnatomySelection =
   | { kind: "transform"; stepKey: StepKey }
@@ -22,6 +23,9 @@ interface Props {
   /** When the panel is in `list` mode and the user opens a specific stream
    *  from the table, the parent updates `selection` to the stream variant. */
   onOpenStream: (streamName: string) => void;
+  /** Optional pre-filled values when deep-linking into a new stream form
+   *  from the Notifications center. Applied only when `streamName === "new"`. */
+  streamPrefill?: StreamDraftPrefill | null;
 }
 
 /**
@@ -45,6 +49,7 @@ export function NodeDetailPanel({
   onParamChange,
   onClose,
   onOpenStream,
+  streamPrefill,
 }: Props) {
   const [streamFilter, setStreamFilter] = useState("");
   if (selection.kind === "none") return null;
@@ -89,7 +94,11 @@ export function NodeDetailPanel({
             </button>
           </header>
           <div className="min-h-0 flex-1 overflow-hidden">
-            <StreamCanvas streamName={selection.streamName} templateId={null} />
+            <StreamCanvas
+              streamName={selection.streamName}
+              templateId={null}
+              prefill={streamPrefill ?? null}
+            />
           </div>
         </div>
       )}

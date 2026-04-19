@@ -68,12 +68,27 @@ export interface UpdateCard {
   timestamp: number;
 }
 
+/** One unregistered-stream push attempt captured by the server.
+ *
+ *  Surfaced on the WS tick payload and via GET /api/notifications/unregistered.
+ *  Rendered in the Notifications center with a "Register this stream" CTA
+ *  that deep-links into Anatomy with the form pre-filled.
+ */
+export interface UnregisteredPushAttempt {
+  streamName: string;
+  exampleRow: Record<string, unknown>;
+  attemptCount: number;
+  firstSeen: string;  // ISO 8601 UTC
+  lastSeen: string;   // ISO 8601 UTC
+}
+
 /** Top-level payload received over WebSocket */
 export interface ServerPayload {
   streams: DataStream[];
   context: GlobalContext;
   positions: DesiredPosition[];
   updates: UpdateCard[];
+  unregisteredPushes?: UnregisteredPushAttempt[];
 }
 
 /** Context pushed to the LLM chat when a card or cell is clicked */

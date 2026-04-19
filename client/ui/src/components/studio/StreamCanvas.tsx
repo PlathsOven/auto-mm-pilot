@@ -11,9 +11,11 @@ import { ConfidenceSection } from "./sections/ConfidenceSection";
 import { PreviewSection } from "./sections/PreviewSection";
 import {
   EMPTY_DRAFT,
+  prefilledDraft,
   validateAll,
   isAllValid,
   type StreamDraft,
+  type StreamDraftPrefill,
   type SectionId,
 } from "./canvasState";
 import { STREAM_TEMPLATES } from "./streamTemplates";
@@ -24,6 +26,10 @@ interface Props {
   streamName: string | null;
   /** Optional template id from URL query, e.g. #anatomy?stream=new&template=fomc_event */
   templateId: string | null;
+  /** Optional pre-filled draft values — used when deep-linking from the
+   *  Notifications center with a captured unregistered push. Only applied
+   *  when `streamName === "new"` (templateId wins if also set). */
+  prefill?: StreamDraftPrefill | null;
 }
 
 const WALK_THROUGH_KEY = "posit.studio.walkthrough";
@@ -36,10 +42,12 @@ const LEGACY_WALK_THROUGH_KEY = "apt.studio.walkthrough";
  * receives its slice + an updater. The Activate button (in PreviewSection)
  * commits via `POST /api/streams/{name}/configure` and `POST /api/snapshots`.
  */
-export function StreamCanvas({ streamName, templateId }: Props) {
+export function StreamCanvas({ streamName, templateId, prefill }: Props) {
   const { navigate } = useMode();
   const { streams: registry, refresh: refreshRegistry, addStream } = useRegisteredStreams();
-  const [draft, setDraft] = useState<StreamDraft>(() => initialDraft(streamName, templateId));
+  const [draft, setDraft] = useState<StreamDraft>(() =>
+    initialDraft(streamName, templateId, prefill ?? null),
+  );
   const [pendingStreamName, setPendingStreamName] = useState<string | null>(streamName);
   const [walkThrough, setWalkThrough] = useState(() => {
     migrateLegacyStorageKey(LEGACY_WALK_THROUGH_KEY, WALK_THROUGH_KEY);
@@ -222,10 +230,21 @@ export function StreamCanvas({ streamName, templateId }: Props) {
   );
 }
 
-function initialDraft(streamName: string | null, templateId: string | null): StreamDraft {
+function initialDraft(
+  streamName: string | null,
+  templateId: string | null,
+  prefill: StreamDraftPrefill | null,
+): StreamDraft {
   if (templateId) {
     const tpl = STREAM_TEMPLATES.find((t) => t.id === templateId);
     if (tpl) return tpl.draft;
+  }
+  // Prefill takes precedence over the bare streamName path because it
+  // carries more information (example row → sample CSV, inferred key_cols).
+  // It only applies to a brand-new draft — we never stomp a stream the
+  // user is editing in place.
+  if (prefill && (streamName === null || streamName === "new")) {
+    return prefilledDraft(prefill);
   }
   if (streamName) {
     return {

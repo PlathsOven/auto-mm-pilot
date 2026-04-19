@@ -25,6 +25,7 @@ import { NodeDetailPanel, type AnatomySelection } from "./NodeDetailPanel";
 import { PipelineConfigPopover } from "./PipelineConfigPopover";
 import { PIPELINE_ORDER, type StepKey } from "./anatomyGraph";
 import { buildAnatomyGraph } from "./buildAnatomyGraph";
+import type { StreamDraftPrefill } from "../canvasState";
 
 const NODE_TYPES: NodeTypes = {
   stream: StreamNode,
@@ -83,6 +84,33 @@ function AnatomyCanvasInner() {
     return { kind: "none" };
   });
   const [configOpen, setConfigOpen] = useState(false);
+
+  // Parse prefill query params (from the Notifications center deep-link).
+  // Only applied when the panel is opened on a "new" stream — editing an
+  // existing stream must not have its draft stomped.
+  const streamPrefill = useMemo<StreamDraftPrefill | null>(() => {
+    if (query.stream !== "new") return null;
+    let exampleRow: Record<string, unknown> | undefined;
+    if (query.prefillRow) {
+      try {
+        const parsed = JSON.parse(query.prefillRow);
+        if (parsed && typeof parsed === "object") {
+          exampleRow = parsed as Record<string, unknown>;
+        }
+      } catch {
+        // Ignore — malformed prefillRow shouldn't block the form from opening.
+      }
+    }
+    const keyCols = query.prefillKeyCols
+      ? query.prefillKeyCols.split(",").map((s) => s.trim()).filter(Boolean)
+      : undefined;
+    if (!query.prefillName && !keyCols && !exampleRow) return null;
+    return {
+      streamName: query.prefillName || undefined,
+      keyCols,
+      exampleRow,
+    };
+  }, [query.stream, query.prefillName, query.prefillKeyCols, query.prefillRow]);
 
   const closePanel = useCallback(() => setSelection({ kind: "none" }), []);
   const openStream = useCallback(
@@ -359,6 +387,7 @@ function AnatomyCanvasInner() {
           onParamChange={onParamChange}
           onClose={closePanel}
           onOpenStream={openStream}
+          streamPrefill={streamPrefill}
         />
       )}
     </div>

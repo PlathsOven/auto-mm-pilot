@@ -6,6 +6,7 @@ import { POSIT_CONTROL_KEY, STATUSBAR_HEIGHT_PX, STATUSBAR_TICK_MS } from "../..
 
 interface StatusBarProps {
   onShowCheatsheet: () => void;
+  onToggleNotifications: () => void;
 }
 
 /**
@@ -22,10 +23,11 @@ interface StatusBarProps {
  * surface lands now so the eventual server hook can read from a stable
  * place.
  */
-export function StatusBar({ onShowCheatsheet }: StatusBarProps) {
+export function StatusBar({ onShowCheatsheet, onToggleNotifications }: StatusBarProps) {
   const { connectionStatus, payload } = useWebSocket();
   const { openPalette } = useCommandPalette();
   const [now, setNow] = useState(Date.now());
+  const notificationCount = payload?.unregisteredPushes?.length ?? 0;
   const [positEnabled, setPositEnabled] = useState<boolean>(() => {
     try { return localStorage.getItem(POSIT_CONTROL_KEY) !== "false"; } catch { return true; }
   });
@@ -80,6 +82,25 @@ export function StatusBar({ onShowCheatsheet }: StatusBarProps) {
       </button>
 
       <span className="ml-auto flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onToggleNotifications}
+          className={`relative rounded px-1.5 py-0.5 transition-colors hover:bg-black/[0.04] hover:text-mm-text ${
+            notificationCount > 0 ? "text-mm-warn" : ""
+          }`}
+          title={
+            notificationCount > 0
+              ? `${notificationCount} pending notification${notificationCount === 1 ? "" : "s"}`
+              : "Notifications"
+          }
+        >
+          ⚑
+          {notificationCount > 0 && (
+            <span className="ml-1 rounded-full bg-mm-warn/20 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums">
+              {notificationCount}
+            </span>
+          )}
+        </button>
         <button
           type="button"
           onClick={openPalette}

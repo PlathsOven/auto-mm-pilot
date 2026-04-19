@@ -70,6 +70,58 @@ export interface SectionState {
   message?: string;
 }
 
+/**
+ * Inputs for a pre-filled stream draft. Used when deep-linking into
+ * Anatomy from the Notifications panel: the URL carries the attempted
+ * `streamName`, the inferred `keyCols`, and one example row — here we
+ * merge them onto `EMPTY_DRAFT` so the architect sees sensible starting
+ * values the moment the form opens.
+ */
+export interface StreamDraftPrefill {
+  streamName?: string;
+  keyCols?: string[];
+  /** One example snapshot row. Becomes the header + first data line of
+   *  the Data Shape section's sample CSV. */
+  exampleRow?: Record<string, unknown>;
+}
+
+export function prefilledDraft(prefill: StreamDraftPrefill): StreamDraft {
+  const base: StreamDraft = {
+    ...EMPTY_DRAFT,
+    identity: { ...EMPTY_DRAFT.identity },
+    data_shape: { ...EMPTY_DRAFT.data_shape },
+  };
+  if (prefill.streamName) {
+    base.identity.stream_name = prefill.streamName;
+  }
+  if (prefill.keyCols && prefill.keyCols.length > 0) {
+    base.identity.key_cols = [...prefill.keyCols];
+  }
+  if (prefill.exampleRow) {
+    const cols = Object.keys(prefill.exampleRow);
+    const values = cols.map((c) => stringifyCsvCell(prefill.exampleRow![c]));
+    base.data_shape.sample_csv = `${cols.join(",")}\n${values.join(",")}`;
+    // If the example row carries the raw_value column explicitly, keep the
+    // default. Otherwise default to the first non-key, non-timestamp col.
+    if (!cols.includes("raw_value")) {
+      const preferred = cols.find(
+        (c) => c !== "timestamp" && !(prefill.keyCols ?? []).includes(c),
+      );
+      if (preferred) base.data_shape.value_column = preferred;
+    }
+  }
+  return base;
+}
+
+function stringifyCsvCell(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") {
+    // Quote only when the cell would otherwise break CSV parsing.
+    return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  }
+  return String(value);
+}
+
 export const EMPTY_DRAFT: StreamDraft = {
   identity: { stream_name: "", key_cols: ["symbol", "expiry"], description: "" },
   data_shape: { sample_csv: "", value_column: "raw_value" },
