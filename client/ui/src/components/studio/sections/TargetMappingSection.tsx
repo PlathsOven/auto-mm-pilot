@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { useTransforms } from "../../../providers/TransformsProvider";
 import type { TargetMappingDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
@@ -9,8 +8,6 @@ interface Props {
   value: TargetMappingDraft;
   onChange: (next: TargetMappingDraft) => void;
   state: SectionState;
-  expanded?: boolean;
-  nav?: ReactNode;
 }
 
 /**
@@ -21,7 +18,7 @@ interface Props {
  * stores the values in TargetMappingDraft (scale/offset/exponent), which
  * matches the existing `affine_power` shape used by the configure endpoint.
  */
-export function TargetMappingSection({ value, onChange, state, expanded, nav }: Props) {
+export function TargetMappingSection({ value, onChange, state }: Props) {
   const { steps } = useTransforms();
   const activeName = steps?.unit_conversion?.selected ?? "affine_power";
 
@@ -47,8 +44,6 @@ export function TargetMappingSection({ value, onChange, state, expanded, nav }: 
       number={3}
       status={state.status}
       message={state.message}
-      expanded={expanded}
-      nav={nav}
     >
       <TransformBadge name={activeName} />
       <div className="mt-2 grid grid-cols-3 gap-3">

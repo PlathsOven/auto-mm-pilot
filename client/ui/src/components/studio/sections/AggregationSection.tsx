@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { useTransforms } from "../../../providers/TransformsProvider";
 import type { AggregationDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
@@ -7,8 +6,6 @@ interface Props {
   value: AggregationDraft;
   onChange: (next: AggregationDraft) => void;
   state: SectionState;
-  expanded?: boolean;
-  nav?: ReactNode;
 }
 
 const EXPLANATIONS = {
@@ -18,7 +15,7 @@ const EXPLANATIONS = {
     "Stacks as an independent additive layer on top of existing fair value. Use when this stream contributes new information not captured by other streams.",
 };
 
-export function AggregationSection({ value, onChange, state, expanded, nav }: Props) {
+export function AggregationSection({ value, onChange, state }: Props) {
   const { steps } = useTransforms();
   const aggName = steps?.aggregation?.selected ?? "average_offset";
   const isSumAll = aggName === "sum_all";
@@ -29,8 +26,6 @@ export function AggregationSection({ value, onChange, state, expanded, nav }: Pr
       number={5}
       status={state.status}
       message={state.message}
-      expanded={expanded}
-      nav={nav}
     >
       <div className="mb-2 flex items-center gap-1.5 text-[10px] text-mm-text-dim">
         <span>Transform</span>

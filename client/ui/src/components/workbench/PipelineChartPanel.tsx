@@ -15,7 +15,7 @@ import {
 } from "../../constants";
 
 const VIEW_TABS: TabItem<PipelineView>[] = [
-  { value: "position", label: "Position" },
+  { value: "position", label: "Desired" },
   { value: "fair", label: "Fair" },
   { value: "variance", label: "Variance" },
 ];

@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
   Background,
   Controls,
   MiniMap,
-  useNodesInitialized,
   useReactFlow,
   type NodeTypes,
   type NodeMouseHandler,
@@ -18,7 +17,7 @@ import { useWebSocket } from "../../../providers/WebSocketProvider";
 import { useRegisteredStreams } from "../../../hooks/useRegisteredStreams";
 import { ANATOMY_STARTUP_GRACE_MS } from "../../../constants";
 
-import { StreamNode, type StreamNodeData } from "./nodes/StreamNode";
+import { StreamNode } from "./nodes/StreamNode";
 import { TransformNode } from "./nodes/TransformNode";
 import { OutputNode } from "./nodes/OutputNode";
 import { NodeDetailPanel } from "./NodeDetailPanel";
@@ -77,6 +76,7 @@ function AnatomyCanvasInner() {
     openStream,
     openTransform,
     toggleListPanel,
+    showList,
   } = useAnatomySelection();
 
   const { savingKey, saveError, onSelectTransform, onParamChange } = useTransformEditors();
@@ -143,53 +143,50 @@ function AnatomyCanvasInner() {
     return buildAnatomyGraph(steps, streams, savingKey, live, highlightedStreamNames);
   }, [steps, streams, savingKey, live, highlightedStreamNames]);
 
-  // One-shot initial fit to the streams cluster. We do this imperatively
-  // (instead of passing `fitView`+`fitViewOptions` props to <ReactFlow/>)
-  // because the declarative version runs on every render where the
-  // `fitViewOptions` object identity changes, which overwrites the options
-  // we set inside `onNodeClick` before ReactFlow's rAF queue resolves the
-  // fit — making every click snap to the streams cluster.
-  const nodesInitialized = useNodesInitialized();
-  const didInitialFit = useRef(false);
-  useEffect(() => {
-    if (didInitialFit.current || !nodesInitialized) return;
-    const streamIds = streams.map((s) => ({ id: `stream-${s.stream_name}` }));
-    if (streamIds.length === 0) return;
-    reactFlowInstance.fitView({ nodes: streamIds, padding: 0.4, minZoom: 0.9, maxZoom: 1.4 });
-    didInitialFit.current = true;
-  }, [nodesInitialized, streams, reactFlowInstance]);
+  // Pre-compute stream node IDs so ReactFlow's initial `fitView` lands on
+  // the streams cluster, not the whole DAG. This is what eliminates the
+  // visible two-step zoom — the same fit our useEffect would do, but
+  // applied at first paint.
+  const streamNodeIds = useMemo(
+    () => nodes.filter((n) => n.type === "stream").map((n) => ({ id: n.id })),
+    [nodes],
+  );
 
   // ---------------------------------------------------------------------
   // Node click handling
   // ---------------------------------------------------------------------
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
-      // Stream nodes carry the bare stream name in `node.data.streamName`;
-      // `node.id` is prefixed with `stream-` for React Flow uniqueness.
-      const clickedStreamName =
-        node.type === "stream" ? (node.data as StreamNodeData).streamName : null;
-
-      // Toggle: clicking the currently-focused node closes the panel.
-      const isAlreadyFocused =
-        (selection.kind === "transform" && node.type === "transform" && selection.stepKey === node.id)
-        || (selection.kind === "stream" && clickedStreamName !== null && selection.streamName === clickedStreamName);
-
-      if (isAlreadyFocused) {
+      // Toggle: clicking the currently-focused transform closes the panel.
+      // Stream clicks always go to the list (see below) — they don't
+      // self-toggle, since the list is shared across every stream node.
+      if (
+        selection.kind === "transform"
+        && node.type === "transform"
+        && selection.stepKey === node.id
+      ) {
         closePanel();
         return;
       }
 
+      // Pan/zoom to the clicked node so it ends up centred regardless of
+      // which slice of the DAG was previously visible.
       reactFlowInstance.fitView({ nodes: [{ id: node.id }], duration: 250, padding: 0.5, minZoom: 1, maxZoom: 1.6 });
 
-      if (node.type === "stream" && clickedStreamName !== null) {
-        openStream(clickedStreamName);
+      if (node.type === "stream") {
+        // Stream nodes open the streams list, not the per-stream editor.
+        // The user picks a row in the list to open the editor for that one.
+        // (Earlier this passed `node.id` to openStream, but node.id is the
+        // ReactFlow id `stream-{name}` — that prefix then surfaced as the
+        // initial Stream Name in the editor and failed snake_case validation.)
+        showList();
       } else if (node.type === "transform") {
         openTransform(node.id as StepKey);
       } else if (node.type === "output") {
         setMode("workbench");
       }
     },
-    [reactFlowInstance, setMode, selection, closePanel, openStream, openTransform],
+    [reactFlowInstance, setMode, selection, closePanel, openTransform, showList],
   );
 
   const onPaneClick = useCallback(() => {
@@ -302,6 +299,13 @@ function AnatomyCanvasInner() {
             nodeTypes={NODE_TYPES}
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
+            fitView
+            fitViewOptions={{
+              nodes: streamNodeIds.length > 0 ? streamNodeIds : undefined,
+              padding: 0.4,
+              minZoom: 0.9,
+              maxZoom: 1.4,
+            }}
             minZoom={0.2}
             maxZoom={1.5}
             proOptions={{ hideAttribution: true }}
@@ -331,6 +335,7 @@ function AnatomyCanvasInner() {
           onParamChange={onParamChange}
           onClose={closePanel}
           onOpenStream={openStream}
+          onShowList={showList}
           onStreamActivated={handleStreamActivated}
           streamPrefill={streamPrefill}
         />

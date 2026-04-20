@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { useTransforms } from "../../../providers/TransformsProvider";
 import type { BlockShapeDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
@@ -9,8 +8,6 @@ interface Props {
   value: BlockShapeDraft;
   onChange: (next: BlockShapeDraft) => void;
   state: SectionState;
-  expanded?: boolean;
-  nav?: ReactNode;
 }
 
 const SAMPLE_MINUTES = 60;
@@ -66,7 +63,7 @@ const SVG = {
   padBottom: 22,
 } as const;
 
-export function BlockShapeSection({ value, onChange, state, expanded, nav }: Props) {
+export function BlockShapeSection({ value, onChange, state }: Props) {
   const { steps } = useTransforms();
   const decayProfile = steps?.decay_profile?.selected ?? "linear";
   const series = decaySeries(decayProfile, value.decay_end_size_mult, value.decay_rate_prop_per_min);
@@ -80,8 +77,6 @@ export function BlockShapeSection({ value, onChange, state, expanded, nav }: Pro
       number={4}
       status={state.status}
       message={state.message}
-      expanded={expanded}
-      nav={nav}
     >
       <div className="mb-2 flex items-center gap-1.5 text-[10px] text-mm-text-dim">
         <span>Decay profile</span>

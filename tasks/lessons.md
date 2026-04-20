@@ -58,7 +58,7 @@ Format per entry: **Rule.** Then `Why:` (what went wrong, so edge cases can be j
 
 **Why:** After switching the pipeline chart's xAxis to `type: "time"` with `[timestamp, value]` pair data, clicking the Fair or Variance tab blanked the entire Workbench. With no ErrorBoundary mounted, ECharts throwing inside its stacker (triggered by `stack: "fair"` on a time axis with nullable series) unmounts the whole React tree. The `stack` feature is only officially supported on a category axis; with time it either produces garbage or throws.
 
-**How to apply:** Never combine ECharts `stack:` with `xAxis.type: "time"` — use a category axis if you need native stacking. If you need a true time axis **and** a stacked look (trader-facing requirement on the pipeline chart: ticks must land at their real timestamps, not equally spaced), build the stack manually: precompute cumulative-running sums across the series at each timestamp, feed each series `[timestamp, cumulativeValue]` pair data, and let higher-z areas overdraw lower ones. See `buildCumulativeStack` in `client/ui/src/components/PipelineChart/chartOptions.ts`. Consider mounting an ErrorBoundary above the Workbench so ECharts (or any descendant) crashes don't take down the entire UI.
+**How to apply:** For any stacked series, use `xAxis.type: "category"` with `data: timestamps` and plain value arrays (aligned by index) on each series. A `formatter` on `axisLabel` gives back the pretty HH:MM display. Reserve `type: "time"` for single-series or non-stacked charts only. Consider mounting an ErrorBoundary above the Workbench so ECharts (or any descendant) crashes don't take down the entire UI.
 
 ---
 
