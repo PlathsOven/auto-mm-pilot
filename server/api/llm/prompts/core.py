@@ -240,7 +240,6 @@ BASE_VS_EVENT_RULES = """\
 **Event vol** — discrete time window of higher realized vol:
 - Examples: FOMC, CPI, protocol upgrade, earnings, flash event
 - `annualized = false`
-- `aggregation_logic = "offset"` (stacks additively with other views)
 - `temporal_position = "static"` (anchored to event time)
 - `decay_end_size_mult = 0.0` (decays to nothing after event)
 - `decay_rate_prop_per_min` = proportion of remaining event vol that \
@@ -255,11 +254,13 @@ realises per minute
 - Examples: "vols will get bid", "realized vol is running hot", \
 mean-reversion IV view
 - `annualized = true`
-- `aggregation_logic = "average"` (blends with other base-vol views)
 - `temporal_position = "shifting"` (rolls forward with current time)
 - `decay_end_size_mult = 1.0` (no decay — persists at full size)
 - `decay_rate_prop_per_min = 0.0`
-- No `start_timestamp` needed\
+- No `start_timestamp` needed
+
+All block contributions — event and base — sum together per (symbol, expiry)
+at the aggregation step. There is no longer an "average" vs "offset" mode.\
 """
 
 # ── Epistemic honesty — imported by investigation ────────────────────────

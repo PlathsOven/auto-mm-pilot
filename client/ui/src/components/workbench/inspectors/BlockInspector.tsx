@@ -146,19 +146,15 @@ function BlockEditor({ block, isManual }: { block: BlockRow; isManual: boolean }
     draft.snapshot_rows.length > 0 &&
     draft.block.var_fair_ratio > 0;
 
-  const edge = (block.fair ?? 0) - (block.market_fair ?? 0);
-
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 py-2 text-[10px]">
-        {/* Outputs (always read-only) */}
+        {/* Outputs (always read-only). Market-implied value lives at the
+            space + aggregate layer, not on individual blocks — see the
+            CellInspector for space totals. */}
         <section className="grid grid-cols-2 gap-1.5">
-          <Stat label="Edge" value={edge} decimals={4} colored />
-          <Stat label="Variance" value={block.var ?? 0} decimals={4} />
           <Stat label="Fair" value={block.fair ?? 0} decimals={4} />
-          <Stat label="Market Fair" value={block.market_fair ?? 0} decimals={4} />
-          <Stat label="Sent MV" value={block.sent_market_value} decimals={4} />
-          <Stat label="Calc MV" value={block.market_value} decimals={4} />
+          <Stat label="Variance" value={block.var ?? 0} decimals={4} />
         </section>
 
         {/* Target mapping */}
@@ -185,22 +181,6 @@ function BlockEditor({ block, isManual }: { block: BlockRow; isManual: boolean }
               value={draft.block.annualized}
               disabled={!isManual}
               onChange={(v) => patchBlock("annualized", v)}
-            />
-            <Field
-              type="select"
-              label="Size type"
-              value={draft.block.size_type}
-              options={["fixed", "relative"]}
-              disabled={!isManual}
-              onChange={(v) => patchBlock("size_type", v as "fixed" | "relative")}
-            />
-            <Field
-              type="select"
-              label="Aggregation logic"
-              value={draft.block.aggregation_logic}
-              options={["average", "offset"]}
-              disabled={!isManual}
-              onChange={(v) => patchBlock("aggregation_logic", v as "average" | "offset")}
             />
             <Field
               type="select"

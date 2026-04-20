@@ -9,11 +9,8 @@ export interface StreamContribution {
   spaceId: string;
   startTimestamp: string | null;
   fair: number;
-  marketFair: number;
   variance: number;
-  /** edge contribution = fair − market_fair */
-  edge: number;
-  /** absolute contribution magnitude (for sorting) */
+  /** absolute fair magnitude (for sorting) */
   magnitude: number;
 }
 
@@ -32,20 +29,15 @@ function buildContributions(
   blocks: CurrentBlockDecomposition[],
 ): StreamContribution[] {
   return blocks
-    .map<StreamContribution>((b) => {
-      const edge = b.fair - b.marketFair;
-      return {
-        blockName: b.blockName,
-        streamName: b.streamName,
-        spaceId: b.spaceId,
-        startTimestamp: b.startTimestamp,
-        fair: b.fair,
-        marketFair: b.marketFair,
-        variance: b.var,
-        edge,
-        magnitude: Math.abs(edge),
-      };
-    })
+    .map<StreamContribution>((b) => ({
+      blockName: b.blockName,
+      streamName: b.streamName,
+      spaceId: b.spaceId,
+      startTimestamp: b.startTimestamp,
+      fair: b.fair,
+      variance: b.var,
+      magnitude: Math.abs(b.fair),
+    }))
     .sort((a, b) => b.magnitude - a.magnitude);
 }
 

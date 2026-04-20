@@ -86,9 +86,9 @@ export function StreamAttributionHoverCard({ symbol, expiry, anchorRect }: Props
                 {c.blockName}
               </span>
               <div className="flex shrink-0 items-baseline gap-2 tabular-nums">
-                <span className={`text-[10px] ${valColor(c.edge)}`}>
-                  {c.edge >= 0 ? "+" : ""}
-                  {c.edge.toFixed(4)}
+                <span className={`text-[10px] ${valColor(c.fair)}`}>
+                  {c.fair >= 0 ? "+" : ""}
+                  {c.fair.toFixed(4)}
                 </span>
                 <span className="text-[9px] text-mm-text-dim">
                   σ² {c.variance.toFixed(4)}

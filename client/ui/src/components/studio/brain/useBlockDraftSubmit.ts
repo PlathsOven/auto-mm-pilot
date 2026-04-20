@@ -47,8 +47,6 @@ export function useBlockDraftSubmit(
 
         const blockConfig = {
           annualized: draft.block.annualized,
-          size_type: draft.block.size_type,
-          aggregation_logic: draft.block.aggregation_logic,
           temporal_position: draft.block.temporal_position,
           decay_end_size_mult: draft.block.decay_end_size_mult,
           decay_rate_prop_per_min: draft.block.decay_rate_prop_per_min,

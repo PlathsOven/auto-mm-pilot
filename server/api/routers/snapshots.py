@@ -10,7 +10,6 @@ from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
 from server.api.engine_state import rerun_and_broadcast
 from server.api.models import SnapshotRequest, SnapshotResponse
-from server.api.silent_stream_store import get_store as get_silent_stream_store
 from server.api.stream_registry import get_stream_registry
 from server.api.unregistered_push_store import get_store as get_unregistered_push_store
 
@@ -55,14 +54,6 @@ async def ingest_snapshot(
         ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-    # Silent-stream tracking: surface a notification if the stream is
-    # pushing only raw_value (no market_value), which collapses edge to
-    # zero and leaves every desired position reading zero.
-    rows_with_mv = sum(1 for r in req.rows if r.market_value is not None)
-    get_silent_stream_store(user.id).record(
-        req.stream_name, len(req.rows), rows_with_mv,
-    )
 
     stream_configs = registry.build_stream_configs()
     pipeline_rerun = False

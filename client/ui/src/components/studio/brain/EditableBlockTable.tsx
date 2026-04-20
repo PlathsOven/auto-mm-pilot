@@ -24,11 +24,6 @@ import { useFocus } from "../../../providers/FocusProvider";
 
 const col = createColumnHelper<BlockRow>();
 
-/** fair − market_fair, with nulls treated as 0. Shared by cell + sortingFn. */
-function edgeOf(row: BlockRow): number {
-  return (row.fair ?? 0) - (row.market_fair ?? 0);
-}
-
 /** Composite React key for a block row. `block_name` alone is not unique. */
 function rowReactKey(row: BlockRow): string {
   return `${blockKeyToString(blockKeyOf(row))}|${row.space_id}`;
@@ -78,27 +73,12 @@ const ALL_COLUMNS: ColumnDef<BlockRow, any>[] = [
   col.accessor("space_id", { header: "Space" }),
   col.accessor("fair", {
     header: "Fair",
-    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
+    cell: (info) => (
+      <span className={`font-mono tabular-nums ${info.getValue() != null ? valColor(info.getValue() ?? 0) : ""}`}>
+        {formatNullable(info.getValue())}
+      </span>
+    ),
     sortingFn: "basic",
-  }),
-  col.accessor("market_fair", {
-    header: "Mkt Fair",
-    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
-    sortingFn: "basic",
-  }),
-  col.display({
-    id: "edge",
-    header: "Edge",
-    cell: ({ row }) => {
-      const edge = edgeOf(row.original);
-      return (
-        <span className={`font-mono tabular-nums ${valColor(edge)}`}>
-          {edge >= 0 ? "+" : ""}
-          {edge.toFixed(4)}
-        </span>
-      );
-    },
-    sortingFn: (a, b) => Math.abs(edgeOf(a.original)) - Math.abs(edgeOf(b.original)),
   }),
   col.accessor("var", {
     header: "Variance",
@@ -110,8 +90,6 @@ const ALL_COLUMNS: ColumnDef<BlockRow, any>[] = [
     header: "Annualized",
     cell: (info) => (info.getValue() ? "yes" : "no"),
   }),
-  col.accessor("size_type", { header: "Size Type" }),
-  col.accessor("aggregation_logic", { header: "Aggregation" }),
   col.accessor("temporal_position", { header: "Temporal Pos" }),
   col.accessor("decay_end_size_mult", {
     header: "Decay End",
@@ -146,14 +124,6 @@ const ALL_COLUMNS: ColumnDef<BlockRow, any>[] = [
     header: "Raw Value",
     cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
   }),
-  col.accessor("market_value", {
-    header: "Market Value",
-    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
-  }),
-  col.accessor("target_market_value", {
-    header: "Target Mkt Value",
-    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
-  }),
   // Timing (hidden by default)
   col.accessor("start_timestamp", { header: "Start TS" }),
   col.accessor("updated_at", { header: "Updated" }),
@@ -168,8 +138,6 @@ const DEFAULT_VISIBLE = new Set([
   "expiry",
   "space_id",
   "fair",
-  "market_fair",
-  "edge",
   "var",
 ]);
 

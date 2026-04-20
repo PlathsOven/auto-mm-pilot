@@ -261,9 +261,16 @@ _define_step("variance",
              contract_doc="(block_fair_df: pl.DataFrame, **params) -> pl.DataFrame",
              infrastructure_params=["block_fair_df"])
 
+_define_step("market_value_inference",
+             contract_doc="(block_var_df, risk_dimension_cols, aggregate_market_values, space_market_values, now, **params) -> pl.DataFrame",
+             infrastructure_params=[
+                 "block_var_df", "risk_dimension_cols",
+                 "aggregate_market_values", "space_market_values", "now",
+             ])
+
 _define_step("aggregation",
-             contract_doc="(block_df, risk_dimension_cols, **params) -> pl.DataFrame",
-             infrastructure_params=["block_df", "risk_dimension_cols"])
+             contract_doc="(space_df, risk_dimension_cols, **params) -> pl.DataFrame",
+             infrastructure_params=["space_df", "risk_dimension_cols"])
 
 _define_step("position_sizing",
              contract_doc="(edge: pl.Expr, var: pl.Expr, bankroll: float, **params) -> pl.Expr",
@@ -272,7 +279,3 @@ _define_step("position_sizing",
 _define_step("smoothing",
              contract_doc="(agg_df, risk_dimension_cols, **params) -> pl.DataFrame",
              infrastructure_params=["agg_df", "risk_dimension_cols"])
-
-_define_step("market_value_inference",
-             contract_doc="(blocks_df, aggregate_market_values, unit_fn, now, **params) -> pl.DataFrame",
-             infrastructure_params=["blocks_df", "aggregate_market_values", "unit_fn", "now"])

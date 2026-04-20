@@ -14,8 +14,6 @@ export type DrawerMode = "create" | "edit" | "inspect";
 
 export interface DraftBlockConfig {
   annualized: boolean;
-  size_type: "fixed" | "relative";
-  aggregation_logic: "average" | "offset";
   temporal_position: "static" | "shifting";
   decay_end_size_mult: number;
   decay_rate_prop_per_min: number;
@@ -53,7 +51,7 @@ export function nextKey(): number {
 // Defaults
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_HEADERS = ["timestamp", "symbol", "expiry", "raw_value", "market_value"];
+export const DEFAULT_HEADERS = ["timestamp", "symbol", "expiry", "raw_value"];
 
 export function emptyRow(headers: string[]): SnapshotRowDraft {
   const row: SnapshotRowDraft = { _key: nextKey() };
@@ -70,8 +68,6 @@ export const EMPTY_DRAFT: Draft = {
   space_id: "",
   block: {
     annualized: true,
-    size_type: "fixed",
-    aggregation_logic: "average",
     temporal_position: "shifting",
     decay_end_size_mult: 1.0,
     decay_rate_prop_per_min: 0.0,
@@ -85,7 +81,6 @@ export const EMPTY_DRAFT: Draft = {
       symbol: "BTC",
       expiry: "27MAR26",
       raw_value: "0.74",
-      market_value: "",
     },
   ],
 };
@@ -102,7 +97,6 @@ export function draftFromBlock(b: BlockRow): Draft {
     symbol: b.symbol,
     expiry: b.expiry,
     raw_value: String(b.raw_value),
-    market_value: b.market_value != null ? String(b.market_value) : "",
   };
   return {
     stream_name: b.stream_name,
@@ -113,8 +107,6 @@ export function draftFromBlock(b: BlockRow): Draft {
     space_id: b.space_id,
     block: {
       annualized: b.annualized,
-      size_type: b.size_type,
-      aggregation_logic: b.aggregation_logic,
       temporal_position: b.temporal_position,
       decay_end_size_mult: b.decay_end_size_mult,
       decay_rate_prop_per_min: b.decay_rate_prop_per_min,
@@ -164,8 +156,6 @@ export function draftFromCommandParams(params: Record<string, unknown>): Draft {
     space_id: (params.space_id as string) ?? "",
     block: {
       annualized: typeof blk.annualized === "boolean" ? blk.annualized : EMPTY_DRAFT.block.annualized,
-      size_type: (blk.size_type as "fixed" | "relative") ?? EMPTY_DRAFT.block.size_type,
-      aggregation_logic: (blk.aggregation_logic as "average" | "offset") ?? EMPTY_DRAFT.block.aggregation_logic,
       temporal_position: (blk.temporal_position as "static" | "shifting") ?? EMPTY_DRAFT.block.temporal_position,
       decay_end_size_mult: typeof blk.decay_end_size_mult === "number" ? blk.decay_end_size_mult : EMPTY_DRAFT.block.decay_end_size_mult,
       decay_rate_prop_per_min: typeof blk.decay_rate_prop_per_min === "number" ? blk.decay_rate_prop_per_min : EMPTY_DRAFT.block.decay_rate_prop_per_min,

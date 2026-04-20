@@ -5,7 +5,7 @@ import { useFocus } from "../../../providers/FocusProvider";
 import { fetchStreamTimeseries } from "../../../services/streamTimeseriesApi";
 import type { StreamTimeseriesResponse, StreamKeyTimeseries } from "../../../types";
 import { POLL_INTERVAL_TIMESERIES_MS } from "../../../constants";
-import { BLOCK_COLORS, MARKET_FAIR_COLOR, sci, TOOLTIP_STYLE } from "../../PipelineChart/chartOptions";
+import { BLOCK_COLORS, sci, TOOLTIP_STYLE } from "../../PipelineChart/chartOptions";
 
 interface StreamInspectorProps {
   name: string;
@@ -157,12 +157,10 @@ function buildChartOption(series: StreamKeyTimeseries[]): EChartsOption {
   series.forEach((s, i) => {
     const color = BLOCK_COLORS[i % BLOCK_COLORS.length];
     const rawArr: (number | null)[] = new Array(timestamps.length).fill(null);
-    const mktArr: (number | null)[] = new Array(timestamps.length).fill(null);
     for (const p of s.points) {
       const idx = tsIndex.get(p.timestamp);
       if (idx == null) continue;
       rawArr[idx] = p.raw_value;
-      if (p.market_value != null) mktArr[idx] = p.market_value;
     }
     const label = formatKey(s.key);
     seriesSpecs.push({
@@ -174,17 +172,6 @@ function buildChartOption(series: StreamKeyTimeseries[]): EChartsOption {
       itemStyle: { color },
       connectNulls: true,
     });
-    if (mktArr.some((v) => v != null)) {
-      seriesSpecs.push({
-        name: `${label} mkt`,
-        type: "line",
-        data: mktArr,
-        showSymbol: false,
-        lineStyle: { width: 1, color: MARKET_FAIR_COLOR, type: "dashed" },
-        itemStyle: { color: MARKET_FAIR_COLOR },
-        connectNulls: true,
-      });
-    }
   });
 
   return {

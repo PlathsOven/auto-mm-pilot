@@ -167,24 +167,21 @@ def _extract_stream_contributions(
 ) -> dict[str, dict[str, float]]:
     """Extract per-stream aggregated contributions from a pipeline snapshot.
 
-    Prefers time-varying ``fair`` / ``market_fair`` fields (produced by the
-    pipeline at each timestamp).  Falls back to the static ``target_value`` /
-    ``target_market_value`` fields for backward compatibility with snapshots
-    that don't carry time-varying values.
+    Market-implied value now lives at the space level — blocks only carry
+    ``fair``. The per-stream table still emits a ``market`` column for
+    backwards compatibility with the prompt format, filled with ``0`` since
+    the block layer has no per-stream market anymore.
 
     Returns a dict keyed by ``stream_name`` with sub-keys:
     - ``fair``: sum of per-block fair value contributions for this stream
-    - ``market``: sum of per-block market-implied contributions
+    - ``market``: always ``0.0``
     """
     streams: dict[str, dict[str, float]] = {}
     for block in snapshot.get("block_summary", []):
         name = block.get("stream_name", "unknown")
         entry = streams.setdefault(name, {"fair": 0.0, "market": 0.0})
-        # Prefer time-varying values; fall back to static target values
         fair = block.get("fair", block.get("target_value", 0))
-        market = block.get("market_fair", block.get("target_market_value", 0))
         entry["fair"] += float(fair)
-        entry["market"] += float(market)
     return streams
 
 

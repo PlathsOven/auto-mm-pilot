@@ -1,4 +1,24 @@
-"""Market-value-inference transforms — distribute an aggregate total_vol across blocks."""
+"""Market-value-inference transforms — per-space ``market_fair`` time series.
+
+Market-implied value lives at the space level. The inference step collapses
+the per-block ``fair`` / ``var`` frame into per-space rows and attaches a
+``space_market_fair(t)`` curve.
+
+Default (no aggregate, no user-set per-space values): each space's
+``market_fair(t)`` equals its own ``fair(t)`` — edge = 0 at every timestamp.
+
+Time-varying proportional allocation: when a user sets aggregate
+``total_vol`` for ``(symbol, expiry)``, the implied variance
+(``total_vol² × T_years``) is distributed across inferable spaces such
+that each space's ``market_fair(t)`` is proportional to its own
+``fair(t)``. The ``× T_years`` factor keeps the forward integral aligned
+with the UI's vol-display math: ``sqrt(Σ_t total_market_fair / T_years)``
+returns exactly ``total_vol``. Without it a user-set 30-point marketVol
+would read as ``30 × sqrt(365) ≈ 573`` on the grid.
+
+User-set per-space values take precedence: each user-set space uses its
+own ``space_vol² × T_years``. The remainder flows to the remaining spaces.
+"""
 
 from __future__ import annotations
 
@@ -9,179 +29,173 @@ import polars as pl
 
 from server.api.expiry import canonical_expiry_key
 from server.core.config import SECONDS_PER_YEAR
-from server.core.transforms.registry import TransformRegistration, transform
+from server.core.transforms.registry import transform
 
 
-def _forward_coverage(row: dict, now: _dt.datetime) -> float:
-    """Forward-integrated market-fair coefficient β for one block.
+def _space_aggregate(
+    block_var_df: pl.DataFrame,
+    space_group_keys: list[str],
+) -> pl.DataFrame:
+    """Collapse per-block fair/var to per-space per-timestamp rows."""
+    return block_var_df.group_by(space_group_keys).agg(
+        pl.col("fair").sum().alias("space_fair"),
+        pl.col("var").sum().alias("space_var"),
+    ).sort(space_group_keys)
 
-    Defined so ``Σ_t market_fair_block(t) == target_market_value · β · T_years``
-    over the forward grid ``[now, expiry]``. ``total_vol_proportional`` uses
-    β to allocate variance in proportion to each block's real forward reach,
-    making ``Σ_blocks |target_mkt| · β == aggregate_var`` hold by construction
-    — which in turn makes the sqrt-lifted ``totalMarketFairVol`` equal the
-    user-entered ``marketVol`` regardless of block timing.
 
-    Returns 0 for blocks that cannot contribute to market_fair over the
-    forward window: ``size_type='relative'`` (market_fair is identically 0
-    for those), blocks whose active interval doesn't overlap ``[now, expiry]``,
-    or degenerate timing.
-
-    Covers the analytic shapes of ``fv_flat_forward`` and ``fv_standard``
-    under default decay (``decay_end_size_mult == 1`` or
-    ``decay_rate_prop_per_min == 0``). For non-default decay shapes β is a
-    flat-active-window approximation and the identity may drift slightly —
-    acceptable for v1; exact handling can follow if it matters.
-    """
-    if row["size_type"] == "relative":
-        return 0.0
-
-    expiry = row["expiry"]
-    T_secs = (expiry - now).total_seconds()
-    if T_secs <= 0:
-        return 0.0
-
-    if row["temporal_position"] == "shifting":
-        start_ts = now
+def _t_years_for_expiry(expiry: object, now: _dt.datetime) -> float:
+    """Forward span in year-fractions — matches the convention the UI's
+    vol display uses (``sqrt(Σ_t fair / T_years)``)."""
+    if isinstance(expiry, _dt.datetime):
+        exp_dt = expiry
+    elif isinstance(expiry, _dt.date):
+        exp_dt = _dt.datetime(expiry.year, expiry.month, expiry.day)
     else:
-        start_ts = row["start_timestamp"]
-        if start_ts is None:
-            return 0.0
-
-    active_start = start_ts if start_ts > now else now
-    if active_start >= expiry:
-        return 0.0
-    active_secs = (expiry - active_start).total_seconds()
-
-    if row["annualized"]:
-        # Annualized + fixed: rate per unit target_mkt is 1, integrated over the
-        # active forward window gives target_mkt · active_secs/SPY.
-        #   β = (active_secs / SPY) / T_years = active_secs / T_secs
-        return active_secs / T_secs
-
-    # Non-annualized: fair_ann per unit target_mkt = SPY / (expiry - start_ts),
-    # integrated over the active forward window gives active_secs/(expiry-start_ts).
-    #   β = Σ / (target_mkt · T_years) = SPY · active_secs / ((expiry-start_ts) · T_secs)
-    start_to_expiry = (expiry - start_ts).total_seconds()
-    if start_to_expiry <= 0:
-        return 0.0
-    return SECONDS_PER_YEAR * active_secs / (start_to_expiry * T_secs)
+        exp_dt = _dt.datetime.fromisoformat(canonical_expiry_key(expiry))
+    secs = (exp_dt - now).total_seconds()
+    return max(secs, 0.0) / SECONDS_PER_YEAR
 
 
-@transform("market_value_inference", "total_vol_proportional",
-           description="Allocate aggregate total vol to blocks, weighted by |target_value| and "
-                       "forward-integrated coverage so Σ total_market_fair == aggregate_var · T_years.")
-def mvi_total_vol_proportional(
-    blocks_df: pl.DataFrame,
+@transform("market_value_inference", "time_varying_proportional",
+           description="Per-space market_fair(t) proportional to space_fair(t). "
+                       "Default is edge-zero; aggregate total_vol distributes across "
+                       "inferable spaces preserving Σ market_fair = total_vol² × T_years.")
+def mvi_time_varying_proportional(
+    block_var_df: pl.DataFrame,
+    risk_dimension_cols: list[str],
     aggregate_market_values: dict[tuple[str, str], float],
-    unit_fn: TransformRegistration,
+    space_market_values: dict[tuple[str, str, str], float],
     now: _dt.datetime,
 ) -> pl.DataFrame:
-    """Proportional variance allocation with forward-coverage weighting.
+    if block_var_df.is_empty():
+        return pl.DataFrame()
 
-    For each (symbol, expiry) with an aggregate total_vol:
-      1. aggregate_var = total_vol²
-      2. β_i = forward coverage for block i (see ``_forward_coverage``)
-      3. user_contribution = Σ_{user blocks} target_market_value_i · β_i  (signed)
-      4. remainder_var = aggregate_var - user_contribution  (signed; can be negative)
-      5. For inferred blocks with β_i > 0: weight by |target_value_i|, then
-         target_market_value_i = remainder_var · weight_i / β_i  (signed; sign
-         follows remainder_var so user overshoots are cancelled out).
-      6. Reverse unit conversion to produce raw market_value.
+    space_group_keys = risk_dimension_cols + ["space_id", "timestamp"]
+    space_df = _space_aggregate(block_var_df, space_group_keys)
 
-    The key invariant: Σ_blocks target_mkt · β == aggregate_var (algebraic) →
-    forward integral of total_market_fair == aggregate_var · T_years →
-    ``totalMarketFairVol == total_vol · 100 == marketVol`` on the UI.
-
-    Holds even when user-set per-block market values overshoot the aggregate
-    (remainder_var goes negative, inferred blocks take on negative target_mkt
-    to cancel the excess).
-
-    Blocks with β = 0 (relative size_type, stale static blocks fully outside
-    the forward window) can't absorb variance and keep their default
-    ``market_value == raw_value``.
-    """
-    if not aggregate_market_values or "has_user_market_value" not in blocks_df.columns:
-        return blocks_df
-
-    rows = blocks_df.to_dicts()
-    modified = False
-
-    dim_groups: dict[tuple[str, str], list[int]] = defaultdict(list)
-    for i, row in enumerate(rows):
-        dim_groups[(row["symbol"], canonical_expiry_key(row["expiry"]))].append(i)
-
-    for (symbol, expiry_str), indices in dim_groups.items():
-        if (symbol, expiry_str) not in aggregate_market_values:
-            continue
-
-        total_vol = aggregate_market_values[(symbol, expiry_str)]
-        aggregate_var = total_vol ** 2
-
-        coverage = {i: _forward_coverage(rows[i], now) for i in indices}
-
-        user_idx = [i for i in indices if rows[i]["has_user_market_value"]]
-        infer_idx = [i for i in indices if not rows[i]["has_user_market_value"]]
-
-        # Signed user contribution — whatever the user's per-block market
-        # values integrate to in the forward window. Remainder is signed too:
-        # when the user-set blocks overshoot the aggregate, remainder goes
-        # negative and the inferred blocks take on negative target_mkt to
-        # cancel the excess, so Σ_blocks target_mkt · β lands on aggregate_var
-        # algebraically.
-        user_contribution = sum(
-            rows[i]["target_market_value"] * coverage[i] for i in user_idx
+    # Fast path: no user input anywhere → default market_fair = fair → edge=0.
+    if not aggregate_market_values and not space_market_values:
+        return space_df.with_columns(
+            pl.col("space_fair").alias("space_market_fair"),
         )
-        remainder_var = aggregate_var - user_contribution
 
-        # Only β > 0 blocks can absorb variance. Skip the rest so the weighted
-        # allocation across eligible blocks sums to remainder_var exactly.
-        eligible_idx = [i for i in infer_idx if coverage[i] > 0]
-        if not eligible_idx:
+    # Per-space forward-integrated fair — the denominator for proportional
+    # allocation and the invariant target for user/aggregate variance.
+    space_integral_df = space_df.group_by(
+        risk_dimension_cols + ["space_id"],
+    ).agg(
+        pl.col("space_fair").sum().alias("_space_fair_integral"),
+    )
+
+    # Group spaces by (symbol, expiry_canonical) so we can reconcile each
+    # group against its aggregate entry.
+    rd_groups: dict[tuple, list[dict]] = defaultdict(list)
+    for row in space_integral_df.iter_rows(named=True):
+        rd_key = tuple(row[c] for c in risk_dimension_cols)
+        rd_groups[rd_key].append({
+            "space_id": row["space_id"],
+            "integral": row["_space_fair_integral"],
+        })
+
+    multipliers: dict[tuple, float] = {}
+
+    for rd_key, entries in rd_groups.items():
+        # Expect ``risk_dimension_cols == ["symbol", "expiry"]`` — the
+        # pipeline default. The aggregate + space stores key on
+        # ``(symbol, canonical_expiry_key)`` so we canonicalise expiry here.
+        symbol = rd_key[0]
+        expiry_raw = rd_key[1] if len(rd_key) > 1 else None
+        expiry_canon = canonical_expiry_key(expiry_raw) if expiry_raw is not None else ""
+        t_years = _t_years_for_expiry(expiry_raw, now) if expiry_raw is not None else 0.0
+
+        aggregate_vol = aggregate_market_values.get((symbol, expiry_canon))
+        aggregate_var_target = (
+            aggregate_vol ** 2 * t_years if aggregate_vol is not None else None
+        )
+
+        user_space_entries: list[dict] = []
+        inferable_entries: list[dict] = []
+        for e in entries:
+            user_vol = space_market_values.get((symbol, expiry_canon, e["space_id"]))
+            if user_vol is not None:
+                user_space_entries.append({**e, "user_var_target": user_vol ** 2 * t_years})
+            else:
+                inferable_entries.append(e)
+
+        # User-set spaces: shape market_fair(t) so Σ_t = user_var × T_years.
+        for e in user_space_entries:
+            key = rd_key + (e["space_id"],)
+            multipliers[key] = (
+                e["user_var_target"] / e["integral"] if e["integral"] != 0 else 0.0
+            )
+
+        # Inferable spaces: edge-zero default unless aggregate is set.
+        if aggregate_var_target is None:
+            for e in inferable_entries:
+                multipliers[rd_key + (e["space_id"],)] = 1.0
             continue
 
-        raw_vars = [abs(rows[i]["target_value"]) for i in eligible_idx]
-        total_raw_var = sum(raw_vars)
+        user_contribution = sum(e["user_var_target"] for e in user_space_entries)
+        remainder = aggregate_var_target - user_contribution
+        inf_total = sum(e["integral"] for e in inferable_entries)
 
-        # When every eligible block has target_value == 0 (e.g. an events-only
-        # dim before any event has fired), |target_value|-weighting collapses
-        # every share to 0 and the aggregate-variance identity silently breaks.
-        # Fall back to uniform weighting so the dim still absorbs remainder_var.
-        if total_raw_var > 0:
-            weights = [rv / total_raw_var for rv in raw_vars]
-        else:
-            weights = [1.0 / len(eligible_idx)] * len(eligible_idx)
+        # No inferable capacity → leave them at edge-zero default. Resulting
+        # Σ_t sits at ``user_contribution`` rather than the aggregate; the UI
+        # mismatch surface tells the trader to add a compatible space.
+        if inf_total == 0 or not inferable_entries:
+            for e in inferable_entries:
+                multipliers[rd_key + (e["space_id"],)] = 1.0
+            continue
 
-        for j, idx in enumerate(eligible_idx):
-            beta = coverage[idx]
-            inferred_tmv = remainder_var * weights[j] / beta
+        mult = remainder / inf_total
+        for e in inferable_entries:
+            multipliers[rd_key + (e["space_id"],)] = mult
 
-            scale = rows[idx]["scale"]
-            offset = rows[idx]["offset"]
-            exponent = rows[idx]["exponent"]
-            if exponent != 0 and scale != 0:
-                sign_tmv = 1.0 if inferred_tmv >= 0 else -1.0
-                raw_abs = (abs(inferred_tmv) ** (1.0 / exponent) - offset) / scale
-                inferred_mv = sign_tmv * raw_abs
-            else:
-                inferred_mv = 0.0
+    if not multipliers:
+        return space_df.with_columns(
+            pl.col("space_fair").alias("space_market_fair"),
+        )
 
-            rows[idx]["target_market_value"] = inferred_tmv
-            rows[idx]["market_value"] = inferred_mv
-            modified = True
+    # Join multipliers back to the per-timestamp space frame.
+    mult_rows = []
+    for key, m in multipliers.items():
+        row: dict = {}
+        for i, c in enumerate(risk_dimension_cols):
+            row[c] = key[i]
+        row["space_id"] = key[len(risk_dimension_cols)]
+        row["_multiplier"] = m
+        mult_rows.append(row)
 
-    if not modified:
-        return blocks_df
+    mult_df = pl.DataFrame(mult_rows)
+    for c in risk_dimension_cols:
+        mult_df = mult_df.with_columns(pl.col(c).cast(space_df.schema[c]))
+    mult_df = mult_df.with_columns(pl.col("space_id").cast(space_df.schema["space_id"]))
 
-    return pl.DataFrame(rows, schema=blocks_df.schema)
+    return (
+        space_df.join(
+            mult_df, on=risk_dimension_cols + ["space_id"], how="left",
+        )
+        .with_columns(pl.col("_multiplier").fill_null(1.0))
+        .with_columns(
+            (pl.col("space_fair") * pl.col("_multiplier")).alias("space_market_fair"),
+        )
+        .drop("_multiplier")
+        .sort(space_group_keys)
+    )
 
 
 @transform("market_value_inference", "passthrough",
-           description="No market value inference — blocks keep their individual market_value")
+           description="No inference — space_market_fair defaults to space_fair (zero edge).")
 def mvi_passthrough(
-    blocks_df: pl.DataFrame,
+    block_var_df: pl.DataFrame,
+    risk_dimension_cols: list[str],
     aggregate_market_values: dict[tuple[str, str], float],
-    unit_fn: TransformRegistration,
+    space_market_values: dict[tuple[str, str, str], float],
     now: _dt.datetime,
 ) -> pl.DataFrame:
-    return blocks_df
+    if block_var_df.is_empty():
+        return pl.DataFrame()
+    space_group_keys = risk_dimension_cols + ["space_id", "timestamp"]
+    return _space_aggregate(block_var_df, space_group_keys).with_columns(
+        pl.col("space_fair").alias("space_market_fair"),
+    )

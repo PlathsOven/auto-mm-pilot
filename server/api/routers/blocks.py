@@ -67,10 +67,9 @@ def _blocks_from_pipeline(user_id: str) -> list[BlockRowResponse]:
                 .first()
             )
 
-        for row_dict in best_rows.select("block_name", "fair", "market_fair", "var").to_dicts():
+        for row_dict in best_rows.select("block_name", "fair", "var").to_dicts():
             latest_vars[row_dict["block_name"]] = {
                 "fair": row_dict["fair"],
-                "market_fair": row_dict["market_fair"],
                 "var": row_dict["var"],
             }
 
@@ -114,8 +113,6 @@ def _blocks_from_pipeline(user_id: str) -> list[BlockRowResponse]:
             space_id=block_dict["space_id"],
             source=source,
             annualized=block_dict["annualized"],
-            size_type=block_dict["size_type"],
-            aggregation_logic=block_dict["aggregation_logic"],
             temporal_position=block_dict["temporal_position"],
             decay_end_size_mult=block_dict["decay_end_size_mult"],
             decay_rate_prop_per_min=block_dict["decay_rate_prop_per_min"],
@@ -125,15 +122,7 @@ def _blocks_from_pipeline(user_id: str) -> list[BlockRowResponse]:
             exponent=block_dict["exponent"],
             target_value=block_dict["target_value"],
             raw_value=block_dict["raw_value"],
-            market_value=block_dict.get("market_value"),
-            sent_market_value=(
-                block_dict.get("market_value")
-                if block_dict.get("has_user_market_value")
-                else None
-            ),
-            target_market_value=block_dict.get("target_market_value"),
             fair=block_latest_var.get("fair"),
-            market_fair=block_latest_var.get("market_fair"),
             var=block_latest_var.get("var"),
             start_timestamp=start_str,
             updated_at=_dt.now().isoformat(),
@@ -162,8 +151,6 @@ async def create_manual_block(
     try:
         block = BlockConfig(
             annualized=req.block.annualized,
-            size_type=req.block.size_type,
-            aggregation_logic=req.block.aggregation_logic,
             temporal_position=req.block.temporal_position,
             decay_end_size_mult=req.block.decay_end_size_mult,
             decay_rate_prop_per_min=req.block.decay_rate_prop_per_min,
@@ -221,7 +208,6 @@ async def create_manual_block(
 
     snap = req.snapshot_rows[0].model_dump() if req.snapshot_rows else {}
     raw_val = float(snap.get("raw_value", 0))
-    mkt_val = float(snap.get("market_value")) if snap.get("market_value") is not None else None
 
     return BlockRowResponse(
         block_name=req.stream_name,
@@ -231,8 +217,6 @@ async def create_manual_block(
         space_id=req.space_id or "pending",
         source="manual",
         annualized=req.block.annualized,
-        size_type=req.block.size_type,
-        aggregation_logic=req.block.aggregation_logic,
         temporal_position=req.block.temporal_position,
         decay_end_size_mult=req.block.decay_end_size_mult,
         decay_rate_prop_per_min=req.block.decay_rate_prop_per_min,
@@ -242,8 +226,6 @@ async def create_manual_block(
         exponent=req.exponent,
         target_value=0.0,
         raw_value=raw_val,
-        market_value=mkt_val,
-        sent_market_value=mkt_val,
         updated_at=_dt.now().isoformat(),
     )
 
@@ -270,8 +252,6 @@ async def update_block(
         try:
             block = BlockConfig(
                 annualized=req.block.annualized,
-                size_type=req.block.size_type,
-                aggregation_logic=req.block.aggregation_logic,
                 temporal_position=req.block.temporal_position,
                 decay_end_size_mult=req.block.decay_end_size_mult,
                 decay_rate_prop_per_min=req.block.decay_rate_prop_per_min,
