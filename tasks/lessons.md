@@ -70,6 +70,14 @@ Format per entry: **Rule.** Then `Why:` (what went wrong, so edge cases can be j
 
 ---
 
+## When "the filter doesn't filter," check the React `key` before the filter wiring
+
+**Why:** The Block Inspector (`EditableBlockTable.tsx`) appeared to ignore its dropdown filters — selecting BTC showed 72 rows instead of 3. Two successive fix attempts (commit `c6e695f`: explicit `filterFn` lambdas + `onColumnFiltersChange` shim; my first fix: switch to uncontrolled `columnFilters`) both changed TanStack wiring plausibly, but neither fixed the visible symptom. A runtime trace (`table.getFilteredRowModel().rows.length === 3` and `table.getRowModel().rows.length === 3`) finally proved the filter *was* running and returning 3 rows — React was just showing 72 anyway. Root cause: `<tr key={row.original.block_name}>`, and `block_name` is **not unique** (e.g. `ema_iv` is reused across every symbol/expiry/space the block is attached to). React's reaction to duplicate keys is "unsupported — children may be duplicated and/or omitted," and the specific symptom on filter-narrow was that stale DOM nodes kept being reused, making the list look unfiltered. The console's "two children with the same key" warning was the load-bearing signal the whole time; I had dismissed it as "unrelated."
+
+**How to apply:** When a list renders wrong after a data-shape change (filter, sort, insert, delete), read the console warnings *first*. A duplicate-key warning is never "unrelated" to a reconciliation bug — it is the bug. The fix is a composite key (e.g. `block_name|stream_name|symbol|expiry|space_id|start_timestamp`) built from whatever tuple is actually unique in the domain. Prefer a small helper (`rowKeyOf(row)`) so the composite is named and reused. Separately, the uncontrolled-TanStack pattern (omit `columnFilters` from `state`, drop the no-op `onColumnFiltersChange`, push dropdown values via `table.getColumn(id)?.setFilterValue(val)` from an effect) is still the cleaner idiom for UI-driven filters — just don't expect it to fix a key-collision bug.
+
+---
+
 ## Don't `git stash push -- <path>` with an untracked path in the list
 
 **Why:** Running `git stash push -m "..." -- client/ui server/api/new_file.py` on a tree where `new_file.py` is untracked makes the push fail with "pathspec did not match any file(s) known to git" — and on this repo the subsequent command in the chain (`git stash pop`) fired against the pre-existing top stash, applying someone else's WIP onto the working tree and creating conflicts in unrelated files. The root cause is that `stash push -- <path>` rejects untracked paths by default; the intended way is `git stash push -u -- <paths>` (or adding the new file first).
