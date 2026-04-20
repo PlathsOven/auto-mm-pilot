@@ -129,6 +129,10 @@ function formatLocalTick(d: Date, gran: AxisGranularity, prevDate: Date | null):
 function formatTooltipTimestamp(iso: string): string {
   const d = parseIsoUtc(iso);
   if (!d) return iso;
+  return formatTooltipDate(d);
+}
+
+function formatTooltipDate(d: Date): string {
   const date = `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
   const hms = `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
   return `${date} ${hms}`;
@@ -156,6 +160,45 @@ function makeAxisLabelFormatter(timestamps: string[]) {
     }
     return label;
   };
+}
+
+/** Time-axis formatter. ECharts picks tick timestamps itself on
+ *  `type: "time"` (round wall-clock values), so we just render each one in
+ *  the granularity chosen for the underlying sample density. Date prefix is
+ *  suppressed when the whole range stays within one local day — otherwise
+ *  every tick carries it to disambiguate. */
+function makeTimeAxisFormatter(timestamps: string[]) {
+  const gran = pickAxisGranularity(timestamps);
+  const first = parseIsoUtc(timestamps[0] ?? "");
+  const last = parseIsoUtc(timestamps[timestamps.length - 1] ?? "");
+  const crossesDay = !!(first && last && (
+    first.getFullYear() !== last.getFullYear()
+    || first.getMonth() !== last.getMonth()
+    || first.getDate() !== last.getDate()
+  ));
+  return (value: number): string => {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    // Passing `d` as prevDate forces `dayChanged` false (suppresses date
+    // prefix); null forces it true.
+    return formatLocalTick(d, gran, crossesDay ? null : d);
+  };
+}
+
+/** Zip timestamps with values into `[epoch_ms, y]` tuples for a time-axis
+ *  series. Drops samples whose timestamp fails to parse (rare; keeps the
+ *  series shape valid for ECharts). */
+function zipTimeSeries(
+  timestamps: string[],
+  values: number[],
+): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const d = parseIsoUtc(timestamps[i]);
+    if (!d) continue;
+    out.push([d.getTime(), values[i]]);
+  }
+  return out;
 }
 
 /**
@@ -189,11 +232,13 @@ export function buildPipelineSingleViewOptions(
     yAxisName = "Desired ($)";
     yAxisFormatter = (v: number) =>
       v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v));
+    // Position runs on a time xAxis (see xAxis block), so series data is
+    // `[epoch_ms, y]` tuples rather than a bare values array.
     series.push(
       {
         name: "Raw",
         type: "line",
-        data: aggregated.rawDesiredPosition,
+        data: zipTimeSeries(aggregated.timestamps, aggregated.rawDesiredPosition),
         showSymbol: false,
         lineStyle: { width: 1, color: RAW_COLOR },
         itemStyle: { color: RAW_COLOR },
@@ -202,7 +247,7 @@ export function buildPipelineSingleViewOptions(
       {
         name: "Smoothed",
         type: "line",
-        data: aggregated.smoothedDesiredPosition,
+        data: zipTimeSeries(aggregated.timestamps, aggregated.smoothedDesiredPosition),
         showSymbol: false,
         lineStyle: { width: 2, color: SMOOTHED_COLOR },
         itemStyle: { color: SMOOTHED_COLOR },
@@ -270,6 +315,11 @@ export function buildPipelineSingleViewOptions(
         label: {
           formatter: (params) => {
             if (params.axisDimension === "x") {
+              // Time axis (Position view) hands us epoch ms; category axis
+              // (Fair / Variance) hands us the ISO category string.
+              if (typeof params.value === "number") {
+                return formatTooltipDate(new Date(params.value));
+              }
               return formatTooltipTimestamp(String(params.value));
             }
             return typeof params.value === "number" ? sci(params.value) : String(params.value ?? "");
@@ -283,13 +333,20 @@ export function buildPipelineSingleViewOptions(
       formatter: (paramsRaw) => {
         const params = Array.isArray(paramsRaw) ? paramsRaw : [paramsRaw];
         if (params.length === 0) return "";
-        // `name` is the category value (the ISO timestamp string) on
-        // `trigger: "axis"`. `axisValue` carries the same value at runtime
-        // but isn't on ECharts' typed surface.
-        const header = formatTooltipTimestamp(String(params[0].name ?? ""));
+        // Position view runs on a time axis — series `value` arrives as
+        // `[epoch_ms, y]` tuples, so the header reads ms off element 0.
+        // Fair / Variance run on a category axis where `name` holds the
+        // raw ISO string. Detect by shape rather than view flag so the
+        // formatter stays self-contained.
+        const firstValue = params[0].value;
+        const header = Array.isArray(firstValue) && typeof firstValue[0] === "number"
+          ? formatTooltipDate(new Date(firstValue[0]))
+          : formatTooltipTimestamp(String(params[0].name ?? ""));
         const rows = params
           .map((p) => {
-            const v = typeof p.value === "number" ? sci(p.value) : String(p.value ?? "—");
+            // On a time axis the row value is `[ms, y]`; extract the y.
+            const raw = Array.isArray(p.value) ? p.value[1] : p.value;
+            const v = typeof raw === "number" ? sci(raw) : String(raw ?? "—");
             return `<div style="display:flex;justify-content:space-between;gap:16px;"><span>${p.marker} ${p.seriesName}</span><span style="font-family:monospace;">${v}</span></div>`;
           })
           .join("");
@@ -312,27 +369,45 @@ export function buildPipelineSingleViewOptions(
     // bottom leaves room for the dataZoom slider (bottom 6 + height 12)
     // + a two-line axis label (~22px) — single-line labels used 36px.
     grid: { left: 56, right: 16, top: 12, bottom: 48 },
-    xAxis: {
-      // Invariant (asserted below): ECharts' `stack:` feature only works
-      // on a category axis. Time-axis with stacked nullable series throws
-      // inside the internal stacker and — with no ErrorBoundary above the
-      // chart — unmounts the whole workbench (the "blank screen on Fair"
-      // bug). If you change this, the assertion at the end of the builder
-      // fires.
-      type: STACK_SAFE_XAXIS_TYPE,
-      data: axisTimestamps,
-      boundaryGap: false,
-      axisLabel: {
-        color: "#6e6e82",
-        fontSize: 9,
-        hideOverlap: true,
-        lineHeight: 11,
-        formatter: makeAxisLabelFormatter(axisTimestamps),
-      },
-      axisTick: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
-      axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
-      splitLine: { show: false },
-    },
+    xAxis: isPositionView
+      ? {
+          // Position view has no stacked series, so we use a real time
+          // axis — ECharts then picks ticks at round wall-clock values
+          // (every 30s, 1m, etc.) instead of at arbitrary category
+          // indices.
+          type: "time",
+          axisLabel: {
+            color: "#6e6e82",
+            fontSize: 9,
+            hideOverlap: true,
+            lineHeight: 11,
+            formatter: makeTimeAxisFormatter(axisTimestamps),
+          },
+          axisTick: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
+          axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
+          splitLine: { show: false },
+        }
+      : {
+          // Invariant (asserted below): ECharts' `stack:` feature only
+          // works on a category axis. Time-axis with stacked nullable
+          // series throws inside the internal stacker and — with no
+          // ErrorBoundary above the chart — unmounts the whole workbench
+          // (the "blank screen on Fair" bug). If you change this, the
+          // assertion at the end of the builder fires.
+          type: STACK_SAFE_XAXIS_TYPE,
+          data: axisTimestamps,
+          boundaryGap: false,
+          axisLabel: {
+            color: "#6e6e82",
+            fontSize: 9,
+            hideOverlap: true,
+            lineHeight: 11,
+            formatter: makeAxisLabelFormatter(axisTimestamps),
+          },
+          axisTick: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
+          axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
+          splitLine: { show: false },
+        },
     yAxis: {
       type: "value",
       name: yAxisName,
