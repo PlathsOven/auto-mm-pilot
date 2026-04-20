@@ -34,13 +34,13 @@ export function computeGrandTotal(symbols: string[], expiries: string[], grid: G
     }, 0), 0);
 }
 
-export function TotalCell({ value, decimals }: { value: number; decimals: number }) {
+export function TotalCell({ value, decimals, signed = true }: { value: number; decimals: number; signed?: boolean }) {
   return (
     <td
       className={`px-3 py-2.5 text-center text-[12px] tabular-nums font-semibold ${valColor(value)}`}
       style={{ backgroundColor: cellBg(value) }}
     >
-      {value > 0 ? "+" : ""}
+      {signed && value > 0 ? "+" : ""}
       {value.toFixed(decimals)}
     </td>
   );
@@ -54,6 +54,7 @@ export function OverrideStatusBar({
   pendingEdit,
   overrideCount,
   decimals,
+  signed = true,
   viewMode,
   onCancel,
   onConfirm,
@@ -61,6 +62,7 @@ export function OverrideStatusBar({
   pendingEdit: PendingEdit | null;
   overrideCount: number;
   decimals: number;
+  signed?: boolean;
   viewMode: ViewMode;
   onCancel: () => void;
   onConfirm: () => void;
@@ -71,9 +73,9 @@ export function OverrideStatusBar({
         <div className="mt-2 flex items-center justify-between rounded-lg border-t border-black/[0.06] bg-black/[0.03] px-3 py-2">
           <span className="text-[10px] text-mm-text">
             Override <span className="font-semibold">{pendingEdit.symbol} {pendingEdit.expiry}</span>:
-            <span className="ml-1 text-mm-text-dim">{pendingEdit.aptValue > 0 ? "+" : ""}{pendingEdit.aptValue.toFixed(decimals)}</span>
+            <span className="ml-1 text-mm-text-dim">{signed && pendingEdit.aptValue > 0 ? "+" : ""}{pendingEdit.aptValue.toFixed(decimals)}</span>
             <span className="mx-1">{"\u2192"}</span>
-            <span className="font-semibold text-mm-warn">{isNaN(parseFloat(pendingEdit.value)) ? "\u2014" : (parseFloat(pendingEdit.value) > 0 ? "+" : "") + parseFloat(pendingEdit.value).toFixed(decimals)}</span>
+            <span className="font-semibold text-mm-warn">{isNaN(parseFloat(pendingEdit.value)) ? "\u2014" : (signed && parseFloat(pendingEdit.value) > 0 ? "+" : "") + parseFloat(pendingEdit.value).toFixed(decimals)}</span>
           </span>
           <div className="flex gap-2">
             <button onClick={onCancel} className="rounded-md px-2 py-0.5 text-[10px] text-mm-text-dim hover:text-mm-text transition-colors">Cancel</button>

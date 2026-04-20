@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useFocus } from "../../../providers/FocusProvider";
 import { fetchBlocks } from "../../../services/blockApi";
-import type { BlockRow } from "../../../types";
+import type { BlockKey, BlockRow } from "../../../types";
 import { POLL_INTERVAL_BLOCKS_MS } from "../../../constants";
-import { valColor } from "../../../utils";
+import { blockKeyEquals, blockKeyOf, valColor } from "../../../utils";
 import { Field } from "../../studio/sections/Field";
 import { SnapshotTable } from "../../studio/brain/BlockDrawerParts";
 import {
@@ -15,7 +15,7 @@ import { useSnapshotEditor } from "../../studio/brain/useSnapshotEditor";
 import { useBlockDraftSubmit } from "../../studio/brain/useBlockDraftSubmit";
 
 interface BlockInspectorProps {
-  name: string;
+  blockKey: BlockKey;
 }
 
 /**
@@ -23,12 +23,17 @@ interface BlockInspectorProps {
  * separate BlockDrawer "inspect" mode. Everything that used to live in the
  * drawer (engine params, outputs, snapshot rows) renders here in the rail.
  *
+ * Lookup is by the full composite `BlockKey`, not by `block_name` — the
+ * same name is reused across dimensions (e.g. `ema_iv` on every
+ * symbol/expiry it's attached to), so a name-only match would silently
+ * show the first dim's row instead of the clicked one.
+ *
  * Manual blocks are fully editable in place: change params + snapshot rows,
  * hit Save → posts a PATCH and re-runs the pipeline. Stream-sourced blocks
  * are read-only — they're driven by external snapshot ingestion via the
  * SDK, and the registry rejects PATCHes against them anyway.
  */
-export function BlockInspector({ name }: BlockInspectorProps) {
+export function BlockInspector({ blockKey }: BlockInspectorProps) {
   const { clearFocus } = useFocus();
   const [blocks, setBlocks] = useState<BlockRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +56,7 @@ export function BlockInspector({ name }: BlockInspectorProps) {
     return () => { aborted = true; clearInterval(id); };
   }, []);
 
-  const block = blocks?.find((b) => b.block_name === name) ?? null;
+  const block = blocks?.find((b) => blockKeyEquals(blockKeyOf(b), blockKey)) ?? null;
   const isManual = block?.source === "manual";
 
   return (
@@ -69,12 +74,11 @@ export function BlockInspector({ name }: BlockInspectorProps) {
               </span>
             )}
           </span>
-          <span className="text-[13px] font-semibold text-mm-text">{name}</span>
-          {block && (
-            <span className="text-[9px] text-mm-text-subtle">
-              {block.symbol} · {block.expiry} · {block.space_id}
-            </span>
-          )}
+          <span className="text-[13px] font-semibold text-mm-text">{blockKey.blockName}</span>
+          <span className="text-[9px] text-mm-text-subtle">
+            {blockKey.streamName} · {blockKey.symbol} · {blockKey.expiry}
+            {block && ` · ${block.space_id}`}
+          </span>
         </div>
         <button
           type="button"
@@ -90,7 +94,7 @@ export function BlockInspector({ name }: BlockInspectorProps) {
 
       {block == null ? (
         <p className="px-3 py-2 text-[11px] text-mm-text-dim">
-          {blocks == null ? "Loading block…" : `Block "${name}" no longer exists.`}
+          {blocks == null ? "Loading block…" : `Block "${blockKey.blockName}" no longer exists.`}
         </p>
       ) : (
         <BlockEditor block={block} isManual={isManual} />
@@ -107,8 +111,11 @@ export function BlockInspector({ name }: BlockInspectorProps) {
 function BlockEditor({ block, isManual }: { block: BlockRow; isManual: boolean }) {
   const [draft, setDraft] = useState<Draft>(() => draftFromBlock(block));
   // Re-sync the draft whenever the underlying block identity changes so
-  // navigating between blocks doesn't show stale edits.
-  useEffect(() => { setDraft(draftFromBlock(block)); }, [block.block_name]);
+  // navigating between blocks doesn't show stale edits. Key on the full
+  // composite — `block_name` alone collides across dimensions.
+  useEffect(() => { setDraft(draftFromBlock(block)); }, [
+    block.block_name, block.stream_name, block.symbol, block.expiry, block.start_timestamp,
+  ]);
 
   const snapshotEditor = useSnapshotEditor(setDraft);
 
@@ -150,6 +157,8 @@ function BlockEditor({ block, isManual }: { block: BlockRow; isManual: boolean }
           <Stat label="Variance" value={block.var ?? 0} decimals={4} />
           <Stat label="Fair" value={block.fair ?? 0} decimals={4} />
           <Stat label="Market Fair" value={block.market_fair ?? 0} decimals={4} />
+          <Stat label="Sent MV" value={block.sent_market_value} decimals={4} />
+          <Stat label="Calc MV" value={block.market_value} decimals={4} />
         </section>
 
         {/* Target mapping */}
@@ -274,16 +283,16 @@ function Stat({
   colored,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   decimals: number;
   colored?: boolean;
 }) {
+  const isNull = value == null;
   return (
     <div className="glass-card flex flex-col gap-0.5 px-2 py-1">
       <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">{label}</span>
-      <span className={`font-mono text-[11px] font-semibold tabular-nums ${colored ? valColor(value) : "text-mm-text"}`}>
-        {colored && value > 0 ? "+" : ""}
-        {value.toFixed(decimals)}
+      <span className={`font-mono text-[11px] font-semibold tabular-nums ${colored && !isNull ? valColor(value) : "text-mm-text"}`}>
+        {isNull ? "—" : `${colored && value > 0 ? "+" : ""}${value.toFixed(decimals)}`}
       </span>
     </div>
   );

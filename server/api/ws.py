@@ -28,13 +28,14 @@ from fastapi import WebSocket, WebSocketDisconnect
 from server.api.auth.tokens import resolve_user_id_from_session
 from server.api.config import TICK_INTERVAL_SECS
 from server.api.engine_state import get_pipeline_results, rerun_pipeline
-from server.api.market_value_store import clear_dirty, is_dirty
+from server.api.market_value_store import clear_dirty, is_dirty, to_dict as mv_to_dict
 from server.api.models import ServerPayload, SilentStreamAlert, UnregisteredPushAttempt
 from server.api.silent_stream_store import get_store as get_silent_stream_store
 from server.api.stream_registry import get_stream_registry
 from server.api.unregistered_push_store import get_store as get_unregistered_push_store
 from server.api.ws_serializers import (
     context_at_tick,
+    market_value_mismatches_from_positions,
     positions_at_tick,
     streams_from_blocks,
     updates_from_diff,
@@ -101,6 +102,7 @@ def _build_payload(
     updates: list,
     unregistered_pushes: list | None = None,
     silent_streams: list | None = None,
+    market_value_mismatches: list | None = None,
 ) -> str:
     return ServerPayload(
         streams=streams,
@@ -109,6 +111,7 @@ def _build_payload(
         updates=updates,
         unregistered_pushes=unregistered_pushes or [],
         silent_streams=silent_streams or [],
+        market_value_mismatches=market_value_mismatches or [],
     ).model_dump_json(by_alias=True)
 
 
@@ -210,7 +213,7 @@ def _build_user_payload_sync(user_id: str, real_now: datetime) -> str:
     ts = timestamps[ts_idx]
     state.current_tick_ts = ts
 
-    positions = positions_at_tick(desired_pos_df, ts, state.prev_positions)
+    positions = positions_at_tick(desired_pos_df, ts, state.prev_positions, mv_to_dict(user_id))
 
     updates: list = []
     if ts_idx != state.last_ts_idx:
@@ -235,6 +238,7 @@ def _build_user_payload_sync(user_id: str, real_now: datetime) -> str:
         updates,
         _unregistered_pushes_for(user_id),
         _silent_streams_for(user_id),
+        market_value_mismatches_from_positions(positions),
     )
 
 

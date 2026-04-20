@@ -7,7 +7,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { SilentStreamAlert, UnregisteredPushAttempt } from "../types";
+import type {
+  MarketValueMismatchAlert,
+  SilentStreamAlert,
+  UnregisteredPushAttempt,
+} from "../types";
 import {
   dismissSilentStream,
   dismissUnregisteredPush,
@@ -20,7 +24,7 @@ import { useAuth } from "./AuthProvider";
 /**
  * Hoisted state for the global Notifications center.
  *
- * Two kinds of notifications today:
+ * Three kinds of notifications today:
  *   - ``unregistered`` — feeder pushed to a stream the server doesn't
  *     know. Surfaced in the slide-over panel and inline in Anatomy →
  *     Streams list so the user can register in a loop.
@@ -28,16 +32,22 @@ import { useAuth } from "./AuthProvider";
  *     market_value defaults to fair, edge collapses to zero, positions
  *     read zero. Surfaced in the slide-over panel only (no inline
  *     counterpart — the Streams list already shows READY status).
+ *   - ``marketValueMismatches`` — per-block market values don't sum to
+ *     the aggregate marketVol on a (symbol, expiry). No server store;
+ *     recomputed each tick from the live payload, so there's no
+ *     hydration fallback or dismiss action — resolve it by reconciling
+ *     block values or setting/adjusting the aggregate.
  *
  * Source of truth: the WS tick payload, with a one-shot HTTP hydration
  * per session so the panel is populated before the first tick arrives.
  */
 interface NotificationsState {
   open: boolean;
-  /** Total across both notification kinds — powers the badge. */
+  /** Total across all notification kinds — powers the badge. */
   count: number;
   unregistered: UnregisteredPushAttempt[];
   silentStreams: SilentStreamAlert[];
+  marketValueMismatches: MarketValueMismatchAlert[];
   openPanel: () => void;
   closePanel: () => void;
   togglePanel: () => void;
@@ -80,8 +90,15 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     () => payload?.silentStreams ?? hydratedSilent ?? [],
     [payload, hydratedSilent],
   );
+  // No server store for mismatches — recomputed from the live tick every
+  // broadcast, so no hydration fallback is possible or needed.
+  const marketValueMismatches = useMemo<MarketValueMismatchAlert[]>(
+    () => payload?.marketValueMismatches ?? [],
+    [payload],
+  );
 
-  const count = unregistered.length + silentStreams.length;
+  const count =
+    unregistered.length + silentStreams.length + marketValueMismatches.length;
 
   const openPanel = useCallback(() => setOpen(true), []);
   const closePanel = useCallback(() => setOpen(false), []);
@@ -115,6 +132,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       count,
       unregistered,
       silentStreams,
+      marketValueMismatches,
       openPanel,
       closePanel,
       togglePanel,
@@ -126,6 +144,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       count,
       unregistered,
       silentStreams,
+      marketValueMismatches,
       openPanel,
       closePanel,
       togglePanel,

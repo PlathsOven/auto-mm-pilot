@@ -28,6 +28,6 @@ export function InspectorRouter() {
     case "stream":
       return <StreamInspector name={focus.name} />;
     case "block":
-      return <BlockInspector name={focus.name} />;
+      return <BlockInspector blockKey={focus.key} />;
   }
 }

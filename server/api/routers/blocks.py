@@ -75,6 +75,18 @@ def _blocks_from_pipeline(user_id: str) -> list[BlockRowResponse]:
             }
 
     store = get_manual_block_store(user_id)
+    # Deterministic row order on the wire. `blocks_df` originates from
+    # `group_by(sc.key_cols).agg(pl.all().last())` inside `build_blocks_df`
+    # — without `maintain_order` Polars returns groups in hash order, so the
+    # same data comes back in a different sequence on each rerun, which made
+    # the Block Inspector list visibly reshuffle on every poll. Sort the full
+    # composite identity before emitting so the client sees a stable ordering.
+    identity_cols = [
+        c for c in ("stream_name", "block_name", "symbol", "expiry", "space_id")
+        if c in blocks_df.columns
+    ]
+    if identity_cols:
+        blocks_df = blocks_df.sort(identity_cols)
     rows: list[BlockRowResponse] = []
     for block_dict in blocks_df.to_dicts():
         block_name = block_dict["block_name"]
@@ -114,6 +126,11 @@ def _blocks_from_pipeline(user_id: str) -> list[BlockRowResponse]:
             target_value=block_dict["target_value"],
             raw_value=block_dict["raw_value"],
             market_value=block_dict.get("market_value"),
+            sent_market_value=(
+                block_dict.get("market_value")
+                if block_dict.get("has_user_market_value")
+                else None
+            ),
             target_market_value=block_dict.get("target_market_value"),
             fair=block_latest_var.get("fair"),
             market_fair=block_latest_var.get("market_fair"),
@@ -226,6 +243,7 @@ async def create_manual_block(
         target_value=0.0,
         raw_value=raw_val,
         market_value=mkt_val,
+        sent_market_value=mkt_val,
         updated_at=_dt.now().isoformat(),
     )
 

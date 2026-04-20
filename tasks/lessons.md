@@ -83,3 +83,37 @@ Format per entry: **Rule.** Then `Why:` (what went wrong, so edge cases can be j
 **Why:** Running `git stash push -m "..." -- client/ui server/api/new_file.py` on a tree where `new_file.py` is untracked makes the push fail with "pathspec did not match any file(s) known to git" — and on this repo the subsequent command in the chain (`git stash pop`) fired against the pre-existing top stash, applying someone else's WIP onto the working tree and creating conflicts in unrelated files. The root cause is that `stash push -- <path>` rejects untracked paths by default; the intended way is `git stash push -u -- <paths>` (or adding the new file first).
 
 **How to apply:** Before using `git stash push -- <path>` to isolate a subset of changes, check whether any of those paths are untracked. If so, either `git add -N` them first to make them known to git, or use `git stash push -u` to include untracked files. Never chain a `git stash pop` after a stash push without verifying the push actually succeeded — shell `&&` doesn't save you when the push partially fails. When you inherit a repo with pre-existing entries in `git stash list`, avoid `stash pop` entirely unless you know the top stash is yours.
+
+---
+
+## Weighted-allocation formulas need a uniform fallback when all weights are 0
+
+**Why:** `mvi_total_vol_proportional` distributed `remainder_var` across
+eligible inferred blocks by `weight_i = |target_value_i| / Σ |target_value|`.
+When every eligible block had `target_value == 0` (an events-only dim before
+any event has fired), `total_raw_var == 0` and the `else 0.0` branch made
+every share 0 — `inferred_tmv = 0`, `CALC MV = 0`, and the
+`Σ_blocks target_mkt · β == aggregate_var` identity broke silently. No
+exception, no log, no UI warning — just a zero in the Block Inspector that
+only surfaced when the user noticed `Σ market_fair ≠ marketVol`. Same
+pathology as the "feature shows zeros but no error" mode in the canonical-key
+lesson below: a mathematical identity is *assumed* to hold but the formula
+has a degenerate input case that produces plausible numbers.
+
+**How to apply:** Any time an allocation formula is `x_i = remainder · w_i`
+with `w_i = f_i / Σ f`, the `Σ f == 0` case must have a deliberate fallback,
+not the implicit "every share is 0" that you get from a ternary. Uniform
+(`1/n`) is usually the right fallback when the input is a weight and `n > 0`
+is guaranteed upstream. If the identity is load-bearing (here: the aggregate
+sum equals the user-entered market vol by construction), also consider a
+`pytest` assertion at the end of the transform that `Σ target_mkt · β` is
+within 1e-9 of `aggregate_var` when `eligible_idx` is non-empty — the
+current lack of such a check is why this shipped as a silent zero.
+
+---
+
+## Canonicalise identity keys at a single boundary, not at each lookup site
+
+**Why:** On 2026-04-20 the aggregate-market-value lookup silently returned nothing. The feeder (deribit-pricer) sent tz-aware ISO strings (`"2026-03-28T00:00:00+00:00"`) because its `MetricCell.expiry` is a Pydantic `datetime` with `time_zone="UTC"`. The server stored that string verbatim. The pipeline-side lookup (both `market_value_inference.py` and the new `positions_at_tick` marketVol join) produced naive ISO (`"2026-03-28T00:00:00"`) from the Polars naive-Datetime expiry column. The dict keys never matched — not with Pydantic catching it, not with a test catching it, no error logged. The engine's aggregate-variance inference had been silently no-op'ing since the feeder's format choice. The new UI tab only surfaced the bug because its zero values were user-visible. Each call site had its own ad-hoc `.isoformat() / str()` normalisation, and each one subtly disagreed on tz handling, microseconds, and date-vs-datetime.
+
+**How to apply:** For any identity key that crosses layers (feeder → Pydantic → store → pipeline → serializer), route every producer and every consumer through one canonicaliser. Put it in a small module (`server/api/expiry.py`) and wire it into the Pydantic `field_validator` on every model carrying the field — Pydantic runs on every ingest, so downstream code can't forget. Ad-hoc `.isoformat()` at the call site is a smell; if you see two sites doing the same normalisation slightly differently, consolidate before adding a third. When the silent-miss surfaces as "feature shows zeros but no error," suspect format drift across a dict-key boundary before blaming the feature code.

@@ -89,6 +89,14 @@ UPDATE_THRESHOLD: float = 50.0
 # the trader sees why their desired positions all read zero.
 SILENT_STREAM_THRESHOLD: int = int(os.environ.get("SILENT_STREAM_THRESHOLD", "5"))
 
+# Tolerance used when comparing the per-block-implied totalMarketFairVol
+# against the user-set aggregate marketVol for each (symbol, expiry). The
+# market-value-inference step is designed to make the two equal — any
+# visible gap means the invariant broke (e.g. all blocks user-set, or no
+# inferred blocks with forward coverage). We start strict and can loosen
+# once we see how often non-default decay shapes drift in practice.
+MARKET_VALUE_MISMATCH_ABS_TOL_VOL: float = 1e-6
+
 # ── OpenRouter HTTP timeouts ─────────────────────────────────────────────
 
 OPENROUTER_TIMEOUT_SECS: float = 30.0

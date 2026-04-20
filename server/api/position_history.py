@@ -27,6 +27,8 @@ from typing import Iterable
 
 import polars as pl
 
+from server.api.expiry import canonical_expiry_key as _expiry_key
+
 # Per-dimension entry cap. Each pipeline rerun appends one entry per active
 # (symbol, expiry) dim, so 4096 entries covers many hours of typical usage
 # even on a busy account; older entries fall off the deque first.
@@ -115,13 +117,6 @@ def _f(v: object) -> float:
     if v is None:
         return 0.0
     return float(v)  # type: ignore[arg-type]
-
-
-def _expiry_key(expiry: object) -> str:
-    """Normalise expiry (date / datetime / str) to an ISO-ish string key."""
-    if hasattr(expiry, "isoformat"):
-        return expiry.isoformat()  # type: ignore[no-any-return]
-    return str(expiry)
 
 
 def build_from_desired_pos_df(df: pl.DataFrame, current_ts: datetime) -> list[dict]:

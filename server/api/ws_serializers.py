@@ -13,9 +13,16 @@ from typing import Any
 
 import polars as pl
 
-from server.api.config import UPDATE_THRESHOLD
+from server.api.config import MARKET_VALUE_MISMATCH_ABS_TOL_VOL, UPDATE_THRESHOLD
+from server.api.expiry import canonical_expiry_key
 from server.core.config import SECONDS_PER_YEAR
 
+
+# Decimal-vol → vol-points conversion: one "vol point" is 1% annualised
+# vol, i.e. decimal × 100. Applied to every ``*_vol`` wire field (and to
+# the aggregate ``marketVol`` pulled from the per-user store) so the grid
+# and cell inspector render the number options traders actually read.
+VOL_POINTS_SCALE: float = 100.0
 
 # Names of the variance-unit columns in ``desired_pos_df`` that we expose as
 # annualised-vol aggregates to the client. Edge and smoothed-edge carry sign;
@@ -110,7 +117,7 @@ def _vol_aggregates(
         vol_exprs.append(
             pl.when(pl.col("_t_years") <= 0.0)
             .then(0.0)
-            .otherwise(s.sign() * (s.abs() / pl.col("_t_years")).sqrt())
+            .otherwise(s.sign() * (s.abs() / pl.col("_t_years")).sqrt() * VOL_POINTS_SCALE)
             .fill_null(0.0)
             .alias(wire_name)
         )
@@ -124,6 +131,7 @@ def positions_at_tick(
     desired_pos_df: pl.DataFrame,
     timestamp: datetime,
     prev_positions: dict[str, float],
+    market_values: dict[tuple[str, str], float] | None = None,
 ) -> list[dict[str, Any]]:
     """Build the ``positions`` array for a single tick.
 
@@ -131,8 +139,11 @@ def positions_at_tick(
     dimensions with different time grids always have data. Alongside the
     variance-unit scalars, emits annualised-vol-point versions (``edgeVol``,
     ``varianceVol``, …) sourced from the forward-grid integral — see
-    ``_vol_aggregates``.
+    ``_vol_aggregates``. ``market_values`` keys are ``(symbol, iso_expiry)``
+    tuples matching the per-user aggregate market-value store; dimensions
+    without a user-set quote emit ``marketVol = 0.0``.
     """
+    mv_map = market_values or {}
     at_or_before = desired_pos_df.filter(pl.col("timestamp") <= timestamp)
     if at_or_before.is_empty():
         return []
@@ -153,6 +164,10 @@ def positions_at_tick(
     # precision, and the UI uses it as the authoritative cell value.
     wire = rows.select(
         pl.col("symbol"),
+        pl.col("expiry").map_elements(
+            canonical_expiry_key,
+            return_dtype=pl.Utf8,
+        ).alias("_expiry_iso"),
         pl.col("expiry").map_elements(format_expiry, return_dtype=pl.Utf8).alias("expiry"),
         pl.col("edge").fill_null(0.0).alias("edge"),
         pl.col("smoothed_edge").fill_null(0.0).alias("smoothedEdge"),
@@ -174,13 +189,50 @@ def positions_at_tick(
 
     positions = wire.to_dicts()
 
-    # Compute changeMagnitude per position using prev_positions lookup
+    # Compute changeMagnitude per position using prev_positions lookup;
+    # attach marketVol from the per-user aggregate-market-value store,
+    # keyed by (symbol, iso_expiry).
     for pos in positions:
         key = f"{pos['symbol']}-{pos['expiry']}"
         prev_desired = prev_positions.get(key, pos["desiredPos"])
         pos["changeMagnitude"] = round(pos["desiredPos"] - prev_desired, 2)
+        mv_key = (pos["symbol"], pos.pop("_expiry_iso"))
+        pos["marketVol"] = mv_map.get(mv_key, 0.0) * VOL_POINTS_SCALE
 
     return positions
+
+
+def market_value_mismatches_from_positions(
+    positions: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Flag (symbol, expiry) pairs where ``totalMarketFairVol`` != ``marketVol``.
+
+    Both values come straight from ``positions_at_tick`` — implied from the
+    per-block forward integral, aggregate from the user-set store. They should
+    be equal by construction (``market_value_inference`` closes that loop).
+    When they aren't, it's a real inconsistency the trader should see.
+
+    Zero-aggregate + non-zero implied also fires: the guidance is "you should
+    be setting an aggregate marketVol." Zero/zero skips.
+    """
+    alerts: list[dict[str, Any]] = []
+    tol = MARKET_VALUE_MISMATCH_ABS_TOL_VOL
+    for pos in positions:
+        aggregate = pos.get("marketVol", 0.0)
+        implied = pos.get("totalMarketFairVol", 0.0)
+        if abs(aggregate) <= tol and abs(implied) <= tol:
+            continue
+        diff = implied - aggregate
+        if abs(diff) <= tol:
+            continue
+        alerts.append({
+            "symbol": pos["symbol"],
+            "expiry": pos["expiry"],
+            "aggregateVol": aggregate,
+            "impliedVol": implied,
+            "diff": diff,
+        })
+    return alerts
 
 
 def updates_from_diff(

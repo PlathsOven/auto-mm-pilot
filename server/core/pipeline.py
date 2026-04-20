@@ -229,9 +229,12 @@ def run_pipeline(
 
     blocks_df     = build_blocks_df(streams, risk_dimension_cols, unit_fn)
 
-    # Market value inference: distribute aggregate total vol to blocks
+    # Market value inference: distribute aggregate total vol to blocks.
+    # `now` lets the allocator weight by each block's forward-integrated
+    # coverage so Σ total_market_fair == aggregate_var · T_years holds by
+    # construction (→ totalMarketFairVol == marketVol on the UI).
     blocks_df     = mvi_fn.fn(
-        blocks_df, aggregate_market_values or {}, unit_fn,
+        blocks_df, aggregate_market_values or {}, unit_fn, now,
         **get_step("market_value_inference").get_param_values(),
     )
 

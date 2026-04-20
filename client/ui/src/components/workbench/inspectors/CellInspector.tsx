@@ -1,8 +1,8 @@
 import { useCallback, useMemo } from "react";
 import { useWebSocket } from "../../../providers/WebSocketProvider";
 import { useFocus } from "../../../providers/FocusProvider";
-import { useStreamContributions } from "../../../hooks/useStreamContributions";
-import { valColor } from "../../../utils";
+import { useStreamContributions, type StreamContribution } from "../../../hooks/useStreamContributions";
+import { blockKeyToString, valColor } from "../../../utils";
 
 interface CellInspectorProps {
   symbol: string;
@@ -31,8 +31,17 @@ export function CellInspector({ symbol, expiry }: CellInspectorProps) {
   const { contributions, loading, error } = useStreamContributions({ symbol, expiry });
 
   const onBlockClick = useCallback(
-    (blockName: string) => toggleFocus({ kind: "block", name: blockName }),
-    [toggleFocus],
+    (c: StreamContribution) => toggleFocus({
+      kind: "block",
+      key: {
+        blockName: c.blockName,
+        streamName: c.streamName,
+        symbol,
+        expiry,
+        startTimestamp: c.startTimestamp,
+      },
+    }),
+    [toggleFocus, symbol, expiry],
   );
 
   return (
@@ -59,9 +68,9 @@ export function CellInspector({ symbol, expiry }: CellInspectorProps) {
           <p className="text-[11px] text-mm-text-dim">No live position for this cell yet.</p>
         ) : (
           <section className="grid grid-cols-2 gap-1.5">
-            <Stat label="Desired Pos" value={position.desiredPos} unit="$vega" decimals={2} />
-            <Stat label="Raw Desired" value={position.rawDesiredPos} unit="$vega" decimals={2} />
-            <Stat label="Edge" value={position.edgeVol} unit="vp" decimals={2} />
+            <Stat label="Desired Pos" value={position.desiredPos} unit="$vega" decimals={2} signed />
+            <Stat label="Raw Desired" value={position.rawDesiredPos} unit="$vega" decimals={2} signed />
+            <Stat label="Edge" value={position.edgeVol} unit="vp" decimals={2} signed />
             <Stat label="Variance" value={position.varianceVol} unit="vp" decimals={2} />
             <Stat label="Total Fair" value={position.totalFairVol} unit="vp" decimals={2} />
             <Stat label="Market Fair" value={position.totalMarketFairVol} unit="vp" decimals={2} />
@@ -78,9 +87,15 @@ export function CellInspector({ symbol, expiry }: CellInspectorProps) {
           {error && <p className="text-[10px] text-mm-error">{error}</p>}
           {(contributions ?? []).slice(0, TOP_BLOCKS_LIMIT).map((c) => (
             <button
-              key={c.blockName}
+              key={blockKeyToString({
+                blockName: c.blockName,
+                streamName: c.streamName,
+                symbol,
+                expiry,
+                startTimestamp: c.startTimestamp,
+              })}
               type="button"
-              onClick={() => onBlockClick(c.blockName)}
+              onClick={() => onBlockClick(c)}
               className="flex items-baseline justify-between gap-2 rounded-md bg-black/[0.02] px-2 py-1 text-left transition-colors hover:bg-black/[0.05]"
               title="Inspect this block"
             >
@@ -105,11 +120,13 @@ function Stat({
   value,
   unit,
   decimals,
+  signed = false,
 }: {
   label: string;
   value: number;
   unit: string;
   decimals: number;
+  signed?: boolean;
 }) {
   return (
     <div className="glass-card flex flex-col gap-0.5 px-2 py-1">
@@ -117,7 +134,7 @@ function Stat({
         {label}
       </span>
       <span className={`font-mono text-[11px] font-semibold tabular-nums ${valColor(value)}`}>
-        {value > 0 ? "+" : ""}
+        {signed && value > 0 ? "+" : ""}
         {value.toFixed(decimals)}
         {unit && <span className="ml-1 text-[9px] text-mm-text-subtle">{unit}</span>}
       </span>

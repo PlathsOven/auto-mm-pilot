@@ -4,7 +4,9 @@ import ReactECharts from "echarts-for-react";
 import { useFocus } from "../providers/FocusProvider";
 import type { PipelineTimeSeriesResponse } from "../types";
 import {
+  blockSeriesIdOf,
   buildPipelineSingleViewOptions,
+  parseBlockSeriesId,
   type PipelineView,
 } from "./PipelineChart/chartOptions";
 
@@ -36,10 +38,17 @@ export function PipelineChart({ data, loading, error, view }: PipelineChartProps
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<EChartsType | null>(null);
 
+  // Compute the set of selected block-series keys for the *currently charted*
+  // dimension. If the focused block belongs to a different (symbol, expiry),
+  // the chart renders without a highlight — its series don't represent that
+  // block. Series IDs are composite so name collisions across streams on the
+  // same dim stay distinguishable.
   const selectedBlocks = useMemo<Set<string>>(() => {
-    if (focus?.kind === "block") return new Set([focus.name]);
-    return new Set();
-  }, [focus]);
+    if (!data || focus?.kind !== "block") return new Set();
+    const k = focus.key;
+    if (k.symbol !== data.symbol || k.expiry !== data.expiry) return new Set();
+    return new Set([blockSeriesIdOf(k.blockName, k.streamName, k.startTimestamp)]);
+  }, [data, focus]);
 
   const chartOption = useMemo(() => {
     if (!data) return null;
@@ -48,13 +57,23 @@ export function PipelineChart({ data, loading, error, view }: PipelineChartProps
 
   const handleChartClick = useCallback(
     (params: ECElementEvent) => {
-      const seriesName: string = params.seriesName ?? "";
-      const match = seriesName.match(/^(.+?)\s*\((fair|var)\)$/);
-      if (match) {
-        toggleFocus({ kind: "block", name: match[1] });
-      }
+      if (!data) return;
+      const seriesId = String(params.seriesId ?? "");
+      // Series IDs on block series are `<blockName>|<streamName>|<startTs>|<kind>`.
+      const parsed = parseBlockSeriesId(seriesId);
+      if (!parsed) return;
+      toggleFocus({
+        kind: "block",
+        key: {
+          blockName: parsed.blockName,
+          streamName: parsed.streamName,
+          symbol: data.symbol,
+          expiry: data.expiry,
+          startTimestamp: parsed.startTimestamp,
+        },
+      });
     },
-    [toggleFocus],
+    [data, toggleFocus],
   );
 
   const chartEvents = useMemo(() => ({ click: handleChartClick }), [handleChartClick]);
