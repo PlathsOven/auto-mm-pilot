@@ -7,7 +7,6 @@ import {
   getSortedRowModel,
   useReactTable,
   type ColumnDef,
-  type ColumnFiltersState,
   type SortingState,
   type VisibilityState,
 } from "@tanstack/react-table";
@@ -22,6 +21,23 @@ const col = createColumnHelper<BlockRow>();
 /** fair − market_fair, with nulls treated as 0. Shared by cell + sortingFn. */
 function edgeOf(row: BlockRow): number {
   return (row.fair ?? 0) - (row.market_fair ?? 0);
+}
+
+/**
+ * Composite React key for a block row. `block_name` alone is not unique —
+ * the same name (e.g. `ema_iv`) is reused across every symbol/expiry/space
+ * it is attached to. Non-unique keys cause React to reuse DOM nodes across
+ * updates, which made filters appear to "reorder" rather than narrow.
+ */
+function rowKeyOf(row: BlockRow): string {
+  return [
+    row.block_name,
+    row.stream_name,
+    row.symbol,
+    row.expiry,
+    row.space_id,
+    row.start_timestamp ?? "",
+  ].join("|");
 }
 
 /** All column definitions. The `id` doubles as the visibility key. */
@@ -254,15 +270,6 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
     try { localStorage.setItem(BLOCKS_FOLLOW_FOCUS_KEY, String(next)); } catch { /* ignore */ }
   }, []);
 
-  const columnFilters = useMemo<ColumnFiltersState>(() => {
-    const out: ColumnFiltersState = [];
-    if (symbolFilter !== ALL) out.push({ id: "symbol", value: symbolFilter });
-    if (expiryFilter !== ALL) out.push({ id: "expiry", value: expiryFilter });
-    if (streamFilter !== ALL) out.push({ id: "stream_name", value: streamFilter });
-    if (sourceFilter !== ALL) out.push({ id: "source", value: sourceFilter });
-    return out;
-  }, [symbolFilter, expiryFilter, streamFilter, sourceFilter]);
-
   const refresh = useCallback(async () => {
     try {
       const data = await fetchBlocks();
@@ -291,14 +298,10 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
   const table = useReactTable({
     data: blocks,
     columns,
-    state: { globalFilter, sorting, columnVisibility, columnFilters },
+    state: { globalFilter, sorting, columnVisibility },
     onGlobalFilterChange: setGlobalFilter,
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
-    // No-op handler — required by TanStack when columnFilters is provided
-    // in `state`, even though our filters are driven entirely by the
-    // dropdowns above (the table never asks to mutate them itself).
-    onColumnFiltersChange: () => {},
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -314,6 +317,15 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
       );
     },
   });
+
+  // Push the dropdown values into TanStack's internal columnFilters. Uncontrolled
+  // filters avoid the fragility of double-binding state + a no-op onChange shim.
+  useEffect(() => {
+    table.getColumn("symbol")?.setFilterValue(symbolFilter === ALL ? undefined : symbolFilter);
+    table.getColumn("expiry")?.setFilterValue(expiryFilter === ALL ? undefined : expiryFilter);
+    table.getColumn("stream_name")?.setFilterValue(streamFilter === ALL ? undefined : streamFilter);
+    table.getColumn("source")?.setFilterValue(sourceFilter === ALL ? undefined : sourceFilter);
+  }, [table, symbolFilter, expiryFilter, streamFilter, sourceFilter]);
 
   // Distinct symbol + expiry + stream values for the filter dropdowns +
   // source counts.
@@ -504,7 +516,7 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
                 const isFocused = focus?.kind === "block" && focus.name === row.original.block_name;
                 return (
                 <tr
-                  key={row.original.block_name}
+                  key={rowKeyOf(row.original)}
                   className={`border-t border-black/[0.03] transition-colors ${
                     isFocused ? "bg-mm-accent-soft" : "hover:bg-mm-accent/5"
                   } ${onRowClick ? "cursor-pointer" : ""}`}
