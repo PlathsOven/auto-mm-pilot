@@ -100,9 +100,9 @@ export function CellInspector({ symbol, expiry }: CellInspectorProps) {
               title="Inspect this block"
             >
               <span className="truncate text-[10px] text-mm-text">{c.blockName}</span>
-              <span className={`shrink-0 font-mono text-[10px] tabular-nums ${valColor(c.edge)}`}>
-                {c.edge >= 0 ? "+" : ""}
-                {c.edge.toFixed(4)}
+              <span className={`shrink-0 font-mono text-[10px] tabular-nums ${valColor(c.fair)}`}>
+                {c.fair >= 0 ? "+" : ""}
+                {c.fair.toFixed(4)}
               </span>
             </button>
           ))}

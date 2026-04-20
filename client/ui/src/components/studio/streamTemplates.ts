@@ -38,12 +38,10 @@ export const STREAM_TEMPLATES: StreamTemplate[] = [
       target_mapping: { scale: 1.0, offset: 0.0, exponent: 1.0 },
       block_shape: {
         annualized: true,
-        size_type: "fixed",
         temporal_position: "shifting",
         decay_end_size_mult: 1.0,
         decay_rate_prop_per_min: 0.0,
       },
-      aggregation: { aggregation_logic: "average" },
       confidence: { var_fair_ratio: 1.0 },
     },
   },
@@ -52,7 +50,7 @@ export const STREAM_TEMPLATES: StreamTemplate[] = [
     title: "Scheduled Event (FOMC / CPI)",
     oneLiner: "Add expected vol around a known macro release.",
     description:
-      "Adds a step of variance at a scheduled macro event time, decaying out after the print. Stack as offset on top of the realized-vol baseline.",
+      "Adds a step of variance at a scheduled macro event time, decaying out after the print. Sums with other streams on the same (symbol, expiry).",
     draft: {
       ...EMPTY_DRAFT,
       identity: {
@@ -68,12 +66,10 @@ export const STREAM_TEMPLATES: StreamTemplate[] = [
       target_mapping: { scale: 1.0, offset: 0.0, exponent: 1.0 },
       block_shape: {
         annualized: true,
-        size_type: "fixed",
         temporal_position: "static",
         decay_end_size_mult: 0.0,
         decay_rate_prop_per_min: 0.008,
       },
-      aggregation: { aggregation_logic: "offset" },
       confidence: { var_fair_ratio: 2.0 },
     },
   },
@@ -98,12 +94,10 @@ export const STREAM_TEMPLATES: StreamTemplate[] = [
       target_mapping: { scale: -0.4, offset: 0.7, exponent: 1.0 },
       block_shape: {
         annualized: true,
-        size_type: "fixed",
         temporal_position: "shifting",
         decay_end_size_mult: 1.0,
         decay_rate_prop_per_min: 0.0,
       },
-      aggregation: { aggregation_logic: "average" },
       confidence: { var_fair_ratio: 5.0 },
     },
   },
@@ -128,12 +122,10 @@ export const STREAM_TEMPLATES: StreamTemplate[] = [
       target_mapping: { scale: 100.0, offset: 0.0, exponent: 1.0 },
       block_shape: {
         annualized: false,
-        size_type: "fixed",
         temporal_position: "shifting",
         decay_end_size_mult: 1.0,
         decay_rate_prop_per_min: 0.001,
       },
-      aggregation: { aggregation_logic: "offset" },
       confidence: { var_fair_ratio: 8.0 },
     },
   },
@@ -158,12 +150,10 @@ export const STREAM_TEMPLATES: StreamTemplate[] = [
       target_mapping: { scale: 1.0, offset: 0.0, exponent: 1.0 },
       block_shape: {
         annualized: true,
-        size_type: "relative",
         temporal_position: "shifting",
         decay_end_size_mult: 0.5,
         decay_rate_prop_per_min: 0.0005,
       },
-      aggregation: { aggregation_logic: "average" },
       confidence: { var_fair_ratio: 4.0 },
     },
   },

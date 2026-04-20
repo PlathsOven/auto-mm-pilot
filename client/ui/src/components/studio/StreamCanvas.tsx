@@ -4,7 +4,6 @@ import { IdentitySection } from "./sections/IdentitySection";
 import { DataShapeSection } from "./sections/DataShapeSection";
 import { TargetMappingSection } from "./sections/TargetMappingSection";
 import { BlockShapeSection } from "./sections/BlockShapeSection";
-import { AggregationSection } from "./sections/AggregationSection";
 import { ConfidenceSection } from "./sections/ConfidenceSection";
 import { PreviewSection, parseCsvToRows } from "./sections/PreviewSection";
 import { StreamCanvasFooter, type ActivationResult } from "./StreamCanvasFooter";
@@ -127,8 +126,6 @@ export function StreamCanvas({ streamName, templateId, prefill, onActivated }: P
         exponent: draft.target_mapping.exponent,
         block: {
           annualized: draft.block_shape.annualized,
-          size_type: draft.block_shape.size_type,
-          aggregation_logic: draft.aggregation.aggregation_logic,
           temporal_position: draft.block_shape.temporal_position,
           decay_end_size_mult: draft.block_shape.decay_end_size_mult,
           decay_rate_prop_per_min: draft.block_shape.decay_rate_prop_per_min,
@@ -200,11 +197,6 @@ export function StreamCanvas({ streamName, templateId, prefill, onActivated }: P
               value={draft.block_shape}
               onChange={(v) => updateSlice("block_shape", v)}
               state={states.block_shape}
-            />
-            <AggregationSection
-              value={draft.aggregation}
-              onChange={(v) => updateSlice("aggregation", v)}
-              state={states.aggregation}
             />
             <ConfidenceSection
               value={draft.confidence}

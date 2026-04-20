@@ -93,14 +93,6 @@ export function BlockShapeSection({ value, onChange, state }: Props) {
         />
         <Field
           type="select"
-          label="Size type"
-          required
-          value={value.size_type}
-          options={["fixed", "relative"]}
-          onChange={(v) => patch("size_type", v as "fixed" | "relative")}
-        />
-        <Field
-          type="select"
           label="Temporal position"
           required
           value={value.temporal_position}
@@ -126,7 +118,6 @@ export function BlockShapeSection({ value, onChange, state }: Props) {
       <BlockPreview
         series={series}
         endMult={value.decay_end_size_mult}
-        sizeType={value.size_type}
         decayProfile={decayProfile}
       />
     </SectionCard>
@@ -135,23 +126,18 @@ export function BlockShapeSection({ value, onChange, state }: Props) {
 
 /** Axis-labelled preview of the block over the next `SAMPLE_MINUTES`.
  *  - x-axis: time in minutes (0 = now = block start, SAMPLE_MINUTES = end)
- *  - y-axis: size multiplier (starts at `start_label`, ends at
- *    `decay_end_size_mult`).
- *    • `size_type === "fixed"`  → starting label reads "fixed value"
- *    • `size_type === "relative"` → starting label reads "× market price"
+ *  - y-axis: size multiplier (starts at 1, ends at `decay_end_size_mult`).
  */
 function BlockPreview({
   series,
   endMult,
-  sizeType,
   decayProfile,
 }: {
   series: number[];
   endMult: number;
-  sizeType: "fixed" | "relative";
   decayProfile: string;
 }) {
-  const startLabel = sizeType === "fixed" ? "fixed" : "× market";
+  const startLabel = "fixed";
   const plotW = SVG.width - SVG.padLeft - SVG.padRight;
   const plotH = SVG.height - SVG.padTop - SVG.padBottom;
 

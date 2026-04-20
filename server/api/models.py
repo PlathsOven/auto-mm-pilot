@@ -45,17 +45,6 @@ class SnapshotRow(BaseModel):
 
     timestamp: str = Field(..., description="ISO 8601 timestamp")
     raw_value: float = Field(..., description="Raw measurement value")
-    market_value: float | None = Field(
-        default=None,
-        description="Market-implied value in same raw units as raw_value. Omit or send empty/null to fall through to market_value_inference.",
-    )
-
-    @field_validator("market_value", mode="before")
-    @classmethod
-    def _empty_market_value_is_null(cls, v: Any) -> Any:
-        if isinstance(v, str) and v.strip() == "":
-            return None
-        return v
 
 
 class CellContext(BaseModel):
@@ -109,8 +98,6 @@ class UpdateStreamRequest(BaseModel):
 class BlockConfigPayload(BaseModel):
     """JSON-friendly representation of BlockConfig fields."""
     annualized: bool = True
-    size_type: Literal["fixed", "relative"] = "fixed"
-    aggregation_logic: Literal["average", "offset"] = "average"
     temporal_position: Literal["static", "shifting"] = "shifting"
     decay_end_size_mult: float = 1.0
     decay_rate_prop_per_min: float = 0.0
@@ -164,7 +151,6 @@ class StreamTimeseriesPoint(BaseModel):
     """One point in a single stream-key time series."""
     timestamp: str
     raw_value: float
-    market_value: float | None = None
 
 
 class StreamKeyTimeseries(BaseModel):
@@ -244,8 +230,6 @@ class BlockRowResponse(BaseModel):
     source: Literal["stream", "manual"]
     # Engine parameters
     annualized: bool
-    size_type: Literal["fixed", "relative"]
-    aggregation_logic: Literal["average", "offset"]
     temporal_position: Literal["static", "shifting"]
     decay_end_size_mult: float
     decay_rate_prop_per_min: float
@@ -256,11 +240,7 @@ class BlockRowResponse(BaseModel):
     # Output values
     target_value: float
     raw_value: float
-    market_value: float | None = None
-    sent_market_value: float | None = None
-    target_market_value: float | None = None
     fair: float | None = None
-    market_fair: float | None = None
     var: float | None = None
     # Timing
     start_timestamp: str | None = None
@@ -630,11 +610,9 @@ class BlockTimeSeries(_WireModel):
     block_name: str
     stream_name: str
     space_id: str
-    aggregation_logic: str
     start_timestamp: str | None = None
     timestamps: list[str]
     fair: list[float | None]
-    market_fair: list[float | None]
     var: list[float | None]
 
 
@@ -658,7 +636,6 @@ class CurrentBlockDecomposition(_WireModel):
     space_id: str
     start_timestamp: str | None = None
     fair: float
-    market_fair: float
     var: float
 
 

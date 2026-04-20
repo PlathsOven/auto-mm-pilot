@@ -343,9 +343,8 @@ function ExpandedRow({ stream }: { stream: RegisteredStream }) {
   }
   const b = stream.block;
   const rows: [string, string][] = [
-    ["aggregation_logic", b.aggregation_logic],
     ["annualized", b.annualized ? "yes" : "no"],
-    ["size_type", b.size_type],
+    ["temporal_position", b.temporal_position],
     ["decay_profile", b.decay_profile],
     ["decay_end_size_mult", b.decay_end_size_mult.toFixed(3)],
     ["decay_rate_prop_per_min", b.decay_rate_prop_per_min.toFixed(6)],

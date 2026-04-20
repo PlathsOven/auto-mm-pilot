@@ -73,6 +73,7 @@ class EngineState:
         bankroll: float | None = None,
         transform_config: dict[str, Any] | None = None,
         aggregate_market_values: dict[tuple[str, str], float] | None = None,
+        space_market_values: dict[tuple[str, str, str], float] | None = None,
     ) -> dict[str, pl.DataFrame]:
         """Re-run the pipeline for this user and update all state."""
         if not streams:
@@ -99,6 +100,7 @@ class EngineState:
             time_grid_interval=TIME_GRID_INTERVAL,
             transform_config=self.transform_config,
             aggregate_market_values=aggregate_market_values or {},
+            space_market_values=space_market_values or {},
         )
 
         self.pipeline_snapshot = snapshot_from_pipeline(

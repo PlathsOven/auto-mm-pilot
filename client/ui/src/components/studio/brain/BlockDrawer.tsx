@@ -180,20 +180,6 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
               />
               <Field
                 type="select"
-                label="Size type"
-                value={draft.block.size_type}
-                options={["fixed", "relative"]}
-                onChange={(v) => canEdit ? patchBlock("size_type", v as "fixed" | "relative") : undefined}
-              />
-              <Field
-                type="select"
-                label="Aggregation logic"
-                value={draft.block.aggregation_logic}
-                options={["average", "offset"]}
-                onChange={(v) => canEdit ? patchBlock("aggregation_logic", v as "average" | "offset") : undefined}
-              />
-              <Field
-                type="select"
                 label="Temporal position"
                 value={draft.block.temporal_position}
                 options={["static", "shifting"]}
@@ -228,13 +214,9 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
               </span>
               <div className="grid grid-cols-3 gap-3">
                 <ReadOnlyField label="fair" value={block.fair} />
-                <ReadOnlyField label="market_fair" value={block.market_fair} />
-                <ReadOnlyField label="edge" value={block.fair != null && block.market_fair != null ? block.fair - block.market_fair : null} />
                 <ReadOnlyField label="variance" value={block.var} />
                 <ReadOnlyField label="target_value" value={block.target_value} />
                 <ReadOnlyField label="raw_value" value={block.raw_value} />
-                <ReadOnlyField label="market_value" value={block.market_value} />
-                <ReadOnlyField label="target_mkt_value" value={block.target_market_value} />
               </div>
             </section>
           )}

@@ -58,13 +58,13 @@ export const TOOLTIP_STYLE = {
 
 /** Composite series id so name collisions across streams on the same
  *  dimension (e.g. two blocks both called `ema_iv` on different streams)
- *  stay distinguishable in the chart. `view` is appended so the fair,
- *  market and variance variants of the same block never share an id. */
+ *  stay distinguishable in the chart. `view` is appended so the fair and
+ *  variance variants of the same block never share an id. */
 export function blockSeriesIdOf(
   blockName: string,
   streamName: string,
   startTimestamp: string | null,
-  view?: "fair" | "market" | "var",
+  view?: "fair" | "var",
 ): string {
   const base = `${blockName}|${streamName}|${startTimestamp ?? ""}`;
   return view ? `${base}|${view}` : base;
@@ -95,12 +95,12 @@ export function sci(v: number): string {
 // ---------------------------------------------------------------------------
 
 /** Single-view rendering modes for the pipeline chart. Each maps to one of
- *  the substantive aggregates (position / fair / variance / market) that the
+ *  the substantive aggregates (position / fair / variance) that the
  *  pipeline produces — same vocabulary as the position grid's view-mode tabs
- *  so the two surfaces can stay in sync. ``market`` mirrors ``fair`` but
- *  sources per-block ``marketFair`` instead of ``fair``, and renders the
- *  user-set aggregate ``total_vol`` scalar in the y-axis name. */
-export type PipelineView = "position" | "fair" | "variance" | "market";
+ *  so the two surfaces can stay in sync. Market is no longer a per-block
+ *  quantity (it lives at the space + aggregate layer), so the chart tabs
+ *  dropped the old Market view. */
+export type PipelineView = "position" | "fair" | "variance";
 
 // Axis type locked to "category" because the stacked fair/variance series
 // rely on ECharts' `stack:` feature. See xAxis comment + assertion in the
@@ -301,37 +301,6 @@ export function buildPipelineSingleViewOptions(
         data: b.fair,
         showSymbol: false,
         stack: "fair",
-        connectNulls: false,
-        areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
-        lineStyle: {
-          width: dimmed ? 0.3 : 0,
-          color: BLOCK_COLORS[i % BLOCK_COLORS.length],
-          opacity: dimmed ? 0.3 : 1,
-        },
-        itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
-        emphasis: { focus: "series" },
-      });
-    });
-  } else if (view === "market") {
-    // Market view = per-block market_fair stacked on the forward grid,
-    // plus the user-set aggregate total_vol as a y-axis-name suffix (the
-    // scalar is a single number per symbol/expiry — no time series).
-    const totalVol = data.currentDecomposition.aggregateMarketValue?.totalVol;
-    yAxisName = totalVol != null
-      ? `Market Fair  (total_vol = ${(totalVol * 100).toFixed(2)} vp)`
-      : "Market Fair  (no aggregate set)";
-    yAxisFormatter = sci;
-    blocks.forEach((b, i) => {
-      const id = blockSeriesIdOf(b.blockName, b.streamName, b.startTimestamp, "market");
-      const matchId = blockSeriesIdOf(b.blockName, b.streamName, b.startTimestamp);
-      const dimmed = hasSelection && !selectedBlocks.has(matchId);
-      series.push({
-        id,
-        name: `${b.blockName} (market)`,
-        type: "line",
-        data: b.marketFair,
-        showSymbol: false,
-        stack: "market",
         connectNulls: false,
         areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
         lineStyle: {

@@ -25,8 +25,6 @@ class BlockConfig:
     """
 
     annualized: bool = True
-    size_type: Literal["fixed", "relative"] = "fixed"
-    aggregation_logic: Literal["average", "offset"] = "average"
     temporal_position: Literal["static", "shifting"] = "shifting"
     decay_end_size_mult: float = 1.0
     decay_rate_prop_per_min: float = 0.0
@@ -34,14 +32,10 @@ class BlockConfig:
     var_fair_ratio: float = 1.0
 
     def __post_init__(self):
-        assert self.size_type in ("fixed", "relative")
-        assert self.aggregation_logic in ("average", "offset")
         assert self.temporal_position in ("static", "shifting")
         assert self.decay_profile in ("linear",)
         assert self.decay_end_size_mult >= 0
         assert self.decay_rate_prop_per_min >= 0
-        if self.size_type == "relative":
-            assert self.annualized, "must be annualized for relative size"
         if self.decay_end_size_mult != 0 and not self.annualized:
             raise ValueError(
                 "decay_end_size_mult is only applicable for annualized streams"

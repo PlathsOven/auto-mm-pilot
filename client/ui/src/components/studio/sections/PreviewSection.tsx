@@ -18,7 +18,7 @@ export function PreviewSection({ draft, state }: Props) {
   return (
     <SectionCard
       title="Preview"
-      number={7}
+      number={6}
       status={state.status}
     >
       <div className="grid gap-3">
@@ -35,7 +35,6 @@ export function PreviewSection({ draft, state }: Props) {
             <DraftRow label="Offset" value={draft.target_mapping.offset.toString()} />
             <DraftRow label="Exponent" value={draft.target_mapping.exponent.toString()} />
             <DraftRow label="var_fair_ratio" value={draft.confidence.var_fair_ratio.toString()} />
-            <DraftRow label="Aggregation" value={draft.aggregation.aggregation_logic} />
             <DraftRow label="Temporal" value={draft.block_shape.temporal_position} />
           </dl>
         </div>

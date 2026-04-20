@@ -35,8 +35,6 @@ def _stream_to_response(reg: StreamRegistration) -> StreamResponse:
     if reg.block is not None:
         block_payload = BlockConfigPayload(
             annualized=reg.block.annualized,
-            size_type=reg.block.size_type,
-            aggregation_logic=reg.block.aggregation_logic,
             temporal_position=reg.block.temporal_position,
             decay_end_size_mult=reg.block.decay_end_size_mult,
             decay_rate_prop_per_min=reg.block.decay_rate_prop_per_min,
@@ -111,8 +109,6 @@ async def describe_stream(
     if reg.block is not None:
         block_payload = BlockConfigPayload(
             annualized=reg.block.annualized,
-            size_type=reg.block.size_type,
-            aggregation_logic=reg.block.aggregation_logic,
             temporal_position=reg.block.temporal_position,
             decay_end_size_mult=reg.block.decay_end_size_mult,
             decay_rate_prop_per_min=reg.block.decay_rate_prop_per_min,
@@ -163,8 +159,6 @@ async def configure_stream(
     try:
         block = BlockConfig(
             annualized=req.block.annualized,
-            size_type=req.block.size_type,
-            aggregation_logic=req.block.aggregation_logic,
             temporal_position=req.block.temporal_position,
             decay_end_size_mult=req.block.decay_end_size_mult,
             decay_rate_prop_per_min=req.block.decay_rate_prop_per_min,
@@ -214,14 +208,8 @@ async def stream_timeseries(
             raw_value = float(row.get("raw_value", 0.0))
         except (TypeError, ValueError):
             continue
-        mv_raw = row.get("market_value")
-        market_value: float | None
-        try:
-            market_value = float(mv_raw) if mv_raw is not None else None
-        except (TypeError, ValueError):
-            market_value = None
         grouped.setdefault(key_values, []).append(
-            StreamTimeseriesPoint(timestamp=ts_str, raw_value=raw_value, market_value=market_value)
+            StreamTimeseriesPoint(timestamp=ts_str, raw_value=raw_value)
         )
         key_specs.setdefault(
             key_values, {k: str(row.get(k, "")) for k in reg.key_cols}

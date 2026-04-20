@@ -18,12 +18,11 @@ const VIEW_TABS: TabItem<PipelineView>[] = [
   { value: "position", label: "Desired" },
   { value: "fair", label: "Fair" },
   { value: "variance", label: "Variance" },
-  { value: "market", label: "Market" },
 ];
 
 /** Map a position-grid view mode to the matching pipeline view. Several grid
- *  modes resolve to the same pipeline view (smoothed/raw position both →
- *  position; edge / fair → fair; market / market-fair → market). */
+ *  modes resolve to the same pipeline view. Market grid modes fall back to
+ *  the fair view since market-implied value is no longer a per-block series. */
 function gridToPipelineView(grid: ViewMode): PipelineView {
   switch (grid) {
     case "position":
@@ -34,10 +33,9 @@ function gridToPipelineView(grid: ViewMode): PipelineView {
     case "smoothedEdge":
     case "fair":
     case "totalFair":
-      return "fair";
     case "market":
     case "totalMarketFair":
-      return "market";
+      return "fair";
     case "variance":
     case "smoothedVar":
       return "variance";
@@ -53,7 +51,6 @@ function pipelineToGridView(view: PipelineView): ViewMode {
     case "position": return "position";
     case "fair": return "edge";
     case "variance": return "variance";
-    case "market": return "market";
   }
 }
 

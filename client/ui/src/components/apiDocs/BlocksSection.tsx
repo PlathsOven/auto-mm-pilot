@@ -6,9 +6,9 @@ export function BlocksSection() {
     <Section id="blocks" title="Blocks">
       <p>
         Blocks are the engine's unit of computation — each block ties a
-        data stream to a set of pipeline parameters (scale, aggregation,
-        decay, temporal position). Stream-backed blocks are created
-        automatically when a stream is configured and receives snapshot data.
+        data stream to a set of pipeline parameters (scale, decay,
+        temporal position). Stream-backed blocks are created automatically
+        when a stream is configured and receives snapshot data.
         Manual blocks are created explicitly via <code>POST /api/blocks</code>.
       </p>
 
@@ -24,8 +24,6 @@ export function BlocksSection() {
       "space_id": "shifting",
       "source": "stream",
       "annualized": true,
-      "size_type": "fixed",
-      "aggregation_logic": "average",
       "temporal_position": "shifting",
       "decay_end_size_mult": 1.0,
       "decay_rate_prop_per_min": 0.0,
@@ -36,16 +34,16 @@ export function BlocksSection() {
       "target_value": 0.65,
       "raw_value": 0.65,
       "fair": 0.65,
-      "market_fair": 0.70,
       "var": 0.0042,
       "updated_at": "2026-01-15T12:00:05"
     }
   ]
 }`}</CodeBlock>
         <p>
-          <code>fair</code>, <code>market_fair</code>, and <code>var</code>{" "}
-          reflect the values at the current engine tick. They are{" "}
-          <code>null</code> if the pipeline has not run yet.
+          <code>fair</code> and <code>var</code> reflect the values at the
+          current engine tick. They are <code>null</code> if the pipeline
+          has not run yet. Market-implied value lives at the space /
+          aggregate layer now, not per-block.
         </p>
       </Endpoint>
 
@@ -59,8 +57,6 @@ export function BlocksSection() {
   "exponent": 1.0,
   "block": {
     "annualized": true,
-    "size_type": "fixed",
-    "aggregation_logic": "offset",
     "temporal_position": "static",
     "decay_end_size_mult": 1.0,
     "decay_rate_prop_per_min": 0.0,
@@ -93,7 +89,7 @@ export function BlocksSection() {
         <CodeBlock>{`{
   "scale": 2.0,
   "block": {
-    "aggregation_logic": "average"
+    "var_fair_ratio": 2.0
   },
   "snapshot_rows": [
     {

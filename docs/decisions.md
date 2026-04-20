@@ -6,6 +6,18 @@ Format per entry: **Date — Decision**. Then `Context:`, `Decision:`, `Rational
 
 ---
 
+## 2026-04-20 — Space-level market value + sum-only aggregation
+
+**Context:** Aggregation previously split blocks into `average` and `offset` modes within each space, then combined `average` (mean) with `offset` (sum) to produce `space_fair`. This under-counted the Sharpe benefit of adding independent alphas in the same space: two uncorrelated signals with identical `(edge, var)` on the same space yielded `e/√(2v)` under the old math instead of the correct combined `√2 · e/√v`. Market-implied value was per-block, which forced every block to carry its own `market_value` snapshot column even when the desk's view of market was at the symbol/expiry level.
+
+**Decision:** Collapse aggregation to a single sum across all blocks. Move market value up to the space level (one value per `(symbol, expiry, space_id)`). The `market_value_inference` step now returns a per-space `market_fair(t)` time-series shaped proportional to each space's own `fair(t)` — so the default (no user input) gives `space.market_fair == space.fair` and edge is zero at every timestamp. Aggregate user input (`total_vol` per `(symbol, expiry)`) distributes to inferable spaces preserving the variance invariant `Σ_t Σ_spaces market_fair = total_vol²`. Dropped `BlockConfig.aggregation_logic` and `BlockConfig.size_type` entirely.
+
+**Rationale:** Two uncorrelated signals on the same space should combine as sum/sum — that's the Sharpe algebra. Space_id now carries only its shared market reference; block-level contribution is always additive to edge and variance. Dropping `size_type == "relative"` is safe because the relativity it expressed ("view minus market") is now handled at the aggregation step via `total_fair − total_market_fair`.
+
+**Consequences:** Clean wire-schema break — snapshot payloads no longer carry `market_value`; block rows no longer expose `market_fair` / `target_market_value` / `aggregation_logic` / `size_type`. Pipeline step library gets a new step-level contract for `market_value_inference` (takes the block-variance frame plus aggregate + per-space dicts; returns a space-level frame). Default edge-zero invariant is now structural: any desk that provides no aggregate or per-space market sees zero position, which surfaces the "no market view set" case loudly instead of silently producing edge from a zero-market fallback.
+
+---
+
 ## 2025 — Physical client/server split for IP protection
 
 **Context:** Posit is a vendor product. The client (trading desk) gets the terminal + adapters; we retain the proprietary pricing math.

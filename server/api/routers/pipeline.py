@@ -143,14 +143,12 @@ def _pipeline_timeseries_sync(
     for bn in block_names:
         bd = block_var_filtered.filter(pl.col("block_name") == bn).sort("timestamp")
         fair_arr: list[float | None] = [None] * len(block_axis)
-        market_fair_arr: list[float | None] = [None] * len(block_axis)
         var_arr: list[float | None] = [None] * len(block_axis)
-        for row in bd.select("timestamp", "fair", "market_fair", "var").to_dicts():
+        for row in bd.select("timestamp", "fair", "var").to_dicts():
             idx = block_axis_index.get(row["timestamp"])
             if idx is None:
                 continue
             fair_arr[idx] = row["fair"]
-            market_fair_arr[idx] = row["market_fair"]
             var_arr[idx] = row["var"]
         stream_name_val = bd["stream_name"][0] if bd.height > 0 and "stream_name" in bd.columns else ""
         start_ts_val = start_ts_map.get((bn, stream_name_val))
@@ -158,11 +156,9 @@ def _pipeline_timeseries_sync(
             "blockName": bn,
             "streamName": stream_name_val,
             "spaceId": bd["space_id"][0] if bd.height > 0 else "",
-            "aggregationLogic": bd["aggregation_logic"][0] if bd.height > 0 else "",
             "startTimestamp": start_ts_val.isoformat() if start_ts_val is not None else None,
             "timestamps": block_timestamps,
             "fair": fair_arr,
-            "marketFair": market_fair_arr,
             "var": var_arr,
         })
 
@@ -208,7 +204,7 @@ def _pipeline_timeseries_sync(
         first_ts = block_var_filtered["timestamp"].min()
         latest_block_var = block_var_filtered.filter(pl.col("timestamp") == first_ts)
         cols = latest_block_var.columns
-        select_cols = ["block_name", "space_id", "fair", "market_fair", "var"]
+        select_cols = ["block_name", "space_id", "fair", "var"]
         if "stream_name" in cols:
             select_cols.insert(1, "stream_name")
         for d in latest_block_var.select(select_cols).to_dicts():
@@ -220,7 +216,6 @@ def _pipeline_timeseries_sync(
                 "spaceId": d["space_id"],
                 "startTimestamp": start_ts_val.isoformat() if start_ts_val is not None else None,
                 "fair": d["fair"],
-                "marketFair": d["market_fair"],
                 "var": d["var"],
             })
 

@@ -26,7 +26,7 @@ def snapshot_from_pipeline(
 
     Returns the same structure that the LLM prompts expect:
         - block_summary: list[dict] — one per block with stream_name,
-          raw_value, target_value, target_market_value, space_id, etc.
+          raw_value, target_value, space_id, etc.
         - current_agg: dict — total_fair, total_market_fair, edge, var.
         - current_position: dict — smoothed_edge, smoothed_var,
           raw_desired_position, smoothed_desired_position.
@@ -36,21 +36,13 @@ def snapshot_from_pipeline(
     block_var_df = results["block_var_df"]
     desired_pos_df = results["desired_pos_df"]
 
-    # --- block_summary: static per-block config (not time-varying) ---
     block_summary = _serialize_blocks_df(blocks_df, risk_dimension_cols)
-
-    # --- Enrich block_summary with time-varying fair/market_fair at timestamp ---
     _enrich_block_summary_at_timestamp(block_summary, block_var_df, timestamp)
 
-    # --- current_agg: single row from desired_pos_df at timestamp ---
     current_agg = _extract_agg_at_timestamp(desired_pos_df, timestamp, risk_dimension_cols)
-
-    # --- current_position: smoothed values at timestamp ---
     current_position = _extract_position_at_timestamp(desired_pos_df, timestamp)
 
-    # --- scenario ---
-    # Build risk_dimension from the first matching row
-    risk_dim = {}
+    risk_dim: dict[str, Any] = {}
     agg_row = desired_pos_df.filter(pl.col("timestamp") == timestamp)
     if agg_row.height > 0:
         first = agg_row.row(0, named=True)
@@ -77,17 +69,10 @@ def engine_state_from_pipeline(
     timestamp: dt.datetime,
     risk_dimension_cols: list[str],
 ) -> dict[str, Any]:
-    """Build the engine state dict consumed by the investigation prompt.
-
-    Returns a dict with:
-        - positions: list of current desired positions per risk dimension
-        - streams: list of active data stream statuses
-        - context: global engine context
-    """
+    """Build the engine state dict consumed by the investigation prompt."""
     desired_pos_df = results["desired_pos_df"]
     blocks_df = results["blocks_df"]
 
-    # --- positions ---
     pos_rows = desired_pos_df.filter(pl.col("timestamp") == timestamp)
     positions = []
     for row in pos_rows.iter_rows(named=True):
@@ -103,7 +88,6 @@ def engine_state_from_pipeline(
             "updatedAt": _serialize_value(timestamp),
         })
 
-    # --- streams: derive from blocks_df unique stream names ---
     stream_names = blocks_df["stream_name"].unique().to_list()
     streams = [
         {
@@ -114,8 +98,7 @@ def engine_state_from_pipeline(
         for name in sorted(stream_names)
     ]
 
-    # --- context ---
-    context = {
+    context: dict[str, Any] = {
         "now": _serialize_value(timestamp),
         "riskDimensions": [],
     }
@@ -151,12 +134,11 @@ def _serialize_blocks_df(
 ) -> list[dict[str, Any]]:
     """Convert blocks_df rows to list of dicts for block_summary."""
     summary_cols = risk_dimension_cols + [
-        "block_name", "stream_name", "space_id", "aggregation_logic",
-        "raw_value", "market_value", "target_value", "target_market_value",
-        "var_fair_ratio", "annualized", "size_type", "temporal_position",
+        "block_name", "stream_name", "space_id",
+        "raw_value", "target_value",
+        "var_fair_ratio", "annualized", "temporal_position",
         "decay_end_size_mult", "decay_rate_prop_per_min",
     ]
-    # Only include columns that exist
     available = [c for c in summary_cols if c in blocks_df.columns]
     rows = blocks_df.select(available).to_dicts()
     for row in rows:
@@ -170,17 +152,15 @@ def _enrich_block_summary_at_timestamp(
     block_var_df: pl.DataFrame,
     timestamp: dt.datetime,
 ) -> None:
-    """Add time-varying fair/market_fair values to block_summary in place."""
+    """Add time-varying fair / var to block_summary in place."""
     ts_slice = block_var_df.filter(pl.col("timestamp") == timestamp)
     if ts_slice.height == 0:
         return
 
-    # Build lookup: block_name → {fair, market_fair, var}
     lookup: dict[str, dict[str, float]] = {}
     for row in ts_slice.iter_rows(named=True):
         lookup[row["block_name"]] = {
             "fair": row.get("fair", 0.0),
-            "market_fair": row.get("market_fair", 0.0),
             "var": row.get("var", 0.0),
         }
 

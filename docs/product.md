@@ -40,7 +40,7 @@ Fair Value is not a single number from a single source. It is synthesised from m
 
 Each stream is parameterised by how it maps into a common target space, how it distributes its impact through time, how it aggregates with other streams (blending into a consensus or stacking as an independent additive layer), and its confidence weight (how much the desk trusts this particular signal). The engine does not privilege any stream — the framework is agnostic to the source. What matters is the parameterisation.
 
-Each block carries its own market value (`market_value`) in the same raw units as `raw_value`. It goes through the identical unit conversion and temporal distribution as fair value. When `market_value` is not provided, it defaults to `raw_value` (edge = 0 for that block). Edge = fair minus market-implied, computed per-block then aggregated across all blocks and spaces.
+Market-implied value lives at the **space** level, not per block. One market value per `(symbol, expiry, space_id)` flows through the `market_value_inference` step, which produces a `market_fair(t)` curve shaped proportional to the space's own `fair(t)`. Edge is the difference `total_fair − total_market_fair` at the `(symbol, expiry)` aggregate. When no aggregate or per-space market value is set, the engine defaults `market_fair = fair` at every timestamp, producing zero edge by construction — the desk sees "no position" rather than "stale fallback position."
 
 ### Time
 
@@ -68,22 +68,16 @@ Each stream produces one or more **blocks** — the atomic unit of value contrib
 Each block distributes fair value across a time grid from now to expiry. The shape of this distribution is controlled by the block's parameters:
 
 - **Annualized vs. discrete** (`annualized`): Annualized streams spread their value proportionally over time-to-expiry — a 2% annualized vol view on a 6-month expiry contributes half as much total value as the same view on a 1-year expiry. Discrete (non-annualized) streams carry a fixed total value regardless of time-to-expiry — suitable for event-sized shocks.
-- **Fixed vs. relative** (`size_type`): Fixed streams contribute their target value directly. Relative streams contribute the difference between their target value and the market-implied value — they express a view relative to current market pricing.
 - **Static vs. shifting** (`temporal_position`): Static blocks are anchored to a specific start timestamp (e.g. when an event window opens). Shifting blocks roll forward with the current time — they always start at "now."
 - **Decay** (`decay_end_size_mult`, `decay_rate_prop_per_min`): A block can decay from its start size to a smaller end size over its lifetime. This models how short-term edges erode — the initial market reaction to a signal (start size) fades toward the longer-term fundamental change the signal implies (end size). A `decay_end_size_mult` of 1.0 means no decay; 0.0 means the signal decays to nothing.
 
 At each timestamp in the grid, the block's contribution to fair value is its annualized value at that point multiplied by the remaining time-to-expiry (in year-fractions). The annualized value interpolates linearly between the start and end values for annualized streams, or stays constant for discrete streams.
 
-Market-implied fair value is computed identically — same block shape, same temporal distribution — but using the market's current pricing as input instead of the stream's target value. This ensures fair value and market-implied are always in the same units and directly comparable.
-
 ### How Blocks Aggregate
 
-Within each space, blocks aggregate according to their `aggregation_logic`:
+Blocks sum — always, across every block within a `(symbol, expiry)` risk dimension. There is no `average` vs `offset` distinction: two uncorrelated signals with identical `(fair, var)` on the same space combine as `(2·fair, 2·var)`, which gives a combined Sharpe `2·fair / √(2·var) = √2 · fair/√var`, i.e. the textbook "√n improvement from N independent signals."
 
-- **Average**: blocks are averaged together. This is consensus — if three realized vol streams say 20%, 22%, and 21%, the space's fair contribution is their mean. This is how you blend multiple estimates of the same quantity.
-- **Offset**: blocks are summed. This is for independent additive layers — a funding rate signal stacks on top of a vol signal rather than averaging with it.
-
-Each space produces a `space_fair` (average component + offset component) and a `space_market_fair`. Edge per space is `space_fair - space_market_fair`. Total edge across all spaces is summed.
+Each `space_id` groups blocks that share a **market-implied reference**, not an aggregation rule. The `market_value_inference` step collapses blocks to per-space rows and attaches a `space.market_fair(t)` curve (zero by default; non-zero when the desk sets an aggregate `total_vol` or a per-space market view). The aggregation step then sums across spaces into `total_fair`, `total_market_fair`, and `edge = total_fair − total_market_fair` per `(symbol, expiry, timestamp)`.
 
 ### How Variance Is Computed
 
@@ -99,6 +93,6 @@ When the smoothed position is close to the raw position, it means the contributo
 
 ### The LLM Explanation Layer
 
-The engine produces numbers. The LLM layer produces understanding. It receives the full pipeline state — per-block contributions, aggregated edge and variance, raw and smoothed positions — and translates this into plain trading language. It follows a strict reasoning chain: (1) did edge or variance drive the change? (2) which specific stream? (3) what happened in that stream? (4) how did fair value and market-implied compare? (5) what is the directional effect on position?
+The engine produces numbers. The LLM layer produces understanding. It receives the full pipeline state — per-block contributions, aggregated edge and variance, raw and smoothed positions — and translates this into plain trading language. It follows a strict reasoning chain: (1) did edge or variance drive the change? (2) which specific stream? (3) what happened in that stream? (4) how did total fair value compare against the aggregate market-implied reference? (5) what is the directional effect on position?
 
 The LLM also handles the reverse path: a trader says "freeze BTC near-dated exposure" or "increase bankroll to 5M", and the system parses this into a structured engine command — but only after explicit confirmation. This closes the loop between automated computation and human judgment.

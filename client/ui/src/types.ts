@@ -15,8 +15,6 @@ export type RegisteredStreamStatus = "PENDING" | "READY";
 /** Block config as returned by the server API */
 export interface BlockConfigPayload {
   annualized: boolean;
-  size_type: "fixed" | "relative";
-  aggregation_logic: "average" | "offset";
   temporal_position: "static" | "shifting";
   decay_end_size_mult: number;
   decay_rate_prop_per_min: number;
@@ -203,7 +201,6 @@ export interface PendingBlockCommand {
 export interface StreamTimeseriesPoint {
   timestamp: string;
   raw_value: number;
-  market_value: number | null;
 }
 
 /** Time series for one unique key-column combination within a stream. */
@@ -318,11 +315,9 @@ export interface BlockTimeSeries {
   blockName: string;
   streamName: string;
   spaceId: string;
-  aggregationLogic: string;
   startTimestamp: string | null;
   timestamps: string[];
   fair: (number | null)[];
-  marketFair: (number | null)[];
   var: (number | null)[];
 }
 
@@ -346,7 +341,6 @@ export interface CurrentBlockDecomposition {
   spaceId: string;
   startTimestamp: string | null;
   fair: number;
-  marketFair: number;
   var: number;
 }
 
@@ -372,8 +366,6 @@ export interface BlockRow {
   source: "stream" | "manual";
   // Engine parameters
   annualized: boolean;
-  size_type: "fixed" | "relative";
-  aggregation_logic: "average" | "offset";
   temporal_position: "static" | "shifting";
   decay_end_size_mult: number;
   decay_rate_prop_per_min: number;
@@ -384,11 +376,7 @@ export interface BlockRow {
   // Output values
   target_value: number;
   raw_value: number;
-  market_value: number | null;
-  sent_market_value: number | null;
-  target_market_value: number | null;
   fair: number | null;
-  market_fair: number | null;
   var: number | null;
   // Timing
   start_timestamp: string | null;
@@ -456,7 +444,6 @@ export interface TransformListResponse {
 export interface SnapshotRow {
   timestamp: string;
   raw_value: number;
-  market_value?: number | null;
   // Extra key_cols permitted per stream config
   [key: string]: unknown;
 }

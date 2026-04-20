@@ -125,8 +125,6 @@ before `engine-command`):
     "exponent": <float>,
     "block": {
       "annualized": <bool>,
-      "size_type": "fixed",
-      "aggregation_logic": "<average|offset>",
       "temporal_position": "<static|shifting>",
       "decay_end_size_mult": <float>,
       "decay_rate_prop_per_min": <float>,
@@ -217,8 +215,6 @@ before `engine-command`):
     "exponent": <float>,
     "block": {
       "annualized": <bool>,
-      "size_type": "fixed",
-      "aggregation_logic": "<average|offset>",
       "temporal_position": "<static|shifting>",
       "decay_end_size_mult": <float>,
       "decay_rate_prop_per_min": <float>,
@@ -253,9 +249,9 @@ announcement? How quickly do you think the market will price in the \
 result — within 30 minutes, an hour, or longer?"
 > After confirmation → `create_manual_block` with: \
 scale = √(π/2)/100 ≈ 0.01253, exponent = 2, offset = 0, \
-annualized = false, aggregation_logic = "offset", \
-temporal_position = "static", decay_end_size_mult = 0.0, \
-decay_rate_prop_per_min = 0.03, start_timestamp = FOMC time.
+annualized = false, temporal_position = "static", \
+decay_end_size_mult = 0.0, decay_rate_prop_per_min = 0.03, \
+start_timestamp = FOMC time.
 
 **Base vol:**
 > Trader: "I think vols will get bid to 50"
@@ -264,8 +260,8 @@ We'll end with a `create_manual_block` command. Which symbol and \
 expiry? [presents available from engine state]"
 > After confirmation → `create_manual_block` with: scale = 0.01, \
 exponent = 2, offset = 0, annualized = true, \
-aggregation_logic = "average", temporal_position = "shifting", \
-decay_end_size_mult = 1.0, decay_rate_prop_per_min = 0.0.
+temporal_position = "shifting", decay_end_size_mult = 1.0, \
+decay_rate_prop_per_min = 0.0.
 
 ---
 

@@ -15,7 +15,6 @@ export type SectionId =
   | "data_shape"
   | "target_mapping"
   | "block_shape"
-  | "aggregation"
   | "confidence"
   | "preview";
 
@@ -40,14 +39,9 @@ export interface TargetMappingDraft {
 
 export interface BlockShapeDraft {
   annualized: boolean;
-  size_type: "fixed" | "relative";
   temporal_position: "static" | "shifting";
   decay_end_size_mult: number;
   decay_rate_prop_per_min: number;
-}
-
-export interface AggregationDraft {
-  aggregation_logic: "average" | "offset";
 }
 
 export interface ConfidenceDraft {
@@ -59,7 +53,6 @@ export interface StreamDraft {
   data_shape: DataShapeDraft;
   target_mapping: TargetMappingDraft;
   block_shape: BlockShapeDraft;
-  aggregation: AggregationDraft;
   confidence: ConfidenceDraft;
 }
 
@@ -128,12 +121,10 @@ export const EMPTY_DRAFT: StreamDraft = {
   target_mapping: { scale: 1.0, offset: 0.0, exponent: 1.0 },
   block_shape: {
     annualized: true,
-    size_type: "fixed",
     temporal_position: "shifting",
     decay_end_size_mult: 1.0,
     decay_rate_prop_per_min: 0.0,
   },
-  aggregation: { aggregation_logic: "average" },
   confidence: { var_fair_ratio: 1.0 },
 };
 
@@ -176,14 +167,8 @@ export function validateBlockShape(d: BlockShapeDraft): SectionState {
     return { status: "draft", message: "Decay end size must be ≥ 0" };
   if (d.decay_rate_prop_per_min < 0)
     return { status: "draft", message: "Decay rate must be ≥ 0" };
-  if (d.size_type === "relative" && !d.annualized)
-    return { status: "draft", message: "Relative sizing requires annualized" };
   if (d.decay_end_size_mult !== 0 && !d.annualized)
     return { status: "draft", message: "Decay end size is only applicable for annualized streams" };
-  return { status: "valid" };
-}
-
-export function validateAggregation(_d: AggregationDraft): SectionState {
   return { status: "valid" };
 }
 
@@ -199,7 +184,6 @@ export function validateAll(draft: StreamDraft): Record<SectionId, SectionState>
     data_shape: validateDataShape(draft.data_shape),
     target_mapping: validateTargetMapping(draft.target_mapping),
     block_shape: validateBlockShape(draft.block_shape),
-    aggregation: validateAggregation(draft.aggregation),
     confidence: validateConfidence(draft.confidence),
     preview: { status: "valid" },
   };
@@ -211,7 +195,6 @@ export function isAllValid(states: Record<SectionId, SectionState>): boolean {
     states.data_shape.status === "valid" &&
     states.target_mapping.status === "valid" &&
     states.block_shape.status === "valid" &&
-    states.aggregation.status === "valid" &&
     states.confidence.status === "valid"
   );
 }

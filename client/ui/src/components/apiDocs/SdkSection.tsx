@@ -33,7 +33,7 @@ async def main():
         await client.configure_stream(
             "rv_btc",
             scale=1.0,
-            block=BlockConfig(aggregation_logic="average", annualized=True),
+            block=BlockConfig(annualized=True),
         )
         await client.set_bankroll(1_000_000)
 
@@ -91,7 +91,7 @@ block = await client.create_manual_block(
             expiry="2026-06-27T00:00:00Z",
         ),
     ],
-    block=BlockConfig(temporal_position="static", aggregation_logic="offset"),
+    block=BlockConfig(temporal_position="static"),
 )
 print(block.block_name, block.space_id)`}</CodeBlock>
         <p className="mt-2">
