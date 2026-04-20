@@ -63,6 +63,9 @@ export interface ConfigureStreamRequest {
   offset: number;
   exponent: number;
   block: BlockConfigPayload;
+  description?: string | null;
+  sample_csv?: string | null;
+  value_column?: string | null;
 }
 
 /**

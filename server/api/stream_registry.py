@@ -86,6 +86,14 @@ class StreamRegistration:
     # Optional space_id override (bypasses auto-computation from temporal_position)
     space_id_override: str | None = None
 
+    # Authoring metadata — not used by the pipeline. Persisted so the Stream
+    # Canvas form can re-hydrate the exact draft the user last activated
+    # (description text, the raw pasted sample CSV, and which column held the
+    # raw value).
+    description: str | None = None
+    sample_csv: str | None = None
+    value_column: str | None = None
+
     @property
     def status(self) -> str:
         if self.scale is None or self.block is None:
@@ -257,6 +265,9 @@ class StreamRegistry:
         offset: float,
         exponent: float,
         block: BlockConfig,
+        description: str | None = None,
+        sample_csv: str | None = None,
+        value_column: str | None = None,
     ) -> StreamRegistration:
         """Admin sets the pipeline-facing parameters → moves stream to READY."""
         with self._lock:
@@ -267,6 +278,9 @@ class StreamRegistry:
             reg.offset = offset
             reg.exponent = exponent
             reg.block = block
+            reg.description = description
+            reg.sample_csv = sample_csv
+            reg.value_column = value_column
             log.info("Stream '%s' configured (status=%s)", stream_name, reg.status)
             return reg
 

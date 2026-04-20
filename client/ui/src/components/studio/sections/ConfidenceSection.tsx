@@ -9,36 +9,23 @@ interface Props {
   state: SectionState;
 }
 
+const SLIDER_MIN = 0.01;
+const SLIDER_MAX = 1.0;
+const SLIDER_STEP = 0.01;
+
 const ANCHORS = [
-  { value: 0.1, label: "Extremely confident" },
-  { value: 1.0, label: "Baseline" },
-  { value: 10.0, label: "Speculative" },
+  { value: SLIDER_MIN, label: "Confident" },
+  { value: SLIDER_MAX, label: "Speculative" },
 ];
 
-const SLIDER_MIN = 0.1;
-const SLIDER_MAX = 10;
-const LOG_MIN = Math.log(SLIDER_MIN);
-const LOG_MAX = Math.log(SLIDER_MAX);
-
 // Tolerance for highlighting an anchor label as "active" — relative to the
-// anchor value, since absolute tolerance doesn't scale across 0.1 → 10.
-const ANCHOR_MATCH_RELATIVE = 0.02;
+// slider range so it scales if the bounds ever change.
+const ANCHOR_MATCH_ABS = SLIDER_STEP / 2;
 
-/**
- * Log scale so the baseline (1.0) sits exactly at the midpoint between
- * 0.1 and 10 — each step is a 10× factor, matching how the architect
- * perceives confidence (multiplicative, not additive).
- */
-function logPct(v: number): number {
-  if (!Number.isFinite(v) || v <= 0) return 0;
+function linearPct(v: number): number {
+  if (!Number.isFinite(v)) return 0;
   const clamped = Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, v));
-  return ((Math.log(clamped) - LOG_MIN) / (LOG_MAX - LOG_MIN)) * 100;
-}
-
-/** Slider's raw input value — Math.log(var_fair_ratio), clamped to display range. */
-function toSliderRaw(v: number): number {
-  if (!Number.isFinite(v) || v <= 0) return LOG_MIN;
-  return Math.log(Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, v)));
+  return ((clamped - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)) * 100;
 }
 
 /**
@@ -82,28 +69,27 @@ export function ConfidenceSection({ value, onChange, state }: Props) {
       <div className="grid gap-3">
         {/* The anchor labels are positioned absolutely at the slider's
             proportional value position so they line up with the track
-            regardless of label text width. A small gutter at each end
-            (±6%) keeps the first/last label from clipping past the track. */}
+            regardless of label text width. */}
         <div className="relative pb-12">
           <input
             type="range"
-            min={LOG_MIN}
-            max={LOG_MAX}
-            step={0.001}
-            value={toSliderRaw(value.var_fair_ratio)}
+            min={SLIDER_MIN}
+            max={SLIDER_MAX}
+            step={SLIDER_STEP}
+            value={Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, value.var_fair_ratio))}
             onChange={(e) => {
               const raw = parseFloat(e.target.value);
-              // Round to 3 significant figures so typed values don't end
-              // up like 1.0000000000000002 after log → exp → log roundtrips.
-              const next = Number.parseFloat(Math.exp(raw).toPrecision(3));
+              // Round to 2dp to match the step resolution so floating-point
+              // noise doesn't leak values like 0.30000000000000004.
+              const next = Math.round(raw * 100) / 100;
               onChange({ var_fair_ratio: next });
             }}
             className="w-full accent-mm-accent"
           />
           <div className="pointer-events-none absolute inset-x-0 top-4 h-10">
             {ANCHORS.map((a) => {
-              const pct = logPct(a.value);
-              const active = Math.abs(value.var_fair_ratio - a.value) < a.value * ANCHOR_MATCH_RELATIVE;
+              const pct = linearPct(a.value);
+              const active = Math.abs(value.var_fair_ratio - a.value) < ANCHOR_MATCH_ABS;
               // First/last anchor hug the edges so their text doesn't
               // extend past the track.
               const isFirst = a === ANCHORS[0];
@@ -124,7 +110,7 @@ export function ConfidenceSection({ value, onChange, state }: Props) {
                     active ? "text-mm-accent" : "text-mm-text-dim"
                   }`}
                 >
-                  <div className="tabular-nums text-[10px]">{a.value.toFixed(1)}</div>
+                  <div className="tabular-nums text-[10px]">{a.value.toFixed(2)}</div>
                   <div className="whitespace-nowrap text-[9px]">{a.label}</div>
                 </button>
               );
@@ -134,7 +120,7 @@ export function ConfidenceSection({ value, onChange, state }: Props) {
 
         <div className="flex items-baseline justify-between rounded-md border border-black/[0.06] bg-black/[0.03] px-3 py-2 text-[10px]">
           <span className="text-mm-text-dim">Current var_fair_ratio</span>
-          <span className="font-mono text-mm-text">{value.var_fair_ratio.toFixed(3)}</span>
+          <span className="font-mono text-mm-text">{value.var_fair_ratio.toFixed(2)}</span>
         </div>
         <div className="flex items-baseline justify-between rounded-md border border-black/[0.06] bg-black/[0.03] px-3 py-2 text-[10px]">
           <span className="text-mm-text-dim">Implied position multiplier</span>

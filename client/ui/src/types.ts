@@ -31,6 +31,9 @@ export interface RegisteredStream {
   offset: number | null;
   exponent: number | null;
   block: BlockConfigPayload | null;
+  description: string | null;
+  sample_csv: string | null;
+  value_column: string | null;
 }
 
 /** Global context bar state */
@@ -332,6 +335,9 @@ export interface AggregatedTimeSeries {
   smoothedVar: number[];
   rawDesiredPosition: number[];
   smoothedDesiredPosition: number[];
+  /** User-entered aggregate market vol (vol points). Step-function over time,
+   *  constant across a projection window — mirrors the grid's Market tab. */
+  marketVol: number[];
 }
 
 /** Current decomposition snapshot for the latest timestamp */

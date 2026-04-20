@@ -5,7 +5,7 @@ import { useFocus } from "../../providers/FocusProvider";
 import { useWebSocket } from "../../providers/WebSocketProvider";
 import { usePipelineTimeSeries } from "../../hooks/usePipelineTimeSeries";
 import { formatExpiry } from "../../utils";
-import type { PipelineView } from "../PipelineChart/chartOptions";
+import { isHistoricalPipelineView, type PipelineView } from "../PipelineChart/chartOptions";
 import type { ViewMode } from "../../types";
 import {
   POSITION_LOOKBACK_OPTIONS,
@@ -16,13 +16,15 @@ import {
 
 const VIEW_TABS: TabItem<PipelineView>[] = [
   { value: "position", label: "Desired" },
+  { value: "edge", label: "Edge" },
+  { value: "market", label: "Market" },
   { value: "fair", label: "Fair" },
   { value: "variance", label: "Variance" },
 ];
 
 /** Map a position-grid view mode to the matching pipeline view. Several grid
- *  modes resolve to the same pipeline view. Market grid modes fall back to
- *  the fair view since market-implied value is no longer a per-block series. */
+ *  modes resolve to the same pipeline view (e.g. ``rawPosition`` and
+ *  ``change`` both share the Position historical line). */
 function gridToPipelineView(grid: ViewMode): PipelineView {
   switch (grid) {
     case "position":
@@ -31,10 +33,12 @@ function gridToPipelineView(grid: ViewMode): PipelineView {
       return "position";
     case "edge":
     case "smoothedEdge":
-    case "fair":
-    case "totalFair":
+      return "edge";
     case "market":
     case "totalMarketFair":
+      return "market";
+    case "fair":
+    case "totalFair":
       return "fair";
     case "variance":
     case "smoothedVar":
@@ -44,12 +48,13 @@ function gridToPipelineView(grid: ViewMode): PipelineView {
 
 /** Canonical grid-view choice for each pipeline view, used when the user
  *  changes the pipeline tab while linked is on (the change should propagate
- *  back to the grid). Mapping is intentionally lossy — pipeline "fair" maps
- *  to "edge" because that's the tab traders look at most often. */
+ *  back to the grid). */
 function pipelineToGridView(view: PipelineView): ViewMode {
   switch (view) {
     case "position": return "position";
-    case "fair": return "edge";
+    case "edge": return "edge";
+    case "market": return "market";
+    case "fair": return "fair";
     case "variance": return "variance";
   }
 }
@@ -127,10 +132,10 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
     return null;
   }, [focus, payload]);
 
-  // Only send a lookback param in Position view — Fair/Variance are
-  // forward-looking decay curves, not historical series.
+  // Lookback only applies to historical views (Position / Edge / Market) —
+  // Fair / Variance are forward-looking decay curves, not historical series.
   const lookbackSeconds = useMemo<number | null>(() => {
-    if (effectiveView !== "position") return null;
+    if (!isHistoricalPipelineView(effectiveView)) return null;
     const opt = POSITION_LOOKBACK_OPTIONS.find((o) => o.label === lookbackLabel);
     return opt?.seconds ?? null;
   }, [effectiveView, lookbackLabel]);
@@ -189,7 +194,7 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
           />
           <span>Link grid</span>
         </label>
-        {effectiveView === "position" && (
+        {isHistoricalPipelineView(effectiveView) && (
           <Tabs
             items={lookbackTabs}
             value={lookbackLabel}

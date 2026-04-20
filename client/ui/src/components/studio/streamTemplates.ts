@@ -42,7 +42,7 @@ export const STREAM_TEMPLATES: StreamTemplate[] = [
         decay_end_size_mult: 1.0,
         decay_rate_prop_per_min: 0.0,
       },
-      confidence: { var_fair_ratio: 1.0 },
+      confidence: { var_fair_ratio: 0.2 },
     },
   },
   {
@@ -70,7 +70,7 @@ export const STREAM_TEMPLATES: StreamTemplate[] = [
         decay_end_size_mult: 0.0,
         decay_rate_prop_per_min: 0.008,
       },
-      confidence: { var_fair_ratio: 2.0 },
+      confidence: { var_fair_ratio: 0.3 },
     },
   },
   {
@@ -98,7 +98,7 @@ export const STREAM_TEMPLATES: StreamTemplate[] = [
         decay_end_size_mult: 1.0,
         decay_rate_prop_per_min: 0.0,
       },
-      confidence: { var_fair_ratio: 5.0 },
+      confidence: { var_fair_ratio: 0.6 },
     },
   },
   {
@@ -126,7 +126,7 @@ export const STREAM_TEMPLATES: StreamTemplate[] = [
         decay_end_size_mult: 1.0,
         decay_rate_prop_per_min: 0.001,
       },
-      confidence: { var_fair_ratio: 8.0 },
+      confidence: { var_fair_ratio: 0.8 },
     },
   },
   {
@@ -154,7 +154,7 @@ export const STREAM_TEMPLATES: StreamTemplate[] = [
         decay_end_size_mult: 0.5,
         decay_rate_prop_per_min: 0.0005,
       },
-      confidence: { var_fair_ratio: 4.0 },
+      confidence: { var_fair_ratio: 0.5 },
     },
   },
 ];

@@ -125,7 +125,7 @@ export const EMPTY_DRAFT: StreamDraft = {
     decay_end_size_mult: 1.0,
     decay_rate_prop_per_min: 0.0,
   },
-  confidence: { var_fair_ratio: 1.0 },
+  confidence: { var_fair_ratio: 0.2 },
 };
 
 // ---------------------------------------------------------------------------
@@ -173,8 +173,8 @@ export function validateBlockShape(d: BlockShapeDraft): SectionState {
 }
 
 export function validateConfidence(d: ConfidenceDraft): SectionState {
-  if (!Number.isFinite(d.var_fair_ratio) || d.var_fair_ratio <= 0)
-    return { status: "draft", message: "Confidence must be > 0" };
+  if (!Number.isFinite(d.var_fair_ratio) || d.var_fair_ratio < 0.01 || d.var_fair_ratio > 1)
+    return { status: "draft", message: "Confidence must be between 0.01 and 1" };
   return { status: "valid" };
 }
 

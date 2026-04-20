@@ -18,6 +18,7 @@ from server.api.engine_state import (
     get_pipeline_results,
     get_position_history,
 )
+from server.api.expiry import canonical_expiry_key
 from server.api.market_value_store import to_dict as mv_to_dict
 from server.api.models import (
     PipelineDimensionsResponse,
@@ -26,6 +27,10 @@ from server.api.models import (
 )
 from server.api.stream_registry import parse_datetime_tolerant
 from server.api.ws import get_current_tick_ts, get_latest_payload
+
+# Decimal → vol points. Same value as ``VOL_POINTS_SCALE`` in the WS
+# serializer; kept local so this router doesn't drag in tick-time helpers.
+_VOL_POINTS_SCALE: float = 100.0
 
 log = logging.getLogger(__name__)
 
@@ -164,6 +169,13 @@ def _pipeline_timeseries_sync(
 
     pos_sorted = pos_filtered.sort("timestamp")
 
+    # Current user-entered aggregate market vol, scaled to vol points. The
+    # history buffer stores per-tick snapshots; the projection path has no
+    # historical signal so it broadcasts the live value across the window.
+    mv_store = mv_to_dict(user_id)
+    mv_key = (symbol, canonical_expiry_key(expiry_dt))
+    current_market_vol_vp = mv_store.get(mv_key, 0.0) * _VOL_POINTS_SCALE
+
     if lookback_seconds is not None and lookback_seconds > 0:
         # Position view wants a true historical window. `desired_pos_df` is
         # a forward projection wiped at every rerun, so for anything beyond
@@ -184,6 +196,7 @@ def _pipeline_timeseries_sync(
             "smoothedVar": [p.smoothed_var for p in history],
             "rawDesiredPosition": [p.raw_desired_position for p in history],
             "smoothedDesiredPosition": [p.smoothed_desired_position for p in history],
+            "marketVol": [p.market_vol for p in history],
         }
     else:
         timestamps = [t.isoformat() for t in pos_sorted["timestamp"].to_list()]
@@ -197,6 +210,7 @@ def _pipeline_timeseries_sync(
             "smoothedVar": pos_sorted["smoothed_var"].to_list(),
             "rawDesiredPosition": pos_sorted["raw_desired_position"].to_list(),
             "smoothedDesiredPosition": pos_sorted["smoothed_desired_position"].to_list(),
+            "marketVol": [current_market_vol_vp] * len(timestamps),
         }
 
     current_blocks = []
