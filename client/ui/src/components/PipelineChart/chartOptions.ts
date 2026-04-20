@@ -336,6 +336,11 @@ export function buildPipelineSingleViewOptions(
     yAxis: {
       type: "value",
       name: yAxisName,
+      // Position is a line view whose data range (e.g. -12k..-10k) lives
+      // far from 0; forcing 0 into the axis flattens the line against the
+      // top edge. Fair/Variance are stacked areas filled from y=0, so the
+      // zero baseline must stay.
+      scale: isPositionView,
       nameTextStyle: { color: "#6e6e82", fontSize: 10, padding: [0, 0, 0, -10] },
       axisLabel: { color: "#6e6e82", fontSize: 10, formatter: yAxisFormatter },
       splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
