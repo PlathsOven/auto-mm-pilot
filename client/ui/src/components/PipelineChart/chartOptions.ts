@@ -1,5 +1,6 @@
 import type { EChartsOption } from "echarts";
 import type {
+  BlockTimeSeries,
   PipelineTimeSeriesResponse,
 } from "../../types";
 
@@ -69,44 +70,69 @@ export function sci(v: number): string {
  *  so the two surfaces can stay in sync. */
 export type PipelineView = "position" | "fair" | "variance";
 
-// Axis type locked to "category" because the stacked fair/variance series
-// rely on ECharts' `stack:` feature. See xAxis comment + assertion in the
-// option builder.
-const STACK_SAFE_XAXIS_TYPE = "category" as const;
-
-/** Parse a naive-UTC ISO timestamp. The server emits naive UTC; JS would
- *  otherwise interpret naive ISO as local time on some browsers, shifting
- *  the axis labels by the user's UTC offset. */
-function parseIsoUtc(iso: string): Date | null {
+/** Parse a naive-UTC ISO timestamp to epoch milliseconds. The server emits
+ *  naive UTC; JS would otherwise interpret naive ISO as local time on some
+ *  browsers, shifting the axis by the user's UTC offset. */
+function parseIsoUtcMs(iso: string): number | null {
   if (!iso) return null;
   const normalised = /Z|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`;
-  const d = new Date(normalised);
-  return Number.isNaN(d.getTime()) ? null : d;
+  const t = new Date(normalised).getTime();
+  return Number.isNaN(t) ? null : t;
 }
 
-const pad2 = (n: number): string => String(n).padStart(2, "0");
+/** Zip a timestamp column with a values column into ECharts pair-form data
+ *  for a time-axis series. Drops entries whose timestamp fails to parse;
+ *  preserves `null` values so the line breaks where the source data gaps. */
+function zipPairs(
+  timestamps: string[],
+  values: (number | null)[],
+): ([number, number | null])[] {
+  const out: ([number, number | null])[] = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const t = parseIsoUtcMs(timestamps[i]);
+    if (t == null) continue;
+    out.push([t, values[i] ?? null]);
+  }
+  return out;
+}
 
-/** Build a category-axis label formatter that renders `MM/DD\nHH:MM` at
- *  the first tick and whenever the local date changes between adjacent
- *  timestamps, and just `HH:MM` elsewhere. Tick density is handled by
- *  ECharts' `hideOverlap: true` — this only shapes what each rendered
- *  tick reads. Labels render in the user's local timezone (same
- *  convention as the old HH:MM-only formatter). */
-function makeAxisLabelFormatter(timestamps: string[]) {
-  return (value: string, index: number): string => {
-    const d = parseIsoUtc(value);
-    if (!d) return value;
-    const time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-    const date = `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
-    if (index === 0) return `${date}\n${time}`;
-    const prev = parseIsoUtc(timestamps[index - 1]);
-    if (!prev) return `${date}\n${time}`;
-    const dayChanged =
-      prev.getFullYear() !== d.getFullYear()
-      || prev.getMonth() !== d.getMonth()
-      || prev.getDate() !== d.getDate();
-    return dayChanged ? `${date}\n${time}` : time;
-  };
+/** Build cumulative-stack pair data for the Fair / Variance views.
+ *
+ *  ECharts' native `stack:` feature requires a category axis — using it on
+ *  a time axis with nullable series throws inside the internal stacker and
+ *  unmounts the chart (lesson logged 2026-04-17). To keep the stacked
+ *  visual on a true time axis, we compute running sums across blocks at
+ *  each shared timestamp ourselves: block i's datum at time t is the sum
+ *  of all preceding blocks' contributions plus its own. A `null`
+ *  contribution adds 0 to the running total and leaves that block's point
+ *  null (so the area at that timestamp collapses to the layer below).
+ *
+ *  Each series is then rendered as an area from y=0 to its cumulative
+ *  value — higher-index series overdraw lower ones, reproducing the
+ *  stacked appearance. */
+function buildCumulativeStack(
+  blocks: BlockTimeSeries[],
+  timestamps: string[],
+  field: "fair" | "var",
+): ([number, number | null])[][] {
+  const running: number[] = new Array(timestamps.length).fill(0);
+  const parsedTs: (number | null)[] = timestamps.map(parseIsoUtcMs);
+  return blocks.map((block) => {
+    const values = block[field];
+    const series: ([number, number | null])[] = [];
+    for (let ti = 0; ti < timestamps.length; ti++) {
+      const t = parsedTs[ti];
+      if (t == null) continue;
+      const v = values[ti];
+      if (v == null) {
+        series.push([t, null]);
+      } else {
+        running[ti] += v;
+        series.push([t, running[ti]]);
+      }
+    }
+    return series;
+  });
 }
 
 /**
@@ -144,7 +170,7 @@ export function buildPipelineSingleViewOptions(
       {
         name: "Raw",
         type: "line",
-        data: aggregated.rawDesiredPosition,
+        data: zipPairs(axisTimestamps, aggregated.rawDesiredPosition),
         showSymbol: false,
         lineStyle: { width: 1, color: RAW_COLOR },
         itemStyle: { color: RAW_COLOR },
@@ -153,47 +179,25 @@ export function buildPipelineSingleViewOptions(
       {
         name: "Smoothed",
         type: "line",
-        data: aggregated.smoothedDesiredPosition,
+        data: zipPairs(axisTimestamps, aggregated.smoothedDesiredPosition),
         showSymbol: false,
         lineStyle: { width: 2, color: SMOOTHED_COLOR },
         itemStyle: { color: SMOOTHED_COLOR },
         z: 2,
       },
     );
-  } else if (view === "fair") {
-    yAxisName = "Fair Value";
-    yAxisFormatter = sci;
-    blocks.forEach((b, i) => {
-      const dimmed = hasSelection && !selectedBlocks.has(b.blockName);
-      series.push({
-        name: `${b.blockName} (fair)`,
-        type: "line",
-        data: b.fair,
-        showSymbol: false,
-        stack: "fair",
-        connectNulls: false,
-        areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
-        lineStyle: {
-          width: dimmed ? 0.3 : 0,
-          color: BLOCK_COLORS[i % BLOCK_COLORS.length],
-          opacity: dimmed ? 0.3 : 1,
-        },
-        itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
-        emphasis: { focus: "series" },
-      });
-    });
   } else {
-    // variance
-    yAxisName = "Variance";
+    const field: "fair" | "var" = view === "fair" ? "fair" : "var";
+    yAxisName = view === "fair" ? "Fair Value" : "Variance";
     yAxisFormatter = sci;
+    const cumulative = buildCumulativeStack(blocks, axisTimestamps, field);
     blocks.forEach((b, i) => {
       const dimmed = hasSelection && !selectedBlocks.has(b.blockName);
       series.push({
-        name: `${b.blockName} (var)`,
+        name: `${b.blockName} (${field})`,
         type: "line",
-        data: b.var,
+        data: cumulative[i],
         showSymbol: false,
-        stack: "var",
         connectNulls: false,
         areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
         lineStyle: {
@@ -203,6 +207,9 @@ export function buildPipelineSingleViewOptions(
         },
         itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
         emphasis: { focus: "series" },
+        // Lower-index blocks sit "below" the stack; higher z puts the top
+        // bands on top so the cascaded fills reproduce the stacked look.
+        z: i,
       });
     });
   }
@@ -234,21 +241,17 @@ export function buildPipelineSingleViewOptions(
     // + a two-line axis label (~22px) — single-line labels used 36px.
     grid: { left: 56, right: 16, top: 12, bottom: 48 },
     xAxis: {
-      // Invariant (asserted below): ECharts' `stack:` feature only works
-      // on a category axis. Time-axis with stacked nullable series throws
-      // inside the internal stacker and — with no ErrorBoundary above the
-      // chart — unmounts the whole workbench (the "blank screen on Fair"
-      // bug). If you change this, the assertion at the end of the builder
-      // fires.
-      type: STACK_SAFE_XAXIS_TYPE,
-      data: axisTimestamps,
-      boundaryGap: false,
+      // Time axis — ticks land at their true timestamp, so irregular
+      // snapshot intervals show as visible gaps. Fair / Variance views
+      // reproduce the stacked visual via manual cumulative sums (see
+      // buildCumulativeStack) because ECharts' native `stack:` feature
+      // only works on a category axis.
+      type: "time",
       axisLabel: {
         color: "#6e6e82",
         fontSize: 9,
         hideOverlap: true,
         lineHeight: 11,
-        formatter: makeAxisLabelFormatter(axisTimestamps),
       },
       axisTick: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
       axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
@@ -257,6 +260,11 @@ export function buildPipelineSingleViewOptions(
     yAxis: {
       type: "value",
       name: yAxisName,
+      // Position is a line view where the data range (e.g. -12k..-10k) is
+      // far from 0; forcing 0 into the axis flattens the line against the
+      // top edge. Fair/Variance are stacked areas filled from y=0, so the
+      // zero baseline must remain.
+      scale: isPositionView,
       nameTextStyle: { color: "#6e6e82", fontSize: 10, padding: [0, 0, 0, -10] },
       axisLabel: { color: "#6e6e82", fontSize: 10, formatter: yAxisFormatter },
       splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
