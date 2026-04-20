@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRegisteredStreams } from "../../hooks/useRegisteredStreams";
 import { IdentitySection } from "./sections/IdentitySection";
 import { DataShapeSection } from "./sections/DataShapeSection";
@@ -60,17 +60,18 @@ export function StreamCanvas({ streamName, templateId, prefill, onActivated }: P
   const [activating, setActivating] = useState(false);
   const [activationResult, setActivationResult] = useState<ActivationResult | null>(null);
 
-  // Sync stream name draft → registry status
+  // Hydrate the full draft from the registry the first time a registered
+  // stream resolves. After that, the useState draft is authoritative —
+  // re-hydrating on every registry poll would clobber in-flight edits.
+  const hydratedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!streamName) return;
     const existing = registry.find((s) => s.stream_name === streamName);
-    if (existing) {
-      setPendingStreamName(existing.stream_name);
-      setDraft((prev) => ({
-        ...prev,
-        identity: { ...prev.identity, stream_name: existing.stream_name, key_cols: existing.key_cols },
-      }));
-    }
+    if (!existing) return;
+    if (hydratedFor.current === existing.stream_name) return;
+    hydratedFor.current = existing.stream_name;
+    setPendingStreamName(existing.stream_name);
+    setDraft((prev) => hydrateDraftFromRegistry(prev, existing));
   }, [streamName, registry]);
 
   const states = useMemo(() => validateAll(draft), [draft]);
@@ -132,6 +133,9 @@ export function StreamCanvas({ streamName, templateId, prefill, onActivated }: P
           decay_profile: "linear",
           var_fair_ratio: draft.confidence.var_fair_ratio,
         },
+        description: draft.identity.description || null,
+        sample_csv: draft.data_shape.sample_csv || null,
+        value_column: draft.data_shape.value_column || null,
       });
 
       const csvRows = parseCsvToRows(draft.data_shape.sample_csv);
@@ -219,6 +223,45 @@ export function StreamCanvas({ streamName, templateId, prefill, onActivated }: P
       </div>
     </div>
   );
+}
+
+/**
+ * Merge a `RegisteredStream` from the server back into the draft shape so
+ * the form re-opens with the exact values last activated. `prev` wins for
+ * any field the registry doesn't persist (nothing today, but keeps the
+ * merge safe against future section additions).
+ */
+function hydrateDraftFromRegistry(prev: StreamDraft, s: RegisteredStream): StreamDraft {
+  return {
+    ...prev,
+    identity: {
+      ...prev.identity,
+      stream_name: s.stream_name,
+      key_cols: s.key_cols,
+      description: s.description ?? prev.identity.description,
+    },
+    data_shape: {
+      ...prev.data_shape,
+      sample_csv: s.sample_csv ?? prev.data_shape.sample_csv,
+      value_column: s.value_column ?? prev.data_shape.value_column,
+    },
+    target_mapping: {
+      scale: s.scale ?? prev.target_mapping.scale,
+      offset: s.offset ?? prev.target_mapping.offset,
+      exponent: s.exponent ?? prev.target_mapping.exponent,
+    },
+    block_shape: s.block
+      ? {
+          annualized: s.block.annualized,
+          temporal_position: s.block.temporal_position,
+          decay_end_size_mult: s.block.decay_end_size_mult,
+          decay_rate_prop_per_min: s.block.decay_rate_prop_per_min,
+        }
+      : prev.block_shape,
+    confidence: s.block
+      ? { var_fair_ratio: s.block.var_fair_ratio }
+      : prev.confidence,
+  };
 }
 
 function initialDraft(

@@ -34,10 +34,22 @@ from server.api.expiry import canonical_expiry_key as _expiry_key
 # even on a busy account; older entries fall off the deque first.
 POSITION_HISTORY_MAX_ENTRIES: int = 4096
 
+# Decimal → vol points multiplier. Mirrors ``VOL_POINTS_SCALE`` in
+# ``ws_serializers.py``; kept local so the history module doesn't pull in
+# the serializer's other tick-time concerns.
+_VOL_POINTS_SCALE: float = 100.0
+
 
 @dataclass(frozen=True)
 class PositionHistoryPoint:
-    """A single (symbol, expiry) snapshot captured at `timestamp`."""
+    """A single (symbol, expiry) snapshot captured at `timestamp`.
+
+    ``market_vol`` is the user-entered aggregate market vol at push time,
+    already scaled to vol points (decimal × 100) so it matches the
+    ``marketVol`` field the WS ticker emits and the grid's Market tab
+    renders. The pipeline itself doesn't read this — it's captured here so
+    the Pipeline chart's Market view has a historical line.
+    """
 
     timestamp: datetime
     raw_desired_position: float
@@ -48,6 +60,7 @@ class PositionHistoryPoint:
     smoothed_var: float
     total_fair: float
     total_market_fair: float
+    market_vol: float
 
 
 class PositionHistoryBuffer:
@@ -63,12 +76,23 @@ class PositionHistoryBuffer:
         self._by_dim: dict[tuple[str, str], deque[PositionHistoryPoint]] = {}
         self._lock = threading.Lock()
 
-    def push_rows(self, rows: Iterable[dict], timestamp: datetime) -> None:
+    def push_rows(
+        self,
+        rows: Iterable[dict],
+        timestamp: datetime,
+        market_values: dict[tuple[str, str], float] | None = None,
+    ) -> None:
         """Append one point per row to its (symbol, expiry) deque.
 
         `rows` comes from `desired_pos_df` filtered to the current tick; each
         dict must carry the columns referenced in `PositionHistoryPoint`.
+
+        `market_values` maps ``(symbol, canonical_expiry_key)`` → raw
+        decimal aggregate vol (the per-user store's native units). Each
+        looked-up value is scaled ×100 at store time so the history reads
+        back in vol points.
         """
+        mv = market_values or {}
         with self._lock:
             for r in rows:
                 key = (str(r["symbol"]), _expiry_key(r["expiry"]))
@@ -86,6 +110,7 @@ class PositionHistoryBuffer:
                     smoothed_var=_f(r.get("smoothed_var")),
                     total_fair=_f(r.get("total_fair")),
                     total_market_fair=_f(r.get("total_market_fair")),
+                    market_vol=_f(mv.get(key, 0.0)) * _VOL_POINTS_SCALE,
                 ))
 
     def get_range(

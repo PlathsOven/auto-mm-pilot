@@ -111,6 +111,11 @@ class AdminConfigureStreamRequest(BaseModel):
     offset: float = Field(0.0, description="Additive offset for raw → target conversion")
     exponent: float = Field(1.0, description="Power exponent for raw → target conversion")
     block: BlockConfigPayload = Field(default_factory=BlockConfigPayload)
+    # Authoring-only fields — not consumed by the pipeline, stored so the
+    # Stream Canvas can re-hydrate the exact draft the user last activated.
+    description: str | None = None
+    sample_csv: str | None = None
+    value_column: str | None = None
 
 
 class StreamResponse(BaseModel):
@@ -122,6 +127,9 @@ class StreamResponse(BaseModel):
     offset: float | None = None
     exponent: float | None = None
     block: BlockConfigPayload | None = None
+    description: str | None = None
+    sample_csv: str | None = None
+    value_column: str | None = None
 
 
 class StreamListResponse(BaseModel):
@@ -143,6 +151,9 @@ class StreamStateResponse(BaseModel):
     offset: float | None = None
     exponent: float | None = None
     block: BlockConfigPayload | None = None
+    description: str | None = None
+    sample_csv: str | None = None
+    value_column: str | None = None
     row_count: int
     last_ingest_ts: str | None = None
 
@@ -617,7 +628,13 @@ class BlockTimeSeries(_WireModel):
 
 
 class AggregatedTimeSeries(_WireModel):
-    """Aggregated time series across all blocks on one dimension."""
+    """Aggregated time series across all blocks on one dimension.
+
+    ``market_vol`` is the user-entered aggregate market vol — same source
+    as the grid's Market tab and the WS ticker's ``marketVol`` field —
+    emitted as a parallel vol-points series so the Pipeline chart's Market
+    view reads identically to the grid cell.
+    """
     timestamps: list[str]
     total_fair: list[float]
     total_market_fair: list[float]
@@ -627,6 +644,7 @@ class AggregatedTimeSeries(_WireModel):
     smoothed_var: list[float]
     raw_desired_position: list[float]
     smoothed_desired_position: list[float]
+    market_vol: list[float]
 
 
 class CurrentBlockDecomposition(_WireModel):

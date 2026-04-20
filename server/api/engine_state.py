@@ -129,7 +129,7 @@ class EngineState:
         # the LLM snapshot buffer so prompt payloads stay lean while the
         # Position chart gets a full time series across reruns.
         pos_rows = build_from_desired_pos_df(self.pipeline_results["desired_pos_df"], now)
-        self.position_history.push_rows(pos_rows, now)
+        self.position_history.push_rows(pos_rows, now, aggregate_market_values or {})
 
         return self.pipeline_results
 

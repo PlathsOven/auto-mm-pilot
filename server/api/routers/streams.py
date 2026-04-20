@@ -49,6 +49,9 @@ def _stream_to_response(reg: StreamRegistration) -> StreamResponse:
         offset=reg.offset,
         exponent=reg.exponent,
         block=block_payload,
+        description=reg.description,
+        sample_csv=reg.sample_csv,
+        value_column=reg.value_column,
     )
 
 
@@ -124,6 +127,9 @@ async def describe_stream(
         offset=reg.offset,
         exponent=reg.exponent,
         block=block_payload,
+        description=reg.description,
+        sample_csv=reg.sample_csv,
+        value_column=reg.value_column,
         row_count=len(reg.snapshot_rows),
         last_ingest_ts=last_ts,
     )
@@ -175,6 +181,9 @@ async def configure_stream(
             offset=req.offset,
             exponent=req.exponent,
             block=block,
+            description=req.description,
+            sample_csv=req.sample_csv,
+            value_column=req.value_column,
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

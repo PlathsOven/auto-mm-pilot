@@ -90,17 +90,35 @@ export function sci(v: number): string {
   return v.toExponential(3);
 }
 
+/** Vol-points label — matches the overview grid's "Edge" / "Market" tab
+ *  formatting (2 decimals). Signed values render with a leading ``-`` via
+ *  `toFixed`; unsigned series never go negative on the historical axis. */
+function vpLabel(v: number): string {
+  return v.toFixed(2);
+}
+
 // ---------------------------------------------------------------------------
 // ECharts option builder
 // ---------------------------------------------------------------------------
 
-/** Single-view rendering modes for the pipeline chart. Each maps to one of
- *  the substantive aggregates (position / fair / variance) that the
- *  pipeline produces — same vocabulary as the position grid's view-mode tabs
- *  so the two surfaces can stay in sync. Market is no longer a per-block
- *  quantity (it lives at the space + aggregate layer), so the chart tabs
- *  dropped the old Market view. */
-export type PipelineView = "position" | "fair" | "variance";
+/** Single-view rendering modes for the pipeline chart. ``position``, ``edge``,
+ *  and ``market`` are backward-looking historical lines (same time axis as
+ *  the overview grid). ``fair`` and ``variance`` are forward-looking stacked
+ *  decay curves built from per-block series. Vocabulary mirrors the position
+ *  grid's view-mode tabs so the two surfaces stay in sync via the Link-grid
+ *  toggle. */
+export type PipelineView = "position" | "fair" | "variance" | "edge" | "market";
+
+/** Historical views render on a time axis with aggregated line series; fair
+ *  and variance render on a category axis with stacked per-block areas. The
+ *  Position/Edge/Market branches of the option builder share the time-axis
+ *  code path. */
+const HISTORICAL_VIEWS: ReadonlySet<PipelineView> = new Set<PipelineView>([
+  "position",
+  "edge",
+  "market",
+]);
+export const isHistoricalPipelineView = (v: PipelineView): boolean => HISTORICAL_VIEWS.has(v);
 
 // Axis type locked to "category" because the stacked fair/variance series
 // rely on ECharts' `stack:` feature. See xAxis comment + assertion in the
@@ -249,17 +267,23 @@ export function buildPipelineSingleViewOptions(
   selectedBlocks: Set<string>,
 ): EChartsOption {
   const { blocks, aggregated, blockTimestamps } = data;
-  // Position view = backward-looking historical (axis ends at current_ts);
-  // Fair / Variance = forward-looking decay curves (axis runs current_ts →
-  // expiry). Each view uses its own timestamp axis.
-  const isPositionView = view === "position";
-  const axisTimestamps = isPositionView ? aggregated.timestamps : blockTimestamps;
+  // Position / Edge / Market = backward-looking historical (axis ends at
+  // current_ts). Fair / Variance = forward-looking decay curves (axis runs
+  // current_ts → expiry). Each group uses its own timestamp axis.
+  const isHistoricalView = isHistoricalPipelineView(view);
+  const axisTimestamps = isHistoricalView ? aggregated.timestamps : blockTimestamps;
 
   const hasSelection = selectedBlocks.size > 0;
 
   const series: EChartsOption["series"] = [];
   let yAxisName = "";
   let yAxisFormatter: (v: number) => string;
+  // Separate formatter for tooltip body + cross-pointer bubble. Axis labels
+  // strip precision for legibility (e.g. Position rounds to "-12k"); the
+  // tooltip should instead show the precise value the trader acts on. For
+  // vp-unit views (Edge / Market) both formatters align on 2dp — the grid's
+  // convention — and for Fair / Variance we fall back to scientific.
+  let tooltipValueFormatter: (v: number) => string = sci;
 
   if (view === "position") {
     yAxisName = "Desired ($)";
@@ -287,6 +311,52 @@ export function buildPipelineSingleViewOptions(
         z: 2,
       },
     );
+  } else if (view === "edge") {
+    // Grid Edge tab reads `p.edgeVol`; aggregated.edge is already in vp
+    // (the pipeline converts before emitting), so the latest smoothed value
+    // matches the grid cell without further transformation. Two-line layout
+    // mirrors Position: raw demoted, smoothed lead.
+    yAxisName = "Edge (vp)";
+    yAxisFormatter = vpLabel;
+    tooltipValueFormatter = vpLabel;
+    series.push(
+      {
+        name: "Raw",
+        type: "line",
+        data: zipTimeSeries(aggregated.timestamps, aggregated.edge),
+        showSymbol: false,
+        lineStyle: { width: 1, color: RAW_COLOR },
+        itemStyle: { color: RAW_COLOR },
+        z: 1,
+      },
+      {
+        name: "Smoothed",
+        type: "line",
+        data: zipTimeSeries(aggregated.timestamps, aggregated.smoothedEdge),
+        showSymbol: false,
+        lineStyle: { width: 2, color: SMOOTHED_COLOR },
+        itemStyle: { color: SMOOTHED_COLOR },
+        z: 2,
+      },
+    );
+  } else if (view === "market") {
+    // Single line — the user-entered aggregate vol is a scalar per dim, not
+    // a derived series. Step-style rendering makes the "edited it at 11:42"
+    // moments legible; a straight line with step:"end" gives the flat
+    // horizontals + vertical jumps a config-value history wants.
+    yAxisName = "Market (vp)";
+    yAxisFormatter = vpLabel;
+    tooltipValueFormatter = vpLabel;
+    series.push({
+      name: "Market",
+      type: "line",
+      step: "end",
+      data: zipTimeSeries(aggregated.timestamps, aggregated.marketVol),
+      showSymbol: false,
+      lineStyle: { width: 2, color: SMOOTHED_COLOR },
+      itemStyle: { color: SMOOTHED_COLOR },
+      z: 2,
+    });
   } else if (view === "fair") {
     yAxisName = "Fair Value";
     yAxisFormatter = sci;
@@ -361,7 +431,7 @@ export function buildPipelineSingleViewOptions(
               }
               return formatTooltipTimestamp(String(params.value));
             }
-            return typeof params.value === "number" ? sci(params.value) : String(params.value ?? "");
+            return typeof params.value === "number" ? tooltipValueFormatter(params.value) : String(params.value ?? "");
           },
         },
       },
@@ -385,7 +455,7 @@ export function buildPipelineSingleViewOptions(
           .map((p) => {
             // On a time axis the row value is `[ms, y]`; extract the y.
             const raw = Array.isArray(p.value) ? p.value[1] : p.value;
-            const v = typeof raw === "number" ? sci(raw) : String(raw ?? "—");
+            const v = typeof raw === "number" ? tooltipValueFormatter(raw) : String(raw ?? "—");
             return `<div style="display:flex;justify-content:space-between;gap:16px;"><span>${p.marker} ${p.seriesName}</span><span style="font-family:monospace;">${v}</span></div>`;
           })
           .join("");
@@ -408,12 +478,12 @@ export function buildPipelineSingleViewOptions(
     // bottom leaves room for the dataZoom slider (bottom 6 + height 12)
     // + a two-line axis label (~22px) — single-line labels used 36px.
     grid: { left: 56, right: 16, top: 12, bottom: 48 },
-    xAxis: isPositionView
+    xAxis: isHistoricalView
       ? {
-          // Position view has no stacked series, so we use a real time
-          // axis — ECharts then picks ticks at round wall-clock values
-          // (every 30s, 1m, etc.) instead of at arbitrary category
-          // indices.
+          // Historical views (Position / Edge / Market) have no stacked
+          // series, so we use a real time axis — ECharts then picks ticks
+          // at round wall-clock values (every 30s, 1m, etc.) instead of at
+          // arbitrary category indices.
           type: "time",
           axisLabel: {
             color: "#6e6e82",
@@ -450,11 +520,11 @@ export function buildPipelineSingleViewOptions(
     yAxis: {
       type: "value",
       name: yAxisName,
-      // Position is a line view whose data range (e.g. -12k..-10k) lives
-      // far from 0; forcing 0 into the axis flattens the line against the
-      // top edge. Fair/Variance are stacked areas filled from y=0, so the
-      // zero baseline must stay.
-      scale: isPositionView,
+      // Historical line views (Position / Edge / Market) have data ranges
+      // that live far from 0 — forcing 0 into the axis flattens the line
+      // against an edge. Fair/Variance are stacked areas filled from y=0,
+      // so the zero baseline must stay.
+      scale: isHistoricalView,
       nameTextStyle: { color: "#6e6e82", fontSize: 10, padding: [0, 0, 0, -10] },
       axisLabel: { color: "#6e6e82", fontSize: 10, formatter: yAxisFormatter },
       splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
