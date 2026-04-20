@@ -264,10 +264,10 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
                           />
                         ) : (
                           <>
-                            <span>{val > 0 ? "+" : ""}{val.toFixed(meta.decimals)}</span>
+                            <span>{meta.signed && val > 0 ? "+" : ""}{val.toFixed(meta.decimals)}</span>
                             {hasOverride && (
                               <span className="ml-1 text-[8px] text-mm-text-dim line-through">
-                                {cell.pos.desiredPos > 0 ? "+" : ""}{cell.pos.desiredPos.toFixed(meta.decimals)}
+                                {meta.signed && cell.pos.desiredPos > 0 ? "+" : ""}{cell.pos.desiredPos.toFixed(meta.decimals)}
                               </span>
                             )}
                           </>
@@ -294,6 +294,7 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
                   <TotalCell
                     value={computeRowTotal(symbol, expiries, grid, getDisplayValue, viewMode)}
                     decimals={meta.decimals}
+                    signed={meta.signed}
                   />
                 </tr>
               ))}
@@ -304,11 +305,13 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
                     key={exp}
                     value={computeColTotal(exp, symbols, grid, getDisplayValue, viewMode)}
                     decimals={meta.decimals}
+                    signed={meta.signed}
                   />
                 ))}
                 <TotalCell
                   value={computeGrandTotal(symbols, expiries, grid, getDisplayValue, viewMode)}
                   decimals={meta.decimals}
+                  signed={meta.signed}
                 />
               </tr>
             </tbody>
@@ -320,6 +323,7 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
         pendingEdit={pendingEdit}
         overrideCount={overrides.size}
         decimals={meta.decimals}
+        signed={meta.signed}
         viewMode={viewMode}
         onCancel={cancelEdit}
         onConfirm={confirmEdit}

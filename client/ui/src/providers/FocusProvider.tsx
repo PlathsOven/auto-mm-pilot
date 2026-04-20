@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Focus } from "../types";
+import { blockKeyEquals } from "../utils";
 
 /**
  * Workbench focus state.
@@ -44,8 +45,9 @@ function focusEquals(a: Focus | null, b: Focus | null): boolean {
     case "expiry":
       return a.expiry === (b as Extract<Focus, { kind: "expiry" }>).expiry;
     case "stream":
+      return a.name === (b as Extract<Focus, { kind: "stream" }>).name;
     case "block":
-      return a.name === (b as Extract<Focus, { kind: "stream" | "block" }>).name;
+      return blockKeyEquals(a.key, (b as Extract<Focus, { kind: "block" }>).key);
   }
 }
 

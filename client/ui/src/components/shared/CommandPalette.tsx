@@ -9,6 +9,7 @@ import { fetchBlocks } from "../../services/blockApi";
 import { listStreams } from "../../services/streamApi";
 import { useKeyboardShortcut } from "../../hooks/useKeyboardShortcut";
 import type { BlockRow, RegisteredStream } from "../../types";
+import { blockKeyOf } from "../../utils";
 
 interface Command {
   id: string;
@@ -116,7 +117,7 @@ export function CommandPalette() {
       hint: `${b.symbol} · ${b.expiry} · ${b.source}`,
       run: () => {
         setMode("workbench");
-        setFocus({ kind: "block", name: b.block_name });
+        setFocus({ kind: "block", key: blockKeyOf(b) });
         closePalette();
       },
     }));

@@ -52,6 +52,37 @@ export const TOOLTIP_STYLE = {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Block series identity
+// ---------------------------------------------------------------------------
+
+/** Composite series id so name collisions across streams on the same
+ *  dimension (e.g. two blocks both called `ema_iv` on different streams)
+ *  stay distinguishable in the chart. `view` is appended so the fair,
+ *  market and variance variants of the same block never share an id. */
+export function blockSeriesIdOf(
+  blockName: string,
+  streamName: string,
+  startTimestamp: string | null,
+  view?: "fair" | "market" | "var",
+): string {
+  const base = `${blockName}|${streamName}|${startTimestamp ?? ""}`;
+  return view ? `${base}|${view}` : base;
+}
+
+/** Inverse of {@link blockSeriesIdOf} — parses a series id back into its
+ *  parts. Returns null for ids that don't match the composite shape
+ *  (aggregates, raw/smoothed, etc.). */
+export function parseBlockSeriesId(
+  id: string,
+): { blockName: string; streamName: string; startTimestamp: string | null } | null {
+  const parts = id.split("|");
+  if (parts.length < 3) return null;
+  const [blockName, streamName, ts] = parts;
+  if (!blockName || !streamName) return null;
+  return { blockName, streamName, startTimestamp: ts === "" ? null : ts };
+}
+
 export function sci(v: number): string {
   if (v === 0) return "0";
   const abs = Math.abs(v);
@@ -64,10 +95,12 @@ export function sci(v: number): string {
 // ---------------------------------------------------------------------------
 
 /** Single-view rendering modes for the pipeline chart. Each maps to one of
- *  the three substantive aggregates (position / fair / variance) that the
+ *  the substantive aggregates (position / fair / variance / market) that the
  *  pipeline produces — same vocabulary as the position grid's view-mode tabs
- *  so the two surfaces can stay in sync. */
-export type PipelineView = "position" | "fair" | "variance";
+ *  so the two surfaces can stay in sync. ``market`` mirrors ``fair`` but
+ *  sources per-block ``marketFair`` instead of ``fair``, and renders the
+ *  user-set aggregate ``total_vol`` scalar in the y-axis name. */
+export type PipelineView = "position" | "fair" | "variance" | "market";
 
 // Axis type locked to "category" because the stacked fair/variance series
 // rely on ECharts' `stack:` feature. See xAxis comment + assertion in the
@@ -258,8 +291,11 @@ export function buildPipelineSingleViewOptions(
     yAxisName = "Fair Value";
     yAxisFormatter = sci;
     blocks.forEach((b, i) => {
-      const dimmed = hasSelection && !selectedBlocks.has(b.blockName);
+      const id = blockSeriesIdOf(b.blockName, b.streamName, b.startTimestamp, "fair");
+      const matchId = blockSeriesIdOf(b.blockName, b.streamName, b.startTimestamp);
+      const dimmed = hasSelection && !selectedBlocks.has(matchId);
       series.push({
+        id,
         name: `${b.blockName} (fair)`,
         type: "line",
         data: b.fair,
@@ -276,13 +312,47 @@ export function buildPipelineSingleViewOptions(
         emphasis: { focus: "series" },
       });
     });
+  } else if (view === "market") {
+    // Market view = per-block market_fair stacked on the forward grid,
+    // plus the user-set aggregate total_vol as a y-axis-name suffix (the
+    // scalar is a single number per symbol/expiry — no time series).
+    const totalVol = data.currentDecomposition.aggregateMarketValue?.totalVol;
+    yAxisName = totalVol != null
+      ? `Market Fair  (total_vol = ${(totalVol * 100).toFixed(2)} vp)`
+      : "Market Fair  (no aggregate set)";
+    yAxisFormatter = sci;
+    blocks.forEach((b, i) => {
+      const id = blockSeriesIdOf(b.blockName, b.streamName, b.startTimestamp, "market");
+      const matchId = blockSeriesIdOf(b.blockName, b.streamName, b.startTimestamp);
+      const dimmed = hasSelection && !selectedBlocks.has(matchId);
+      series.push({
+        id,
+        name: `${b.blockName} (market)`,
+        type: "line",
+        data: b.marketFair,
+        showSymbol: false,
+        stack: "market",
+        connectNulls: false,
+        areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
+        lineStyle: {
+          width: dimmed ? 0.3 : 0,
+          color: BLOCK_COLORS[i % BLOCK_COLORS.length],
+          opacity: dimmed ? 0.3 : 1,
+        },
+        itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
+        emphasis: { focus: "series" },
+      });
+    });
   } else {
     // variance
     yAxisName = "Variance";
     yAxisFormatter = sci;
     blocks.forEach((b, i) => {
-      const dimmed = hasSelection && !selectedBlocks.has(b.blockName);
+      const id = blockSeriesIdOf(b.blockName, b.streamName, b.startTimestamp, "var");
+      const matchId = blockSeriesIdOf(b.blockName, b.streamName, b.startTimestamp);
+      const dimmed = hasSelection && !selectedBlocks.has(matchId);
       series.push({
+        id,
         name: `${b.blockName} (var)`,
         type: "line",
         data: b.var,

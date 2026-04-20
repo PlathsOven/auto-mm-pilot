@@ -18,11 +18,12 @@ const VIEW_TABS: TabItem<PipelineView>[] = [
   { value: "position", label: "Desired" },
   { value: "fair", label: "Fair" },
   { value: "variance", label: "Variance" },
+  { value: "market", label: "Market" },
 ];
 
 /** Map a position-grid view mode to the matching pipeline view. Several grid
  *  modes resolve to the same pipeline view (smoothed/raw position both →
- *  position; edge / fair / market-fair → fair). */
+ *  position; edge / fair → fair; market / market-fair → market). */
 function gridToPipelineView(grid: ViewMode): PipelineView {
   switch (grid) {
     case "position":
@@ -31,9 +32,12 @@ function gridToPipelineView(grid: ViewMode): PipelineView {
       return "position";
     case "edge":
     case "smoothedEdge":
+    case "fair":
     case "totalFair":
-    case "totalMarketFair":
       return "fair";
+    case "market":
+    case "totalMarketFair":
+      return "market";
     case "variance":
     case "smoothedVar":
       return "variance";
@@ -49,6 +53,7 @@ function pipelineToGridView(view: PipelineView): ViewMode {
     case "position": return "position";
     case "fair": return "edge";
     case "variance": return "variance";
+    case "market": return "market";
   }
 }
 
@@ -105,7 +110,11 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
   // When linked, mirror the grid's view. When not linked, the user picks.
   const effectiveView: PipelineView = linked ? gridToPipelineView(gridViewMode) : localView;
 
-  // Resolve a (symbol, expiry) to channel from the current focus.
+  // Resolve a (symbol, expiry) to channel from the current focus. Block
+  // focus carries its full composite key, so we can route the chart to the
+  // block's dimension and then highlight the specific series — otherwise
+  // the highlight would silently drop when the block's dim doesn't match
+  // whatever was last charted.
   const focusDimension = useMemo(() => {
     if (!focus || !payload) return null;
     if (focus.kind === "cell") return { symbol: focus.symbol, expiry: focus.expiry };
@@ -117,6 +126,7 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
       const m = payload.positions.find((p) => p.expiry === focus.expiry);
       return m ? { symbol: m.symbol, expiry: m.expiry } : null;
     }
+    if (focus.kind === "block") return { symbol: focus.key.symbol, expiry: focus.key.expiry };
     return null;
   }, [focus, payload]);
 

@@ -65,6 +65,17 @@ def _pipeline_timeseries_sync(
 
     block_var_df = results["block_var_df"]
     pos_df = results["desired_pos_df"]
+    blocks_df = results["blocks_df"]
+
+    # (block_name, stream_name) → start_timestamp lookup. `block_fair_df`
+    # (and therefore `block_var_df`) doesn't carry `start_timestamp`, so
+    # we source it from the flat `blocks_df` whose identity is the full
+    # composite key. Used to stamp the per-block series payload with its
+    # block-side identity material.
+    start_ts_map: dict[tuple[str, str], _dt | None] = {}
+    if {"block_name", "stream_name", "start_timestamp"} <= set(blocks_df.columns):
+        for r in blocks_df.select("block_name", "stream_name", "start_timestamp").to_dicts():
+            start_ts_map[(r["block_name"], r["stream_name"])] = r.get("start_timestamp")
 
     current_ts = get_current_tick_ts(user_id)
     expiry_date = expiry_dt.date()
@@ -141,10 +152,14 @@ def _pipeline_timeseries_sync(
             fair_arr[idx] = row["fair"]
             market_fair_arr[idx] = row["market_fair"]
             var_arr[idx] = row["var"]
+        stream_name_val = bd["stream_name"][0] if bd.height > 0 and "stream_name" in bd.columns else ""
+        start_ts_val = start_ts_map.get((bn, stream_name_val))
         blocks.append({
             "blockName": bn,
+            "streamName": stream_name_val,
             "spaceId": bd["space_id"][0] if bd.height > 0 else "",
             "aggregationLogic": bd["aggregation_logic"][0] if bd.height > 0 else "",
+            "startTimestamp": start_ts_val.isoformat() if start_ts_val is not None else None,
             "timestamps": block_timestamps,
             "fair": fair_arr,
             "marketFair": market_fair_arr,
@@ -192,18 +207,22 @@ def _pipeline_timeseries_sync(
     if block_var_filtered.height > 0:
         first_ts = block_var_filtered["timestamp"].min()
         latest_block_var = block_var_filtered.filter(pl.col("timestamp") == first_ts)
-        current_blocks = [
-            {
+        cols = latest_block_var.columns
+        select_cols = ["block_name", "space_id", "fair", "market_fair", "var"]
+        if "stream_name" in cols:
+            select_cols.insert(1, "stream_name")
+        for d in latest_block_var.select(select_cols).to_dicts():
+            stream_name_val = d.get("stream_name", "")
+            start_ts_val = start_ts_map.get((d["block_name"], stream_name_val))
+            current_blocks.append({
                 "blockName": d["block_name"],
+                "streamName": stream_name_val,
                 "spaceId": d["space_id"],
+                "startTimestamp": start_ts_val.isoformat() if start_ts_val is not None else None,
                 "fair": d["fair"],
                 "marketFair": d["market_fair"],
                 "var": d["var"],
-            }
-            for d in latest_block_var.select(
-                "block_name", "space_id", "fair", "market_fair", "var",
-            ).to_dicts()
-        ]
+            })
 
     current_agg: dict | None = None
     if pos_sorted.height > 0:

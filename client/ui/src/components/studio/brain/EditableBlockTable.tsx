@@ -12,7 +12,13 @@ import {
 } from "@tanstack/react-table";
 import { fetchBlocks } from "../../../services/blockApi";
 import type { BlockRow } from "../../../types";
-import { valColor, formatNullable } from "../../../utils";
+import {
+  blockKeyEquals,
+  blockKeyOf,
+  blockKeyToString,
+  formatNullable,
+  valColor,
+} from "../../../utils";
 import { POLL_INTERVAL_BLOCKS_MS, BLOCKS_FOLLOW_FOCUS_KEY } from "../../../constants";
 import { useFocus } from "../../../providers/FocusProvider";
 
@@ -23,21 +29,9 @@ function edgeOf(row: BlockRow): number {
   return (row.fair ?? 0) - (row.market_fair ?? 0);
 }
 
-/**
- * Composite React key for a block row. `block_name` alone is not unique —
- * the same name (e.g. `ema_iv`) is reused across every symbol/expiry/space
- * it is attached to. Non-unique keys cause React to reuse DOM nodes across
- * updates, which made filters appear to "reorder" rather than narrow.
- */
-function rowKeyOf(row: BlockRow): string {
-  return [
-    row.block_name,
-    row.stream_name,
-    row.symbol,
-    row.expiry,
-    row.space_id,
-    row.start_timestamp ?? "",
-  ].join("|");
+/** Composite React key for a block row. `block_name` alone is not unique. */
+function rowReactKey(row: BlockRow): string {
+  return `${blockKeyToString(blockKeyOf(row))}|${row.space_id}`;
 }
 
 /** All column definitions. The `id` doubles as the visibility key. */
@@ -218,7 +212,15 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [globalFilter, setGlobalFilter] = useState("");
-  const [sorting, setSorting] = useState<SortingState>([{ id: "fair", desc: true }]);
+  // Default sort is by identity columns — stream then block name — so the
+  // row order stays fixed across polling refreshes. Earlier default of
+  // `fair DESC` made the list shuffle every tick as fair values moved, which
+  // broke the "click the row you're looking at" flow. Output-column sorting
+  // is still available by clicking the column header.
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "stream_name", desc: false },
+    { id: "block_name", desc: false },
+  ]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(buildDefaultVisibility);
   const [colMenuOpen, setColMenuOpen] = useState(false);
   const [symbolFilter, setSymbolFilter] = useState<string>(ALL);
@@ -513,10 +515,12 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
             </thead>
             <tbody>
               {table.getRowModel().rows.map((row) => {
-                const isFocused = focus?.kind === "block" && focus.name === row.original.block_name;
+                const isFocused =
+                  focus?.kind === "block"
+                  && blockKeyEquals(focus.key, blockKeyOf(row.original));
                 return (
                 <tr
-                  key={rowKeyOf(row.original)}
+                  key={rowReactKey(row.original)}
                   className={`border-t border-black/[0.03] transition-colors ${
                     isFocused ? "bg-mm-accent-soft" : "hover:bg-mm-accent/5"
                   } ${onRowClick ? "cursor-pointer" : ""}`}

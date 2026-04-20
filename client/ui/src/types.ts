@@ -65,6 +65,7 @@ export interface DesiredPosition {
   smoothedVarVol: number;
   totalFairVol: number;
   totalMarketFairVol: number;
+  marketVol: number;
   changeMagnitude: number;
   updatedAt: number;
 }
@@ -108,6 +109,23 @@ export interface SilentStreamAlert {
   lastSeen: string;   // ISO 8601 UTC
 }
 
+/** Per-(symbol, expiry) alert when per-block market values don't reconcile
+ *  to the user's aggregate marketVol.
+ *
+ *  The market-value-inference step should make `totalMarketFairVol` equal
+ *  `marketVol` by construction; a visible gap means either (a) the user
+ *  overrode per-block values past what the inferred blocks can absorb,
+ *  (b) no inferred blocks have forward coverage, or (c) no aggregate was
+ *  set but per-block values are non-zero. All three fields are in vol
+ *  points — the same units the CellInspector renders. */
+export interface MarketValueMismatchAlert {
+  symbol: string;
+  expiry: string;
+  aggregateVol: number;
+  impliedVol: number;
+  diff: number;
+}
+
 /** Top-level payload received over WebSocket */
 export interface ServerPayload {
   streams: DataStream[];
@@ -116,6 +134,7 @@ export interface ServerPayload {
   updates: UpdateCard[];
   unregisteredPushes?: UnregisteredPushAttempt[];
   silentStreams?: SilentStreamAlert[];
+  marketValueMismatches?: MarketValueMismatchAlert[];
 }
 
 /** Context pushed to the LLM chat when a card or cell is clicked */
@@ -149,6 +168,8 @@ export type ViewMode =
   | "smoothedEdge"
   | "variance"
   | "smoothedVar"
+  | "fair"
+  | "market"
   | "totalFair"
   | "totalMarketFair";
 
@@ -159,6 +180,10 @@ export interface ViewModeMeta {
   unit: string;
   decimals: number;
   group: ViewModeGroup;
+  /** Whether the value carries a meaningful sign. Fair / Market / Variance
+   *  are non-negative by construction, so the grid suppresses the "+"
+   *  prefix on them to avoid implying a signed quantity. */
+  signed: boolean;
 }
 
 /** One of the TIMEFRAME_OPTIONS labels. Kept as a string-literal union via
@@ -201,20 +226,38 @@ export interface StreamTimeseriesResponse {
 // ---------------------------------------------------------------------------
 
 /**
+ * Composite identity for a block row.
+ *
+ * `block_name` alone isn't unique — the same name (e.g. `ema_iv`) is reused
+ * across every symbol/expiry/stream it's attached to. Every surface that
+ * focuses, highlights, or inspects a single block must compare on the full
+ * composite so two rows with the same `block_name` on different dimensions
+ * stay distinguishable.
+ */
+export interface BlockKey {
+  blockName: string;
+  streamName: string;
+  symbol: string;
+  expiry: string;
+  /** ISO timestamp or null — null means "shifting" or no start set. */
+  startTimestamp: string | null;
+}
+
+/**
  * Discriminated union of every focusable entity in the workbench.
  *
  * - `cell` — a single (symbol, expiry) cell from the desired-position grid.
  * - `symbol` — an entire symbol row.
  * - `expiry` — an entire expiry column.
  * - `stream` — a registered data stream.
- * - `block` — a single block by name.
+ * - `block` — a single block identified by its full composite key.
  */
 export type Focus =
   | { kind: "cell"; symbol: string; expiry: string }
   | { kind: "symbol"; symbol: string }
   | { kind: "expiry"; expiry: string }
   | { kind: "stream"; name: string }
-  | { kind: "block"; name: string };
+  | { kind: "block"; key: BlockKey };
 
 // ---------------------------------------------------------------------------
 // API request / response types
@@ -273,8 +316,10 @@ export interface TimeSeriesDimension {
  *  have different start_timestamps). */
 export interface BlockTimeSeries {
   blockName: string;
+  streamName: string;
   spaceId: string;
   aggregationLogic: string;
+  startTimestamp: string | null;
   timestamps: string[];
   fair: (number | null)[];
   marketFair: (number | null)[];
@@ -297,7 +342,9 @@ export interface AggregatedTimeSeries {
 /** Current decomposition snapshot for the latest timestamp */
 export interface CurrentBlockDecomposition {
   blockName: string;
+  streamName: string;
   spaceId: string;
+  startTimestamp: string | null;
   fair: number;
   marketFair: number;
   var: number;
@@ -338,6 +385,7 @@ export interface BlockRow {
   target_value: number;
   raw_value: number;
   market_value: number | null;
+  sent_market_value: number | null;
   target_market_value: number | null;
   fair: number | null;
   market_fair: number | null;

@@ -5,7 +5,9 @@ import { CONTRIBUTIONS_CACHE_TTL_MS } from "../constants";
 
 export interface StreamContribution {
   blockName: string;
+  streamName: string;
   spaceId: string;
+  startTimestamp: string | null;
   fair: number;
   marketFair: number;
   variance: number;
@@ -34,7 +36,9 @@ function buildContributions(
       const edge = b.fair - b.marketFair;
       return {
         blockName: b.blockName,
+        streamName: b.streamName,
         spaceId: b.spaceId,
+        startTimestamp: b.startTimestamp,
         fair: b.fair,
         marketFair: b.marketFair,
         variance: b.var,

@@ -135,7 +135,47 @@ export function formatNullable(v: number | null | undefined, decimals = 4): stri
 // Position grid value accessor (shared by grid + hooks)
 // ---------------------------------------------------------------------------
 
-import type { DesiredPosition, ViewMode } from "./types";
+import type { BlockKey, BlockRow, DesiredPosition, ViewMode } from "./types";
+
+// ---------------------------------------------------------------------------
+// Block composite identity
+// ---------------------------------------------------------------------------
+
+/** Build a {@link BlockKey} from a {@link BlockRow}. */
+export function blockKeyOf(row: BlockRow): BlockKey {
+  return {
+    blockName: row.block_name,
+    streamName: row.stream_name,
+    symbol: row.symbol,
+    expiry: row.expiry,
+    startTimestamp: row.start_timestamp,
+  };
+}
+
+/** Structural equality on the full composite — `block_name` alone is
+ *  not unique across dimensions, so all five fields must match. */
+export function blockKeyEquals(a: BlockKey, b: BlockKey): boolean {
+  return (
+    a.blockName === b.blockName
+    && a.streamName === b.streamName
+    && a.symbol === b.symbol
+    && a.expiry === b.expiry
+    && a.startTimestamp === b.startTimestamp
+  );
+}
+
+/** Stable string form of a {@link BlockKey} — useful as a React key or a
+ *  Set/Map member when the value must be primitive. Matches the server
+ *  composite: block_name|stream_name|symbol|expiry|start_timestamp. */
+export function blockKeyToString(key: BlockKey): string {
+  return [
+    key.blockName,
+    key.streamName,
+    key.symbol,
+    key.expiry,
+    key.startTimestamp ?? "",
+  ].join("|");
+}
 
 /** Pull the value for a given view mode from a ``DesiredPosition`` row.
  *  ``change`` is passed through because the grid computes it outside the
@@ -149,6 +189,8 @@ export function getCellValue(p: DesiredPosition, mode: ViewMode, change: number)
     case "smoothedEdge": return p.smoothedEdgeVol;
     case "variance": return p.varianceVol;
     case "smoothedVar": return p.smoothedVarVol;
+    case "fair": return p.totalFairVol;
+    case "market": return p.marketVol;
     case "totalFair": return p.totalFairVol;
     case "totalMarketFair": return p.totalMarketFairVol;
   }

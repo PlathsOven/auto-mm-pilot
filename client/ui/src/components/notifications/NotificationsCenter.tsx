@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useFocus } from "../../providers/FocusProvider";
 import { useMode } from "../../providers/ModeProvider";
 import { useNotifications } from "../../providers/NotificationsProvider";
 import type { UnregisteredPushAttempt } from "../../types";
@@ -7,6 +8,7 @@ import {
   inferKeyColsFromExampleRow,
 } from "./UnregisteredPushCard";
 import { SilentStreamCard } from "./SilentStreamCard";
+import { MarketValueMismatchCard } from "./MarketValueMismatchCard";
 
 interface Props {
   open: boolean;
@@ -24,14 +26,17 @@ interface Props {
  */
 export function NotificationsCenter({ open, onClose }: Props) {
   const { navigate } = useMode();
+  const { setFocus } = useFocus();
   const {
     unregistered,
     silentStreams,
+    marketValueMismatches,
     dismissUnregistered,
     dismissSilentStream,
   } = useNotifications();
 
-  const totalCount = unregistered.length + silentStreams.length;
+  const totalCount =
+    unregistered.length + silentStreams.length + marketValueMismatches.length;
 
   const handleRegister = useCallback(
     (entry: UnregisteredPushAttempt) => {
@@ -54,6 +59,15 @@ export function NotificationsCenter({ open, onClose }: Props) {
       onClose();
     },
     [navigate, onClose],
+  );
+
+  const handleOpenCell = useCallback(
+    (symbol: string, expiry: string) => {
+      navigate("workbench");
+      setFocus({ kind: "cell", symbol, expiry });
+      onClose();
+    },
+    [navigate, setFocus, onClose],
   );
 
   if (!open) return null;
@@ -97,8 +111,9 @@ export function NotificationsCenter({ open, onClose }: Props) {
               </span>
               <span className="text-[10px] text-mm-text-subtle">
                 Notifications appear here when a feeder pushes data for a stream that
-                hasn't been registered yet, or when a registered stream's snapshots
-                stop carrying market_value.
+                hasn't been registered yet, when a registered stream's snapshots
+                stop carrying market_value, or when per-block market values don't
+                reconcile to the aggregate on a cell.
               </span>
             </div>
           ) : (
@@ -117,6 +132,13 @@ export function NotificationsCenter({ open, onClose }: Props) {
                   entry={e}
                   onOpenStream={handleOpenStream}
                   onDismiss={() => { void dismissSilentStream(e.streamName); }}
+                />
+              ))}
+              {marketValueMismatches.map((e) => (
+                <MarketValueMismatchCard
+                  key={`m:${e.symbol}:${e.expiry}`}
+                  entry={e}
+                  onOpenCell={handleOpenCell}
                 />
               ))}
             </ul>

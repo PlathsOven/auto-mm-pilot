@@ -97,18 +97,20 @@ export const CHAT_HISTORY_MAX = 50;
 // ---------------------------------------------------------------------------
 
 export const VIEW_MODE_META: Record<ViewMode, ViewModeMeta> = {
-  position: { label: "Desired", unit: "$vega", decimals: 2, group: "primary" },
-  change: { label: "Change", unit: "$vega", decimals: 2, group: "primary" },
-  edge: { label: "Edge", unit: "vp", decimals: 2, group: "primary" },
-  variance: { label: "Variance", unit: "vp", decimals: 2, group: "primary" },
-  rawPosition: { label: "Raw Position", unit: "$vega", decimals: 2, group: "secondary" },
-  smoothedEdge: { label: "Smoothed Edge", unit: "vp", decimals: 2, group: "secondary" },
-  smoothedVar: { label: "Smoothed Variance", unit: "vp", decimals: 2, group: "secondary" },
-  totalFair: { label: "Total Fair", unit: "vp", decimals: 2, group: "secondary" },
-  totalMarketFair: { label: "Market Fair", unit: "vp", decimals: 2, group: "secondary" },
+  position: { label: "Desired", unit: "$vega", decimals: 2, group: "primary", signed: true },
+  change: { label: "Change", unit: "$vega", decimals: 2, group: "primary", signed: true },
+  edge: { label: "Edge", unit: "vp", decimals: 2, group: "primary", signed: true },
+  variance: { label: "Variance", unit: "vp", decimals: 2, group: "primary", signed: false },
+  fair: { label: "Fair", unit: "vp", decimals: 2, group: "primary", signed: false },
+  market: { label: "Market", unit: "vp", decimals: 2, group: "primary", signed: false },
+  rawPosition: { label: "Raw Position", unit: "$vega", decimals: 2, group: "secondary", signed: true },
+  smoothedEdge: { label: "Smoothed Edge", unit: "vp", decimals: 2, group: "secondary", signed: true },
+  smoothedVar: { label: "Smoothed Variance", unit: "vp", decimals: 2, group: "secondary", signed: false },
+  totalFair: { label: "Total Fair", unit: "vp", decimals: 2, group: "secondary", signed: false },
+  totalMarketFair: { label: "Market Fair", unit: "vp", decimals: 2, group: "secondary", signed: false },
 };
 
-export const PRIMARY_VIEW_MODES: ViewMode[] = ["position", "change", "edge", "variance"];
+export const PRIMARY_VIEW_MODES: ViewMode[] = ["position", "change", "edge", "variance", "fair", "market"];
 export const SECONDARY_VIEW_MODES: ViewMode[] = [
   "rawPosition",
   "smoothedEdge",

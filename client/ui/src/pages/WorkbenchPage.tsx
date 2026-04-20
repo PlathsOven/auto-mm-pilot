@@ -8,6 +8,7 @@ import { UpdatesTicker } from "../components/workbench/UpdatesTicker";
 import { PipelineChartPanel } from "../components/workbench/PipelineChartPanel";
 import { useFocus } from "../providers/FocusProvider";
 import type { BlockRow, ViewMode } from "../types";
+import { blockKeyOf } from "../utils";
 
 /**
  * Unified workbench — vertical-stack canvas + right-side InspectorColumn.
@@ -39,7 +40,7 @@ export function WorkbenchPage() {
     (block: BlockRow) => {
       // Single-click → focus the block. Editing happens in the inspector
       // (sidebar) for manual blocks; stream blocks render read-only there.
-      setFocus({ kind: "block", name: block.block_name });
+      setFocus({ kind: "block", key: blockKeyOf(block) });
     },
     [setFocus],
   );

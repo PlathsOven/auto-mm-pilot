@@ -12,6 +12,7 @@ import logging
 import threading
 from typing import Any
 
+from server.api.expiry import canonical_expiry_key
 from server.api.user_scope import UserRegistry
 
 log = logging.getLogger(__name__)
@@ -28,25 +29,27 @@ class MarketValueStore:
     # -- writes ------------------------------------------------------------
 
     def set_market_value(self, symbol: str, expiry: str, total_vol: float) -> None:
+        key_expiry = canonical_expiry_key(expiry)
         with self._lock:
-            self._store[(symbol, expiry)] = total_vol
+            self._store[(symbol, key_expiry)] = total_vol
             self._dirty = True
-        log.info("Market value set: %s/%s = %.6f", symbol, expiry, total_vol)
+        log.info("Market value set: %s/%s = %.6f", symbol, key_expiry, total_vol)
 
     def delete_market_value(self, symbol: str, expiry: str) -> bool:
+        key_expiry = canonical_expiry_key(expiry)
         with self._lock:
-            existed = (symbol, expiry) in self._store
+            existed = (symbol, key_expiry) in self._store
             if existed:
-                del self._store[(symbol, expiry)]
+                del self._store[(symbol, key_expiry)]
                 self._dirty = True
         if existed:
-            log.info("Market value deleted: %s/%s", symbol, expiry)
+            log.info("Market value deleted: %s/%s", symbol, key_expiry)
         return existed
 
     def set_entries(self, entries: list[dict[str, Any]]) -> None:
         with self._lock:
             for e in entries:
-                self._store[(e["symbol"], e["expiry"])] = e["total_vol"]
+                self._store[(e["symbol"], canonical_expiry_key(e["expiry"]))] = e["total_vol"]
             self._dirty = True
         log.info("Market values batch-set: %d entries", len(entries))
 

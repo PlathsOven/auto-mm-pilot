@@ -274,5 +274,5 @@ _define_step("smoothing",
              infrastructure_params=["agg_df", "risk_dimension_cols"])
 
 _define_step("market_value_inference",
-             contract_doc="(blocks_df, aggregate_market_values, unit_fn, **params) -> pl.DataFrame",
-             infrastructure_params=["blocks_df", "aggregate_market_values", "unit_fn"])
+             contract_doc="(blocks_df, aggregate_market_values, unit_fn, now, **params) -> pl.DataFrame",
+             infrastructure_params=["blocks_df", "aggregate_market_values", "unit_fn", "now"])

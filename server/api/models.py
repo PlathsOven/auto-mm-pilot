@@ -10,8 +10,10 @@ from typing import Annotated, Any, Literal, Union
 # Single source of truth — imported by prompts/__init__.py and service.py.
 ChatMode = Literal["investigate", "build", "general"]
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
+
+from server.api.expiry import canonical_expiry_key
 
 
 # ---------------------------------------------------------------------------
@@ -45,8 +47,15 @@ class SnapshotRow(BaseModel):
     raw_value: float = Field(..., description="Raw measurement value")
     market_value: float | None = Field(
         default=None,
-        description="Market-implied value in same raw units as raw_value. Defaults to raw_value if omitted.",
+        description="Market-implied value in same raw units as raw_value. Omit or send empty/null to fall through to market_value_inference.",
     )
+
+    @field_validator("market_value", mode="before")
+    @classmethod
+    def _empty_market_value_is_null(cls, v: Any) -> Any:
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
 
 
 class CellContext(BaseModel):
@@ -248,6 +257,7 @@ class BlockRowResponse(BaseModel):
     target_value: float
     raw_value: float
     market_value: float | None = None
+    sent_market_value: float | None = None
     target_market_value: float | None = None
     fair: float | None = None
     market_fair: float | None = None
@@ -422,10 +432,20 @@ class TransformConfigRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 class MarketValueEntry(BaseModel):
-    """One aggregate market value entry for a symbol/expiry pair."""
+    """One aggregate market value entry for a symbol/expiry pair.
+
+    ``expiry`` is normalised to the canonical naive-ISO key on ingest so the
+    store holds the same form the Polars pipeline looks up with — see
+    ``server/api/expiry.py``.
+    """
     symbol: str = Field(..., min_length=1)
     expiry: str = Field(..., min_length=1)
     total_vol: float = Field(..., ge=0, description="Annualized total vol (must be >= 0)")
+
+    @field_validator("expiry")
+    @classmethod
+    def _canonicalise_expiry(cls, v: str) -> str:
+        return canonical_expiry_key(v)
 
 
 class SetMarketValueRequest(BaseModel):
@@ -488,6 +508,7 @@ class DesiredPosition(_WireModel):
     smoothed_var_vol: float
     total_fair_vol: float
     total_market_fair_vol: float
+    market_vol: float
     change_magnitude: float
     updated_at: int
 
@@ -520,6 +541,28 @@ class UnregisteredPushAttempt(_WireModel):
     last_seen: str  # ISO 8601 UTC
 
 
+class MarketValueMismatchAlert(_WireModel):
+    """Per-(symbol, expiry) alert when per-block market values don't reconcile
+    to the user's aggregate marketVol.
+
+    The market-value-inference step is built so that the forward-integrated
+    per-block ``target_market_value`` equals the aggregate variance — i.e.
+    ``totalMarketFairVol`` (what the pipeline implies) equals ``marketVol``
+    (what the user set). When the two visibly disagree, it's a real
+    inconsistency: either the user overrode per-block values past what the
+    inferred blocks can absorb, or no inferred blocks have forward coverage,
+    or no aggregate was set at all but per-block values are non-zero.
+
+    All three fields are in vol points (annualised vol × 100) so the card can
+    render them directly alongside the CellInspector reading.
+    """
+    symbol: str
+    expiry: str  # wire format (DDMMMYY), matches DesiredPosition.expiry
+    aggregate_vol: float  # user-set marketVol, 0 if unset
+    implied_vol: float  # totalMarketFairVol from the pipeline
+    diff: float  # implied - aggregate
+
+
 class SilentStreamAlert(_WireModel):
     """A READY stream whose recent snapshots carried no ``market_value``.
 
@@ -544,6 +587,7 @@ class ServerPayload(_WireModel):
     updates: list[UpdateCard]
     unregistered_pushes: list[UnregisteredPushAttempt] = Field(default_factory=list)
     silent_streams: list[SilentStreamAlert] = Field(default_factory=list)
+    market_value_mismatches: list[MarketValueMismatchAlert] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -577,10 +621,17 @@ class BlockTimeSeries(_WireModel):
     the chart can use one x-axis for all blocks. None values mark ticks
     where this particular block doesn't have data (different blocks can
     have different start_timestamps).
+
+    ``stream_name`` and ``start_timestamp`` are carried so the client can
+    reconstruct the full composite block identity from a chart series — on
+    the same (symbol, expiry), ``block_name`` alone can collide across
+    streams.
     """
     block_name: str
+    stream_name: str
     space_id: str
     aggregation_logic: str
+    start_timestamp: str | None = None
     timestamps: list[str]
     fair: list[float | None]
     market_fair: list[float | None]
@@ -603,7 +654,9 @@ class AggregatedTimeSeries(_WireModel):
 class CurrentBlockDecomposition(_WireModel):
     """Block decomposition snapshot at the current tick timestamp."""
     block_name: str
+    stream_name: str
     space_id: str
+    start_timestamp: str | None = None
     fair: float
     market_fair: float
     var: float
