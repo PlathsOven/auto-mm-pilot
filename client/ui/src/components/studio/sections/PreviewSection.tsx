@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import type { StreamDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
 import { LiveEquationStrip } from "../../equation/LiveEquationStrip";
@@ -7,8 +6,6 @@ import { NUMERIC_RE } from "../../../utils";
 interface Props {
   draft: StreamDraft;
   state: SectionState;
-  expanded?: boolean;
-  nav?: ReactNode;
 }
 
 /**
@@ -17,14 +14,12 @@ interface Props {
  * pinned at the bottom of the canvas — the architect doesn't have to scroll
  * through every section to find the CTA.
  */
-export function PreviewSection({ draft, state, expanded, nav }: Props) {
+export function PreviewSection({ draft, state }: Props) {
   return (
     <SectionCard
       title="Preview"
       number={7}
       status={state.status}
-      expanded={expanded}
-      nav={nav}
     >
       <div className="grid gap-3">
         <LiveEquationStrip size="lg" />

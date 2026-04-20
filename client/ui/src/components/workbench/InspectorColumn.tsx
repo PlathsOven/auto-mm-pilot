@@ -36,6 +36,10 @@ export function InspectorColumn() {
   useHotkeys({ "[": toggleOpen, "]": toggleOpen });
 
   const totalWidth = open ? INSPECTOR_COLUMN_WIDTH_PX : HANDLE_WIDTH_PX;
+  // When the inspector is collapsed but a focus is set, surface a soft
+  // pulsing glow on the toggle handle so the user knows there is hidden
+  // content to look at.
+  const hasHiddenContent = !open && focus !== null;
 
   return (
     <aside
@@ -45,11 +49,23 @@ export function InspectorColumn() {
       <button
         type="button"
         onClick={() => persistOpen(!open)}
-        className="group flex h-full w-[18px] shrink-0 cursor-pointer items-center justify-center border-r border-black/[0.06] bg-black/[0.02] transition-colors hover:bg-mm-accent/[0.06]"
-        title={`${open ? "Collapse" : "Expand"} inspector ( [ or ] )`}
+        className={`group flex h-full w-[18px] shrink-0 cursor-pointer items-center justify-center border-r border-black/[0.06] transition-colors hover:bg-mm-accent/[0.06] ${
+          hasHiddenContent
+            ? "animate-pulse bg-mm-accent/15 shadow-[inset_2px_0_0_0_rgba(79,91,213,0.65)]"
+            : "bg-black/[0.02]"
+        }`}
+        title={
+          hasHiddenContent
+            ? `Expand inspector — ${focusHint(focus)} ( [ or ] )`
+            : `${open ? "Collapse" : "Expand"} inspector ( [ or ] )`
+        }
         aria-label={open ? "Collapse inspector" : "Expand inspector"}
       >
-        <span className="text-[11px] font-semibold text-mm-text-subtle transition-colors group-hover:text-mm-accent">
+        <span
+          className={`text-[11px] font-semibold transition-colors group-hover:text-mm-accent ${
+            hasHiddenContent ? "text-mm-accent" : "text-mm-text-subtle"
+          }`}
+        >
           {open ? "›" : "‹"}
         </span>
       </button>

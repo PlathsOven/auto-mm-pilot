@@ -76,6 +76,7 @@ function AnatomyCanvasInner() {
     openStream,
     openTransform,
     toggleListPanel,
+    showList,
   } = useAnatomySelection();
 
   const { savingKey, saveError, onSelectTransform, onParamChange } = useTransformEditors();
@@ -156,31 +157,36 @@ function AnatomyCanvasInner() {
   // ---------------------------------------------------------------------
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
-      // Toggle: clicking the currently-focused node closes the panel.
-      const isAlreadyFocused =
-        (selection.kind === "transform" && node.type === "transform" && selection.stepKey === node.id)
-        || (selection.kind === "stream" && node.type === "stream" && selection.streamName === node.id);
-
-      if (isAlreadyFocused) {
+      // Toggle: clicking the currently-focused transform closes the panel.
+      // Stream clicks always go to the list (see below) — they don't
+      // self-toggle, since the list is shared across every stream node.
+      if (
+        selection.kind === "transform"
+        && node.type === "transform"
+        && selection.stepKey === node.id
+      ) {
         closePanel();
         return;
       }
 
       // Pan/zoom to the clicked node so it ends up centred regardless of
-      // which slice of the DAG was previously visible. The sidebar-mode
-      // useEffect no longer fires on node clicks, so this is the only fit
-      // that runs (single zoom step).
+      // which slice of the DAG was previously visible.
       reactFlowInstance.fitView({ nodes: [{ id: node.id }], duration: 250, padding: 0.5, minZoom: 1, maxZoom: 1.6 });
 
       if (node.type === "stream") {
-        openStream(node.id);
+        // Stream nodes open the streams list, not the per-stream editor.
+        // The user picks a row in the list to open the editor for that one.
+        // (Earlier this passed `node.id` to openStream, but node.id is the
+        // ReactFlow id `stream-{name}` — that prefix then surfaced as the
+        // initial Stream Name in the editor and failed snake_case validation.)
+        showList();
       } else if (node.type === "transform") {
         openTransform(node.id as StepKey);
       } else if (node.type === "output") {
         setMode("workbench");
       }
     },
-    [reactFlowInstance, setMode, selection, closePanel, openStream, openTransform],
+    [reactFlowInstance, setMode, selection, closePanel, openTransform, showList],
   );
 
   const onPaneClick = useCallback(() => {
@@ -329,6 +335,7 @@ function AnatomyCanvasInner() {
           onParamChange={onParamChange}
           onClose={closePanel}
           onOpenStream={openStream}
+          onShowList={showList}
           onStreamActivated={handleStreamActivated}
           streamPrefill={streamPrefill}
         />

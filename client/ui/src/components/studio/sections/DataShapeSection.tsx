@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo } from "react";
 import type { DataShapeDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
 import { Field } from "./Field";
@@ -7,8 +7,6 @@ interface Props {
   value: DataShapeDraft;
   onChange: (next: DataShapeDraft) => void;
   state: SectionState;
-  expanded?: boolean;
-  nav?: ReactNode;
 }
 
 interface ParsedSchema {
@@ -32,7 +30,7 @@ function parseCsv(raw: string): ParsedSchema | null {
   return { headers, rowCount: rows.length, numericColumns };
 }
 
-export function DataShapeSection({ value, onChange, state, expanded, nav }: Props) {
+export function DataShapeSection({ value, onChange, state }: Props) {
   const schema = useMemo(() => parseCsv(value.sample_csv), [value.sample_csv]);
 
   const patch = <K extends keyof DataShapeDraft>(k: K, v: DataShapeDraft[K]) =>
@@ -44,8 +42,6 @@ export function DataShapeSection({ value, onChange, state, expanded, nav }: Prop
       number={2}
       status={state.status}
       message={state.message}
-      expanded={expanded}
-      nav={nav}
     >
       <div className="grid gap-3">
         <Field

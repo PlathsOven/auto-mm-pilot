@@ -5,7 +5,6 @@ import type { ViewMode, ViewModeMeta } from "./types";
 export const POLL_INTERVAL_TRANSFORMS_MS = 10_000;
 export const POLL_INTERVAL_BLOCKS_MS = 5_000;
 export const POLL_INTERVAL_TIMESERIES_MS = 5_000;
-export const POLL_INTERVAL_SELECTION_MS = 5_000;
 export const POLL_INTERVAL_STREAMS_MS = 5_000;
 
 export const HOVER_DELAY_MS = 350;
@@ -31,7 +30,6 @@ export const SIDEBAR_MIN_WIDTH_PX = 120;
 export const SIDEBAR_MAX_WIDTH_PX = 400;
 
 export const UPDATE_HISTORY_MAX_LENGTH = 100;
-export const GLOBAL_CONTEXT_TICK_MS = 47;
 
 // Chat textarea auto-grows up to this height (px) before scrolling internally.
 export const CHAT_INPUT_MAX_HEIGHT_PX = 160;
@@ -94,16 +92,12 @@ export const BLOCKS_FOLLOW_FOCUS_KEY = "posit-blocks-follow-focus";
 export const CHAT_HISTORY_KEY = "posit-chat-history";
 export const CHAT_HISTORY_MAX = 50;
 
-// Stream Canvas walkthrough toggle (+ the legacy `apt.*` key we migrate from).
-export const STREAM_CANVAS_WALKTHROUGH_KEY = "posit.studio.walkthrough";
-export const STREAM_CANVAS_WALKTHROUGH_LEGACY_KEY = "apt.studio.walkthrough";
-
 // ---------------------------------------------------------------------------
 // Position grid — view modes + timeframe options
 // ---------------------------------------------------------------------------
 
 export const VIEW_MODE_META: Record<ViewMode, ViewModeMeta> = {
-  position: { label: "Position", unit: "$vega", decimals: 2, group: "primary" },
+  position: { label: "Desired", unit: "$vega", decimals: 2, group: "primary" },
   change: { label: "Change", unit: "$vega", decimals: 2, group: "primary" },
   edge: { label: "Edge", unit: "vp", decimals: 2, group: "primary" },
   variance: { label: "Variance", unit: "vp", decimals: 2, group: "primary" },

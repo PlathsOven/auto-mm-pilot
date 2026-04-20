@@ -46,10 +46,25 @@ const ALL_COLUMNS: ColumnDef<BlockRow, any>[] = [
       );
     },
     enableSorting: false,
+    filterFn: (row, _id, value: string) => row.original.source === value,
   }),
-  col.accessor("stream_name", { header: "Stream" }),
-  col.accessor("symbol", { header: "Symbol", filterFn: "equals" }),
-  col.accessor("expiry", { header: "Expiry", filterFn: "equals" }),
+  // Filter functions are explicit lambdas (not the "equals" string preset)
+  // so the comparison stays correct even when the column is hidden — the
+  // string preset depends on TanStack resolving the column's accessor at
+  // filter time, which silently no-ops when the row's getValue() returns
+  // undefined for hidden columns in some setups.
+  col.accessor("stream_name", {
+    header: "Stream",
+    filterFn: (row, _id, value: string) => row.original.stream_name === value,
+  }),
+  col.accessor("symbol", {
+    header: "Symbol",
+    filterFn: (row, _id, value: string) => row.original.symbol === value,
+  }),
+  col.accessor("expiry", {
+    header: "Expiry",
+    filterFn: (row, _id, value: string) => row.original.expiry === value,
+  }),
   col.accessor("space_id", { header: "Space" }),
   col.accessor("fair", {
     header: "Fair",
@@ -192,6 +207,8 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
   const [colMenuOpen, setColMenuOpen] = useState(false);
   const [symbolFilter, setSymbolFilter] = useState<string>(ALL);
   const [expiryFilter, setExpiryFilter] = useState<string>(ALL);
+  const [streamFilter, setStreamFilter] = useState<string>(ALL);
+  const [sourceFilter, setSourceFilter] = useState<string>(ALL);
   const [followFocus, setFollowFocus] = useState<boolean>(() => {
     try { return localStorage.getItem(BLOCKS_FOLLOW_FOCUS_KEY) !== "false"; } catch { return true; }
   });
@@ -204,22 +221,31 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
     if (!focus) {
       setSymbolFilter(ALL);
       setExpiryFilter(ALL);
+      setStreamFilter(ALL);
       return;
     }
     if (focus.kind === "cell") {
       setSymbolFilter(focus.symbol);
       setExpiryFilter(focus.expiry);
+      setStreamFilter(ALL);
     } else if (focus.kind === "symbol") {
       setSymbolFilter(focus.symbol);
       setExpiryFilter(ALL);
+      setStreamFilter(ALL);
     } else if (focus.kind === "expiry") {
       setSymbolFilter(ALL);
       setExpiryFilter(focus.expiry);
+      setStreamFilter(ALL);
+    } else if (focus.kind === "stream") {
+      setSymbolFilter(ALL);
+      setExpiryFilter(ALL);
+      setStreamFilter(focus.name);
     } else if (focus.kind === "block") {
       // Block focus highlights a single row; clear axis filters so the row
       // is visible in context.
       setSymbolFilter(ALL);
       setExpiryFilter(ALL);
+      setStreamFilter(ALL);
     }
   }, [focus, followFocus]);
 
@@ -232,8 +258,10 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
     const out: ColumnFiltersState = [];
     if (symbolFilter !== ALL) out.push({ id: "symbol", value: symbolFilter });
     if (expiryFilter !== ALL) out.push({ id: "expiry", value: expiryFilter });
+    if (streamFilter !== ALL) out.push({ id: "stream_name", value: streamFilter });
+    if (sourceFilter !== ALL) out.push({ id: "source", value: sourceFilter });
     return out;
-  }, [symbolFilter, expiryFilter]);
+  }, [symbolFilter, expiryFilter, streamFilter, sourceFilter]);
 
   const refresh = useCallback(async () => {
     try {
@@ -267,6 +295,10 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
     onGlobalFilterChange: setGlobalFilter,
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
+    // No-op handler — required by TanStack when columnFilters is provided
+    // in `state`, even though our filters are driven entirely by the
+    // dropdowns above (the table never asks to mutate them itself).
+    onColumnFiltersChange: () => {},
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -283,21 +315,25 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
     },
   });
 
-  // Distinct symbol + expiry values for the filter dropdowns + source counts.
-  const { symbolOptions, expiryOptions, sourceCounts, visibleCount } = useMemo(() => {
+  // Distinct symbol + expiry + stream values for the filter dropdowns +
+  // source counts.
+  const { symbolOptions, expiryOptions, streamOptions, sourceCounts, visibleCount } = useMemo(() => {
     const syms = new Set<string>();
     const exps = new Set<string>();
+    const streams = new Set<string>();
     let stream = 0;
     let manual = 0;
     for (const b of blocks) {
       syms.add(b.symbol);
       exps.add(b.expiry);
+      if (b.stream_name) streams.add(b.stream_name);
       if (b.source === "manual") manual++;
       else stream++;
     }
     return {
       symbolOptions: Array.from(syms).sort(),
       expiryOptions: Array.from(exps).sort(),
+      streamOptions: Array.from(streams).sort(),
       sourceCounts: { stream, manual },
       visibleCount: table.getFilteredRowModel().rows.length,
     };
@@ -335,6 +371,27 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
           {expiryOptions.map((e) => (
             <option key={e} value={e}>{e}</option>
           ))}
+        </select>
+        <select
+          value={streamFilter}
+          onChange={(e) => { setStreamFilter(e.target.value); persistFollowFocus(false); }}
+          className="form-input max-w-[140px]"
+          title="Filter by stream"
+        >
+          <option value={ALL}>All streams</option>
+          {streamOptions.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+        <select
+          value={sourceFilter}
+          onChange={(e) => { setSourceFilter(e.target.value); persistFollowFocus(false); }}
+          className="form-input max-w-[100px]"
+          title="Filter by source"
+        >
+          <option value={ALL}>All sources</option>
+          <option value="stream">stream</option>
+          <option value="manual">manual</option>
         </select>
         <label
           className={`flex items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] transition-colors ${
@@ -376,6 +433,18 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
             <>
               <div className="fixed inset-0 z-40" onClick={() => setColMenuOpen(false)} />
               <div className="absolute right-0 top-full z-50 mt-1 max-h-64 w-48 overflow-y-auto rounded-lg border border-black/[0.08] bg-white p-2 shadow-lg">
+                <label className="mb-1 flex items-center gap-2 border-b border-black/[0.06] pb-1.5 text-[10px] font-semibold text-mm-text">
+                  <input
+                    type="checkbox"
+                    checked={table.getIsAllColumnsVisible()}
+                    ref={(el) => {
+                      if (el) el.indeterminate = !table.getIsAllColumnsVisible() && table.getIsSomeColumnsVisible();
+                    }}
+                    onChange={table.getToggleAllColumnsVisibilityHandler()}
+                    className="accent-mm-accent"
+                  />
+                  {table.getIsAllColumnsVisible() ? "Deselect all" : "Select all"}
+                </label>
                 {table.getAllLeafColumns().map((column) => (
                   <label key={column.id} className="flex items-center gap-2 py-0.5 text-[10px]">
                     <input
