@@ -21,12 +21,6 @@ export function formatAge(ms: number): string {
   return `${mins}m ago`;
 }
 
-/** Creates an auto-incrementing ID generator with a given prefix. */
-export function createIdGenerator(prefix: string): () => string {
-  let counter = 0;
-  return () => `${prefix}${++counter}`;
-}
-
 /** Converts an ISO-8601 (or already-formatted DDMMMYY) expiry to DDMMMYY.
  *
  *  Crucially, ISO strings without a timezone suffix (e.g.
@@ -93,6 +87,40 @@ export function migrateLegacyStorageKey(legacy: string, current: string): void {
   } catch {
     // ignore — private mode / storage disabled
   }
+}
+
+/** Reads a localStorage value, returning `fallback` on read failure or when
+ *  the key is absent. Private-mode safe. */
+export function safeGetItem(key: string, fallback: string | null = null): string | null {
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? fallback : v;
+  } catch {
+    return fallback;
+  }
+}
+
+/** Writes to localStorage, silently dropping the write if storage is
+ *  unavailable. Private-mode safe. */
+export function safeSetItem(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // ignore — private mode / storage disabled
+  }
+}
+
+/** Cache key for a (symbol, expiry) dimension. Pass `lookback` when the
+ *  cached value varies by lookback window; omit it for lookback-invariant
+ *  caches. Preserves the legacy `lookback ?? 0` encoding used by
+ *  `usePipelineTimeSeries` — a null lookback still produces a 3-part key. */
+export function dimensionKey(
+  symbol: string,
+  expiry: string,
+  lookback?: number | null,
+): string {
+  if (lookback === undefined) return `${symbol}|${expiry}`;
+  return `${symbol}|${expiry}|${lookback ?? 0}`;
 }
 
 /** Formats a UTC timestamp (ms) as HH:MM:SS.mmm */

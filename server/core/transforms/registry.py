@@ -254,8 +254,8 @@ _define_step("decay_profile",
              infrastructure_params=["progress", "end_mult"])
 
 _define_step("temporal_fair_value",
-             contract_doc="(blocks_df, time_grid, risk_dimension_cols, now, decay_fn, **params) -> pl.DataFrame",
-             infrastructure_params=["blocks_df", "time_grid", "risk_dimension_cols", "now", "decay_fn"])
+             contract_doc="(blocks_df, time_grid, risk_dimension_cols, now, **params) -> pl.DataFrame",
+             infrastructure_params=["blocks_df", "time_grid", "risk_dimension_cols", "now"])
 
 _define_step("variance",
              contract_doc="(blocks_df: pl.DataFrame, **params) -> pl.DataFrame",

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LlmChat } from "../LlmChat";
 import { useChat } from "../../providers/ChatProvider";
+import { safeSetItem } from "../../utils";
 import { CHAT_DOCK_HEIGHT_PX, CHAT_DOCK_OPEN_KEY } from "../../constants";
 
 /**
@@ -28,13 +29,7 @@ export function ChatDock() {
   const dragRef = useRef<{ startY: number; startH: number } | null>(null);
 
   useEffect(() => {
-    try {
-      if (drawerOpen) {
-        localStorage.setItem(CHAT_DOCK_OPEN_KEY, "true");
-      } else {
-        localStorage.setItem(CHAT_DOCK_OPEN_KEY, "false");
-      }
-    } catch { /* ignore */ }
+    safeSetItem(CHAT_DOCK_OPEN_KEY, drawerOpen ? "true" : "false");
   }, [drawerOpen]);
 
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {

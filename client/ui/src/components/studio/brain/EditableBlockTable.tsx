@@ -17,17 +17,14 @@ import {
   blockKeyOf,
   blockKeyToString,
   formatNullable,
+  safeGetItem,
+  safeSetItem,
   valColor,
 } from "../../../utils";
 import { POLL_INTERVAL_BLOCKS_MS, BLOCKS_FOLLOW_FOCUS_KEY } from "../../../constants";
 import { useFocus } from "../../../providers/FocusProvider";
 
 const col = createColumnHelper<BlockRow>();
-
-/** Composite React key for a block row. `block_name` alone is not unique. */
-function rowReactKey(row: BlockRow): string {
-  return `${blockKeyToString(blockKeyOf(row))}|${row.space_id}`;
-}
 
 /** All column definitions. The `id` doubles as the visibility key. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TanStack column helper produces heterogeneous accessor types
@@ -227,9 +224,9 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
   const [expiryFilter, setExpiryFilter] = useState<string>(ALL);
   const [streamFilter, setStreamFilter] = useState<string>(ALL);
   const [sourceFilter, setSourceFilter] = useState<string>(ALL);
-  const [followFocus, setFollowFocus] = useState<boolean>(() => {
-    try { return localStorage.getItem(BLOCKS_FOLLOW_FOCUS_KEY) !== "false"; } catch { return true; }
-  });
+  const [followFocus, setFollowFocus] = useState<boolean>(
+    () => safeGetItem(BLOCKS_FOLLOW_FOCUS_KEY) !== "false",
+  );
 
   // Auto-filter to the focused dimension when "follow focus" is on. Reverting
   // is the same gesture: click the same focus again to unfocus, or toggle
@@ -269,7 +266,7 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
 
   const persistFollowFocus = useCallback((next: boolean) => {
     setFollowFocus(next);
-    try { localStorage.setItem(BLOCKS_FOLLOW_FOCUS_KEY, String(next)); } catch { /* ignore */ }
+    safeSetItem(BLOCKS_FOLLOW_FOCUS_KEY, String(next));
   }, []);
 
   const refresh = useCallback(async () => {
@@ -520,7 +517,7 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
                   && blockKeyEquals(focus.key, blockKeyOf(row.original));
                 return (
                 <tr
-                  key={rowReactKey(row.original)}
+                  key={`${blockKeyToString(blockKeyOf(row.original))}|${row.original.space_id}`}
                   className={`border-t border-black/[0.03] transition-colors ${
                     isFocused ? "bg-mm-accent-soft" : "hover:bg-mm-accent/5"
                   } ${onRowClick ? "cursor-pointer" : ""}`}

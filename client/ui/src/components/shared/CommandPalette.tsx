@@ -144,7 +144,7 @@ export function CommandPalette() {
   return (
     <>
       <div className="fixed inset-0 z-[100] bg-black/20" onClick={closePalette} aria-hidden />
-      <div className="fixed inset-x-0 top-[15vh] z-[101] mx-auto w-[560px] max-w-[90vw] overflow-hidden rounded-lg border border-white/50 bg-white/80 shadow-xl shadow-black/[0.08] ring-1 ring-black/[0.06]" style={{ backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)" }}>
+      <div className="fixed inset-x-0 top-[15vh] z-[101] mx-auto w-[560px] max-w-[90vw] overflow-hidden rounded-lg border border-white/50 bg-white/80 shadow-xl shadow-black/[0.08] ring-1 ring-black/[0.06] backdrop-blur-glass32">
         <div className="border-b border-black/[0.06] px-3 py-2">
           <input
             ref={inputRef}

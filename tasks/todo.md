@@ -23,6 +23,7 @@ _(Format example — replace with real entries as work starts.)_
 - [ ] Promote `Cmd-K` palette beyond jump-to: action commands (create stream, toggle rail, set mode parameters).
 - [ ] Wire the `Posit Control` toggle through to the server so the automation flag is honoured (today it's UI-only).
 - [ ] Code-split the JS bundle — single chunk is at ~608KB gzipped (vite warning).
+- [ ] Vectorise `fv_standard` + `fv_flat_forward` in `server/core/transforms/fair_value.py` — two ~90 LOC transforms share ~80% of a per-block × per-risk-dim time-grid filter loop. Deferred from the 2026-04-21 refactor sweep because the start_ann / end_ann math is row-scalar and doesn't fold naturally into a cross-join; needs a dedicated pass with a parquet-baseline parity check per the ULP-drift lesson in `tasks/lessons.md`.
 
 - [x] 2026-04-09 — Migrate harness to Agentic Coding Playbook (Claude Code primary, Windsurf secondary in exact sync). See `docs/decisions.md` entry dated 2026-04-09.
 

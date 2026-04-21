@@ -3,11 +3,9 @@ import Markdown from "react-markdown";
 import { useChat } from "../providers/ChatProvider";
 import { Tabs, type TabItem } from "./ui/Tabs";
 import type { ChatMode } from "../types";
-import {
-  CHAT_INPUT_MAX_HEIGHT_PX,
-  CHAT_HISTORY_KEY,
-  CHAT_HISTORY_MAX,
-} from "../constants";
+import { SLASH_COMMANDS, tryRunSlash } from "../lib/slashCommands";
+import { useChatHistory } from "../hooks/useChatHistory";
+import { CHAT_INPUT_MAX_HEIGHT_PX } from "../constants";
 
 const MODE_LABELS: Record<ChatMode, string> = {
   investigate: "Investigate",
@@ -15,106 +13,11 @@ const MODE_LABELS: Record<ChatMode, string> = {
   general: "General",
 };
 
-interface SlashCommand {
-  name: string;
-  description: string;
-  /** Returns true if the input was consumed (don't send to LLM). */
-  run: (args: string, ctx: SlashCtx) => boolean;
-}
-
-interface SlashCtx {
-  setChatMode: (mode: ChatMode) => void;
-  clearMessages: () => void;
-  pushSystemMessage: (text: string) => void;
-  lastAssistantContent: string | null;
-}
-
-const SLASH_COMMANDS: readonly SlashCommand[] = [
-  {
-    name: "/clear",
-    description: "Clear all messages in the conversation",
-    run: (_args, { clearMessages, pushSystemMessage }) => {
-      clearMessages();
-      // Push the help nudge after clear so the user sees they can /help.
-      pushSystemMessage("Conversation cleared. Type /help for commands.");
-      return true;
-    },
-  },
-  {
-    name: "/explain",
-    description: "Switch to Investigate mode",
-    run: (_args, { setChatMode, pushSystemMessage }) => {
-      setChatMode("investigate");
-      pushSystemMessage("Mode → Investigate");
-      return true;
-    },
-  },
-  {
-    name: "/build",
-    description: "Switch to Build mode (stream / opinion creation)",
-    run: (_args, { setChatMode, pushSystemMessage }) => {
-      setChatMode("build");
-      pushSystemMessage("Mode → Build");
-      return true;
-    },
-  },
-  {
-    name: "/general",
-    description: "Switch to General mode (catch-all chat)",
-    run: (_args, { setChatMode, pushSystemMessage }) => {
-      setChatMode("general");
-      pushSystemMessage("Mode → General");
-      return true;
-    },
-  },
-  {
-    name: "/copy",
-    description: "Copy the last assistant response to the clipboard",
-    run: (_args, { lastAssistantContent, pushSystemMessage }) => {
-      if (!lastAssistantContent) {
-        pushSystemMessage("No assistant message to copy.");
-        return true;
-      }
-      navigator.clipboard
-        .writeText(lastAssistantContent)
-        .then(() => pushSystemMessage("Copied last response to clipboard."))
-        .catch(() => pushSystemMessage("Copy failed — clipboard permission denied."));
-      return true;
-    },
-  },
-  {
-    name: "/help",
-    description: "List available slash commands",
-    run: (_args, { pushSystemMessage }) => {
-      const lines = ["Slash commands:"];
-      for (const c of SLASH_COMMANDS) lines.push(`  ${c.name} — ${c.description}`);
-      lines.push("History: ↑ / ↓ to walk through previous prompts. Enter to send · Shift+Enter for newline.");
-      pushSystemMessage(lines.join("\n"));
-      return true;
-    },
-  },
-];
-
 function investigationLabel(ctx: NonNullable<ReturnType<typeof useChat>["investigation"]>): string {
   if (ctx.type === "update") {
     return `${ctx.card.symbol} ${ctx.card.expiry} — ${ctx.card.oldPos > 0 ? "+" : ""}${ctx.card.oldPos.toFixed(2)} → ${ctx.card.newPos > 0 ? "+" : ""}${ctx.card.newPos.toFixed(2)} $vega`;
   }
   return `${ctx.symbol} ${ctx.expiry} — Edge ${ctx.position.edge.toFixed(4)} vp, Desired ${ctx.position.desiredPos > 0 ? "+" : ""}${ctx.position.desiredPos.toFixed(2)} $vega`;
-}
-
-function loadHistory(): string[] {
-  try {
-    const v = localStorage.getItem(CHAT_HISTORY_KEY);
-    if (!v) return [];
-    const parsed = JSON.parse(v);
-    return Array.isArray(parsed) ? parsed.filter((s) => typeof s === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistHistory(history: string[]): void {
-  try { localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(history.slice(-CHAT_HISTORY_MAX))); } catch { /* ignore */ }
 }
 
 export function LlmChat() {
@@ -125,13 +28,7 @@ export function LlmChat() {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Command history (persisted across reloads). historyIdx === null means
-  // "live input" (the user's freshly-typed text); a numeric idx points into
-  // the history array.
-  const [history, setHistory] = useState<string[]>(loadHistory);
-  const [historyIdx, setHistoryIdx] = useState<number | null>(null);
-  const liveInputRef = useRef<string>("");
+  const history = useChatHistory();
 
   const modeTabs = useMemo<TabItem<ChatMode>[]>(
     () => (Object.keys(MODE_LABELS) as ChatMode[]).map((m) => ({
@@ -158,40 +55,20 @@ export function LlmChat() {
     el.style.height = `${Math.min(el.scrollHeight, CHAT_INPUT_MAX_HEIGHT_PX)}px`;
   }, [input]);
 
-  function pushHistory(entry: string) {
-    setHistory((prev) => {
-      // Drop consecutive duplicates.
-      const next = prev[prev.length - 1] === entry ? prev : [...prev, entry];
-      const trimmed = next.slice(-CHAT_HISTORY_MAX);
-      persistHistory(trimmed);
-      return trimmed;
-    });
-  }
+  function submit() {
+    const text = input.trim();
+    if (!text) return;
 
-  function tryRunSlash(text: string): boolean {
-    if (!text.startsWith("/")) return false;
-    const [name, ...rest] = text.split(/\s+/);
-    const cmd = SLASH_COMMANDS.find((c) => c.name === name);
-    if (!cmd) return false;
+    history.push(text);
+
     const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
-    cmd.run(rest.join(" "), {
+    const consumed = tryRunSlash(text, {
       setChatMode,
       clearMessages,
       pushSystemMessage,
       lastAssistantContent: lastAssistant?.content ?? null,
     });
-    return true;
-  }
-
-  function submit() {
-    const text = input.trim();
-    if (!text) return;
-
-    pushHistory(text);
-    setHistoryIdx(null);
-    liveInputRef.current = "";
-
-    if (tryRunSlash(text)) {
+    if (consumed) {
       setInput("");
       return;
     }
@@ -206,25 +83,6 @@ export function LlmChat() {
     submit();
   }
 
-  function navigateHistory(direction: 1 | -1) {
-    if (history.length === 0) return;
-    const isFirstStep = historyIdx === null;
-    if (isFirstStep) liveInputRef.current = input;
-
-    let nextIdx: number | null;
-    if (isFirstStep) {
-      nextIdx = direction === -1 ? history.length - 1 : null;
-    } else {
-      const candidate = (historyIdx as number) + direction;
-      if (candidate < 0) nextIdx = 0;
-      else if (candidate >= history.length) nextIdx = null;
-      else nextIdx = candidate;
-    }
-
-    setHistoryIdx(nextIdx);
-    setInput(nextIdx === null ? liveInputRef.current : history[nextIdx]);
-  }
-
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -234,12 +92,10 @@ export function LlmChat() {
 
     // Single-line: ↑/↓ walk history. Multi-line input: leave native behavior.
     const isMultiline = input.includes("\n");
-    if (!isMultiline && e.key === "ArrowUp") {
+    if (!isMultiline && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
       e.preventDefault();
-      navigateHistory(-1);
-    } else if (!isMultiline && e.key === "ArrowDown") {
-      e.preventDefault();
-      navigateHistory(1);
+      const next = history.navigate(e.key === "ArrowUp" ? -1 : 1, input);
+      if (next !== null) setInput(next);
     }
   }
 
@@ -344,8 +200,8 @@ export function LlmChat() {
           value={input}
           onChange={(e) => {
             setInput(e.target.value);
-            // Edits invalidate the history walk.
-            if (historyIdx !== null) setHistoryIdx(null);
+            // Manual edits invalidate the history walk.
+            if (history.isWalking) history.resetCursor();
           }}
           onKeyDown={handleKeyDown}
           placeholder={

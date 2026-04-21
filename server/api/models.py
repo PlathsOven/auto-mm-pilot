@@ -491,6 +491,13 @@ class MarketValueListResponse(BaseModel):
     entries: list[MarketValueEntry]
 
 
+class DeleteMarketValueResponse(BaseModel):
+    """Response for ``DELETE /api/market-values/{symbol}/{expiry}``."""
+    deleted: bool
+    symbol: str
+    expiry: str
+
+
 # ---------------------------------------------------------------------------
 # Broadcast wire shapes (camelCase on the wire — see _WireModel)
 # ---------------------------------------------------------------------------

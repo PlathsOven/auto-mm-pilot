@@ -104,13 +104,11 @@ export function BankrollControl({
   return (
     <div
       ref={ref}
-      className="absolute z-20 flex flex-col gap-2 rounded-lg border border-white/50 bg-white/90 p-3 shadow-lg shadow-black/[0.08] ring-1 ring-black/[0.06]"
+      className="absolute z-20 flex flex-col gap-2 rounded-lg border border-white/50 bg-white/90 p-3 shadow-lg shadow-black/[0.08] ring-1 ring-black/[0.06] backdrop-blur-glass24"
       style={{
         right: anchorRightPx,
         bottom: anchorBottomPx,
         width: BANKROLL_POPOVER_WIDTH_PX,
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
       }}
     >
       <div className="flex items-baseline justify-between">

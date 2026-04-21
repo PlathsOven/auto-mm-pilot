@@ -29,7 +29,6 @@ selections match the spec exactly and reproduce today's options numbers
 from __future__ import annotations
 
 import datetime as dt
-import logging
 from typing import Any
 
 import polars as pl
@@ -37,8 +36,6 @@ import polars as pl
 from server.api.expiry import canonical_expiry_key
 from server.core.config import SECONDS_PER_YEAR, StreamConfig
 from server.core.transforms import TransformRegistration, from_dict, get_step
-
-log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -109,10 +106,9 @@ def build_blocks_df(
                 pl.lit(None).cast(pl.Datetime("us")).alias("start_timestamp"),
             )
 
-        for row in snap.iter_rows(named=True):
-            dim_tuple = tuple(row[c] for c in risk_dimension_cols)
-            dim_universe_set.add(dim_tuple)
-            dim_universe_canon.add(_canon_dim(dim_tuple))
+        dim_rows = snap.select(risk_dimension_cols).rows()
+        dim_universe_set.update(dim_rows)
+        dim_universe_canon.update(_canon_dim(t) for t in dim_rows)
 
         extra_keys = [k for k in sc.key_cols if k not in risk_dimension_cols]
         block_name_expr = (
@@ -267,31 +263,28 @@ def _attach_market_value_source(
         return blocks_df
 
     unique_dims = blocks_df.select(risk_dimension_cols).unique()
-    rows: list[dict] = []
-    for dim_row in unique_dims.iter_rows(named=True):
-        dim_tuple = tuple(dim_row[c] for c in risk_dimension_cols)
-        # Pipeline default risk dims are ["symbol", "expiry"] — canonicalise
-        # the expiry so the lookup matches the dict's key format.
-        if (
-            len(risk_dimension_cols) == 2
-            and risk_dimension_cols[0] == "symbol"
-            and risk_dimension_cols[1] == "expiry"
-        ):
-            key = (dim_row["symbol"], canonical_expiry_key(dim_row["expiry"]))
-        else:
-            key = dim_tuple
-        row = {c: dim_row[c] for c in risk_dimension_cols}
-        row["_has_aggregate"] = key in aggregate_market_values
-        rows.append(row)
-
-    if not rows:
+    if unique_dims.is_empty():
         return blocks_df.with_columns(pl.lit("passthrough").alias("market_value_source"))
 
-    has_agg_df = pl.DataFrame(rows)
-    for c in risk_dimension_cols:
-        has_agg_df = has_agg_df.with_columns(
-            pl.col(c).cast(blocks_df.schema[c]),
-        )
+    # Pipeline default risk dims are ["symbol", "expiry"] — canonicalise the
+    # expiry so the aggregate-market-value lookup matches its string key
+    # format. Any other dim shape falls back to raw tuple equality.
+    is_symbol_expiry = (
+        len(risk_dimension_cols) == 2
+        and risk_dimension_cols[0] == "symbol"
+        and risk_dimension_cols[1] == "expiry"
+    )
+    if is_symbol_expiry:
+        keys = [
+            (sym, canonical_expiry_key(exp))
+            for sym, exp in unique_dims.select("symbol", "expiry").rows()
+        ]
+    else:
+        keys = list(unique_dims.rows())
+
+    has_agg_df = unique_dims.with_columns(
+        pl.Series("_has_aggregate", [k in aggregate_market_values for k in keys]),
+    )
 
     return (
         blocks_df
@@ -310,13 +303,22 @@ def _attach_market_value_source(
 # Time grid (internal — not in the return dict)
 # ---------------------------------------------------------------------------
 
+# Time-grid density thresholds — coarsen the per-dim grid as time-to-expiry
+# grows so distant-expiry paths don't blow up the row count. Buckets measured
+# from now to the dim's expiry.
+_SECS_PER_DAY: int = 86_400
+GRID_INTERVAL_BREAKPOINT_2D_SECS: int = 2 * _SECS_PER_DAY
+GRID_INTERVAL_BREAKPOINT_30D_SECS: int = 30 * _SECS_PER_DAY
+GRID_INTERVAL_BREAKPOINT_365D_SECS: int = 365 * _SECS_PER_DAY
+
+
 def _pick_grid_interval(ttx_secs: float, default: str) -> str:
     """Choose a time-grid interval for a single risk dimension."""
-    if ttx_secs <= 2 * 86_400:
+    if ttx_secs <= GRID_INTERVAL_BREAKPOINT_2D_SECS:
         return default
-    if ttx_secs <= 30 * 86_400:
+    if ttx_secs <= GRID_INTERVAL_BREAKPOINT_30D_SECS:
         return "15m"
-    if ttx_secs <= 365 * 86_400:
+    if ttx_secs <= GRID_INTERVAL_BREAKPOINT_365D_SECS:
         return "1h"
     return "4h"
 
@@ -332,19 +334,16 @@ def build_time_grid(
         raise ValueError("blocks_df must contain an 'expiry' column to build time grids")
 
     unique_dims = blocks_df.select(risk_dimension_cols).unique()
+    expiry_idx = risk_dimension_cols.index("expiry")
     parts: list[pl.DataFrame] = []
 
-    for row in unique_dims.iter_rows(named=True):
-        expiry = row["expiry"]
+    for dim_values in unique_dims.rows():
+        expiry = dim_values[expiry_idx]
         ttx_secs = (expiry - now).total_seconds()
         dim_interval = _pick_grid_interval(ttx_secs, interval)
         timestamps = pl.datetime_range(start=now, end=expiry, interval=dim_interval, eager=True)
-        grid = pl.DataFrame({"timestamp": timestamps})
-
-        for rdc in risk_dimension_cols:
-            grid = grid.with_columns(pl.lit(row[rdc]).alias(rdc))
-
-        grid = grid.with_columns(
+        grid = pl.DataFrame({"timestamp": timestamps}).with_columns(
+            *(pl.lit(v).alias(c) for c, v in zip(risk_dimension_cols, dim_values)),
             dtte=-pl.col("timestamp").diff(-1).dt.total_seconds() / SECONDS_PER_YEAR,
         )
         parts.append(grid)
@@ -356,8 +355,10 @@ def build_time_grid(
 # Full pipeline orchestrator
 # ---------------------------------------------------------------------------
 
-# Position sizing sentinel for degenerate variance — see tasks/progress.md
-# 2026-04-20 for the initial-spike artifact this does NOT yet bound.
+# Position sizing sentinel: below this variance floor the Kelly ratio
+# `edge * bankroll / var` is replaced with 0 to avoid division-by-near-zero
+# blow-ups. Does not clamp the in-band output — see the Kelly bounding
+# discussion if finite-upper-bound positions are needed.
 VAR_FLOOR: float = 1e-6
 
 
@@ -388,7 +389,6 @@ def run_pipeline(
         get_step("smoothing").set_param_values({"half_life_secs": smoothing_hl_secs})
 
     unit_fn = get_step("unit_conversion").get_selected()
-    decay_fn = get_step("decay_profile").get_selected()
     var_fn = get_step("variance").get_selected()
     fair_fn = get_step("temporal_fair_value").get_selected()
     rsa_fn = get_step("risk_space_aggregation").get_selected()
@@ -427,7 +427,7 @@ def run_pipeline(
 
     # Stage B: time distribution of each calc total.
     block_series_df = fair_fn.fn(
-        blocks_df, time_grid, risk_dimension_cols, now, decay_fn,
+        blocks_df, time_grid, risk_dimension_cols, now,
         **fair_params,
     )
 

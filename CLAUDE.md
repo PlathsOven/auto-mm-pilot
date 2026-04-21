@@ -47,7 +47,6 @@ Fix the root cause, not the symptom. One bug = one fix in one place. If your dif
 ## Known Gotchas
 - `server/api/llm/test_investigation.py` is a CLI harness, not prod code.
 - `server/api/llm/context_db.py` is MOCK-initialized (hardcoded stream metadata).
-- `client/ui/src/components/DailyWrap.tsx` is MOCK data.
 - `server/api/ws.py` has a singleton background ticker — call `restart_ticker()` after hot reloads.
 - `POSIT_MODE=mock` runs on scenario data; `POSIT_MODE=prod` expects real streams via the (not-yet-built) adapter.
 

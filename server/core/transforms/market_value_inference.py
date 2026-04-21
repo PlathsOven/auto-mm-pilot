@@ -27,26 +27,53 @@ every timestamp.
 from __future__ import annotations
 
 import datetime as _dt
-from collections import defaultdict
 
 import polars as pl
 
-from server.api.expiry import canonical_expiry_key
 from server.core.config import SECONDS_PER_YEAR
 from server.core.transforms.registry import transform
 
 
-def _t_years_for_expiry(expiry: object, now: _dt.datetime) -> float:
+def _t_years_for_expiry(expiry: _dt.datetime, now: _dt.datetime) -> float:
     """Forward span in year-fractions — matches the convention the UI's
     vol display uses (``sqrt(Σ_t fair / T_years)``)."""
-    if isinstance(expiry, _dt.datetime):
-        exp_dt = expiry
-    elif isinstance(expiry, _dt.date):
-        exp_dt = _dt.datetime(expiry.year, expiry.month, expiry.day)
-    else:
-        exp_dt = _dt.datetime.fromisoformat(canonical_expiry_key(expiry))
-    secs = (exp_dt - now).total_seconds()
+    secs = (expiry - now).total_seconds()
     return max(secs, 0.0) / SECONDS_PER_YEAR
+
+
+def _user_values_df(
+    space_market_values: dict[tuple[str, str, str], float],
+    schema: dict[str, pl.DataType],
+) -> pl.DataFrame:
+    """Lift ``{(symbol, expiry_canon, space_id): vol}`` to a Polars frame
+    with the same dtypes the pipeline uses, so joins match by both value
+    and type."""
+    if not space_market_values:
+        return pl.DataFrame(
+            schema={"symbol": pl.Utf8, "_expiry_canon": pl.Utf8, "space_id": pl.Utf8, "_user_vol": pl.Float64},
+        )
+    rows = [(s, e, sp, v) for (s, e, sp), v in space_market_values.items()]
+    return pl.DataFrame(
+        rows, schema=["symbol", "_expiry_canon", "space_id", "_user_vol"], orient="row",
+    ).with_columns(
+        pl.col("symbol").cast(schema["symbol"]),
+        pl.col("space_id").cast(schema["space_id"]),
+    )
+
+
+def _aggregate_values_df(
+    aggregate_market_values: dict[tuple[str, str], float],
+    schema: dict[str, pl.DataType],
+) -> pl.DataFrame:
+    """Lift ``{(symbol, expiry_canon): vol}`` to a Polars frame."""
+    if not aggregate_market_values:
+        return pl.DataFrame(
+            schema={"symbol": pl.Utf8, "_expiry_canon": pl.Utf8, "_agg_vol": pl.Float64},
+        )
+    rows = [(s, e, v) for (s, e), v in aggregate_market_values.items()]
+    return pl.DataFrame(
+        rows, schema=["symbol", "_expiry_canon", "_agg_vol"], orient="row",
+    ).with_columns(pl.col("symbol").cast(schema["symbol"]))
 
 
 @transform("market_value_inference", "time_varying_proportional",
@@ -64,114 +91,103 @@ def mvi_time_varying_proportional(
 
     space_group_keys = risk_dimension_cols + ["space_id", "timestamp"]
 
-    # Fast path: no user input → fall back to space_fair wherever null.
+    # Fast path: no user input → null rows fall back to space_fair.
     if not aggregate_market_values and not space_market_values:
         return space_series_df.with_columns(
             pl.col("space_market_fair").fill_null(pl.col("space_fair")),
         ).sort(space_group_keys)
 
-    # Only spaces with null space_market_fair need inference — those came from
-    # blocks tagged "aggregate". Spaces already carrying a block/passthrough
-    # mean are untouched by the allocator below.
-    inferable_mask = pl.col("space_market_fair").is_null()
-
-    space_integral_df = (
-        space_series_df
-        .filter(inferable_mask)
-        .group_by(risk_dimension_cols + ["space_id"])
-        .agg(pl.col("space_fair").sum().alias("_space_fair_integral"))
-    )
-
-    rd_groups: dict[tuple, list[dict]] = defaultdict(list)
-    for row in space_integral_df.iter_rows(named=True):
-        rd_key = tuple(row[c] for c in risk_dimension_cols)
-        rd_groups[rd_key].append({
-            "space_id": row["space_id"],
-            "integral": row["_space_fair_integral"],
-        })
-
-    multipliers: dict[tuple, float] = {}
-
-    for rd_key, entries in rd_groups.items():
-        symbol = rd_key[0]
-        expiry_raw = rd_key[1] if len(rd_key) > 1 else None
-        expiry_canon = canonical_expiry_key(expiry_raw) if expiry_raw is not None else ""
-        t_years = _t_years_for_expiry(expiry_raw, now) if expiry_raw is not None else 0.0
-
-        aggregate_vol = aggregate_market_values.get((symbol, expiry_canon))
-        aggregate_var_target = (
-            aggregate_vol ** 2 * t_years if aggregate_vol is not None else None
+    # Canonical expiry key column — matches dict-key formatting. Requires
+    # "expiry" in risk_dimension_cols; without it, the dicts can't key in and
+    # the loop below produces no multipliers (equivalent to fast path).
+    has_expiry = "expiry" in risk_dimension_cols
+    if has_expiry:
+        expiry_canon_expr = (
+            pl.col("expiry").cast(pl.Datetime("us")).dt.strftime("%Y-%m-%dT%H:%M:%S")
         )
+        t_years_expr = pl.max_horizontal(
+            (pl.col("expiry").cast(pl.Datetime("us")) - pl.lit(now)).dt.total_seconds()
+            / SECONDS_PER_YEAR,
+            pl.lit(0.0),
+        )
+    else:
+        expiry_canon_expr = pl.lit("")
+        t_years_expr = pl.lit(0.0)
 
-        user_space_entries: list[dict] = []
-        inferable_entries: list[dict] = []
-        for e in entries:
-            user_vol = space_market_values.get((symbol, expiry_canon, e["space_id"]))
-            if user_vol is not None:
-                user_space_entries.append({**e, "user_var_target": user_vol ** 2 * t_years})
-            else:
-                inferable_entries.append(e)
-
-        for e in user_space_entries:
-            key = rd_key + (e["space_id"],)
-            multipliers[key] = (
-                e["user_var_target"] / e["integral"] if e["integral"] != 0 else 0.0
-            )
-
-        if aggregate_var_target is None:
-            for e in inferable_entries:
-                multipliers[rd_key + (e["space_id"],)] = 1.0
-            continue
-
-        user_contribution = sum(e["user_var_target"] for e in user_space_entries)
-        remainder = aggregate_var_target - user_contribution
-        inf_total = sum(e["integral"] for e in inferable_entries)
-
-        if inf_total == 0 or not inferable_entries:
-            for e in inferable_entries:
-                multipliers[rd_key + (e["space_id"],)] = 1.0
-            continue
-
-        mult = remainder / inf_total
-        for e in inferable_entries:
-            multipliers[rd_key + (e["space_id"],)] = mult
-
-    if not multipliers:
+    # Integrate space_fair over null-market rows, per (risk_dim, space_id).
+    # Rows already carrying a block/passthrough market_fair are untouched.
+    inferable = (
+        space_series_df
+        .filter(pl.col("space_market_fair").is_null())
+        .group_by(risk_dimension_cols + ["space_id"])
+        .agg(pl.col("space_fair").sum().alias("_integral"))
+    )
+    if inferable.is_empty():
         return space_series_df.with_columns(
             pl.col("space_market_fair").fill_null(pl.col("space_fair")),
         ).sort(space_group_keys)
 
-    mult_rows: list[dict] = []
-    for key, m in multipliers.items():
-        row: dict = {}
-        for i, c in enumerate(risk_dimension_cols):
-            row[c] = key[i]
-        row["space_id"] = key[len(risk_dimension_cols)]
-        row["_multiplier"] = m
-        mult_rows.append(row)
-
-    mult_df = pl.DataFrame(mult_rows)
-    for c in risk_dimension_cols:
-        mult_df = mult_df.with_columns(pl.col(c).cast(space_series_df.schema[c]))
-    mult_df = mult_df.with_columns(
-        pl.col("space_id").cast(space_series_df.schema["space_id"]),
+    inferable = inferable.with_columns(
+        expiry_canon_expr.alias("_expiry_canon"),
+        t_years_expr.alias("_t_years"),
     )
 
-    joined = space_series_df.join(
-        mult_df, on=risk_dimension_cols + ["space_id"], how="left",
+    schema = dict(space_series_df.schema)
+    user_df = _user_values_df(space_market_values, schema)
+    agg_df = _aggregate_values_df(aggregate_market_values, schema)
+
+    joined = inferable.join(
+        user_df, on=["symbol", "_expiry_canon", "space_id"], how="left",
+    ).join(
+        agg_df, on=["symbol", "_expiry_canon"], how="left",
     ).with_columns(
-        pl.col("_multiplier").fill_null(1.0),
+        (pl.col("_user_vol") ** 2 * pl.col("_t_years")).alias("_user_var_target"),
+        (pl.col("_agg_vol") ** 2 * pl.col("_t_years")).alias("_agg_var_target"),
     )
 
-    # Fill ONLY the null rows (block/passthrough spaces keep their own market).
-    filled = joined.with_columns(
-        pl.when(pl.col("space_market_fair").is_null())
-          .then(pl.col("space_fair") * pl.col("_multiplier"))
-          .otherwise(pl.col("space_market_fair"))
-          .alias("space_market_fair"),
-    ).drop("_multiplier")
+    # Per-group (risk_dim) window aggregates: sum of user-set var targets,
+    # and sum of integrals across inferable-only (non-user) spaces.
+    joined = joined.with_columns(
+        pl.col("_user_var_target").fill_null(0.0).sum().over(risk_dimension_cols)
+        .alias("_user_contribution"),
+        pl.when(pl.col("_user_var_target").is_null())
+        .then(pl.col("_integral"))
+        .otherwise(pl.lit(0.0))
+        .sum().over(risk_dimension_cols)
+        .alias("_inf_integral_sum"),
+    ).with_columns(
+        (pl.col("_agg_var_target") - pl.col("_user_contribution")).alias("_remainder"),
+    ).with_columns(
+        # User-set multiplier: user_var_target / integral (0 if integral==0).
+        pl.when(pl.col("_integral") == 0)
+        .then(pl.lit(0.0))
+        .otherwise(pl.col("_user_var_target") / pl.col("_integral"))
+        .alias("_user_mult"),
+        # Inferable multiplier: remainder / inf_integral_sum (or 1.0 fallback).
+        pl.when(pl.col("_inf_integral_sum") == 0)
+        .then(pl.lit(1.0))
+        .otherwise(pl.col("_remainder") / pl.col("_inf_integral_sum"))
+        .alias("_inf_mult"),
+    ).with_columns(
+        pl.when(pl.col("_user_var_target").is_not_null()).then(pl.col("_user_mult"))
+        .when(pl.col("_agg_var_target").is_not_null()).then(pl.col("_inf_mult"))
+        .otherwise(pl.lit(1.0))
+        .alias("_multiplier"),
+    ).select(risk_dimension_cols + ["space_id", "_multiplier"])
 
-    return filled.sort(space_group_keys)
+    return (
+        space_series_df
+        .join(joined, on=risk_dimension_cols + ["space_id"], how="left")
+        .with_columns(pl.col("_multiplier").fill_null(1.0))
+        .with_columns(
+            pl.when(pl.col("space_market_fair").is_null())
+            .then(pl.col("space_fair") * pl.col("_multiplier"))
+            .otherwise(pl.col("space_market_fair"))
+            .alias("space_market_fair"),
+        )
+        .drop("_multiplier")
+        .sort(space_group_keys)
+    )
 
 
 @transform("market_value_inference", "passthrough",

@@ -3,7 +3,7 @@ import { useWebSocket } from "../../providers/WebSocketProvider";
 import { useCommandPalette } from "../../providers/CommandPaletteProvider";
 import { useNotifications } from "../../providers/NotificationsProvider";
 import { useTransforms } from "../../providers/TransformsProvider";
-import { formatUtcTime } from "../../utils";
+import { formatUtcTime, safeGetItem, safeSetItem } from "../../utils";
 import { POSIT_CONTROL_KEY, STATUSBAR_HEIGHT_PX, STATUSBAR_TICK_MS } from "../../constants";
 import { BankrollControl } from "./BankrollControl";
 
@@ -33,9 +33,9 @@ export function StatusBar({ onShowCheatsheet }: StatusBarProps) {
   const [now, setNow] = useState(Date.now());
   const [bankrollOpen, setBankrollOpen] = useState(false);
   const bankrollTriggerRef = useRef<HTMLButtonElement>(null);
-  const [positEnabled, setPositEnabled] = useState<boolean>(() => {
-    try { return localStorage.getItem(POSIT_CONTROL_KEY) !== "false"; } catch { return true; }
-  });
+  const [positEnabled, setPositEnabled] = useState<boolean>(
+    () => safeGetItem(POSIT_CONTROL_KEY) !== "false",
+  );
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), STATUSBAR_TICK_MS);
@@ -48,7 +48,7 @@ export function StatusBar({ onShowCheatsheet }: StatusBarProps) {
   const togglePosit = () => {
     setPositEnabled((v) => {
       const next = !v;
-      try { localStorage.setItem(POSIT_CONTROL_KEY, String(next)); } catch { /* ignore */ }
+      safeSetItem(POSIT_CONTROL_KEY, String(next));
       return next;
     });
   };

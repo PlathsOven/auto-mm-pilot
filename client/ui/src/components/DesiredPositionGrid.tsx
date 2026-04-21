@@ -6,6 +6,8 @@ import {
   viewModeOf,
   metricOf,
   SMOOTHABLE_METRICS,
+  safeGetItem,
+  safeSetItem,
   type Metric,
   type Smoothing,
 } from "../utils";
@@ -93,10 +95,8 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
   // External viewMode changes that carry an unambiguous smoothing variant
   // (e.g. linked pipeline chart swap) override this on the next render.
   const [smoothing, setSmoothingState] = useState<Smoothing>(() => {
-    try {
-      const saved = localStorage.getItem(OVERVIEW_SMOOTHING_KEY);
-      if (saved === "instant" || saved === "smoothed") return saved;
-    } catch { /* ignore */ }
+    const saved = safeGetItem(OVERVIEW_SMOOTHING_KEY);
+    if (saved === "instant" || saved === "smoothed") return saved;
     return derivedSmoothing;
   });
   useEffect(() => {
@@ -111,7 +111,7 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
 
   const setSmoothing = useCallback((s: Smoothing) => {
     setSmoothingState(s);
-    try { localStorage.setItem(OVERVIEW_SMOOTHING_KEY, s); } catch { /* ignore */ }
+    safeSetItem(OVERVIEW_SMOOTHING_KEY, s);
     if ((SMOOTHABLE_METRICS as readonly Metric[]).includes(metric)) {
       setViewMode(viewModeOf(metric, s));
     }

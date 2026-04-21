@@ -96,31 +96,39 @@ function AnatomyCanvasInner() {
    *  useEffect wouldn't fire — the panel would stay stuck on the list.
    *  Navigating here keeps URL and state consistent so the next
    *  notification click produces a real `query.stream` transition. */
+  // Single-node fit helper — keeps the padding / zoom-range pair in sync
+  // across the two sites that use it (click-to-focus + post-activation
+  // auto-fit). Silently no-ops if the node isn't in the graph yet, which
+  // happens on the very first post-registration fit before the DAG
+  // rebuild has landed the new stream node.
+  const fitNodeIntoView = useCallback(
+    (nodeId: string, duration = 250) => {
+      try {
+        reactFlowInstance.fitView({
+          nodes: [{ id: nodeId }],
+          padding: 0.5,
+          minZoom: 1,
+          maxZoom: 1.6,
+          duration,
+        });
+      } catch {
+        // node not yet in graph — fallback silently.
+      }
+    },
+    [reactFlowInstance],
+  );
+
   const handleStreamActivated = useCallback(
     (name: string) => {
       navigate("anatomy?streams=list");
       // Defer fitView a tick so the node is guaranteed to be in the DAG
       // (buildAnatomyGraph derives stream nodes from `streams`, which is
-      // updated by StreamCanvas via `addStream()` on create).
-      // Node ids are prefixed `stream-` in buildAnatomyGraph — passing the
-      // bare name silently fits to nothing and the viewport stays wherever
-      // it was, which is exactly the "centred on the wrong place" bug.
-      setTimeout(() => {
-        try {
-          reactFlowInstance.fitView({
-            nodes: [{ id: `stream-${name}` }],
-            padding: 0.5,
-            minZoom: 1,
-            maxZoom: 1.6,
-            duration: 500,
-          });
-        } catch {
-          // Node may not be in the graph yet on very first registration —
-          // fall back silently; the Streams list still surfaces it.
-        }
-      }, 0);
+      // updated by StreamCanvas via `addStream()` on create). Node ids are
+      // prefixed `stream-` in buildAnatomyGraph — passing the bare name
+      // silently fits to nothing and the viewport stays stuck.
+      setTimeout(() => fitNodeIntoView(`stream-${name}`, 500), 0);
     },
-    [navigate, reactFlowInstance],
+    [navigate, fitNodeIntoView],
   );
 
   // Is the system "live"? Use the WS payload as the signal — when positions
@@ -193,7 +201,7 @@ function AnatomyCanvasInner() {
 
       // Pan/zoom to the clicked node so it ends up centred regardless of
       // which slice of the DAG was previously visible.
-      reactFlowInstance.fitView({ nodes: [{ id: node.id }], duration: 250, padding: 0.5, minZoom: 1, maxZoom: 1.6 });
+      fitNodeIntoView(node.id);
 
       if (node.type === "stream") {
         // Stream nodes open the streams list, not the per-stream editor.
@@ -208,7 +216,7 @@ function AnatomyCanvasInner() {
         setMode("workbench");
       }
     },
-    [reactFlowInstance, setMode, selection, closePanel, openTransform, showList],
+    [fitNodeIntoView, setMode, selection, closePanel, openTransform, showList],
   );
 
   const onPaneClick = useCallback(() => {

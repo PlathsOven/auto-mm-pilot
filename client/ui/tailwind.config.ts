@@ -39,6 +39,13 @@ const config: Config = {
         "elev-2": "0 4px 12px -4px rgba(15, 17, 41, 0.10), 0 1px 2px rgba(15, 17, 41, 0.04)",
         "elev-3": "0 12px 32px -8px rgba(15, 17, 41, 0.16), 0 4px 8px -2px rgba(15, 17, 41, 0.08)",
       },
+      // Glass-surface backdrop-blur tokens. Autoprefixer emits the matching
+      // -webkit-backdrop-filter, so `backdrop-blur-glass32` covers Safari too.
+      backdropBlur: {
+        glass24: "24px",
+        glass28: "28px",
+        glass32: "32px",
+      },
     },
   },
   plugins: [],

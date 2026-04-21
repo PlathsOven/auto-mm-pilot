@@ -56,7 +56,7 @@ export function OnboardingFlow() {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/20 backdrop-blur-sm">
-      <div className="relative w-[600px] max-w-[90vw] overflow-hidden rounded-xl border border-white/50 bg-white/85 shadow-xl shadow-black/[0.08] ring-1 ring-black/[0.06]" style={{ backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)" }}>
+      <div className="relative w-[600px] max-w-[90vw] overflow-hidden rounded-xl border border-white/50 bg-white/85 shadow-xl shadow-black/[0.08] ring-1 ring-black/[0.06] backdrop-blur-glass32">
         <div className="flex flex-col px-8 py-8">
           <h2 className="text-base font-semibold text-mm-accent">{card.heading}</h2>
           <div className="mt-2 text-xs leading-relaxed text-mm-text-dim">{card.body}</div>

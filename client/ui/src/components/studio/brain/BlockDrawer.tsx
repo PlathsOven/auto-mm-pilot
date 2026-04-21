@@ -129,8 +129,7 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
     <>
       <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} aria-hidden />
       <aside
-        className="fixed right-0 top-0 z-50 flex h-screen w-[560px] flex-col border-l border-black/[0.06] bg-white/80 shadow-xl shadow-black/[0.06]"
-        style={{ backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)" }}
+        className="fixed right-0 top-0 z-50 flex h-screen w-[560px] flex-col border-l border-black/[0.06] bg-white/80 shadow-xl shadow-black/[0.06] backdrop-blur-glass32"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

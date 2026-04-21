@@ -269,4 +269,4 @@ Test cases are verified by reading the constructed prompt and confirming the LLM
 
 ## Manual Brain Boundary
 
-This feature does not touch `server/core/`. The prompts reference `BlockConfig` and `StreamConfig` semantics (read-only understanding), but all code changes are in `server/api/llm/prompts/`. The conversion formula `target = (scale × raw + offset)^exponent` is documented in `server/core/helpers.py:raw_to_target_expr` — the prompts teach the LLM to use it, but the implementation is untouched.
+This feature does not touch `server/core/`. The prompts reference `BlockConfig` and `StreamConfig` semantics (read-only understanding), but all code changes are in `server/api/llm/prompts/`. The conversion formula `target = (scale × raw + offset)^exponent` is implemented by the `affine_power` transform in `server/core/transforms/unit_conversion.py` — the prompts teach the LLM to use it, but the implementation is untouched.

@@ -32,6 +32,7 @@
 - **`parse_datetime_tolerant()` from `stream_registry.py`** for all datetime string parsing (ISO 8601 + DDMMMYY). Single source — do not duplicate.
 - **Conventional commits** — `feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`.
 - **Surgical staging** — `git add path1 path2`, never `git add .` or `git add -A`.
+- **SDK follows every server-side canonical.** `sdk/posit_sdk/` uses Pydantic v2 for wire shapes, async httpx + websockets for IO, `__all__` named exports, full type hints, no Pandas, no `requests`. Treat it as an exemplar reference when you need a clean implementation of these patterns.
 
 ## Patterns Avoided
 

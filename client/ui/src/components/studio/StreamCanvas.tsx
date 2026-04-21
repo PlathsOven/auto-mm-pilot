@@ -63,13 +63,13 @@ export function StreamCanvas({ streamName, templateId, prefill, onActivated }: P
   // Hydrate the full draft from the registry the first time a registered
   // stream resolves. After that, the useState draft is authoritative —
   // re-hydrating on every registry poll would clobber in-flight edits.
-  const hydratedFor = useRef<string | null>(null);
+  const hydratedStreamName = useRef<string | null>(null);
   useEffect(() => {
     if (!streamName) return;
     const existing = registry.find((s) => s.stream_name === streamName);
     if (!existing) return;
-    if (hydratedFor.current === existing.stream_name) return;
-    hydratedFor.current = existing.stream_name;
+    if (hydratedStreamName.current === existing.stream_name) return;
+    hydratedStreamName.current = existing.stream_name;
     setPendingStreamName(existing.stream_name);
     setDraft((prev) => hydrateDraftFromRegistry(prev, existing));
   }, [streamName, registry]);

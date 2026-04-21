@@ -9,6 +9,8 @@ import {
   formatExpiry,
   metricOf,
   viewModeOf,
+  safeGetItem,
+  safeSetItem,
   SMOOTHABLE_METRICS,
   type Metric,
   type Smoothing,
@@ -42,19 +44,17 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
   const { focus } = useFocus();
   const { payload } = useWebSocket();
 
-  const [linked, setLinked] = useState<boolean>(() => {
-    try { return localStorage.getItem(PIPELINE_LINK_KEY) !== "false"; } catch { return true; }
-  });
+  const [linked, setLinked] = useState<boolean>(
+    () => safeGetItem(PIPELINE_LINK_KEY) !== "false",
+  );
   const gridMetric = metricOf(gridViewMode).metric;
   const gridSmoothing = metricOf(gridViewMode).smoothing;
 
   const [localMetric, setLocalMetric] = useState<Metric>(gridMetric);
   const [localSmoothing, setLocalSmoothing] = useState<Smoothing>(gridSmoothing);
   const [lookbackLabel, setLookbackLabel] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem(POSITION_LOOKBACK_KEY);
-      if (saved && POSITION_LOOKBACK_OPTIONS.some((o) => o.label === saved)) return saved;
-    } catch { /* ignore */ }
+    const saved = safeGetItem(POSITION_LOOKBACK_KEY);
+    if (saved && POSITION_LOOKBACK_OPTIONS.some((o) => o.label === saved)) return saved;
     return DEFAULT_POSITION_LOOKBACK_LABEL;
   });
 
@@ -66,7 +66,7 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
 
   const persistLookback = useCallback((next: string) => {
     setLookbackLabel(next);
-    try { localStorage.setItem(POSITION_LOOKBACK_KEY, next); } catch { /* ignore */ }
+    safeSetItem(POSITION_LOOKBACK_KEY, next);
   }, []);
 
   const lookbackTabs = useMemo<TabItem<string>[]>(
@@ -76,7 +76,7 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
 
   const persistLinked = useCallback((next: boolean) => {
     setLinked(next);
-    try { localStorage.setItem(PIPELINE_LINK_KEY, String(next)); } catch { /* ignore */ }
+    safeSetItem(PIPELINE_LINK_KEY, String(next));
   }, []);
 
   // Resolve a (symbol, expiry) to channel from the current focus. Block

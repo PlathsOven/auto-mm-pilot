@@ -13,6 +13,7 @@ from fastapi.responses import Response
 
 from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
+from server.api.config import VOL_POINTS_SCALE
 from server.api.engine_state import (
     RISK_DIMENSION_COLS,
     get_pipeline_results,
@@ -27,10 +28,6 @@ from server.api.models import (
 )
 from server.api.stream_registry import parse_datetime_tolerant
 from server.api.ws import get_current_tick_ts, get_latest_payload
-
-# Decimal → vol points. Same value as ``VOL_POINTS_SCALE`` in the WS
-# serializer; kept local so this router doesn't drag in tick-time helpers.
-_VOL_POINTS_SCALE: float = 100.0
 
 log = logging.getLogger(__name__)
 
@@ -58,103 +55,41 @@ def _pipeline_dimensions_sync(user_id: str) -> dict:
     return {"dimensions": dim_rows, "dimension_cols": list(RISK_DIMENSION_COLS)}
 
 
-def _pipeline_timeseries_sync(
-    user_id: str,
-    symbol: str,
-    expiry_dt: _dt,
-    lookback_seconds: int | None = None,
-) -> dict | None:
-    results = get_pipeline_results(user_id)
-    if results is None:
-        return None
+def _build_block_timeseries(
+    block_var_filtered: pl.DataFrame,
+    start_ts_map: dict[tuple[str, str], _dt | None],
+) -> tuple[list[dict], list[str]]:
+    """Pivot per-block fair/var rows onto a shared timestamp axis.
 
-    block_series_df = results["block_series_df"]
-    pos_df = results["desired_pos_df"]
-    blocks_df = results["blocks_df"]
-
-    # (block_name, stream_name) → start_timestamp lookup. `block_series_df`
-    # doesn't carry `start_timestamp`, so we source it from the flat
-    # `blocks_df` whose identity is the full composite key. Used to stamp
-    # the per-block series payload with its block-side identity material.
-    start_ts_map: dict[tuple[str, str], _dt | None] = {}
-    if {"block_name", "stream_name", "start_timestamp"} <= set(blocks_df.columns):
-        for r in blocks_df.select("block_name", "stream_name", "start_timestamp").to_dicts():
-            start_ts_map[(r["block_name"], r["stream_name"])] = r.get("start_timestamp")
-
-    current_ts = get_current_tick_ts(user_id)
-    expiry_date = expiry_dt.date()
-
-    # Cast expiry to date for the equality check so columns stored as
-    # `pl.Datetime` and `pl.Date` both match — different stream-config
-    # paths can leave one or the other dtype, and a strict `== expiry_dt`
-    # silently drops everything in the mismatched case (the bug behind
-    # "no contributing blocks for any cell").
-    block_var_filtered = block_series_df.filter(
-        (pl.col("symbol") == symbol)
-        & (pl.col("expiry").cast(pl.Date) == expiry_date)
-    ).drop_nulls(subset=["fair"])
-    pos_filtered = pos_df.filter(
-        (pl.col("symbol") == symbol)
-        & (pl.col("expiry").cast(pl.Date) == expiry_date)
-    ).drop_nulls(subset=["raw_desired_position"])
-
-    # Independent slicing: positions are backward-looking (rerun_time → now)
-    # so the trader sees how the position evolved; block fair/variance are
-    # forward-looking (now → expiry decay curves). The earlier shared-OR
-    # condition wiped out one when the other had data, breaking the chart's
-    # current-decomposition snapshot in either direction.
-    #
-    # `desired_pos_df` is computed at rerun as a forward projection from
-    # rerun_time → expiry, and the ticker advances `current_ts` through that
-    # range as real time catches up. Rows with `timestamp <= current_ts` are
-    # the "already-revealed" projections — those are the backward-looking
-    # history the Position view wants. Without the upper-bound filter the
-    # chart also plotted the unrevealed future decay (which ends at 0 at
-    # expiry), producing the phantom trailing-0 the user reported.
-    # Slice anchor for past-vs-future: prefer the WS ticker's `current_tick_ts`
-    # (which advances through `desired_pos_df`'s forward grid as real time
-    # passes), and fall back to wall-clock UTC so the chart is still correct
-    # on a fresh request where the ticker hasn't set state yet.
-    slice_ts = current_ts if current_ts is not None else _dt.now(timezone.utc).replace(tzinfo=None)
-    bv_sliced = block_var_filtered.filter(pl.col("timestamp") >= slice_ts)
-    if not bv_sliced.is_empty():
-        block_var_filtered = bv_sliced
-    pos_sliced = pos_filtered.filter(pl.col("timestamp") <= slice_ts)
-    log.info(
-        "pipeline timeseries: user=%s sym=%s exp=%s slice_ts=%s current_ts=%s "
-        "pos_full=%d pos_sliced=%d",
-        user_id, symbol, expiry_date, slice_ts, current_ts,
-        pos_filtered.height, pos_sliced.height,
-    )
-    if not pos_sliced.is_empty():
-        pos_filtered = pos_sliced
-
-    if block_var_filtered.is_empty() and pos_filtered.is_empty():
-        return None
+    Returns ``(blocks, block_timestamps)`` where ``blocks`` is a list of
+    wire-shape dicts — one per distinct block — each carrying ``fair`` /
+    ``var`` value arrays aligned index-wise with ``block_timestamps``.
+    Missing ticks for a block are filled with ``None`` so the chart can use
+    one shared x-axis for every block.
+    """
+    if block_var_filtered.is_empty():
+        return [], []
 
     block_names = sorted(block_var_filtered["block_name"].unique().to_list())
-    # Canonical forward-looking timestamp axis for fair/variance views — the
-    # union of every block's timestamps. Each block's data array is then
-    # pivoted onto this axis (None where the block doesn't have a value at
-    # that tick) so the chart can use one shared x-axis for all blocks.
     block_axis = (
         block_var_filtered.select("timestamp").unique().sort("timestamp")["timestamp"].to_list()
     )
     block_timestamps = [t.isoformat() for t in block_axis]
     block_axis_index = {t: i for i, t in enumerate(block_axis)}
+    has_stream_col = "stream_name" in block_var_filtered.columns
 
-    blocks = []
+    blocks: list[dict] = []
     for bn in block_names:
         bd = block_var_filtered.filter(pl.col("block_name") == bn).sort("timestamp")
         fair_arr: list[float | None] = [None] * len(block_axis)
         var_arr: list[float | None] = [None] * len(block_axis)
-        for row in bd.select("timestamp", "fair", "var").to_dicts():
-            idx = block_axis_index.get(row["timestamp"])
+        for ts, fair_val, var_val in bd.select("timestamp", "fair", "var").rows():
+            idx = block_axis_index.get(ts)
             if idx is None:
                 continue
-            fair_arr[idx] = row["fair"]
-            var_arr[idx] = row["var"]
-        stream_name_val = bd["stream_name"][0] if bd.height > 0 and "stream_name" in bd.columns else ""
+            fair_arr[idx] = fair_val
+            var_arr[idx] = var_val
+        stream_name_val = bd["stream_name"][0] if bd.height > 0 and has_stream_col else ""
         start_ts_val = start_ts_map.get((bn, stream_name_val))
         blocks.append({
             "blockName": bn,
@@ -166,57 +101,109 @@ def _pipeline_timeseries_sync(
             "var": var_arr,
         })
 
-    pos_sorted = pos_filtered.sort("timestamp")
+    return blocks, block_timestamps
 
-    # Current user-entered aggregate market vol, scaled to vol points. The
-    # history buffer stores per-tick snapshots; the projection path has no
-    # historical signal so it broadcasts the live value across the window.
-    mv_store = mv_to_dict(user_id)
-    mv_key = (symbol, canonical_expiry_key(expiry_dt))
-    current_market_vol_vp = mv_store.get(mv_key, 0.0) * _VOL_POINTS_SCALE
 
-    if lookback_seconds is not None and lookback_seconds > 0:
-        # Position view wants a true historical window. `desired_pos_df` is
-        # a forward projection wiped at every rerun, so for anything beyond
-        # the last few ticks we must read from the per-dimension ring buffer
-        # that accumulates across reruns (see `server/api/position_history`).
-        history = get_position_history(user_id).get_range(
-            symbol=symbol,
-            expiry=expiry_dt.isoformat(),
-            since=slice_ts - timedelta(seconds=lookback_seconds),
-        )
-        aggregated = {
-            "timestamps": [p.timestamp.isoformat() for p in history],
-            "totalFair": [p.total_fair for p in history],
-            "smoothedTotalFair": [p.smoothed_total_fair for p in history],
-            "totalMarketFair": [p.total_market_fair for p in history],
-            "smoothedTotalMarketFair": [p.smoothed_total_market_fair for p in history],
-            "edge": [p.edge for p in history],
-            "smoothedEdge": [p.smoothed_edge for p in history],
-            "var": [p.var for p in history],
-            "smoothedVar": [p.smoothed_var for p in history],
-            "rawDesiredPosition": [p.raw_desired_position for p in history],
-            "smoothedDesiredPosition": [p.smoothed_desired_position for p in history],
-            "marketVol": [p.market_vol for p in history],
-        }
-    else:
-        timestamps = [t.isoformat() for t in pos_sorted["timestamp"].to_list()]
-        aggregated = {
-            "timestamps": timestamps,
-            "totalFair": pos_sorted["total_fair"].to_list(),
-            "smoothedTotalFair": pos_sorted["smoothed_total_fair"].to_list(),
-            "totalMarketFair": pos_sorted["total_market_fair"].to_list(),
-            "smoothedTotalMarketFair": pos_sorted["smoothed_total_market_fair"].to_list(),
-            "edge": pos_sorted["edge"].to_list(),
-            "smoothedEdge": pos_sorted["smoothed_edge"].to_list(),
-            "var": pos_sorted["var"].to_list(),
-            "smoothedVar": pos_sorted["smoothed_var"].to_list(),
-            "rawDesiredPosition": pos_sorted["raw_desired_position"].to_list(),
-            "smoothedDesiredPosition": pos_sorted["smoothed_desired_position"].to_list(),
-            "marketVol": [current_market_vol_vp] * len(timestamps),
-        }
+def _slice_timeseries_frames(
+    block_series_df: pl.DataFrame,
+    pos_df: pl.DataFrame,
+    symbol: str,
+    expiry_date: _dt,
+    slice_ts: _dt,
+) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Filter + slice the pipeline frames for a single (symbol, expiry).
 
-    current_blocks = []
+    Independent slicing: positions are backward-looking (rerun_time → now) so
+    the trader sees how the position evolved; block fair/variance are
+    forward-looking (now → expiry decay curves). ``desired_pos_df`` is the
+    rerun's forward projection; rows with ``timestamp <= slice_ts`` are the
+    already-revealed past. If either slice is empty, fall back to the full
+    filtered frame so single-rerun cases still render.
+    """
+    # Cast expiry to date so a DataFrame with either pl.Date or pl.Datetime
+    # expiry columns matches — different stream-config paths emit either.
+    block_var_filtered = block_series_df.filter(
+        (pl.col("symbol") == symbol)
+        & (pl.col("expiry").cast(pl.Date) == expiry_date)
+    ).drop_nulls(subset=["fair"])
+    pos_filtered = pos_df.filter(
+        (pl.col("symbol") == symbol)
+        & (pl.col("expiry").cast(pl.Date) == expiry_date)
+    ).drop_nulls(subset=["raw_desired_position"])
+
+    bv_sliced = block_var_filtered.filter(pl.col("timestamp") >= slice_ts)
+    if not bv_sliced.is_empty():
+        block_var_filtered = bv_sliced
+    pos_sliced = pos_filtered.filter(pl.col("timestamp") <= slice_ts)
+    if not pos_sliced.is_empty():
+        pos_filtered = pos_sliced
+    return block_var_filtered, pos_filtered
+
+
+def _aggregated_from_history(
+    user_id: str, symbol: str, expiry_dt: _dt,
+    slice_ts: _dt, lookback_seconds: int,
+) -> dict:
+    """Read from the per-dimension ring buffer for a true historical window.
+
+    ``desired_pos_df`` is wiped at every rerun, so any lookback beyond the
+    last rerun must come from the persistent buffer that accumulates across
+    reruns (see ``server/api/position_history``).
+    """
+    history = get_position_history(user_id).get_range(
+        symbol=symbol,
+        expiry=expiry_dt.isoformat(),
+        since=slice_ts - timedelta(seconds=lookback_seconds),
+    )
+    return {
+        "timestamps": [p.timestamp.isoformat() for p in history],
+        "totalFair": [p.total_fair for p in history],
+        "smoothedTotalFair": [p.smoothed_total_fair for p in history],
+        "totalMarketFair": [p.total_market_fair for p in history],
+        "smoothedTotalMarketFair": [p.smoothed_total_market_fair for p in history],
+        "edge": [p.edge for p in history],
+        "smoothedEdge": [p.smoothed_edge for p in history],
+        "var": [p.var for p in history],
+        "smoothedVar": [p.smoothed_var for p in history],
+        "rawDesiredPosition": [p.raw_desired_position for p in history],
+        "smoothedDesiredPosition": [p.smoothed_desired_position for p in history],
+        "marketVol": [p.market_vol for p in history],
+    }
+
+
+def _aggregated_from_projection(
+    pos_sorted: pl.DataFrame, current_market_vol_vp: float,
+) -> dict:
+    """Build the aggregated payload from the live forward projection.
+
+    The projection has no historical market-vol signal, so the live user-set
+    value is broadcast across every timestamp in the window.
+    """
+    timestamps = [t.isoformat() for t in pos_sorted["timestamp"].to_list()]
+    return {
+        "timestamps": timestamps,
+        "totalFair": pos_sorted["total_fair"].to_list(),
+        "smoothedTotalFair": pos_sorted["smoothed_total_fair"].to_list(),
+        "totalMarketFair": pos_sorted["total_market_fair"].to_list(),
+        "smoothedTotalMarketFair": pos_sorted["smoothed_total_market_fair"].to_list(),
+        "edge": pos_sorted["edge"].to_list(),
+        "smoothedEdge": pos_sorted["smoothed_edge"].to_list(),
+        "var": pos_sorted["var"].to_list(),
+        "smoothedVar": pos_sorted["smoothed_var"].to_list(),
+        "rawDesiredPosition": pos_sorted["raw_desired_position"].to_list(),
+        "smoothedDesiredPosition": pos_sorted["smoothed_desired_position"].to_list(),
+        "marketVol": [current_market_vol_vp] * len(timestamps),
+    }
+
+
+def _current_decomposition(
+    block_var_filtered: pl.DataFrame,
+    pos_sorted: pl.DataFrame,
+    start_ts_map: dict[tuple[str, str], _dt | None],
+) -> tuple[list[dict], dict | None]:
+    """Pick the "now" snapshot — per-block fair/var at the first revealed
+    timestamp, plus the most recent aggregated row."""
+    current_blocks: list[dict] = []
     if block_var_filtered.height > 0:
         first_ts = block_var_filtered["timestamp"].min()
         latest_block_var = block_var_filtered.filter(pl.col("timestamp") == first_ts)
@@ -238,8 +225,7 @@ def _pipeline_timeseries_sync(
 
     current_agg: dict | None = None
     if pos_sorted.height > 0:
-        # pos_sorted is ascending; the current-decomposition snapshot is the
-        # most recent revealed row (== current_ts after the slice above).
+        # pos_sorted is ascending; "now" is the most recent revealed row.
         last = pos_sorted.row(pos_sorted.height - 1, named=True)
         current_agg = {
             "totalFair": last["total_fair"],
@@ -251,10 +237,68 @@ def _pipeline_timeseries_sync(
             "rawDesiredPosition": last["raw_desired_position"],
             "smoothedDesiredPosition": last["smoothed_desired_position"],
         }
+    return current_blocks, current_agg
 
-    aggregate_mvs = mv_to_dict(user_id)
-    expiry_iso = expiry_dt.isoformat()
-    agg_mv_entry = aggregate_mvs.get((symbol, expiry_iso))
+
+def _pipeline_timeseries_sync(
+    user_id: str,
+    symbol: str,
+    expiry_dt: _dt,
+    lookback_seconds: int | None = None,
+) -> dict | None:
+    results = get_pipeline_results(user_id)
+    if results is None:
+        return None
+
+    block_series_df = results["block_series_df"]
+    pos_df = results["desired_pos_df"]
+    blocks_df = results["blocks_df"]
+
+    # (block_name, stream_name) → start_timestamp lookup. ``block_series_df``
+    # doesn't carry ``start_timestamp``; source it from the flat ``blocks_df``.
+    start_ts_map: dict[tuple[str, str], _dt | None] = {}
+    if {"block_name", "stream_name", "start_timestamp"} <= set(blocks_df.columns):
+        for r in blocks_df.select("block_name", "stream_name", "start_timestamp").to_dicts():
+            start_ts_map[(r["block_name"], r["stream_name"])] = r.get("start_timestamp")
+
+    current_ts = get_current_tick_ts(user_id)
+    # Past-vs-future anchor: prefer the WS ticker's ``current_tick_ts`` (which
+    # advances through ``desired_pos_df``'s forward grid as real time passes);
+    # fall back to wall-clock UTC on a fresh request before the ticker has set
+    # state.
+    slice_ts = current_ts if current_ts is not None else _dt.now(timezone.utc).replace(tzinfo=None)
+
+    block_var_filtered, pos_filtered = _slice_timeseries_frames(
+        block_series_df, pos_df, symbol, expiry_dt.date(), slice_ts,
+    )
+    log.info(
+        "pipeline timeseries: user=%s sym=%s exp=%s slice_ts=%s current_ts=%s pos=%d",
+        user_id, symbol, expiry_dt.date(), slice_ts, current_ts, pos_filtered.height,
+    )
+
+    if block_var_filtered.is_empty() and pos_filtered.is_empty():
+        return None
+
+    blocks, block_timestamps = _build_block_timeseries(block_var_filtered, start_ts_map)
+    pos_sorted = pos_filtered.sort("timestamp")
+
+    # Current user-entered aggregate market vol, scaled to vol points.
+    mv_store = mv_to_dict(user_id)
+    mv_key = (symbol, canonical_expiry_key(expiry_dt))
+    current_market_vol_vp = mv_store.get(mv_key, 0.0) * VOL_POINTS_SCALE
+
+    if lookback_seconds is not None and lookback_seconds > 0:
+        aggregated = _aggregated_from_history(
+            user_id, symbol, expiry_dt, slice_ts, lookback_seconds,
+        )
+    else:
+        aggregated = _aggregated_from_projection(pos_sorted, current_market_vol_vp)
+
+    current_blocks, current_agg = _current_decomposition(
+        block_var_filtered, pos_sorted, start_ts_map,
+    )
+
+    agg_mv_entry = mv_store.get((symbol, expiry_dt.isoformat()))
     agg_mv = {"totalVol": agg_mv_entry} if agg_mv_entry is not None else None
 
     return {

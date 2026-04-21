@@ -37,8 +37,7 @@ export function HotkeyCheatsheet({ open, onClose }: HotkeyCheatsheetProps) {
     <>
       <div className="fixed inset-0 z-[200] bg-black/30" onClick={onClose} aria-hidden />
       <div
-        className="fixed left-1/2 top-1/2 z-[201] w-[480px] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-white/50 bg-white/85 shadow-2xl shadow-black/15 ring-1 ring-black/[0.06]"
-        style={{ backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)" }}
+        className="fixed left-1/2 top-1/2 z-[201] w-[480px] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-white/50 bg-white/85 shadow-2xl shadow-black/15 ring-1 ring-black/[0.06] backdrop-blur-glass32"
       >
         <div className="flex items-center justify-between border-b border-black/[0.06] px-4 py-2">
           <span className="zone-header">Keyboard shortcuts</span>
