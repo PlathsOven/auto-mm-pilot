@@ -27,7 +27,6 @@ every timestamp.
 from __future__ import annotations
 
 import datetime as _dt
-from collections import defaultdict
 
 import polars as pl
 
@@ -82,17 +81,20 @@ def mvi_time_varying_proportional(
         .agg(pl.col("space_fair").sum().alias("_space_fair_integral"))
     )
 
-    rd_groups: dict[tuple, list[dict]] = defaultdict(list)
-    for row in space_integral_df.iter_rows(named=True):
-        rd_key = tuple(row[c] for c in risk_dimension_cols)
-        rd_groups[rd_key].append({
-            "space_id": row["space_id"],
-            "integral": row["_space_fair_integral"],
-        })
+    if space_integral_df.is_empty():
+        return space_series_df.with_columns(
+            pl.col("space_market_fair").fill_null(pl.col("space_fair")),
+        ).sort(space_group_keys)
 
-    multipliers: dict[tuple, float] = {}
+    rd_groups = space_integral_df.partition_by(
+        risk_dimension_cols, as_dict=True, maintain_order=True,
+    )
 
-    for rd_key, entries in rd_groups.items():
+    # Accumulator rows for the join-back multiplier frame. Each tuple is
+    # (*risk_dim_values, space_id, multiplier) matching the schema below.
+    mult_records: list[tuple] = []
+
+    for rd_key, group_df in rd_groups.items():
         symbol = rd_key[0]
         expiry_raw = rd_key[1] if len(rd_key) > 1 else None
         expiry_canon = canonical_expiry_key(expiry_raw) if expiry_raw is not None else ""
@@ -103,59 +105,48 @@ def mvi_time_varying_proportional(
             aggregate_vol ** 2 * t_years if aggregate_vol is not None else None
         )
 
-        user_space_entries: list[dict] = []
-        inferable_entries: list[dict] = []
-        for e in entries:
-            user_vol = space_market_values.get((symbol, expiry_canon, e["space_id"]))
+        user_entries: list[tuple[object, float, float]] = []
+        inferable_entries: list[tuple[object, float]] = []
+        for space_id, integral in group_df.select("space_id", "_space_fair_integral").rows():
+            user_vol = space_market_values.get((symbol, expiry_canon, space_id))
             if user_vol is not None:
-                user_space_entries.append({**e, "user_var_target": user_vol ** 2 * t_years})
+                user_entries.append((space_id, integral, user_vol ** 2 * t_years))
             else:
-                inferable_entries.append(e)
+                inferable_entries.append((space_id, integral))
 
-        for e in user_space_entries:
-            key = rd_key + (e["space_id"],)
-            multipliers[key] = (
-                e["user_var_target"] / e["integral"] if e["integral"] != 0 else 0.0
-            )
+        for space_id, integral, user_var_target in user_entries:
+            mult = user_var_target / integral if integral != 0 else 0.0
+            mult_records.append((*rd_key, space_id, mult))
 
         if aggregate_var_target is None:
-            for e in inferable_entries:
-                multipliers[rd_key + (e["space_id"],)] = 1.0
+            for space_id, _integral in inferable_entries:
+                mult_records.append((*rd_key, space_id, 1.0))
             continue
 
-        user_contribution = sum(e["user_var_target"] for e in user_space_entries)
+        user_contribution = sum(e[2] for e in user_entries)
         remainder = aggregate_var_target - user_contribution
-        inf_total = sum(e["integral"] for e in inferable_entries)
+        inf_total = sum(e[1] for e in inferable_entries)
 
         if inf_total == 0 or not inferable_entries:
-            for e in inferable_entries:
-                multipliers[rd_key + (e["space_id"],)] = 1.0
+            for space_id, _integral in inferable_entries:
+                mult_records.append((*rd_key, space_id, 1.0))
             continue
 
         mult = remainder / inf_total
-        for e in inferable_entries:
-            multipliers[rd_key + (e["space_id"],)] = mult
+        for space_id, _integral in inferable_entries:
+            mult_records.append((*rd_key, space_id, mult))
 
-    if not multipliers:
+    if not mult_records:
         return space_series_df.with_columns(
             pl.col("space_market_fair").fill_null(pl.col("space_fair")),
         ).sort(space_group_keys)
 
-    mult_rows: list[dict] = []
-    for key, m in multipliers.items():
-        row: dict = {}
-        for i, c in enumerate(risk_dimension_cols):
-            row[c] = key[i]
-        row["space_id"] = key[len(risk_dimension_cols)]
-        row["_multiplier"] = m
-        mult_rows.append(row)
-
-    mult_df = pl.DataFrame(mult_rows)
-    for c in risk_dimension_cols:
-        mult_df = mult_df.with_columns(pl.col(c).cast(space_series_df.schema[c]))
-    mult_df = mult_df.with_columns(
-        pl.col("space_id").cast(space_series_df.schema["space_id"]),
-    )
+    mult_schema = [
+        *((c, space_series_df.schema[c]) for c in risk_dimension_cols),
+        ("space_id", space_series_df.schema["space_id"]),
+        ("_multiplier", pl.Float64),
+    ]
+    mult_df = pl.DataFrame(mult_records, schema=mult_schema, orient="row")
 
     joined = space_series_df.join(
         mult_df, on=risk_dimension_cols + ["space_id"], how="left",
