@@ -39,6 +39,12 @@
 | **Config** | `server/api/config.py` | `PROD` | `.env` | Model lists, generation params, buffer config |
 | **Core Pipeline** | `server/core/` (`config.py`, `helpers.py`, `transforms/`, `pipeline.py`, `serializers.py`, `mock_scenario.py`) | `PROD` | Polars | Steps 4–6: config, helpers, per-step transform modules in `transforms/`, orchestration pipeline, serializers. Running on mock scenario data. |
 
+## SDK (`sdk/`)
+
+| Component | File(s) | Status | Depends On | Notes |
+|-----------|---------|--------|------------|-------|
+| **Posit SDK** | `sdk/posit_sdk/` (`client.py`, `rest.py`, `ws.py`, `models.py`, `exceptions.py`) | `PROD` | async httpx, websockets, Pydantic v2 | `posit-sdk` v0.1.0 — async HTTP + WebSocket client external integrators use to push snapshots and receive positions. Standalone PyPI distribution (own `pyproject.toml`); not imported by `server/` or `client/`. See `docs/sdk-quickstart.md`. |
+
 ## Client (`client/ui/`)
 
 | Component | File(s) | Status | Depends On | Notes |

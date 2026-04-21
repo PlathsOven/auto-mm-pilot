@@ -10,6 +10,7 @@ Posit is an advisory trading platform for crypto options market-making desks. It
 |------|-------|---------|
 | `client/adapter/` | LLM | Data standardization scripts, universal adapter (not yet built) |
 | `client/ui/` | LLM | Electron + React dashboard |
+| `sdk/` | LLM | Client-facing Python SDK (`posit-sdk` on PyPI) — async HTTP + WebSocket wrapper external integrators use to push snapshots and receive positions. Standalone package with its own `pyproject.toml`; not imported by `server/` or `client/`. |
 | `server/api/` | LLM | FastAPI routing, WebSocket transport, request/response models |
 | `server/api/llm/` | LLM | OpenRouter client, LLM service, system prompts, snapshot buffer |
 | `server/core/` | LLM | Proprietary math — the pricing pipeline. |
@@ -112,6 +113,13 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `server/core/pipeline.py` | All pipeline step functions + `run_pipeline()` orchestrator |
 | `server/core/mock_scenario.py` | Mock stream configs, scenario params, market pricing |
 | `server/core/serializers.py` | DataFrame→dict bridge for LLM prompt injection |
+| `sdk/pyproject.toml` | `posit-sdk` package metadata (hatchling, v0.1.0) — independent PyPI distribution |
+| `sdk/posit_sdk/client.py` | `PositClient` — public facade over REST + WebSocket; pool caching, fallback logic |
+| `sdk/posit_sdk/rest.py` | Async httpx wrapper for the REST surface (stream CRUD, snapshots, market values, bankroll) |
+| `sdk/posit_sdk/ws.py` | Auto-reconnecting WebSocket client with ACK correlation and position fan-out |
+| `sdk/posit_sdk/models.py` | Pydantic v2 wire shapes (matches `server/api/models.py` on the wire; SDK's source of truth) |
+| `sdk/tests/` | Comprehensive SDK tests (validation, upsert, WS state, market value, positions) |
+| `docs/sdk-quickstart.md` | End-to-end SDK integration guide for data-feed authors |
 | `prototyping/test_api.ipynb` | API integration test notebook — exercises full prod-mode pipeline via HTTP |
 | `Procfile` | Railway start command for FastAPI server |
 | `runtime.txt` | Python version pin for Railway |
