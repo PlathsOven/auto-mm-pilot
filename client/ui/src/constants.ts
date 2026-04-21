@@ -37,7 +37,10 @@ export const CHAT_INPUT_MAX_HEIGHT_PX = 160;
 
 // Workbench right inspector column sizing + persistence keys.
 export const INSPECTOR_COLUMN_WIDTH_PX = 320;
+export const INSPECTOR_COLUMN_MIN_WIDTH_PX = 220;
+export const INSPECTOR_COLUMN_MAX_WIDTH_PX = 960;
 export const INSPECTOR_COLUMN_OPEN_KEY = "posit-inspector-open";
+export const INSPECTOR_COLUMN_WIDTH_KEY = "posit-inspector-width";
 
 // Bottom chat dock — independent of the inspector now.
 export const CHAT_DOCK_HEIGHT_PX = 280;
