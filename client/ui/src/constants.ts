@@ -1,6 +1,7 @@
 /** UI constants. Any magic number that appears inline in a component belongs here. */
 
 import type { ViewMode, ViewModeMeta } from "./types";
+import type { Metric } from "./utils";
 
 export const POLL_INTERVAL_TRANSFORMS_MS = 10_000;
 export const POLL_INTERVAL_BLOCKS_MS = 5_000;
@@ -97,31 +98,48 @@ export const CHAT_HISTORY_MAX = 50;
 // ---------------------------------------------------------------------------
 
 export const VIEW_MODE_META: Record<ViewMode, ViewModeMeta> = {
-  position: { label: "Desired", unit: "$vega", decimals: 2, group: "primary", signed: true },
-  change: { label: "Change", unit: "$vega", decimals: 2, group: "primary", signed: true },
-  edge: { label: "Edge", unit: "vp", decimals: 2, group: "primary", signed: true },
-  variance: { label: "Variance", unit: "vp", decimals: 2, group: "primary", signed: false },
-  fair: { label: "Fair", unit: "vp", decimals: 2, group: "primary", signed: false },
-  market: { label: "Market", unit: "vp", decimals: 2, group: "primary", signed: false },
-  rawPosition: { label: "Raw Position", unit: "$vega", decimals: 2, group: "secondary", signed: true },
-  smoothedEdge: { label: "Smoothed Edge", unit: "vp", decimals: 2, group: "secondary", signed: true },
-  smoothedVar: { label: "Smoothed Variance", unit: "vp", decimals: 2, group: "secondary", signed: false },
-  totalFair: { label: "Total Fair", unit: "vp", decimals: 2, group: "secondary", signed: false },
-  totalMarketFair: { label: "Market Fair", unit: "vp", decimals: 2, group: "secondary", signed: false },
+  position: { label: "Smoothed Desired", unit: "$vega", decimals: 2, signed: true },
+  rawPosition: { label: "Instant Desired", unit: "$vega", decimals: 2, signed: true },
+  edge: { label: "Instant Edge", unit: "vp", decimals: 2, signed: true },
+  smoothedEdge: { label: "Smoothed Edge", unit: "vp", decimals: 2, signed: true },
+  variance: { label: "Instant Variance", unit: "vp", decimals: 2, signed: false },
+  smoothedVar: { label: "Smoothed Variance", unit: "vp", decimals: 2, signed: false },
+  fair: { label: "Instant Fair", unit: "vp", decimals: 2, signed: false },
+  smoothedFair: { label: "Smoothed Fair", unit: "vp", decimals: 2, signed: false },
+  marketCalculated: { label: "Instant Market (Calc)", unit: "vp", decimals: 2, signed: false },
+  smoothedMarketCalculated: { label: "Smoothed Market (Calc)", unit: "vp", decimals: 2, signed: false },
+  marketSource: { label: "Market (Source)", unit: "vp", decimals: 2, signed: false },
 };
 
-export const PRIMARY_VIEW_MODES: ViewMode[] = ["position", "change", "edge", "variance", "fair", "market"];
-export const SECONDARY_VIEW_MODES: ViewMode[] = [
-  "rawPosition",
-  "smoothedEdge",
-  "smoothedVar",
-  "totalFair",
-  "totalMarketFair",
+/** Dropdown entries for the Overview grid. Each row is one metric; the
+ *  Smoothed/Instant toggle picks the variant. `marketSource` and `change`
+ *  have no smoothed variant — the toggle is disabled when they're selected. */
+export interface MetricMeta {
+  label: string;
+  unit: string;
+  decimals: number;
+  signed: boolean;
+}
+
+export const METRIC_META: Record<Metric, MetricMeta> = {
+  desired: { label: "Desired", unit: "$vega", decimals: 2, signed: true },
+  edge: { label: "Edge", unit: "vp", decimals: 2, signed: true },
+  variance: { label: "Variance", unit: "vp", decimals: 2, signed: false },
+  fair: { label: "Fair", unit: "vp", decimals: 2, signed: false },
+  marketCalc: { label: "Market (Calc)", unit: "vp", decimals: 2, signed: false },
+  marketSource: { label: "Market (Source)", unit: "vp", decimals: 2, signed: false },
+};
+
+/** Metric order in the Overview dropdown. */
+export const METRICS: readonly Metric[] = [
+  "desired",
+  "edge",
+  "variance",
+  "fair",
+  "marketCalc",
+  "marketSource",
 ];
 
-export const TIMEFRAME_OPTIONS = [
-  { label: "Latest", ms: 0 },
-  { label: "1 min", ms: 60_000 },
-  { label: "5 min", ms: 300_000 },
-  { label: "15 min", ms: 900_000 },
-] as const;
+/** Persistence key for the Smoothed/Instant toggle — the dropdown state
+ *  itself lives in the parent (WorkbenchPage) as the controlling viewMode. */
+export const OVERVIEW_SMOOTHING_KEY = "posit-overview-smoothing";

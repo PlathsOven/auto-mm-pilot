@@ -177,21 +177,85 @@ export function blockKeyToString(key: BlockKey): string {
   ].join("|");
 }
 
-/** Pull the value for a given view mode from a ``DesiredPosition`` row.
- *  ``change`` is passed through because the grid computes it outside the
- *  position object (it depends on the selected timeframe). */
-export function getCellValue(p: DesiredPosition, mode: ViewMode, change: number): number {
+/** Pull the value for a given view mode from a ``DesiredPosition`` row. */
+export function getCellValue(p: DesiredPosition, mode: ViewMode): number {
   switch (mode) {
     case "position": return p.desiredPos;
     case "rawPosition": return p.rawDesiredPos;
-    case "change": return change;
     case "edge": return p.edgeVol;
     case "smoothedEdge": return p.smoothedEdgeVol;
     case "variance": return p.varianceVol;
     case "smoothedVar": return p.smoothedVarVol;
     case "fair": return p.totalFairVol;
-    case "market": return p.marketVol;
-    case "totalFair": return p.totalFairVol;
-    case "totalMarketFair": return p.totalMarketFairVol;
+    case "smoothedFair": return p.smoothedTotalFairVol;
+    // Market (src): user-entered aggregate vol, straight from the market-
+    // value store. Market (calc): pipeline space-aggregation + calc→target
+    // output — the value ``edge = fair − market`` is computed against.
+    case "marketSource": return p.marketVol;
+    case "marketCalculated": return p.totalMarketFairVol;
+    case "smoothedMarketCalculated": return p.smoothedTotalMarketFairVol;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// View-mode composition — Metric × Smoothing
+// ---------------------------------------------------------------------------
+
+/** One of the six underlying metrics on the Overview + Pipeline controls. */
+export type Metric =
+  | "desired"
+  | "edge"
+  | "variance"
+  | "fair"
+  | "marketCalc"
+  | "marketSource";
+
+export type Smoothing = "instant" | "smoothed";
+
+/** Metrics where the Smoothed/Instant toggle is meaningful. `marketSource`
+ *  is a user-entered scalar with no time variation, so it defaults to
+ *  instant values and renders the toggle disabled. */
+export const SMOOTHABLE_METRICS: readonly Metric[] = [
+  "desired", "edge", "variance", "fair", "marketCalc",
+];
+
+/** Compose a {@link ViewMode} from the 2D (metric, smoothing) control
+ *  surface. Metrics with no smoothed variant ignore the smoothing flag. */
+export function viewModeOf(metric: Metric, smoothing: Smoothing): ViewMode {
+  if (metric === "marketSource") return "marketSource";
+  if (smoothing === "instant") {
+    switch (metric) {
+      case "desired": return "rawPosition";
+      case "edge": return "edge";
+      case "variance": return "variance";
+      case "fair": return "fair";
+      case "marketCalc": return "marketCalculated";
+    }
+  }
+  switch (metric) {
+    case "desired": return "position";
+    case "edge": return "smoothedEdge";
+    case "variance": return "smoothedVar";
+    case "fair": return "smoothedFair";
+    case "marketCalc": return "smoothedMarketCalculated";
+  }
+}
+
+/** Inverse of {@link viewModeOf} — extracts (metric, smoothing) from a
+ *  {@link ViewMode}. Used to hydrate the grid controls from a persisted or
+ *  parent-supplied view mode so the dropdown + toggle render consistently. */
+export function metricOf(mode: ViewMode): { metric: Metric; smoothing: Smoothing } {
+  switch (mode) {
+    case "position": return { metric: "desired", smoothing: "smoothed" };
+    case "rawPosition": return { metric: "desired", smoothing: "instant" };
+    case "edge": return { metric: "edge", smoothing: "instant" };
+    case "smoothedEdge": return { metric: "edge", smoothing: "smoothed" };
+    case "variance": return { metric: "variance", smoothing: "instant" };
+    case "smoothedVar": return { metric: "variance", smoothing: "smoothed" };
+    case "fair": return { metric: "fair", smoothing: "instant" };
+    case "smoothedFair": return { metric: "fair", smoothing: "smoothed" };
+    case "marketCalculated": return { metric: "marketCalc", smoothing: "instant" };
+    case "smoothedMarketCalculated": return { metric: "marketCalc", smoothing: "smoothed" };
+    case "marketSource": return { metric: "marketSource", smoothing: "instant" };
   }
 }

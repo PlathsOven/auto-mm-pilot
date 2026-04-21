@@ -2,17 +2,19 @@ import type { EChartsOption } from "echarts";
 import type {
   PipelineTimeSeriesResponse,
 } from "../../types";
+import type { Metric, Smoothing } from "../../utils";
 
 // ---------------------------------------------------------------------------
-// Color palette — block decomposition
+// Palette
 // ---------------------------------------------------------------------------
 //
-// Brand-harmonised palette tuned for the indigo/navy glass UI: mm-accent
-// leads (so the most-prominent block visually anchors to the brand color),
-// followed by softer violets, teals, ambers and corals — all ≤ ~70%
-// saturation so the stacked-area chart doesn't shout against the glass
-// background. mm-error coral is kept in slot 8 because some blocks
-// genuinely drive variance the wrong way and the user must see them pop.
+// Block-decomposition palette — brand-harmonised indigo/navy series used
+// anywhere a list of per-block colors is needed (StreamInspector, etc.).
+// mm-accent leads so the most-prominent block anchors to the brand color;
+// mm-error coral in slot 8 lets blocks that drive variance the wrong way
+// still pop. The pipeline chart itself no longer plots per-block series,
+// but the palette stays here because it's the canonical home for chart
+// color tokens.
 export const BLOCK_COLORS = [
   "#4f5bd5", // mm-accent indigo
   "#7b6cf0", // soft violet
@@ -26,19 +28,10 @@ export const BLOCK_COLORS = [
   "#9098a8", // neutral slate
 ];
 
-// Aggregate-line colors — lean on mm-text (#1a1a2e) so the bold totals
-// read as authoritative against the lighter stacked areas. Raw/market
-// overlays are translucent to recede.
+// Single authoritative chart line color — mm-text navy. The chart plots
+// one series at a time (the smoothing toggle swaps which variant), so the
+// old raw-vs-smoothed two-line palette is no longer needed.
 export const SMOOTHED_COLOR = "#1a1a2e";
-export const RAW_COLOR = "rgba(26,26,46,0.22)";
-export const FAIR_COLOR = "#1a1a2e";
-export const VARIANCE_COLOR = "#1a1a2e";
-export const MARKET_FAIR_COLOR = "rgba(26,26,46,0.28)";
-
-// Stacked-area opacity — bumped from 0.25 to compensate for the lighter
-// glass background. Dimmed value used when another block is selected.
-export const STACK_AREA_OPACITY = 0.32;
-export const STACK_AREA_OPACITY_DIMMED = 0.08;
 
 export const TOOLTIP_STYLE = {
   backgroundColor: "rgba(255,255,255,0.92)",
@@ -49,39 +42,8 @@ export const TOOLTIP_STYLE = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Formatters
 // ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Block series identity
-// ---------------------------------------------------------------------------
-
-/** Composite series id so name collisions across streams on the same
- *  dimension (e.g. two blocks both called `ema_iv` on different streams)
- *  stay distinguishable in the chart. `view` is appended so the fair and
- *  variance variants of the same block never share an id. */
-export function blockSeriesIdOf(
-  blockName: string,
-  streamName: string,
-  startTimestamp: string | null,
-  view?: "fair" | "var",
-): string {
-  const base = `${blockName}|${streamName}|${startTimestamp ?? ""}`;
-  return view ? `${base}|${view}` : base;
-}
-
-/** Inverse of {@link blockSeriesIdOf} — parses a series id back into its
- *  parts. Returns null for ids that don't match the composite shape
- *  (aggregates, raw/smoothed, etc.). */
-export function parseBlockSeriesId(
-  id: string,
-): { blockName: string; streamName: string; startTimestamp: string | null } | null {
-  const parts = id.split("|");
-  if (parts.length < 3) return null;
-  const [blockName, streamName, ts] = parts;
-  if (!blockName || !streamName) return null;
-  return { blockName, streamName, startTimestamp: ts === "" ? null : ts };
-}
 
 export function sci(v: number): string {
   if (v === 0) return "0";
@@ -90,40 +52,16 @@ export function sci(v: number): string {
   return v.toExponential(3);
 }
 
-/** Vol-points label — matches the overview grid's "Edge" / "Market" tab
- *  formatting (2 decimals). Signed values render with a leading ``-`` via
- *  `toFixed`; unsigned series never go negative on the historical axis. */
+/** Vol-points label — matches the overview grid's two-decimal format for
+ *  Edge / Variance / Fair / Market. */
 function vpLabel(v: number): string {
   return v.toFixed(2);
 }
 
-// ---------------------------------------------------------------------------
-// ECharts option builder
-// ---------------------------------------------------------------------------
-
-/** Single-view rendering modes for the pipeline chart. ``position``, ``edge``,
- *  and ``market`` are backward-looking historical lines (same time axis as
- *  the overview grid). ``fair`` and ``variance`` are forward-looking stacked
- *  decay curves built from per-block series. Vocabulary mirrors the position
- *  grid's view-mode tabs so the two surfaces stay in sync via the Link-grid
- *  toggle. */
-export type PipelineView = "position" | "fair" | "variance" | "edge" | "market";
-
-/** Historical views render on a time axis with aggregated line series; fair
- *  and variance render on a category axis with stacked per-block areas. The
- *  Position/Edge/Market branches of the option builder share the time-axis
- *  code path. */
-const HISTORICAL_VIEWS: ReadonlySet<PipelineView> = new Set<PipelineView>([
-  "position",
-  "edge",
-  "market",
-]);
-export const isHistoricalPipelineView = (v: PipelineView): boolean => HISTORICAL_VIEWS.has(v);
-
-// Axis type locked to "category" because the stacked fair/variance series
-// rely on ECharts' `stack:` feature. See xAxis comment + assertion in the
-// option builder.
-const STACK_SAFE_XAXIS_TYPE = "category" as const;
+/** Position label — thousands suffix for large values, integer otherwise. */
+function positionLabel(v: number): string {
+  return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v));
+}
 
 /** Parse a naive-UTC ISO timestamp. The server emits naive UTC; JS would
  *  otherwise interpret naive ISO as local time on some browsers, shifting
@@ -137,12 +75,8 @@ function parseIsoUtc(iso: string): Date | null {
 
 const pad2 = (n: number): string => String(n).padStart(2, "0");
 
-/** Per-sample interval thresholds (ms) that pick the label resolution.
- *  We choose granularity off the *median sample interval* rather than the
- *  total span so dense intra-minute series render with seconds even on a
- *  short window, and sparse hourly series collapse to dates on a long one. */
-const SECOND_GRAN_MS = 60 * 1000; // < 1 min between samples → HH:MM:SS
-const MINUTE_GRAN_MS = 24 * 60 * 60 * 1000; // < 1 day → HH:MM (with date breaks)
+const SECOND_GRAN_MS = 60 * 1000;
+const MINUTE_GRAN_MS = 24 * 60 * 60 * 1000;
 
 type AxisGranularity = "second" | "minute" | "day";
 
@@ -157,8 +91,6 @@ function pickAxisGranularity(timestamps: string[]): AxisGranularity {
   return "day";
 }
 
-/** Render an ISO timestamp in the chart's chosen granularity, in local time.
- *  `prevDate` is consulted only for date-boundary handling. */
 function formatLocalTick(d: Date, gran: AxisGranularity, prevDate: Date | null): string {
   const date = `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
   const hm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
@@ -174,50 +106,12 @@ function formatLocalTick(d: Date, gran: AxisGranularity, prevDate: Date | null):
   }
 }
 
-/** Full timestamp suitable for the tooltip header. Always renders with
- *  date + HH:MM:SS in local time so the hover read matches the x-axis
- *  convention regardless of granularity. */
-function formatTooltipTimestamp(iso: string): string {
-  const d = parseIsoUtc(iso);
-  if (!d) return iso;
-  return formatTooltipDate(d);
-}
-
 function formatTooltipDate(d: Date): string {
   const date = `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
   const hms = `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
   return `${date} ${hms}`;
 }
 
-/** Build a category-axis label formatter that adapts to per-sample density
- *  (HH:MM:SS for sub-minute, HH:MM for sub-day, MM/DD-led for sparser).
- *
- *  Suppresses consecutive duplicate labels — if a tick would render the
- *  same string as the immediately preceding one, return "" so ECharts
- *  draws the tick mark without a textual label. This is the safety net
- *  for when ECharts requests more ticks than the chosen granularity can
- *  uniquely label. Labels render in the user's local timezone. */
-function makeAxisLabelFormatter(timestamps: string[]) {
-  const gran = pickAxisGranularity(timestamps);
-  return (value: string, index: number): string => {
-    const d = parseIsoUtc(value);
-    if (!d) return value;
-    const prev = index > 0 ? parseIsoUtc(timestamps[index - 1]) : null;
-    const label = formatLocalTick(d, gran, prev);
-    if (prev) {
-      const prevPrev = index > 1 ? parseIsoUtc(timestamps[index - 2]) : null;
-      const prevLabel = formatLocalTick(prev, gran, prevPrev);
-      if (prevLabel === label) return "";
-    }
-    return label;
-  };
-}
-
-/** Time-axis formatter. ECharts picks tick timestamps itself on
- *  `type: "time"` (round wall-clock values), so we just render each one in
- *  the granularity chosen for the underlying sample density. Date prefix is
- *  suppressed when the whole range stays within one local day — otherwise
- *  every tick carries it to disambiguate. */
 function makeTimeAxisFormatter(timestamps: string[]) {
   const gran = pickAxisGranularity(timestamps);
   const first = parseIsoUtc(timestamps[0] ?? "");
@@ -230,15 +124,12 @@ function makeTimeAxisFormatter(timestamps: string[]) {
   return (value: number): string => {
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return "";
-    // Passing `d` as prevDate forces `dayChanged` false (suppresses date
-    // prefix); null forces it true.
     return formatLocalTick(d, gran, crossesDay ? null : d);
   };
 }
 
 /** Zip timestamps with values into `[epoch_ms, y]` tuples for a time-axis
- *  series. Drops samples whose timestamp fails to parse (rare; keeps the
- *  series shape valid for ECharts). */
+ *  series. Drops samples whose timestamp fails to parse. */
 function zipTimeSeries(
   timestamps: string[],
   values: number[],
@@ -252,163 +143,121 @@ function zipTimeSeries(
   return out;
 }
 
-/**
- * Build a single-grid ECharts option for the requested view.
- *
- * Replaces the old three-stacked-grid layout. With one grid filling the
- * panel the chart actually fills the canvas, gets significantly more y-axis
- * resolution, and reads at small heights. The trader switches view via tabs
- * up in PipelineChartPanel — by default, those tabs follow the position
- * grid's active view-mode (linked).
- */
-export function buildPipelineSingleViewOptions(
+// ---------------------------------------------------------------------------
+// Per-metric resolution
+// ---------------------------------------------------------------------------
+
+interface MetricSeries {
+  /** Selected-variant values, already resolved against the smoothing toggle. */
+  values: number[];
+  /** Legend label for the series. */
+  label: string;
+  /** y-axis name + tick/tooltip formatter. */
+  yAxisName: string;
+  yAxisFormatter: (v: number) => string;
+  tooltipFormatter: (v: number) => string;
+  /** `marketSource` renders a step line — user-entered scalar over time.
+   *  Everything else is a standard interpolated line. */
+  stepRender: boolean;
+}
+
+/** Resolve the (metric, smoothing) pair to a single displayed series that
+ *  mirrors the Overview cell value. Metrics without a smoothed variant
+ *  (marketSource) ignore the smoothing flag and always emit the source
+ *  series. */
+function resolveMetricSeries(
   data: PipelineTimeSeriesResponse,
-  view: PipelineView,
-  selectedBlocks: Set<string>,
-): EChartsOption {
-  const { blocks, aggregated, blockTimestamps } = data;
-  // Position / Edge / Market = backward-looking historical (axis ends at
-  // current_ts). Fair / Variance = forward-looking decay curves (axis runs
-  // current_ts → expiry). Each group uses its own timestamp axis.
-  const isHistoricalView = isHistoricalPipelineView(view);
-  const axisTimestamps = isHistoricalView ? aggregated.timestamps : blockTimestamps;
-
-  const hasSelection = selectedBlocks.size > 0;
-
-  const series: EChartsOption["series"] = [];
-  let yAxisName = "";
-  let yAxisFormatter: (v: number) => string;
-  // Separate formatter for tooltip body + cross-pointer bubble. Axis labels
-  // strip precision for legibility (e.g. Position rounds to "-12k"); the
-  // tooltip should instead show the precise value the trader acts on. For
-  // vp-unit views (Edge / Market) both formatters align on 2dp — the grid's
-  // convention — and for Fair / Variance we fall back to scientific.
-  let tooltipValueFormatter: (v: number) => string = sci;
-
-  if (view === "position") {
-    yAxisName = "Desired ($)";
-    yAxisFormatter = (v: number) =>
-      v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v));
-    // Position runs on a time xAxis (see xAxis block), so series data is
-    // `[epoch_ms, y]` tuples rather than a bare values array.
-    series.push(
-      {
-        name: "Raw",
-        type: "line",
-        data: zipTimeSeries(aggregated.timestamps, aggregated.rawDesiredPosition),
-        showSymbol: false,
-        lineStyle: { width: 1, color: RAW_COLOR },
-        itemStyle: { color: RAW_COLOR },
-        z: 1,
-      },
-      {
-        name: "Smoothed",
-        type: "line",
-        data: zipTimeSeries(aggregated.timestamps, aggregated.smoothedDesiredPosition),
-        showSymbol: false,
-        lineStyle: { width: 2, color: SMOOTHED_COLOR },
-        itemStyle: { color: SMOOTHED_COLOR },
-        z: 2,
-      },
-    );
-  } else if (view === "edge") {
-    // Grid Edge tab reads `p.edgeVol`; aggregated.edge is already in vp
-    // (the pipeline converts before emitting), so the latest smoothed value
-    // matches the grid cell without further transformation. Two-line layout
-    // mirrors Position: raw demoted, smoothed lead.
-    yAxisName = "Edge (vp)";
-    yAxisFormatter = vpLabel;
-    tooltipValueFormatter = vpLabel;
-    series.push(
-      {
-        name: "Raw",
-        type: "line",
-        data: zipTimeSeries(aggregated.timestamps, aggregated.edge),
-        showSymbol: false,
-        lineStyle: { width: 1, color: RAW_COLOR },
-        itemStyle: { color: RAW_COLOR },
-        z: 1,
-      },
-      {
-        name: "Smoothed",
-        type: "line",
-        data: zipTimeSeries(aggregated.timestamps, aggregated.smoothedEdge),
-        showSymbol: false,
-        lineStyle: { width: 2, color: SMOOTHED_COLOR },
-        itemStyle: { color: SMOOTHED_COLOR },
-        z: 2,
-      },
-    );
-  } else if (view === "market") {
-    // Single line — the user-entered aggregate vol is a scalar per dim, not
-    // a derived series. Step-style rendering makes the "edited it at 11:42"
-    // moments legible; a straight line with step:"end" gives the flat
-    // horizontals + vertical jumps a config-value history wants.
-    yAxisName = "Market (vp)";
-    yAxisFormatter = vpLabel;
-    tooltipValueFormatter = vpLabel;
-    series.push({
-      name: "Market",
-      type: "line",
-      step: "end",
-      data: zipTimeSeries(aggregated.timestamps, aggregated.marketVol),
-      showSymbol: false,
-      lineStyle: { width: 2, color: SMOOTHED_COLOR },
-      itemStyle: { color: SMOOTHED_COLOR },
-      z: 2,
-    });
-  } else if (view === "fair") {
-    yAxisName = "Fair Value";
-    yAxisFormatter = sci;
-    blocks.forEach((b, i) => {
-      const id = blockSeriesIdOf(b.blockName, b.streamName, b.startTimestamp, "fair");
-      const matchId = blockSeriesIdOf(b.blockName, b.streamName, b.startTimestamp);
-      const dimmed = hasSelection && !selectedBlocks.has(matchId);
-      series.push({
-        id,
-        name: `${b.blockName} (fair)`,
-        type: "line",
-        data: b.fair,
-        showSymbol: false,
-        stack: "fair",
-        connectNulls: false,
-        areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
-        lineStyle: {
-          width: dimmed ? 0.3 : 0,
-          color: BLOCK_COLORS[i % BLOCK_COLORS.length],
-          opacity: dimmed ? 0.3 : 1,
-        },
-        itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
-        emphasis: { focus: "series" },
-      });
-    });
-  } else {
-    // variance
-    yAxisName = "Variance";
-    yAxisFormatter = sci;
-    blocks.forEach((b, i) => {
-      const id = blockSeriesIdOf(b.blockName, b.streamName, b.startTimestamp, "var");
-      const matchId = blockSeriesIdOf(b.blockName, b.streamName, b.startTimestamp);
-      const dimmed = hasSelection && !selectedBlocks.has(matchId);
-      series.push({
-        id,
-        name: `${b.blockName} (var)`,
-        type: "line",
-        data: b.var,
-        showSymbol: false,
-        stack: "var",
-        connectNulls: false,
-        areaStyle: { opacity: dimmed ? STACK_AREA_OPACITY_DIMMED : STACK_AREA_OPACITY },
-        lineStyle: {
-          width: dimmed ? 0.3 : 0,
-          color: BLOCK_COLORS[i % BLOCK_COLORS.length],
-          opacity: dimmed ? 0.3 : 1,
-        },
-        itemStyle: { color: BLOCK_COLORS[i % BLOCK_COLORS.length] },
-        emphasis: { focus: "series" },
-      });
-    });
+  metric: Metric,
+  smoothing: Smoothing,
+): MetricSeries {
+  const agg = data.aggregated;
+  const s = smoothing === "smoothed";
+  switch (metric) {
+    case "desired":
+      return {
+        values: s ? agg.smoothedDesiredPosition : agg.rawDesiredPosition,
+        label: s ? "Smoothed Desired" : "Instant Desired",
+        yAxisName: "Desired ($)",
+        yAxisFormatter: positionLabel,
+        tooltipFormatter: sci,
+        stepRender: false,
+      };
+    case "edge":
+      return {
+        values: s ? agg.smoothedEdge : agg.edge,
+        label: s ? "Smoothed Edge" : "Instant Edge",
+        yAxisName: "Edge (vp)",
+        yAxisFormatter: vpLabel,
+        tooltipFormatter: vpLabel,
+        stepRender: false,
+      };
+    case "variance":
+      return {
+        values: s ? agg.smoothedVar : agg.var,
+        label: s ? "Smoothed Variance" : "Instant Variance",
+        yAxisName: "Variance (vp)",
+        yAxisFormatter: vpLabel,
+        tooltipFormatter: vpLabel,
+        stepRender: false,
+      };
+    case "fair":
+      return {
+        values: s ? agg.smoothedTotalFair : agg.totalFair,
+        label: s ? "Smoothed Fair" : "Instant Fair",
+        yAxisName: "Fair (vp)",
+        yAxisFormatter: vpLabel,
+        tooltipFormatter: vpLabel,
+        stepRender: false,
+      };
+    case "marketCalc":
+      return {
+        values: s ? agg.smoothedTotalMarketFair : agg.totalMarketFair,
+        label: s ? "Smoothed Market (Calc)" : "Instant Market (Calc)",
+        yAxisName: "Market Calc (vp)",
+        yAxisFormatter: vpLabel,
+        tooltipFormatter: vpLabel,
+        stepRender: false,
+      };
+    case "marketSource":
+      return {
+        values: agg.marketVol,
+        label: "Market (Source)",
+        yAxisName: "Market Source (vp)",
+        yAxisFormatter: vpLabel,
+        tooltipFormatter: vpLabel,
+        stepRender: true,
+      };
   }
+}
+
+// ---------------------------------------------------------------------------
+// ECharts option builder
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a single-metric historical time-series option for the (metric,
+ * smoothing) pair picked on the Pipeline panel. One line per chart — the
+ * smoothing toggle swaps which variant is plotted, matching the Overview
+ * grid's cell semantics. ``marketSource`` renders as a step line; every
+ * other metric as a standard interpolated line.
+ */
+export function buildPipelineSingleMetricOptions(
+  data: PipelineTimeSeriesResponse,
+  metric: Metric,
+  smoothing: Smoothing,
+): EChartsOption {
+  const timestamps = data.aggregated.timestamps;
+  const spec = resolveMetricSeries(data, metric, smoothing);
+
+  const series: EChartsOption["series"] = [{
+    name: spec.label,
+    type: "line",
+    ...(spec.stepRender ? { step: "end" as const } : {}),
+    data: zipTimeSeries(timestamps, spec.values),
+    showSymbol: false,
+    lineStyle: { width: 2, color: SMOOTHED_COLOR },
+    itemStyle: { color: SMOOTHED_COLOR },
+  }];
 
   return {
     backgroundColor: "transparent",
@@ -418,44 +267,33 @@ export function buildPipelineSingleViewOptions(
       axisPointer: {
         type: "cross",
         crossStyle: { color: "#666" },
-        // Cross-pointer's own bubble label on the X-axis. Without this,
-        // ECharts dumps the raw category value (an ISO UTC-naive string),
-        // which doesn't match the local-time x-axis ticks and is confusing.
         label: {
           formatter: (params) => {
             if (params.axisDimension === "x") {
-              // Time axis (Position view) hands us epoch ms; category axis
-              // (Fair / Variance) hands us the ISO category string.
               if (typeof params.value === "number") {
                 return formatTooltipDate(new Date(params.value));
               }
-              return formatTooltipTimestamp(String(params.value));
+              return String(params.value ?? "");
             }
-            return typeof params.value === "number" ? tooltipValueFormatter(params.value) : String(params.value ?? "");
+            return typeof params.value === "number"
+              ? spec.tooltipFormatter(params.value)
+              : String(params.value ?? "");
           },
         },
       },
       ...TOOLTIP_STYLE,
       confine: true,
-      // Custom formatter so the header renders the timestamp in local time
-      // (matching the x-axis), and series rows stay compactly aligned.
       formatter: (paramsRaw) => {
         const params = Array.isArray(paramsRaw) ? paramsRaw : [paramsRaw];
         if (params.length === 0) return "";
-        // Position view runs on a time axis — series `value` arrives as
-        // `[epoch_ms, y]` tuples, so the header reads ms off element 0.
-        // Fair / Variance run on a category axis where `name` holds the
-        // raw ISO string. Detect by shape rather than view flag so the
-        // formatter stays self-contained.
         const firstValue = params[0].value;
         const header = Array.isArray(firstValue) && typeof firstValue[0] === "number"
           ? formatTooltipDate(new Date(firstValue[0]))
-          : formatTooltipTimestamp(String(params[0].name ?? ""));
+          : String(params[0].name ?? "");
         const rows = params
           .map((p) => {
-            // On a time axis the row value is `[ms, y]`; extract the y.
             const raw = Array.isArray(p.value) ? p.value[1] : p.value;
-            const v = typeof raw === "number" ? tooltipValueFormatter(raw) : String(raw ?? "—");
+            const v = typeof raw === "number" ? spec.tooltipFormatter(raw) : String(raw ?? "—");
             return `<div style="display:flex;justify-content:space-between;gap:16px;"><span>${p.marker} ${p.seriesName}</span><span style="font-family:monospace;">${v}</span></div>`;
           })
           .join("");
@@ -475,58 +313,26 @@ export function buildPipelineSingleViewOptions(
         textStyle: { color: "#6e6e82", fontSize: 9 },
       },
     ],
-    // bottom leaves room for the dataZoom slider (bottom 6 + height 12)
-    // + a two-line axis label (~22px) — single-line labels used 36px.
     grid: { left: 56, right: 16, top: 12, bottom: 48 },
-    xAxis: isHistoricalView
-      ? {
-          // Historical views (Position / Edge / Market) have no stacked
-          // series, so we use a real time axis — ECharts then picks ticks
-          // at round wall-clock values (every 30s, 1m, etc.) instead of at
-          // arbitrary category indices.
-          type: "time",
-          axisLabel: {
-            color: "#6e6e82",
-            fontSize: 9,
-            hideOverlap: true,
-            lineHeight: 11,
-            formatter: makeTimeAxisFormatter(axisTimestamps),
-          },
-          axisTick: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
-          axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
-          splitLine: { show: false },
-        }
-      : {
-          // Invariant (asserted below): ECharts' `stack:` feature only
-          // works on a category axis. Time-axis with stacked nullable
-          // series throws inside the internal stacker and — with no
-          // ErrorBoundary above the chart — unmounts the whole workbench
-          // (the "blank screen on Fair" bug). If you change this, the
-          // assertion at the end of the builder fires.
-          type: STACK_SAFE_XAXIS_TYPE,
-          data: axisTimestamps,
-          boundaryGap: false,
-          axisLabel: {
-            color: "#6e6e82",
-            fontSize: 9,
-            hideOverlap: true,
-            lineHeight: 11,
-            formatter: makeAxisLabelFormatter(axisTimestamps),
-          },
-          axisTick: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
-          axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
-          splitLine: { show: false },
-        },
+    xAxis: {
+      type: "time",
+      axisLabel: {
+        color: "#6e6e82",
+        fontSize: 9,
+        hideOverlap: true,
+        lineHeight: 11,
+        formatter: makeTimeAxisFormatter(timestamps),
+      },
+      axisTick: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
+      axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
+      splitLine: { show: false },
+    },
     yAxis: {
       type: "value",
-      name: yAxisName,
-      // Historical line views (Position / Edge / Market) have data ranges
-      // that live far from 0 — forcing 0 into the axis flattens the line
-      // against an edge. Fair/Variance are stacked areas filled from y=0,
-      // so the zero baseline must stay.
-      scale: isHistoricalView,
+      name: spec.yAxisName,
+      scale: true,
       nameTextStyle: { color: "#6e6e82", fontSize: 10, padding: [0, 0, 0, -10] },
-      axisLabel: { color: "#6e6e82", fontSize: 10, formatter: yAxisFormatter },
+      axisLabel: { color: "#6e6e82", fontSize: 10, formatter: spec.yAxisFormatter },
       splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
       axisLine: { show: false },
     },

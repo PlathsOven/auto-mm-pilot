@@ -6,22 +6,22 @@ import { valColor, cellBg } from "../utils";
 // Totals helpers
 // ---------------------------------------------------------------------------
 
-export type DisplayValueFn = (key: string, pos: DesiredPosition, mode: ViewMode, change: number) => number;
-export type GridMap = Map<string, { pos: DesiredPosition; change: number }>;
+export type DisplayValueFn = (key: string, pos: DesiredPosition, mode: ViewMode) => number;
+export type GridMap = Map<string, DesiredPosition>;
 
 export function computeRowTotal(symbol: string, expiries: string[], grid: GridMap, getVal: DisplayValueFn, mode: ViewMode): number {
   return expiries.reduce((sum, exp) => {
     const k = `${symbol}-${exp}`;
-    const cell = grid.get(k);
-    return sum + (cell ? getVal(k, cell.pos, mode, cell.change) : 0);
+    const pos = grid.get(k);
+    return sum + (pos ? getVal(k, pos, mode) : 0);
   }, 0);
 }
 
 export function computeColTotal(expiry: string, symbols: string[], grid: GridMap, getVal: DisplayValueFn, mode: ViewMode): number {
   return symbols.reduce((sum, s) => {
     const k = `${s}-${expiry}`;
-    const cell = grid.get(k);
-    return sum + (cell ? getVal(k, cell.pos, mode, cell.change) : 0);
+    const pos = grid.get(k);
+    return sum + (pos ? getVal(k, pos, mode) : 0);
   }, 0);
 }
 
@@ -29,8 +29,8 @@ export function computeGrandTotal(symbols: string[], expiries: string[], grid: G
   return symbols.reduce((sum, s) =>
     sum + expiries.reduce((acc, exp) => {
       const k = `${s}-${exp}`;
-      const cell = grid.get(k);
-      return acc + (cell ? getVal(k, cell.pos, mode, cell.change) : 0);
+      const pos = grid.get(k);
+      return acc + (pos ? getVal(k, pos, mode) : 0);
     }, 0), 0);
 }
 

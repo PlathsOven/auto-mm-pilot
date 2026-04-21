@@ -66,13 +66,17 @@ export interface DesiredPosition {
   rawDesiredPos: number;
   currentPos: number;
   totalFair: number;
+  smoothedTotalFair: number;
   totalMarketFair: number;
+  smoothedTotalMarketFair: number;
   edgeVol: number;
   smoothedEdgeVol: number;
   varianceVol: number;
   smoothedVarVol: number;
   totalFairVol: number;
+  smoothedTotalFairVol: number;
   totalMarketFairVol: number;
+  smoothedTotalMarketFairVol: number;
   marketVol: number;
   changeMagnitude: number;
   updatedAt: number;
@@ -171,32 +175,25 @@ export interface EngineCommand {
 export type ViewMode =
   | "position"
   | "rawPosition"
-  | "change"
   | "edge"
   | "smoothedEdge"
   | "variance"
   | "smoothedVar"
   | "fair"
-  | "market"
-  | "totalFair"
-  | "totalMarketFair";
-
-export type ViewModeGroup = "primary" | "secondary";
+  | "smoothedFair"
+  | "marketSource"
+  | "marketCalculated"
+  | "smoothedMarketCalculated";
 
 export interface ViewModeMeta {
   label: string;
   unit: string;
   decimals: number;
-  group: ViewModeGroup;
   /** Whether the value carries a meaningful sign. Fair / Market / Variance
    *  are non-negative by construction, so the grid suppresses the "+"
    *  prefix on them to avoid implying a signed quantity. */
   signed: boolean;
 }
-
-/** One of the TIMEFRAME_OPTIONS labels. Kept as a string-literal union via
- *  the ``typeof`` on the canonical constants array. */
-export type TimeframeLabel = "Latest" | "1 min" | "5 min" | "15 min";
 
 /** Pending manual-block command awaiting user review in the BlockDrawer */
 export interface PendingBlockCommand {
@@ -335,7 +332,9 @@ export interface BlockTimeSeries {
 export interface AggregatedTimeSeries {
   timestamps: string[];
   totalFair: number[];
+  smoothedTotalFair: number[];
   totalMarketFair: number[];
+  smoothedTotalMarketFair: number[];
   edge: number[];
   smoothedEdge: number[];
   var: number[];

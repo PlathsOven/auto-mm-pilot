@@ -113,7 +113,9 @@ def positions_at_tick(
         pl.col("raw_desired_position").fill_null(0.0).round(2).alias("rawDesiredPos"),
         pl.lit(0.0).alias("currentPos"),
         pl.col("total_fair").fill_null(0.0).alias("totalFair"),
+        pl.col("smoothed_total_fair").fill_null(0.0).alias("smoothedTotalFair"),
         pl.col("total_market_fair").fill_null(0.0).alias("totalMarketFair"),
+        pl.col("smoothed_total_market_fair").fill_null(0.0).alias("smoothedTotalMarketFair"),
         # ``*Vol`` aliases — same numeric value, kept for wire compatibility
         # with clients that read them explicitly.
         pl.col("edge").fill_null(0.0).alias("edgeVol"),
@@ -121,7 +123,9 @@ def positions_at_tick(
         pl.col("var").fill_null(0.0).alias("varianceVol"),
         pl.col("smoothed_var").fill_null(0.0).alias("smoothedVarVol"),
         pl.col("total_fair").fill_null(0.0).alias("totalFairVol"),
+        pl.col("smoothed_total_fair").fill_null(0.0).alias("smoothedTotalFairVol"),
         pl.col("total_market_fair").fill_null(0.0).alias("totalMarketFairVol"),
+        pl.col("smoothed_total_market_fair").fill_null(0.0).alias("smoothedTotalMarketFairVol"),
         pl.lit(ts_ms).alias("updatedAt"),
     )
 

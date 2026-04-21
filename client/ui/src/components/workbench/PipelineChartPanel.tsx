@@ -1,82 +1,42 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PipelineChart } from "../PipelineChart";
 import { Tabs, type TabItem } from "../ui/Tabs";
+import { MetricDropdown, SmoothingToggle } from "../ui/MetricControls";
 import { useFocus } from "../../providers/FocusProvider";
 import { useWebSocket } from "../../providers/WebSocketProvider";
 import { usePipelineTimeSeries } from "../../hooks/usePipelineTimeSeries";
-import { formatExpiry } from "../../utils";
-import { isHistoricalPipelineView, type PipelineView } from "../PipelineChart/chartOptions";
+import {
+  formatExpiry,
+  metricOf,
+  viewModeOf,
+  SMOOTHABLE_METRICS,
+  type Metric,
+  type Smoothing,
+} from "../../utils";
 import type { ViewMode } from "../../types";
 import {
   POSITION_LOOKBACK_OPTIONS,
   DEFAULT_POSITION_LOOKBACK_LABEL,
   POSITION_LOOKBACK_KEY,
   PIPELINE_LINK_KEY,
+  VIEW_MODE_META,
 } from "../../constants";
 
-const VIEW_TABS: TabItem<PipelineView>[] = [
-  { value: "position", label: "Desired" },
-  { value: "edge", label: "Edge" },
-  { value: "market", label: "Market" },
-  { value: "fair", label: "Fair" },
-  { value: "variance", label: "Variance" },
-];
-
-/** Map a position-grid view mode to the matching pipeline view. Several grid
- *  modes resolve to the same pipeline view (e.g. ``rawPosition`` and
- *  ``change`` both share the Position historical line). */
-function gridToPipelineView(grid: ViewMode): PipelineView {
-  switch (grid) {
-    case "position":
-    case "rawPosition":
-    case "change":
-      return "position";
-    case "edge":
-    case "smoothedEdge":
-      return "edge";
-    case "market":
-    case "totalMarketFair":
-      return "market";
-    case "fair":
-    case "totalFair":
-      return "fair";
-    case "variance":
-    case "smoothedVar":
-      return "variance";
-  }
-}
-
-/** Canonical grid-view choice for each pipeline view, used when the user
- *  changes the pipeline tab while linked is on (the change should propagate
- *  back to the grid). */
-function pipelineToGridView(view: PipelineView): ViewMode {
-  switch (view) {
-    case "position": return "position";
-    case "edge": return "edge";
-    case "market": return "market";
-    case "fair": return "fair";
-    case "variance": return "variance";
-  }
-}
-
 interface PipelineChartPanelProps {
-  /** The position grid's current view mode — pipeline mirrors it when "Linked"
-   *  is on (default). */
+  /** The position grid's current view mode — pipeline mirrors it when
+   *  "Linked" is on (default). */
   gridViewMode: ViewMode;
-  /** Setter so the pipeline can push its tab choice back to the grid (when
-   *  linked is on, the sync is bidirectional). */
+  /** Setter so the pipeline can push its (metric, smoothing) choice back
+   *  to the grid when linked is on. Composes both fields into a single
+   *  `ViewMode`. */
   onGridViewModeChange: (mode: ViewMode) => void;
 }
 
 /**
- * Pipeline chart panel — single-view tabs (Position / Fair / Variance)
- * channelled to the focused dimension.
- *
- * "Linked" toggle (default on, persisted) makes the pipeline view follow the
- * position grid's active view-mode, so flipping tabs in the grid above
- * automatically swaps the chart below. Switch to manual when comparing two
- * different views (e.g. position grid showing change while inspecting
- * variance below).
+ * Pipeline chart panel — same dropdown + Instant/Smoothed controls as the
+ * Overview grid, visually identical via the shared `MetricDropdown` +
+ * `SmoothingToggle` primitives. "Link grid" (default on, persisted)
+ * mirrors both metric and smoothing from the grid bidirectionally.
  */
 export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: PipelineChartPanelProps) {
   const { focus } = useFocus();
@@ -85,7 +45,11 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
   const [linked, setLinked] = useState<boolean>(() => {
     try { return localStorage.getItem(PIPELINE_LINK_KEY) !== "false"; } catch { return true; }
   });
-  const [localView, setLocalView] = useState<PipelineView>("position");
+  const gridMetric = metricOf(gridViewMode).metric;
+  const gridSmoothing = metricOf(gridViewMode).smoothing;
+
+  const [localMetric, setLocalMetric] = useState<Metric>(gridMetric);
+  const [localSmoothing, setLocalSmoothing] = useState<Smoothing>(gridSmoothing);
   const [lookbackLabel, setLookbackLabel] = useState<string>(() => {
     try {
       const saved = localStorage.getItem(POSITION_LOOKBACK_KEY);
@@ -93,6 +57,12 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
     } catch { /* ignore */ }
     return DEFAULT_POSITION_LOOKBACK_LABEL;
   });
+
+  const effectiveMetric: Metric = linked ? gridMetric : localMetric;
+  const effectiveSmoothing: Smoothing = linked ? gridSmoothing : localSmoothing;
+  const smoothable = (SMOOTHABLE_METRICS as readonly Metric[]).includes(effectiveMetric);
+  const effectiveViewMode = viewModeOf(effectiveMetric, effectiveSmoothing);
+  const meta = VIEW_MODE_META[effectiveViewMode];
 
   const persistLookback = useCallback((next: string) => {
     setLookbackLabel(next);
@@ -109,14 +79,9 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
     try { localStorage.setItem(PIPELINE_LINK_KEY, String(next)); } catch { /* ignore */ }
   }, []);
 
-  // When linked, mirror the grid's view. When not linked, the user picks.
-  const effectiveView: PipelineView = linked ? gridToPipelineView(gridViewMode) : localView;
-
   // Resolve a (symbol, expiry) to channel from the current focus. Block
-  // focus carries its full composite key, so we can route the chart to the
-  // block's dimension and then highlight the specific series — otherwise
-  // the highlight would silently drop when the block's dim doesn't match
-  // whatever was last charted.
+  // focus carries its full composite key, so we can route the chart to
+  // the block's dimension.
   const focusDimension = useMemo(() => {
     if (!focus || !payload) return null;
     if (focus.kind === "cell") return { symbol: focus.symbol, expiry: focus.expiry };
@@ -132,24 +97,23 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
     return null;
   }, [focus, payload]);
 
-  // Lookback only applies to historical views (Position / Edge / Market) —
-  // Fair / Variance are forward-looking decay curves, not historical series.
   const lookbackSeconds = useMemo<number | null>(() => {
-    if (!isHistoricalPipelineView(effectiveView)) return null;
     const opt = POSITION_LOOKBACK_OPTIONS.find((o) => o.label === lookbackLabel);
     return opt?.seconds ?? null;
-  }, [effectiveView, lookbackLabel]);
+  }, [lookbackLabel]);
 
   const { dimensions, selected, setSelected, data, error, loading } = usePipelineTimeSeries(
     focusDimension,
     lookbackSeconds,
   );
 
-  // Keep localView in sync the first time the user disables linking, so the
-  // pipeline doesn't visually jump.
+  // Keep local state in sync while linked so unlinking doesn't jump.
   useEffect(() => {
-    if (linked) setLocalView(gridToPipelineView(gridViewMode));
-  }, [linked, gridViewMode]);
+    if (linked) {
+      setLocalMetric(gridMetric);
+      setLocalSmoothing(gridSmoothing);
+    }
+  }, [linked, gridMetric, gridSmoothing]);
 
   const handleDimChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -159,42 +123,50 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
     [setSelected],
   );
 
+  const setMetric = useCallback(
+    (next: Metric) => {
+      setLocalMetric(next);
+      if (linked) onGridViewModeChange(viewModeOf(next, effectiveSmoothing));
+    },
+    [linked, effectiveSmoothing, onGridViewModeChange],
+  );
+
+  const setSmoothing = useCallback(
+    (next: Smoothing) => {
+      setLocalSmoothing(next);
+      if (linked && (SMOOTHABLE_METRICS as readonly Metric[]).includes(effectiveMetric)) {
+        onGridViewModeChange(viewModeOf(effectiveMetric, next));
+      }
+    },
+    [linked, effectiveMetric, onGridViewModeChange],
+  );
+
   return (
     <div className="flex h-full w-full min-w-0 flex-1 flex-col overflow-hidden">
-      <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-black/[0.06] px-3 py-1.5">
-        <h2 className="zone-header">Pipeline</h2>
-        <Tabs
-          items={VIEW_TABS}
-          value={effectiveView}
-          onChange={(v) => {
-            setLocalView(v);
-            // When linked, propagate the new pipeline view back to the grid
-            // so the two stay in sync (bidirectional). When unlinked, just
-            // update the local pipeline state and leave the grid alone.
-            if (linked) {
-              onGridViewModeChange(pipelineToGridView(v));
-            }
-          }}
-          variant="pill"
-          size="sm"
-        />
-        <label
-          className={`flex items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] transition-colors ${
-            linked
-              ? "border-mm-accent/30 bg-mm-accent-soft text-mm-accent"
-              : "border-black/[0.08] text-mm-text-dim hover:bg-black/[0.04]"
-          }`}
-          title="When on, pipeline view mirrors the position grid view"
-        >
-          <input
-            type="checkbox"
-            checked={linked}
-            onChange={(e) => persistLinked(e.target.checked)}
-            className="accent-mm-accent"
-          />
-          <span>Link grid</span>
-        </label>
-        {isHistoricalPipelineView(effectiveView) && (
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-black/[0.06] px-3 pb-2 pt-1.5">
+        <div className="flex items-baseline gap-2">
+          <h2 className="zone-header">Pipeline</h2>
+          {meta.unit && (
+            <span className="text-[10px] text-mm-text-dim">({meta.unit})</span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <label
+            className={`flex items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] transition-colors ${
+              linked
+                ? "border-mm-accent/30 bg-mm-accent-soft text-mm-accent"
+                : "border-black/[0.08] text-mm-text-dim hover:bg-black/[0.04]"
+            }`}
+            title="When on, pipeline controls mirror the position grid"
+          >
+            <input
+              type="checkbox"
+              checked={linked}
+              onChange={(e) => persistLinked(e.target.checked)}
+              className="accent-mm-accent"
+            />
+            <span>Link grid</span>
+          </label>
           <Tabs
             items={lookbackTabs}
             value={lookbackLabel}
@@ -202,23 +174,35 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
             variant="pill"
             size="sm"
           />
-        )}
-        <select
-          className="ml-auto rounded-md border border-black/[0.08] bg-white/70 px-2 py-0.5 text-[10px] text-mm-text focus:border-mm-accent/40 focus:outline-none"
-          value={selected ? `${selected.symbol}|${selected.expiry}` : ""}
-          onChange={handleDimChange}
-          title="Dimension to chart (auto-channels from focus)"
-        >
-          {dimensions.map((d) => (
-            <option key={`${d.symbol}|${d.expiry}`} value={`${d.symbol}|${d.expiry}`}>
-              {d.symbol} — {formatExpiry(d.expiry)}
-            </option>
-          ))}
-        </select>
-      </header>
+          <select
+            className="rounded-md border border-black/[0.08] bg-white/70 px-2 py-0.5 text-[10px] text-mm-text focus:border-mm-accent/40 focus:outline-none"
+            value={selected ? `${selected.symbol}|${selected.expiry}` : ""}
+            onChange={handleDimChange}
+            title="Dimension to chart (auto-channels from focus)"
+          >
+            {dimensions.map((d) => (
+              <option key={`${d.symbol}|${d.expiry}`} value={`${d.symbol}|${d.expiry}`}>
+                {d.symbol} — {formatExpiry(d.expiry)}
+              </option>
+            ))}
+          </select>
+          <MetricDropdown value={effectiveMetric} onChange={setMetric} />
+          <SmoothingToggle
+            value={effectiveSmoothing}
+            onChange={setSmoothing}
+            disabled={!smoothable}
+          />
+        </div>
+      </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        <PipelineChart data={data} loading={loading} error={error} view={effectiveView} />
+        <PipelineChart
+          data={data}
+          loading={loading}
+          error={error}
+          metric={effectiveMetric}
+          smoothing={effectiveSmoothing}
+        />
       </div>
     </div>
   );

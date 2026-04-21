@@ -10,7 +10,7 @@ from typing import Annotated, Any, Literal, Union
 # Single source of truth — imported by prompts/__init__.py and service.py.
 ChatMode = Literal["investigate", "build", "general"]
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 
 from server.api.expiry import canonical_expiry_key
@@ -40,11 +40,24 @@ class SnapshotRow(BaseModel):
     stream — the server validates the required set at ingestion time in
     ``stream_registry.ingest_snapshot``. Everything else (timestamp,
     raw_value) is statically required.
+
+    Empty strings on any field are canonicalised to ``None`` before field
+    validation so downstream Polars casts (e.g. ``market_value`` → Float64
+    in the pipeline) don't see ``""`` in a numeric column. This is the
+    single canonical point every ingest path (HTTP POST, /ws/client, and
+    ManualBlockRequest.snapshot_rows) passes through.
     """
     model_config = {"extra": "allow"}
 
     timestamp: str = Field(..., description="ISO 8601 timestamp")
     raw_value: float = Field(..., description="Raw measurement value")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _empty_strings_to_none(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        return {k: (None if isinstance(v, str) and v == "" else v) for k, v in data.items()}
 
 
 class CellContext(BaseModel):
@@ -528,13 +541,17 @@ class DesiredPosition(_WireModel):
     raw_desired_pos: float
     current_pos: float
     total_fair: float
+    smoothed_total_fair: float
     total_market_fair: float
+    smoothed_total_market_fair: float
     edge_vol: float
     smoothed_edge_vol: float
     variance_vol: float
     smoothed_var_vol: float
     total_fair_vol: float
+    smoothed_total_fair_vol: float
     total_market_fair_vol: float
+    smoothed_total_market_fair_vol: float
     market_vol: float
     change_magnitude: float
     updated_at: int
@@ -673,7 +690,9 @@ class AggregatedTimeSeries(_WireModel):
     """
     timestamps: list[str]
     total_fair: list[float]
+    smoothed_total_fair: list[float]
     total_market_fair: list[float]
+    smoothed_total_market_fair: list[float]
     edge: list[float]
     smoothed_edge: list[float]
     var: list[float]
