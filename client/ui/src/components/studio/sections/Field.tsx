@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 interface BaseFieldProps {
   label: string;
@@ -9,6 +9,12 @@ interface BaseFieldProps {
    *  `true` → red asterisk; `false` → greyed "(optional)". When omitted
    *  the label renders plain (matches legacy call sites). */
   required?: boolean;
+  /** When true, keystrokes are held in a local buffer and only emitted on
+   *  commit (Enter for single-line, ↵ button for textarea). Blur and Escape
+   *  revert the buffer. Empty/invalid number commits are no-ops so the input
+   *  can be fully backspaced without saving. Default false preserves the
+   *  legacy instant-commit behavior for existing consumers. */
+  committable?: boolean;
 }
 
 type TextFieldProps = BaseFieldProps & {
@@ -118,10 +124,16 @@ function FieldInput(props: FieldProps) {
   }
 
   if (props.type === "number") {
-    return <NumberInput {...props} disabledCls={disabledCls} />;
+    if (props.committable) {
+      return <CommittableNumber {...props} disabledCls={disabledCls} />;
+    }
+    return <LegacyNumberInput {...props} disabledCls={disabledCls} />;
   }
 
   if (props.type === "textarea") {
+    if (props.committable) {
+      return <CommittableTextarea {...props} disabledCls={disabledCls} />;
+    }
     return (
       <textarea
         value={props.value}
@@ -135,6 +147,9 @@ function FieldInput(props: FieldProps) {
     );
   }
 
+  if (props.committable) {
+    return <CommittableText {...props} disabledCls={disabledCls} />;
+  }
   return (
     <input
       type="text"
@@ -147,22 +162,222 @@ function FieldInput(props: FieldProps) {
   );
 }
 
-/**
- * Number input with a local text buffer.
- *
- * The visible text is kept in component state so the user can freely clear
- * the field (empty string) or type a transient value like "-" or "1." while
- * editing — the parent draft is only updated when the text parses to a
- * finite number. On blur, an empty or unparseable value defaults to 0, so
- * downstream validation always sees a concrete number. That default "0" is
- * itself backspaceable because the text state is driven by the user, not
- * by the prop.
- */
-function NumberInput(props: NumberFieldProps & { disabledCls: string }) {
+// ---------------------------------------------------------------------------
+// Commit-on-confirm primitives.
+//
+// Shared pattern: a local `buffer` mirrors what the user has typed. The
+// parent's `value` is only overwritten on commit (Enter for single-line
+// inputs; the inline ↵ button for textarea — Enter in textarea stays a
+// newline). Blur and Escape revert the buffer to the last committed `value`
+// so abandoned edits disappear. Empty/unparseable number buffers are no-ops
+// on commit so the field can be fully backspaced without writing 0.
+//
+// Exported so the anatomy side panel's transform-parameter editor can share
+// the same pattern without re-implementing it.
+// ---------------------------------------------------------------------------
+
+interface CommittableTextPrimitiveProps {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  mono?: boolean;
+  disabled?: boolean;
+  className?: string;
+}
+
+export function CommittableText(
+  props: CommittableTextPrimitiveProps & { disabledCls?: string },
+) {
+  const { value, onChange } = props;
+  const [buffer, setBuffer] = useState(value);
+  const lastSyncedRef = useRef(value);
+
+  useEffect(() => {
+    if (value !== lastSyncedRef.current) {
+      setBuffer(value);
+      lastSyncedRef.current = value;
+    }
+  }, [value]);
+
+  const isDirty = buffer !== value;
+
+  const commit = () => {
+    if (!isDirty) return;
+    lastSyncedRef.current = buffer;
+    onChange(buffer);
+  };
+
+  const revert = () => {
+    setBuffer(value);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commit();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      revert();
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      value={buffer}
+      disabled={props.disabled}
+      placeholder={props.placeholder}
+      onChange={(e) => setBuffer(e.target.value)}
+      onKeyDown={handleKeyDown}
+      onBlur={revert}
+      className={`form-input ${props.mono ? "font-mono" : ""} ${isDirty ? "ring-1 ring-mm-accent/60" : ""} ${props.disabledCls ?? ""} ${props.className ?? ""}`}
+    />
+  );
+}
+
+interface CommittableNumberPrimitiveProps {
+  value: number;
+  onChange: (v: number) => void;
+  step?: number | "any";
+  min?: number;
+  max?: number;
+  disabled?: boolean;
+  className?: string;
+}
+
+export function CommittableNumber(
+  props: CommittableNumberPrimitiveProps & { disabledCls?: string },
+) {
+  const { value, onChange } = props;
+  const [buffer, setBuffer] = useState(() => formatNumberForInput(value));
+  const lastSyncedRef = useRef(value);
+
+  useEffect(() => {
+    if (value !== lastSyncedRef.current) {
+      setBuffer(formatNumberForInput(value));
+      lastSyncedRef.current = value;
+    }
+  }, [value]);
+
+  const canonical = formatNumberForInput(value);
+  const isDirty = buffer !== canonical;
+  const parsed = parseFloat(buffer);
+
+  const commit = () => {
+    if (!isDirty) return;
+    if (!Number.isFinite(parsed)) return;
+    lastSyncedRef.current = parsed;
+    onChange(parsed);
+  };
+
+  const revert = () => {
+    setBuffer(canonical);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commit();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      revert();
+    }
+  };
+
+  return (
+    <input
+      type="number"
+      step={props.step ?? "any"}
+      min={props.min}
+      max={props.max}
+      disabled={props.disabled}
+      value={buffer}
+      onChange={(e) => setBuffer(e.target.value)}
+      onKeyDown={handleKeyDown}
+      onBlur={revert}
+      className={`form-input font-mono ${isDirty ? "ring-1 ring-mm-accent/60" : ""} ${props.disabledCls ?? ""} ${props.className ?? ""}`}
+    />
+  );
+}
+
+interface CommittableTextareaPrimitiveProps {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  rows?: number;
+  mono?: boolean;
+  disabled?: boolean;
+}
+
+export function CommittableTextarea(
+  props: CommittableTextareaPrimitiveProps & { disabledCls?: string },
+) {
+  const { value, onChange } = props;
+  const [buffer, setBuffer] = useState(value);
+  const lastSyncedRef = useRef(value);
+
+  useEffect(() => {
+    if (value !== lastSyncedRef.current) {
+      setBuffer(value);
+      lastSyncedRef.current = value;
+    }
+  }, [value]);
+
+  const isDirty = buffer !== value;
+
+  const commit = () => {
+    if (!isDirty) return;
+    lastSyncedRef.current = buffer;
+    onChange(buffer);
+  };
+
+  const revert = () => {
+    setBuffer(value);
+  };
+
+  return (
+    <div className="relative">
+      <textarea
+        value={buffer}
+        disabled={props.disabled}
+        placeholder={props.placeholder}
+        rows={props.rows ?? 3}
+        spellCheck={false}
+        onChange={(e) => setBuffer(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            revert();
+          }
+        }}
+        onBlur={revert}
+        className={`form-input resize-y ${props.mono ? "font-mono" : ""} ${isDirty ? "ring-1 ring-mm-accent/60" : ""} ${props.disabledCls ?? ""}`}
+      />
+      {isDirty && !props.disabled && (
+        <button
+          type="button"
+          // mousedown preventDefault keeps focus on the textarea so the
+          // onBlur-revert handler doesn't fire before the click commits.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={commit}
+          className="absolute bottom-1.5 right-1.5 rounded-md bg-mm-accent px-1.5 py-0.5 text-[9px] font-medium text-white shadow-sm transition-colors hover:opacity-90"
+          title="Confirm"
+        >
+          ↵ Save
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Legacy instant-commit number input retained for BlockDrawer / BlockInspector
+// which rely on the original draft-on-keystroke behavior. New call sites
+// should set `committable` on <Field/> instead.
+// ---------------------------------------------------------------------------
+
+function LegacyNumberInput(props: NumberFieldProps & { disabledCls: string }) {
   const [text, setText] = useState(() => formatNumberForInput(props.value));
-  // Track the last value we emitted to the parent so we can distinguish an
-  // external prop change (parent-driven reset) from the echo of our own
-  // onChange — which would otherwise stomp the text the user is typing.
   const lastEmittedRef = useRef<number>(props.value);
 
   useEffect(() => {

@@ -48,6 +48,7 @@ export function DataShapeSection({ value, onChange, state }: Props) {
           type="textarea"
           label="Paste a sample (CSV with header row)"
           required
+          committable
           placeholder={"timestamp,symbol,expiry,raw_value,market_value\n2026-01-15T16:00:00Z,BTC,27MAR26,0.74,0.68"}
           rows={5}
           mono

@@ -188,7 +188,9 @@ def _pipeline_timeseries_sync(
         aggregated = {
             "timestamps": [p.timestamp.isoformat() for p in history],
             "totalFair": [p.total_fair for p in history],
+            "smoothedTotalFair": [p.smoothed_total_fair for p in history],
             "totalMarketFair": [p.total_market_fair for p in history],
+            "smoothedTotalMarketFair": [p.smoothed_total_market_fair for p in history],
             "edge": [p.edge for p in history],
             "smoothedEdge": [p.smoothed_edge for p in history],
             "var": [p.var for p in history],
@@ -202,7 +204,9 @@ def _pipeline_timeseries_sync(
         aggregated = {
             "timestamps": timestamps,
             "totalFair": pos_sorted["total_fair"].to_list(),
+            "smoothedTotalFair": pos_sorted["smoothed_total_fair"].to_list(),
             "totalMarketFair": pos_sorted["total_market_fair"].to_list(),
+            "smoothedTotalMarketFair": pos_sorted["smoothed_total_market_fair"].to_list(),
             "edge": pos_sorted["edge"].to_list(),
             "smoothedEdge": pos_sorted["smoothed_edge"].to_list(),
             "var": pos_sorted["var"].to_list(),

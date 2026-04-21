@@ -59,7 +59,9 @@ class PositionHistoryPoint:
     var: float
     smoothed_var: float
     total_fair: float
+    smoothed_total_fair: float
     total_market_fair: float
+    smoothed_total_market_fair: float
     market_vol: float
 
 
@@ -109,7 +111,9 @@ class PositionHistoryBuffer:
                     var=_f(r.get("var")),
                     smoothed_var=_f(r.get("smoothed_var")),
                     total_fair=_f(r.get("total_fair")),
+                    smoothed_total_fair=_f(r.get("smoothed_total_fair")),
                     total_market_fair=_f(r.get("total_market_fair")),
+                    smoothed_total_market_fair=_f(r.get("smoothed_total_market_fair")),
                     market_vol=_f(mv.get(key, 0.0)) * _VOL_POINTS_SCALE,
                 ))
 

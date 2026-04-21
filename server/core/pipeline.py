@@ -62,10 +62,18 @@ def build_blocks_df(
       plus the risk dimension columns (symbol, expiry, ...).
 
     Each stream's raw snapshot is deduplicated to the latest row per
-    ``key_cols``, variance is computed in raw space, unit_conversion is
-    applied per-stream to produce the three calc totals, then the
-    applies_to list drives a cross-join against the dim universe
-    (or an explicit override list).
+    ``key_cols``, variance is computed in raw space, and unit_conversion
+    is applied per-stream to produce the three calc totals. The resulting
+    rows are then expanded along the risk dimensions according to how the
+    snapshot is shaped:
+
+    * **Scalar snap** (one row after dedup) — fanned out via cross-join to
+      every dim in ``applies_to`` (defaults to the full dim universe).
+      This supports streams whose single value should apply to every cell.
+    * **Per-dim snap** (multiple rows after dedup) — each row stays on its
+      native ``(symbol, expiry, ...)`` pair. ``applies_to=None`` means
+      "pass through every native dim", and an explicit list acts as an
+      inner-join filter on those native dims.
 
     Raises ``ValueError`` if any stream's ``applies_to`` names a dim not
     in the universe.
@@ -136,7 +144,12 @@ def build_blocks_df(
             else pl.lit(None).cast(pl.Float64)
         )
 
+        # Preserve the snap's native risk-dimension cols so per-dim rows can
+        # stay on their own (symbol, expiry) in Pass 2. Scalar snaps (height
+        # == 1) drop these before the cross-join to avoid column collision
+        # with the applies_to universe.
         raw_block_df = snap.select(
+            *(pl.col(c) for c in risk_dimension_cols),
             block_name_expr.alias("block_name"),
             pl.lit(sc.stream_name).alias("stream_name"),
             pl.col("raw_value").cast(pl.Float64).alias("raw_fair"),
@@ -166,7 +179,13 @@ def build_blocks_df(
             unit_fn.fn("raw_market", **conv_params).alias("calc_market_total"),
         )
 
-        per_stream_dfs.append((sc, raw_block_df))
+        # Capture the scalar-vs-per-dim signal from the deduped snap, before
+        # any downstream transforms that could change row count. A single
+        # deduped row is the "scalar" shape — cross-joined to every target
+        # dim in Pass 2; multiple rows are "per-dim" — each stays on its
+        # native (symbol, expiry, ...) combo.
+        is_scalar = raw_block_df.height == 1
+        per_stream_dfs.append((sc, raw_block_df, is_scalar))
 
     # Pass 2: applies_to fan-out and concat.
     if not per_stream_dfs:
@@ -176,13 +195,13 @@ def build_blocks_df(
     canon_to_native = {_canon_dim(t): t for t in dim_universe_set}
     parts: list[pl.DataFrame] = []
 
-    for sc, stream_df in per_stream_dfs:
+    for sc, stream_df, is_scalar in per_stream_dfs:
         if sc.applies_to is None:
             applies_to = dim_universe
         else:
             # Canonicalise user-supplied pairs (strings from JSON) and match
             # against the canonical universe; resolve matches back to native
-            # (datetime-typed) tuples for the cross-join.
+            # (datetime-typed) tuples for the join.
             requested_canon = [_canon_dim(tuple(p)) for p in sc.applies_to]
             missing_canon = [c for c in requested_canon if c not in dim_universe_canon]
             if missing_canon:
@@ -199,12 +218,33 @@ def build_blocks_df(
             {c: [pair[i] for pair in applies_to] for i, c in enumerate(risk_dimension_cols)},
         )
         for c in risk_dimension_cols:
-            applies_to_df = applies_to_df.with_columns(
-                pl.col(c).cast(stream_df.schema.get(c, applies_to_df.schema[c]))
-                if c in stream_df.schema else pl.col(c),
-            )
+            if c in stream_df.schema:
+                applies_to_df = applies_to_df.with_columns(
+                    pl.col(c).cast(stream_df.schema[c]),
+                )
 
-        parts.append(stream_df.join(applies_to_df, how="cross"))
+        if is_scalar:
+            # Scalar fan-out: drop the single-row's native dim (it would
+            # otherwise collide with applies_to_df during the cross-join)
+            # and replicate that row across every dim in applies_to.
+            part = stream_df.drop(risk_dimension_cols).join(applies_to_df, how="cross")
+        elif sc.applies_to is None:
+            # Per-dim pass-through: each snap row keeps its native dim. No
+            # fan-out — the stream already covers the dims it has data for.
+            part = stream_df
+        else:
+            # Per-dim with explicit applies_to: filter snap rows to the
+            # requested dims via inner-join on the risk-dimension cols.
+            part = stream_df.join(applies_to_df, on=risk_dimension_cols, how="inner")
+
+        # Normalise column order so ``pl.concat`` can vstack regardless of
+        # which branch produced each part (scalar cross-join appends dims at
+        # the end; per-dim parts carry them at the start from Pass 1's
+        # select). Put risk-dim cols first, the rest in insertion order.
+        ordered_cols = list(risk_dimension_cols) + [
+            c for c in part.columns if c not in risk_dimension_cols
+        ]
+        parts.append(part.select(ordered_cols))
 
     if not parts:
         return pl.DataFrame()

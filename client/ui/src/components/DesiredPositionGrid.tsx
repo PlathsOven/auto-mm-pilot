@@ -1,19 +1,25 @@
-import { useCallback, useMemo, useState, useRef, useEffect } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import { useWebSocket } from "../providers/WebSocketProvider";
-import { valColor, cellBg } from "../utils";
+import {
+  valColor,
+  cellBg,
+  viewModeOf,
+  metricOf,
+  SMOOTHABLE_METRICS,
+  type Metric,
+  type Smoothing,
+} from "../utils";
 import { useFocus } from "../providers/FocusProvider";
-import { Tabs, type TabItem } from "./ui/Tabs";
-import type { Focus, ViewMode, TimeframeLabel } from "../types";
+import type { Focus, ViewMode } from "../types";
 import {
   VIEW_MODE_META,
-  TIMEFRAME_OPTIONS,
-  PRIMARY_VIEW_MODES,
-  SECONDARY_VIEW_MODES,
+  OVERVIEW_SMOOTHING_KEY,
 } from "../constants";
 import { usePositionHistory } from "../hooks/usePositionHistory";
 import { usePositionEdit } from "../hooks/usePositionEdit";
 import { usePositionHover } from "../hooks/usePositionHover";
 import { StreamAttributionHoverCard } from "./floor/StreamAttributionHoverCard";
+import { MetricDropdown, SmoothingToggle } from "./ui/MetricControls";
 import {
   computeRowTotal,
   computeColTotal,
@@ -79,9 +85,37 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
     },
     [onViewModeChange],
   );
-  const [timeframe, setTimeframe] = useState<TimeframeLabel>("Latest");
-  const [moreOpen, setMoreOpen] = useState(false);
-  const moreMenuRef = useRef<HTMLDivElement>(null);
+  const { metric, smoothing: derivedSmoothing } = metricOf(viewMode);
+  const metricSmoothable = (SMOOTHABLE_METRICS as readonly Metric[]).includes(metric);
+
+  // Persist whichever smoothing the user last picked explicitly, so jumping
+  // to Market (Source) or Change and back restores the previous choice.
+  // External viewMode changes that carry an unambiguous smoothing variant
+  // (e.g. linked pipeline chart swap) override this on the next render.
+  const [smoothing, setSmoothingState] = useState<Smoothing>(() => {
+    try {
+      const saved = localStorage.getItem(OVERVIEW_SMOOTHING_KEY);
+      if (saved === "instant" || saved === "smoothed") return saved;
+    } catch { /* ignore */ }
+    return derivedSmoothing;
+  });
+  useEffect(() => {
+    if (metricSmoothable && derivedSmoothing !== smoothing) {
+      setSmoothingState(derivedSmoothing);
+    }
+  }, [derivedSmoothing, metricSmoothable, smoothing]);
+
+  const setMetric = useCallback((m: Metric) => {
+    setViewMode(viewModeOf(m, smoothing));
+  }, [setViewMode, smoothing]);
+
+  const setSmoothing = useCallback((s: Smoothing) => {
+    setSmoothingState(s);
+    try { localStorage.setItem(OVERVIEW_SMOOTHING_KEY, s); } catch { /* ignore */ }
+    if ((SMOOTHABLE_METRICS as readonly Metric[]).includes(metric)) {
+      setViewMode(viewModeOf(metric, s));
+    }
+  }, [metric, setViewMode]);
 
   const {
     pendingEdit, setPendingEdit, overrides, inputRef,
@@ -95,35 +129,9 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
   // document.body to escape the position-grid's overflow-auto clip).
   const hoverCellRectRef = useRef<DOMRect | null>(null);
 
-  // Cancel pending edit when timeframe changes
-  useEffect(() => cancelEdit(), [timeframe, cancelEdit]);
-
-  // Close "More" dropdown on outside click
-  useEffect(() => {
-    if (!moreOpen) return;
-    function handleClick(e: MouseEvent) {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
-        setMoreOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [moreOpen]);
-
-  const { symbols, expiries, grid, recentKeys } = usePositionHistory(positions, timeframe);
+  const { symbols, expiries, grid, recentKeys } = usePositionHistory(positions);
 
   const meta = VIEW_MODE_META[viewMode];
-  const secondaryActive = SECONDARY_VIEW_MODES.includes(viewMode);
-
-  const primaryTabs = useMemo<TabItem<ViewMode>[]>(
-    () => PRIMARY_VIEW_MODES.map((m) => ({ value: m, label: VIEW_MODE_META[m].label })),
-    [],
-  );
-
-  const timeframeTabs = useMemo<TabItem<TimeframeLabel>[]>(
-    () => TIMEFRAME_OPTIONS.map((tf) => ({ value: tf.label, label: tf.label })),
-    [],
-  );
 
   return (
     <div className="flex h-full w-full min-w-0 flex-1 flex-col p-3">
@@ -135,57 +143,12 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {viewMode === "change" && (
-            <Tabs
-              items={timeframeTabs}
-              value={timeframe}
-              onChange={setTimeframe}
-              variant="pill"
-              size="sm"
-            />
-          )}
-
-          {/* Primary 4 view modes as a tab strip */}
-          <Tabs
-            items={primaryTabs}
-            value={PRIMARY_VIEW_MODES.includes(viewMode) ? viewMode : "position"}
-            onChange={setViewMode}
-            variant="pill"
-            size="sm"
+          <MetricDropdown value={metric} onChange={setMetric} />
+          <SmoothingToggle
+            value={smoothing}
+            onChange={setSmoothing}
+            disabled={!metricSmoothable}
           />
-
-          {/* "More" dropdown for secondary modes */}
-          <div ref={moreMenuRef} className="relative">
-            <button
-              onClick={() => setMoreOpen((v) => !v)}
-              className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-medium transition-colors ${
-                secondaryActive
-                  ? "border-mm-accent/30 bg-mm-accent/10 text-mm-accent"
-                  : "border-black/[0.06] bg-black/[0.03] text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
-              }`}
-            >
-              <span>{secondaryActive ? VIEW_MODE_META[viewMode].label : "More"}</span>
-              <span className="text-[8px]">{moreOpen ? "\u25B2" : "\u25BC"}</span>
-            </button>
-            {moreOpen && (
-              <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-lg border border-black/[0.06] bg-mm-surface-solid py-1 shadow-lg shadow-black/[0.08]">
-                {SECONDARY_VIEW_MODES.map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => { setViewMode(m); setMoreOpen(false); }}
-                    className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-[10px] transition-colors hover:bg-mm-accent/10 ${
-                      viewMode === m ? "text-mm-accent" : "text-mm-text"
-                    }`}
-                  >
-                    <span>{VIEW_MODE_META[m].label}</span>
-                    {VIEW_MODE_META[m].unit && (
-                      <span className="text-[9px] text-mm-text-dim">{VIEW_MODE_META[m].unit}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
@@ -229,9 +192,9 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
                   </td>
                   {expiries.map((exp) => {
                     const key = `${symbol}-${exp}`;
-                    const cell = grid.get(key);
-                    if (!cell) return <td key={exp} />;
-                    const val = getDisplayValue(key, cell.pos, viewMode, cell.change);
+                    const pos = grid.get(key);
+                    if (!pos) return <td key={exp} />;
+                    const val = getDisplayValue(key, pos, viewMode);
                     const isRecent = recentKeys.has(key);
                     const isEditing = pendingEdit?.key === key;
                     const hasOverride = viewMode === "position" && overrides.has(key);
@@ -243,7 +206,7 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
                         key={exp}
                         ref={(el) => { if (showHover && el) hoverCellRectRef.current = el.getBoundingClientRect(); }}
                         onClick={() => setCellFocus(symbol, exp)}
-                        onDoubleClick={(e) => { e.stopPropagation(); startEdit(key, symbol, exp, cell.pos, viewMode); }}
+                        onDoubleClick={(e) => { e.stopPropagation(); startEdit(key, symbol, exp, pos, viewMode); }}
                         onMouseEnter={(e) => { hoverCellRectRef.current = (e.currentTarget as HTMLElement).getBoundingClientRect(); onMouseEnter(symbol, exp, key); }}
                         onMouseLeave={onMouseLeave}
                         className={`relative cursor-pointer rounded-md px-2 py-1.5 text-center text-[12px] font-medium tabular-nums transition-colors ${valColor(val)} ${isRecent ? "row-highlight" : ""} ${channelled ? "channel-highlight-cell" : "hover:bg-white/80 hover:ring-1 hover:ring-mm-accent/20"}`}
@@ -267,7 +230,7 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
                             <span>{meta.signed && val > 0 ? "+" : ""}{val.toFixed(meta.decimals)}</span>
                             {hasOverride && (
                               <span className="ml-1 text-[8px] text-mm-text-dim line-through">
-                                {meta.signed && cell.pos.desiredPos > 0 ? "+" : ""}{cell.pos.desiredPos.toFixed(meta.decimals)}
+                                {meta.signed && pos.desiredPos > 0 ? "+" : ""}{pos.desiredPos.toFixed(meta.decimals)}
                               </span>
                             )}
                           </>

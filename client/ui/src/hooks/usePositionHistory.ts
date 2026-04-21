@@ -1,51 +1,25 @@
-import { useMemo, useRef } from "react";
-import type { DesiredPosition, TimeframeLabel } from "../types";
-import { HIGHLIGHT_DURATION_MS, TIMEFRAME_OPTIONS } from "../constants";
+import { useMemo } from "react";
+import type { DesiredPosition } from "../types";
+import { HIGHLIGHT_DURATION_MS } from "../constants";
 import { parseExpiry } from "../utils";
 
-interface HistoryEntry {
-  value: number;
-  timestamp: number;
-}
-
 /**
- * Tracks per-cell position history in a ref and derives the grid data
- * (symbols, expiries, cell map, recently-updated keys) on every tick.
+ * Derives the grid data (symbols, expiries, cell map, recently-updated
+ * keys) from the latest positions payload.
  */
-export function usePositionHistory(
-  positions: DesiredPosition[],
-  timeframe: TimeframeLabel,
-) {
-  const historyRef = useRef<Map<string, HistoryEntry[]>>(new Map());
-
+export function usePositionHistory(positions: DesiredPosition[]) {
   return useMemo(() => {
     const now = Date.now();
     const symbolSet = new Set<string>();
     const expirySet = new Set<string>();
-    const gridMap = new Map<string, { pos: DesiredPosition; change: number }>();
+    const gridMap = new Map<string, DesiredPosition>();
     const recent = new Set<string>();
 
     for (const p of positions) {
       symbolSet.add(p.symbol);
       expirySet.add(p.expiry);
       const key = `${p.symbol}-${p.expiry}`;
-
-      const history = historyRef.current.get(key) ?? [];
-      history.push({ value: p.desiredPos, timestamp: now });
-      if (history.length > 500) history.splice(0, history.length - 500);
-      historyRef.current.set(key, history);
-
-      let change = p.changeMagnitude;
-      const tfOption = TIMEFRAME_OPTIONS.find((t) => t.label === timeframe);
-      if (tfOption && tfOption.ms > 0) {
-        const cutoff = now - tfOption.ms;
-        const baseline = history.find((h) => h.timestamp >= cutoff);
-        if (baseline) {
-          change = +(p.desiredPos - baseline.value).toFixed(3);
-        }
-      }
-
-      gridMap.set(key, { pos: p, change });
+      gridMap.set(key, p);
 
       if (now - p.updatedAt < HIGHLIGHT_DURATION_MS) {
         recent.add(key);
@@ -62,5 +36,5 @@ export function usePositionHistory(
       grid: gridMap,
       recentKeys: recent,
     };
-  }, [positions, timeframe]);
+  }, [positions]);
 }

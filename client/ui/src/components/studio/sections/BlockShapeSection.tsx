@@ -103,6 +103,7 @@ export function BlockShapeSection({ value, onChange, state }: Props) {
           type="number"
           label="decay_end_size_mult"
           required
+          committable
           value={value.decay_end_size_mult}
           onChange={(v) => patch("decay_end_size_mult", v)}
         />
@@ -110,6 +111,7 @@ export function BlockShapeSection({ value, onChange, state }: Props) {
           type="number"
           label="decay_rate_prop_per_min"
           required
+          committable
           value={value.decay_rate_prop_per_min}
           onChange={(v) => patch("decay_rate_prop_per_min", v)}
         />

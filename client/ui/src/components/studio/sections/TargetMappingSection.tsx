@@ -47,9 +47,9 @@ export function TargetMappingSection({ value, onChange, state }: Props) {
     >
       <TransformBadge name={activeName} />
       <div className="mt-2 grid grid-cols-3 gap-3">
-        <Field type="number" label="scale" required value={value.scale} onChange={(v) => patch("scale", v)} />
-        <Field type="number" label="offset" required value={value.offset} onChange={(v) => patch("offset", v)} />
-        <Field type="number" label="exponent" required value={value.exponent} onChange={(v) => patch("exponent", v)} />
+        <Field type="number" label="scale" required committable value={value.scale} onChange={(v) => patch("scale", v)} />
+        <Field type="number" label="offset" required committable value={value.offset} onChange={(v) => patch("offset", v)} />
+        <Field type="number" label="exponent" required committable value={value.exponent} onChange={(v) => patch("exponent", v)} />
       </div>
 
       <div className="mt-3 grid gap-2 rounded-md border border-black/[0.06] bg-black/[0.03] px-3 py-2">

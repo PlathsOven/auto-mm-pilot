@@ -25,9 +25,9 @@ export function usePositionEdit() {
   }, [pendingEdit]);
 
   const getDisplayValue = useCallback(
-    (key: string, pos: DesiredPosition, mode: ViewMode, change: number): number => {
+    (key: string, pos: DesiredPosition, mode: ViewMode): number => {
       if (mode === "position" && overrides.has(key)) return overrides.get(key)!;
-      return getCellValue(pos, mode, change);
+      return getCellValue(pos, mode);
     },
     [overrides],
   );
