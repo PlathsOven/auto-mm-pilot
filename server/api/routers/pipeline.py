@@ -140,6 +140,34 @@ def _slice_timeseries_frames(
     return block_var_filtered, pos_filtered
 
 
+def _per_space_from_history(history: list) -> dict[str, dict[str, list[float]]]:
+    """Reconstruct per-space time series from a list of ``PositionHistoryPoint``.
+
+    Each point carries a per-space dict captured at its rerun moment. A
+    space that appears in one rerun but not another (e.g. a new stream was
+    added) shows up as 0.0 for points that predate it — the stacked chart
+    treats the missing space as "not contributing yet".
+    """
+    if not history:
+        return {}
+    space_ids: set[str] = set()
+    for p in history:
+        space_ids.update(p.per_space.keys())
+    per_space: dict[str, dict[str, list[float]]] = {}
+    for sid in sorted(space_ids):
+        fair_arr: list[float] = []
+        var_arr: list[float] = []
+        market_arr: list[float] = []
+        for p in history:
+            entry = p.per_space.get(sid)
+            if entry is None:
+                fair_arr.append(0.0); var_arr.append(0.0); market_arr.append(0.0)
+            else:
+                fair_arr.append(entry[0]); var_arr.append(entry[1]); market_arr.append(entry[2])
+        per_space[sid] = {"fair": fair_arr, "var": var_arr, "marketFair": market_arr}
+    return per_space
+
+
 def _aggregated_from_history(
     user_id: str, symbol: str, expiry_dt: _dt,
     slice_ts: _dt, lookback_seconds: int,
@@ -148,11 +176,9 @@ def _aggregated_from_history(
 
     ``desired_pos_df`` is wiped at every rerun, so any lookback beyond the
     last rerun must come from the persistent buffer that accumulates across
-    reruns (see ``server/api/position_history``).
-
-    Per-space decomposition is not captured in the ring buffer, so
-    ``perSpace`` is emitted as an empty dict — the chart's decomposition
-    toggle treats that as "unavailable".
+    reruns (see ``server/api/position_history``). Per-space calc-space
+    values are captured at each rerun alongside the aggregate, so the
+    decomposition view works across the full historical window too.
     """
     history = get_position_history(user_id).get_range(
         symbol=symbol,
@@ -172,7 +198,7 @@ def _aggregated_from_history(
         "rawDesiredPosition": [p.raw_desired_position for p in history],
         "smoothedDesiredPosition": [p.smoothed_desired_position for p in history],
         "marketVol": [p.market_vol for p in history],
-        "perSpace": {},
+        "perSpace": _per_space_from_history(history),
     }
 
 
