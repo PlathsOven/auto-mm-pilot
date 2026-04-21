@@ -7,7 +7,8 @@ import { fetchStreamTimeseries } from "../../../services/streamTimeseriesApi";
 import { setStreamActive } from "../../../services/streamApi";
 import type { StreamTimeseriesResponse, StreamKeyTimeseries } from "../../../types";
 import { POLL_INTERVAL_TIMESERIES_MS } from "../../../constants";
-import { BLOCK_COLORS, sci, TOOLTIP_STYLE } from "../../PipelineChart/chartOptions";
+import { BLOCK_COLORS, TOOLTIP_STYLE } from "../../PipelineChart/chartOptions";
+import { sci } from "../../PipelineChart/formatters";
 
 interface StreamInspectorProps {
   name: string;

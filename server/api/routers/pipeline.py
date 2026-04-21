@@ -55,6 +55,55 @@ def _pipeline_dimensions_sync(user_id: str) -> dict:
     return {"dimensions": dim_rows, "dimension_cols": list(RISK_DIMENSION_COLS)}
 
 
+def _build_block_timeseries(
+    block_var_filtered: pl.DataFrame,
+    start_ts_map: dict[tuple[str, str], _dt | None],
+) -> tuple[list[dict], list[str]]:
+    """Pivot per-block fair/var rows onto a shared timestamp axis.
+
+    Returns ``(blocks, block_timestamps)`` where ``blocks`` is a list of
+    wire-shape dicts — one per distinct block — each carrying ``fair`` /
+    ``var`` value arrays aligned index-wise with ``block_timestamps``.
+    Missing ticks for a block are filled with ``None`` so the chart can use
+    one shared x-axis for every block.
+    """
+    if block_var_filtered.is_empty():
+        return [], []
+
+    block_names = sorted(block_var_filtered["block_name"].unique().to_list())
+    block_axis = (
+        block_var_filtered.select("timestamp").unique().sort("timestamp")["timestamp"].to_list()
+    )
+    block_timestamps = [t.isoformat() for t in block_axis]
+    block_axis_index = {t: i for i, t in enumerate(block_axis)}
+    has_stream_col = "stream_name" in block_var_filtered.columns
+
+    blocks: list[dict] = []
+    for bn in block_names:
+        bd = block_var_filtered.filter(pl.col("block_name") == bn).sort("timestamp")
+        fair_arr: list[float | None] = [None] * len(block_axis)
+        var_arr: list[float | None] = [None] * len(block_axis)
+        for ts, fair_val, var_val in bd.select("timestamp", "fair", "var").rows():
+            idx = block_axis_index.get(ts)
+            if idx is None:
+                continue
+            fair_arr[idx] = fair_val
+            var_arr[idx] = var_val
+        stream_name_val = bd["stream_name"][0] if bd.height > 0 and has_stream_col else ""
+        start_ts_val = start_ts_map.get((bn, stream_name_val))
+        blocks.append({
+            "blockName": bn,
+            "streamName": stream_name_val,
+            "spaceId": bd["space_id"][0] if bd.height > 0 else "",
+            "startTimestamp": start_ts_val.isoformat() if start_ts_val is not None else None,
+            "timestamps": block_timestamps,
+            "fair": fair_arr,
+            "var": var_arr,
+        })
+
+    return blocks, block_timestamps
+
+
 def _pipeline_timeseries_sync(
     user_id: str,
     symbol: str,
@@ -129,39 +178,7 @@ def _pipeline_timeseries_sync(
     if block_var_filtered.is_empty() and pos_filtered.is_empty():
         return None
 
-    block_names = sorted(block_var_filtered["block_name"].unique().to_list())
-    # Canonical forward-looking timestamp axis for fair/variance views — the
-    # union of every block's timestamps. Each block's data array is then
-    # pivoted onto this axis (None where the block doesn't have a value at
-    # that tick) so the chart can use one shared x-axis for all blocks.
-    block_axis = (
-        block_var_filtered.select("timestamp").unique().sort("timestamp")["timestamp"].to_list()
-    )
-    block_timestamps = [t.isoformat() for t in block_axis]
-    block_axis_index = {t: i for i, t in enumerate(block_axis)}
-
-    blocks = []
-    for bn in block_names:
-        bd = block_var_filtered.filter(pl.col("block_name") == bn).sort("timestamp")
-        fair_arr: list[float | None] = [None] * len(block_axis)
-        var_arr: list[float | None] = [None] * len(block_axis)
-        for row in bd.select("timestamp", "fair", "var").to_dicts():
-            idx = block_axis_index.get(row["timestamp"])
-            if idx is None:
-                continue
-            fair_arr[idx] = row["fair"]
-            var_arr[idx] = row["var"]
-        stream_name_val = bd["stream_name"][0] if bd.height > 0 and "stream_name" in bd.columns else ""
-        start_ts_val = start_ts_map.get((bn, stream_name_val))
-        blocks.append({
-            "blockName": bn,
-            "streamName": stream_name_val,
-            "spaceId": bd["space_id"][0] if bd.height > 0 else "",
-            "startTimestamp": start_ts_val.isoformat() if start_ts_val is not None else None,
-            "timestamps": block_timestamps,
-            "fair": fair_arr,
-            "var": var_arr,
-        })
+    blocks, block_timestamps = _build_block_timeseries(block_var_filtered, start_ts_map)
 
     pos_sorted = pos_filtered.sort("timestamp")
 
