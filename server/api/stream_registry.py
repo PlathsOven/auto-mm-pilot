@@ -21,6 +21,7 @@ from typing import Any
 
 import polars as pl
 
+from server.api.stream_history import StreamHistoryBuffer
 from server.api.user_scope import UserRegistry
 from server.core.config import BlockConfig, StreamConfig
 
@@ -104,6 +105,11 @@ class StreamRegistration:
     # the Workbench stream list / Inspector to pause a feed without losing
     # its mapping.
     active: bool = True
+
+    # Per-key raw_value ring buffer — fed on every ingest so the Inspector
+    # can render an accumulating time series even when producers push one
+    # row at a time (``snapshot_rows`` is replaced, not appended).
+    history: StreamHistoryBuffer = field(default_factory=StreamHistoryBuffer)
 
     @property
     def status(self) -> str:
@@ -207,6 +213,7 @@ class StreamRegistry:
     def seed_stream_config(self, sc: StreamConfig) -> None:
         """Register a fully-built ``StreamConfig`` directly into the registry."""
         with self._lock:
+            seed_rows = sc.snapshot.to_dicts()
             reg = StreamRegistration(
                 stream_name=sc.stream_name,
                 key_cols=list(sc.key_cols),
@@ -214,8 +221,9 @@ class StreamRegistry:
                 offset=sc.offset,
                 exponent=sc.exponent,
                 block=sc.block,
-                snapshot_rows=sc.snapshot.to_dicts(),
+                snapshot_rows=seed_rows,
             )
+            reg.history.push_rows(reg.key_cols, seed_rows)
             self._streams[sc.stream_name] = reg
             log.info("Stream seeded from StreamConfig: %s (status=%s)", sc.stream_name, reg.status)
 
@@ -259,6 +267,7 @@ class StreamRegistry:
             if new_key_cols is not None and new_key_cols != reg.key_cols:
                 reg.key_cols = list(new_key_cols)
                 reg.snapshot_rows = []
+                reg.history.clear()
                 log.info("Stream '%s' key_cols updated to %s (snapshot cleared)", stream_name, new_key_cols)
 
             if new_name is not None and new_name != stream_name:
@@ -355,6 +364,7 @@ class StreamRegistry:
                     )
 
             reg.snapshot_rows = list(rows)
+            reg.history.push_rows(reg.key_cols, rows)
             log.info("Snapshot ingested for '%s': %d rows", stream_name, len(rows))
             return len(rows)
 
