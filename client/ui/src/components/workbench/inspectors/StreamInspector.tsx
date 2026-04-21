@@ -8,7 +8,12 @@ import { setStreamActive } from "../../../services/streamApi";
 import type { StreamTimeseriesResponse, StreamKeyTimeseries } from "../../../types";
 import { POLL_INTERVAL_TIMESERIES_MS } from "../../../constants";
 import { BLOCK_COLORS, TOOLTIP_STYLE } from "../../PipelineChart/chartOptions";
-import { sci } from "../../PipelineChart/formatters";
+import {
+  formatTooltipDate,
+  makeTimeAxisFormatter,
+  parseIsoUtc,
+  sci,
+} from "../../PipelineChart/formatters";
 
 interface StreamInspectorProps {
   name: string;
@@ -194,20 +199,20 @@ export function StreamInspector({ name }: StreamInspectorProps) {
 }
 
 function buildChartOption(series: StreamKeyTimeseries[]): EChartsOption {
-  // Use the same x-axis (union of all timestamps) so multiple keys align.
-  const allTimestamps = new Set<string>();
-  for (const s of series) for (const p of s.points) allTimestamps.add(p.timestamp);
-  const timestamps = Array.from(allTimestamps).sort();
-  const tsIndex = new Map(timestamps.map((t, i) => [t, i]));
-
+  // Time axis (not category) so tick spacing is chronological — a 20-minute
+  // gap between pushes renders as a real 20-minute gap, matching the
+  // Pipeline chart. Safe here because this chart doesn't stack, so the
+  // ECharts-stack-on-time lesson in tasks/lessons.md doesn't apply.
+  const allTimestamps: string[] = [];
   const seriesSpecs: EChartsOption["series"] = [];
   series.forEach((s, i) => {
     const color = BLOCK_COLORS[i % BLOCK_COLORS.length];
-    const rawArr: (number | null)[] = new Array(timestamps.length).fill(null);
+    const data: [number, number][] = [];
     for (const p of s.points) {
-      const idx = tsIndex.get(p.timestamp);
-      if (idx == null) continue;
-      rawArr[idx] = p.raw_value;
+      const d = parseIsoUtc(p.timestamp);
+      if (!d) continue;
+      data.push([d.getTime(), p.raw_value]);
+      allTimestamps.push(p.timestamp);
     }
     const label = formatKey(s.key);
     // showSymbol: true is load-bearing when the series has a single point —
@@ -217,7 +222,7 @@ function buildChartOption(series: StreamKeyTimeseries[]): EChartsOption {
     seriesSpecs.push({
       name: `${label} raw`,
       type: "line",
-      data: rawArr,
+      data,
       showSymbol: true,
       symbolSize: 4,
       lineStyle: { width: 1.5, color },
@@ -225,6 +230,7 @@ function buildChartOption(series: StreamKeyTimeseries[]): EChartsOption {
       connectNulls: true,
     });
   });
+  const axisFormatter = makeTimeAxisFormatter(allTimestamps.sort());
 
   return {
     backgroundColor: "transparent",
@@ -233,23 +239,32 @@ function buildChartOption(series: StreamKeyTimeseries[]): EChartsOption {
       trigger: "axis",
       ...TOOLTIP_STYLE,
       confine: true,
-      valueFormatter: (v) => (typeof v === "number" ? sci(v) : String(v ?? "—")),
+      formatter: (paramsRaw) => {
+        const params = Array.isArray(paramsRaw) ? paramsRaw : [paramsRaw];
+        if (params.length === 0) return "";
+        const first = params[0].value;
+        const header = Array.isArray(first) && typeof first[0] === "number"
+          ? formatTooltipDate(new Date(first[0]))
+          : String(params[0].name ?? "");
+        const rows = params
+          .map((p) => {
+            const raw = Array.isArray(p.value) ? p.value[1] : p.value;
+            const v = typeof raw === "number" ? sci(raw) : String(raw ?? "—");
+            return `<div style="display:flex;justify-content:space-between;gap:16px;"><span>${p.marker} ${p.seriesName}</span><span style="font-family:monospace;">${v}</span></div>`;
+          })
+          .join("");
+        return `<div style="font-weight:600;margin-bottom:4px;">${header}</div>${rows}`;
+      },
     },
     grid: { left: 50, right: 16, top: 12, bottom: 24 },
     xAxis: {
-      type: "category",
-      data: timestamps,
+      type: "time",
       axisLabel: {
         color: "#6e6e82",
         fontSize: 9,
-        formatter: (v: string) => {
-          try {
-            const d = new Date(v);
-            return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
-          } catch {
-            return v;
-          }
-        },
+        hideOverlap: true,
+        lineHeight: 11,
+        formatter: axisFormatter,
       },
       axisLine: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
       axisTick: { lineStyle: { color: "rgba(0,0,0,0.08)" } },
