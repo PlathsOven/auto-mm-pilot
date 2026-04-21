@@ -10,8 +10,63 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <style>
+      /* Pre-hydration splash — matches body gradient + the React-owned
+         PositSplash so the crossover is seamless. Removed as soon as React
+         paints its first frame (see src/main.tsx). */
+      html, body { height: 100%; margin: 0; }
+      body {
+        background:
+          radial-gradient(900px 600px at 12% 0%, rgba(79, 91, 213, 0.09), transparent 60%),
+          radial-gradient(700px 500px at 95% 100%, rgba(123, 108, 240, 0.07), transparent 60%),
+          linear-gradient(160deg, #eaeaef 0%, #f4f4f7 40%, #f0f0f5 100%);
+        background-attachment: fixed;
+        font-family: Inter, "Public Sans", system-ui, sans-serif;
+        color: #1a1a2e;
+      }
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        opacity: 1;
+        transition: opacity 0.3s ease-out;
+      }
+      #boot-splash.fade-out { opacity: 0; pointer-events: none; }
+      #boot-splash .mark {
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+        animation: boot-breathe 2.6s ease-in-out infinite;
+      }
+      #boot-splash .wordmark {
+        font-size: 38px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        line-height: 1;
+      }
+      @keyframes boot-breathe {
+        0%, 100% { opacity: 0.85; }
+        50% { opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot-splash .mark { animation: none; }
+        #boot-splash { transition: none; }
+      }
+    </style>
   </head>
   <body class="h-full bg-mm-bg text-mm-text antialiased">
+    <div id="boot-splash">
+      <span class="mark" aria-label="Posit">
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="9" cy="9" r="6" stroke="#4f5bd5" stroke-opacity="0.35" stroke-width="1.8" />
+          <circle cx="15" cy="15" r="5" fill="#4f5bd5" />
+        </svg>
+        <span class="wordmark">Posit</span>
+      </span>
+    </div>
     <div id="root" class="h-full"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

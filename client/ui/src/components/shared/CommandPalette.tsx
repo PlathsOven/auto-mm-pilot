@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useCommandPalette } from "../../providers/CommandPaletteProvider";
 import { useMode, type ModeId } from "../../providers/ModeProvider";
 import { useChat } from "../../providers/ChatProvider";
@@ -139,12 +140,28 @@ export function CommandPalette() {
     setActiveIdx(0);
   }, [query]);
 
-  if (!open) return null;
-
   return (
-    <>
-      <div className="fixed inset-0 z-[100] bg-black/20" onClick={closePalette} aria-hidden />
-      <div className="fixed inset-x-0 top-[15vh] z-[101] mx-auto w-[560px] max-w-[90vw] overflow-hidden rounded-lg border border-white/50 bg-white/80 shadow-xl shadow-black/[0.08] ring-1 ring-black/[0.06] backdrop-blur-glass32">
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            key="palette-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="fixed inset-0 z-[100] bg-black/20"
+            onClick={closePalette}
+            aria-hidden
+          />
+          <motion.div
+            key="palette"
+            initial={{ opacity: 0, scale: 0.98, y: -8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.98, y: -8 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed inset-x-0 top-[15vh] z-[101] mx-auto w-[560px] max-w-[90vw] overflow-hidden rounded-lg border border-white/50 bg-white/80 shadow-xl shadow-black/[0.08] ring-1 ring-black/[0.06] backdrop-blur-glass32"
+          >
         <div className="border-b border-black/[0.06] px-3 py-2">
           <input
             ref={inputRef}
@@ -202,7 +219,9 @@ export function CommandPalette() {
           <span>↑↓ to move · ↵ to select · esc to close</span>
           <span>⌘K</span>
         </div>
-      </div>
-    </>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 }

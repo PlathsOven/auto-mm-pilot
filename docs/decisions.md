@@ -6,6 +6,22 @@ Format per entry: **Date — Decision**. Then `Context:`, `Decision:`, `Rational
 
 ---
 
+## 2026-04-21 — Motion language + branded splash
+
+**Context:** Every overlay, page transition, and auth-boundary swap in the UI was an instant state-replace. Opening the BlockDrawer, toggling the NotificationsCenter, switching from Workbench to Anatomy, or logging in all pop without any enter/exit animation. On cold boot the user saw a blank frame until React hydrated. The product persona in `UI_SPEC.md` is "intellectual research interface, clarity and flow" — the instant pops worked against that, and there was no brand moment anywhere in the app (Posit existed only as text).
+
+**Decision:** Introduce a cohesive motion layer anchored on three pieces:
+
+1. **Framer-motion as the animation engine.** Chosen over hand-rolled CSS transitions because six overlays + page-level transitions share enter/exit semantics, and framer's `AnimatePresence` + `prefers-reduced-motion` handling are cheaper than reimplementing the same logic per site. ~55KB gz bundle cost; the existing `todo.md` code-split follow-up covers the bundle-size conversation.
+2. **A full-screen branded splash** (`<PositSplash/>` + `<PositLogo/>`) at two anchors: (a) a pre-hydration static HTML block in `index.html` (removed after React paints; zero white flash on cold load), (b) a React-owned overlay between login-success and first-WS-tick received. Minimum display 400ms via `useAppReady` so the splash always "lands" instead of flashing. The Posit mark is a minimalist "posited point" glyph — solid indigo circle plus an offset outline circle, reading as a coordinate in a reference frame.
+3. **Uniform enter/exit presets** — modal (fade + scale 0.98→1), drawer (slide from edge), popover (fade + scale-small), backdrop (fade). Applied to `<BlockDrawer/>`, `<CommandPalette/>`, `<HotkeyCheatsheet/>`, `<NotificationsCenter/>`, `<ChatDock/>`, `<OnboardingFlow/>`. Plus cross-fade on mode switches in `App.tsx` keyed on `mode`, and a login↔app boundary fade.
+
+**Rationale:** The trader's Flow-1 invariants (data freshness, <200ms tick render) are untouched — animations only decorate chrome. The existing `fade-highlight` on cell rows and `anatomy-flow-pulse` on pipeline edges are load-bearing data-trust signals and are deliberately left alone. `prefers-reduced-motion` users get instant transitions via a CSS override plus framer's built-in reducer, so the polish never becomes an accessibility cost. A branded splash closes a real product gap (no brand moment anywhere) and gives the connection-establishing window something meaningful to show instead of a blank page.
+
+**Consequences:** Any new overlay should mount under `<AnimatePresence>` and pick one of the four presets. Any new long-running "gate" (e.g. a future "reconnecting" surface) should reuse `<PositSplash/>` with a different `message`. The splash hand-off from static HTML to React depends on the `#boot-splash` element being present in `index.html` — don't remove it or the cold-load flash returns. The 608KB→663KB gzipped bundle bump should be watched alongside the existing code-split follow-up in `todo.md`.
+
+---
+
 ## 2026-04-21 — Pipeline 4-space model (risk / raw / calc / target)
 
 **Context:** The 2026-04-20 "Space-level market value + sum-only aggregation" entry (below) made aggregation a pure sum across blocks within a `(symbol, expiry)`. That closes the block-level Sharpe question but still conflates two different aggregation semantics: multiple estimators of the *same* risk (base-vol rolling average + median realized-vol — should average, not sum) and multiple *independent* risks on the same dim (base-vol + FOMC event-vol — should sum, not average). The old model also hardcoded the raw→target map (`(scale * raw + offset)^exponent`, then sqrt + annualise in an ad-hoc VP block inside `pipeline.py`), so users couldn't reason about — or override — the two maps independently.

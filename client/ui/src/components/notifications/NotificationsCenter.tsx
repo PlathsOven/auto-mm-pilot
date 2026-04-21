@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useFocus } from "../../providers/FocusProvider";
 import { useMode } from "../../providers/ModeProvider";
 import { useNotifications } from "../../providers/NotificationsProvider";
@@ -70,20 +71,30 @@ export function NotificationsCenter({ open, onClose }: Props) {
     [navigate, setFocus, onClose],
   );
 
-  if (!open) return null;
-
   return (
-    <>
-      <div
-        className="fixed inset-0 z-40 bg-black/10"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <aside
-        className="fixed right-0 top-0 z-50 flex h-full w-[420px] flex-col overflow-hidden border-l border-black/[0.08] bg-white/95 shadow-xl"
-        role="dialog"
-        aria-label="Notifications"
-      >
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            key="notifications-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="fixed inset-0 z-40 bg-black/10"
+            onClick={onClose}
+            aria-hidden="true"
+          />
+          <motion.aside
+            key="notifications-panel"
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed right-0 top-0 z-50 flex h-full w-[420px] flex-col overflow-hidden border-l border-black/[0.08] bg-white/95 shadow-xl"
+            role="dialog"
+            aria-label="Notifications"
+          >
         <header className="flex shrink-0 items-center justify-between border-b border-black/[0.06] px-4 py-3">
           <div>
             <h3 className="zone-header">Notifications</h3>
@@ -144,7 +155,9 @@ export function NotificationsCenter({ open, onClose }: Props) {
             </ul>
           )}
         </div>
-      </aside>
-    </>
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
   );
 }

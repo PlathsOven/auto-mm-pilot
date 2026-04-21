@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useKeyboardShortcut } from "../../../hooks/useKeyboardShortcut";
 import { Field } from "../sections/Field";
 import type { BlockRow } from "../../../types";
@@ -109,8 +110,6 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
     draft.snapshot_rows.length > 0 &&
     draft.block.var_fair_ratio > 0;
 
-  if (!open) return null;
-
   const title =
     mode === "create"
       ? "Add Manual Block"
@@ -126,12 +125,28 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
         : "Read-only view of a stream-sourced block.";
 
   return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} aria-hidden />
-      <aside
-        className="fixed right-0 top-0 z-50 flex h-screen w-[560px] flex-col border-l border-black/[0.06] bg-white/80 shadow-xl shadow-black/[0.06] backdrop-blur-glass32"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            key="block-drawer-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="fixed inset-0 z-40 bg-black/30"
+            onClick={onClose}
+            aria-hidden
+          />
+          <motion.aside
+            key="block-drawer"
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed right-0 top-0 z-50 flex h-screen w-[560px] flex-col border-l border-black/[0.06] bg-white/80 shadow-xl shadow-black/[0.06] backdrop-blur-glass32"
+            onClick={(e) => e.stopPropagation()}
+          >
         {/* Header */}
         <header className="flex items-center justify-between border-b border-black/[0.06] px-4 py-3">
           <div>
@@ -310,7 +325,9 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
             </button>
           )}
         </footer>
-      </aside>
-    </>
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
   );
 }
