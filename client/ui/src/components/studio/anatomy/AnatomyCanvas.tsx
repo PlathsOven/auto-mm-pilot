@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -20,6 +20,7 @@ import { ANATOMY_STARTUP_GRACE_MS } from "../../../constants";
 import { StreamNode } from "./nodes/StreamNode";
 import { TransformNode } from "./nodes/TransformNode";
 import { OutputNode } from "./nodes/OutputNode";
+import { LaneBandNode } from "./nodes/LaneBandNode";
 import { NodeDetailPanel } from "./NodeDetailPanel";
 import { PIPELINE_ORDER, type StepKey } from "./anatomyGraph";
 import { buildAnatomyGraph } from "./buildAnatomyGraph";
@@ -30,6 +31,7 @@ const NODE_TYPES: NodeTypes = {
   stream: StreamNode,
   transform: TransformNode,
   output: OutputNode,
+  laneBand: LaneBandNode,
 };
 
 /**
@@ -143,20 +145,40 @@ function AnatomyCanvasInner() {
     return buildAnatomyGraph(steps, streams, savingKey, live, highlightedStreamNames);
   }, [steps, streams, savingKey, live, highlightedStreamNames]);
 
-  // Pre-compute stream node IDs so ReactFlow's initial `fitView` lands on
-  // the streams cluster, not the whole DAG. This is what eliminates the
-  // visible two-step zoom — the same fit our useEffect would do, but
-  // applied at first paint.
-  const streamNodeIds = useMemo(
-    () => nodes.filter((n) => n.type === "stream").map((n) => ({ id: n.id })),
-    [nodes],
-  );
+  // One-shot initial fit to the streams cluster. Driven by an effect
+  // instead of the `<ReactFlow fitView fitViewOptions={...}/>` props
+  // because those re-apply every time the nodes array identity changes
+  // (e.g. on every click, since `highlightedStreamNames` is part of the
+  // rebuild key) — which used to cancel per-click fit animations and
+  // snap the viewport back onto the streams.
+  const hasInitiallyFit = useRef(false);
+  useEffect(() => {
+    if (hasInitiallyFit.current) return;
+    if (nodes.length === 0) return;
+    const streamIds = nodes
+      .filter((n) => n.type === "stream")
+      .map((n) => ({ id: n.id }));
+    const fitNodes = streamIds.length > 0 ? streamIds : undefined;
+    const t = setTimeout(() => {
+      reactFlowInstance.fitView({
+        nodes: fitNodes,
+        padding: 0.4,
+        minZoom: 0.9,
+        maxZoom: 1.4,
+      });
+      hasInitiallyFit.current = true;
+    }, 0);
+    return () => clearTimeout(t);
+  }, [nodes, reactFlowInstance]);
 
   // ---------------------------------------------------------------------
   // Node click handling
   // ---------------------------------------------------------------------
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
+      // Lane bands are decorative and never interactive.
+      if (node.type === "laneBand") return;
+
       // Toggle: clicking the currently-focused transform closes the panel.
       // Stream clicks always go to the list (see below) — they don't
       // self-toggle, since the list is shared across every stream node.
@@ -299,13 +321,6 @@ function AnatomyCanvasInner() {
             nodeTypes={NODE_TYPES}
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
-            fitView
-            fitViewOptions={{
-              nodes: streamNodeIds.length > 0 ? streamNodeIds : undefined,
-              padding: 0.4,
-              minZoom: 0.9,
-              maxZoom: 1.4,
-            }}
             minZoom={0.2}
             maxZoom={1.5}
             proOptions={{ hideAttribution: true }}

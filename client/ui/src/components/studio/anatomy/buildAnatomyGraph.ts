@@ -1,29 +1,37 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { TransformStep, RegisteredStream } from "../../../types";
 import {
-  PIPELINE_ORDER,
+  LANE_BANDS,
+  LANE_BOUNDARIES,
+  NODE_TRACKS,
+  OUTPUT_NODE_POSITION,
   PIPELINE_EDGES,
   PIPELINE_NARRATIVE,
+  PIPELINE_ORDER,
   STEP_NODE_POSITIONS,
-  OUTPUT_NODE_POSITION,
   STREAM_COLUMN_X,
+  STREAM_EDGE_LABEL,
   STREAM_ROW_HEIGHT,
+  TRACK_COLORS,
   type StepKey,
+  type TrackKey,
 } from "./anatomyGraph";
 
 const STEP_LABELS: Record<StepKey, string> = {
   unit_conversion: "Unit Conversion",
-  decay_profile: "Decay Profile",
-  temporal_fair_value: "Temporal Fair Value",
-  variance: "Variance",
+  temporal_fair_value: "Temporal Distribution",
+  risk_space_aggregation: "Risk-Space Aggregation",
+  market_value_inference: "Market Value Inference",
   aggregation: "Space Aggregation",
   calc_to_target: "Calc → Target",
-  position_sizing: "Position Sizing",
   smoothing: "Smoothing",
+  position_sizing: "Position Sizing",
 };
 
-const STREAM_EDGE_STYLE = { stroke: "rgba(129,140,248,0.5)", strokeWidth: 1.5 };
-const PIPELINE_EDGE_STYLE = { stroke: "rgba(129,140,248,0.6)", strokeWidth: 1.5 };
+const STREAM_EDGE_STROKE = "rgba(129,140,248,0.5)";
+const PIPELINE_EDGE_STROKE_FALLBACK = "rgba(129,140,248,0.6)";
+const STREAM_EDGE_STROKE_WIDTH = 1.5;
+const PIPELINE_EDGE_STROKE_WIDTH = 1.75;
 
 // Explicit dimensions — matched to each custom node's Tailwind classes.
 // React Flow v12 uses these for layout immediately, so <MiniMap/> renders
@@ -32,6 +40,11 @@ const PIPELINE_EDGE_STYLE = { stroke: "rgba(129,140,248,0.6)", strokeWidth: 1.5 
 const STREAM_NODE_SIZE = { width: 200, height: 90 };
 const TRANSFORM_NODE_SIZE = { width: 240, height: 140 };
 const OUTPUT_NODE_SIZE = { width: 220, height: 140 };
+
+const EDGE_LABEL_STYLE = { fill: "#4a4a5a", fontSize: 9, fontWeight: 500 };
+const EDGE_LABEL_BG_STYLE = { fill: "#f4f4f7", fillOpacity: 0.92 };
+const EDGE_LABEL_BG_PADDING: [number, number] = [6, 3];
+const EDGE_LABEL_BG_RADIUS = 4;
 
 export function buildAnatomyGraph(
   steps: Record<string, TransformStep>,
@@ -43,7 +56,29 @@ export function buildAnatomyGraph(
   const out: Node[] = [];
   const es: Edge[] = [];
 
-  // Stream nodes stacked on the left
+  // Lane bands first — React Flow renders nodes in array order, so
+  // pushing the bands ahead of everything else keeps them beneath
+  // transform cards. zIndex: -1 reinforces this against later reorders.
+  for (const band of LANE_BANDS) {
+    out.push({
+      id: band.id,
+      type: "laneBand",
+      position: { x: band.x, y: band.y },
+      width: band.width,
+      height: band.height,
+      data: {
+        label: band.label,
+        width: band.width,
+        height: band.height,
+        tint: band.tint,
+      },
+      draggable: false,
+      selectable: false,
+      zIndex: -1,
+    });
+  }
+
+  // Stream nodes stacked on the left.
   const totalStreams = streams.length;
   const verticalCenter = 300 - (totalStreams * STREAM_ROW_HEIGHT) / 2;
   streams.forEach((s, i) => {
@@ -71,32 +106,46 @@ export function buildAnatomyGraph(
       target: "unit_conversion",
       type: "default",
       animated: live,
-      style: STREAM_EDGE_STYLE,
+      label: STREAM_EDGE_LABEL,
+      style: { stroke: STREAM_EDGE_STROKE, strokeWidth: STREAM_EDGE_STROKE_WIDTH },
+      labelStyle: EDGE_LABEL_STYLE,
+      labelBgStyle: EDGE_LABEL_BG_STYLE,
+      labelBgPadding: EDGE_LABEL_BG_PADDING,
+      labelBgBorderRadius: EDGE_LABEL_BG_RADIUS,
     });
   });
 
-  // Transform step nodes
-  for (let i = 0; i < PIPELINE_ORDER.length; i++) {
-    const key = PIPELINE_ORDER[i];
+  // Main transform step nodes.
+  let displayedIdx = 0;
+  for (const key of PIPELINE_ORDER) {
+    const pos = STEP_NODE_POSITIONS[key];
+    if (!pos) continue;
     const step = steps[key];
     if (!step) continue;
+
+    const trackSpec = NODE_TRACKS[key];
+
     out.push({
       id: key,
       type: "transform",
-      position: STEP_NODE_POSITIONS[key],
+      position: pos,
       ...TRANSFORM_NODE_SIZE,
       data: {
-        stepNumber: i + 1,
+        stepNumber: displayedIdx + 1,
         label: STEP_LABELS[key],
         selectedImpl: step.selected,
         subtitle: PIPELINE_NARRATIVE[key],
         saving: savingKey === key,
+        laneBoundary: LANE_BOUNDARIES[key],
+        inTracks: trackSpec?.in ?? [],
+        outTracks: trackSpec?.out ?? [],
       },
       draggable: true,
     });
+    displayedIdx++;
   }
 
-  // Output node
+  // Output node.
   out.push({
     id: "output",
     type: "output",
@@ -106,20 +155,24 @@ export function buildAnatomyGraph(
     draggable: true,
   });
 
-  // Pipeline edges (between transforms)
+  // Pipeline edges — each per-track edge picks up its track colour.
   for (const edge of PIPELINE_EDGES) {
+    const track = edge.sourceHandle as TrackKey | undefined;
+    const stroke = track ? TRACK_COLORS[track] : PIPELINE_EDGE_STROKE_FALLBACK;
     es.push({
       id: edge.id,
       source: edge.source,
       target: edge.target,
+      sourceHandle: edge.sourceHandle,
+      targetHandle: edge.targetHandle,
       label: edge.label,
       type: "default",
       animated: live,
-      style: PIPELINE_EDGE_STYLE,
-      labelStyle: { fill: "#6e6e82", fontSize: 10, fontWeight: 500 },
-      labelBgStyle: { fill: "#f4f4f7", fillOpacity: 0.9 },
-      labelBgPadding: [6, 3],
-      labelBgBorderRadius: 4,
+      style: { stroke, strokeWidth: PIPELINE_EDGE_STROKE_WIDTH },
+      labelStyle: EDGE_LABEL_STYLE,
+      labelBgStyle: EDGE_LABEL_BG_STYLE,
+      labelBgPadding: EDGE_LABEL_BG_PADDING,
+      labelBgBorderRadius: EDGE_LABEL_BG_RADIUS,
     });
   }
 
