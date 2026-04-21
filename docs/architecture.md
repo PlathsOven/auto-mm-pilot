@@ -108,7 +108,7 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `server/core/__init__.py` | Core pipeline package — re-exports public API |
 | `server/core/config.py` | `BlockConfig`, `StreamConfig` dataclasses, `SECONDS_PER_YEAR` |
 | `server/core/helpers.py` | `annualize`, `deannualize`, `raw_to_target_expr` |
-| `server/core/transforms/` | Pipeline transform package — one module per step (`registry`, `unit_conversion`, `decay`, `fair_value`, `variance`, `aggregation`, `position_sizing`, `smoothing`, `market_value_inference`). Public API re-exported from `__init__.py`. |
+| `server/core/transforms/` | Pipeline transform package — one module per step (`registry`, `unit_conversion`, `decay`, `fair_value`, `variance`, `risk_space_aggregation`, `market_value_inference`, `aggregation`, `calc_to_target`, `smoothing`, `position_sizing`). Public API re-exported from `__init__.py`. |
 | `server/core/pipeline.py` | All pipeline step functions + `run_pipeline()` orchestrator |
 | `server/core/mock_scenario.py` | Mock stream configs, scenario params, market pricing |
 | `server/core/serializers.py` | DataFrame→dict bridge for LLM prompt injection |

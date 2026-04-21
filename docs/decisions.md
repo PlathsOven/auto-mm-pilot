@@ -6,6 +6,25 @@ Format per entry: **Date — Decision**. Then `Context:`, `Decision:`, `Rational
 
 ---
 
+## 2026-04-21 — Pipeline 4-space model (risk / raw / calc / target)
+
+**Context:** The 2026-04-20 "Space-level market value + sum-only aggregation" entry (below) made aggregation a pure sum across blocks within a `(symbol, expiry)`. That closes the block-level Sharpe question but still conflates two different aggregation semantics: multiple estimators of the *same* risk (base-vol rolling average + median realized-vol — should average, not sum) and multiple *independent* risks on the same dim (base-vol + FOMC event-vol — should sum, not average). The old model also hardcoded the raw→target map (`(scale * raw + offset)^exponent`, then sqrt + annualise in an ad-hoc VP block inside `pipeline.py`), so users couldn't reason about — or override — the two maps independently.
+
+**Decision:** Rewrite the pipeline around an explicit four-space model and split the map into two pluggable transform steps:
+
+- **risk** — constituent risk dimension (e.g. `base_vol` vs `event_vol`); independent across spaces.
+- **raw** — whatever units a block is authored in (%, SD, variance, annualised vol).
+- **calc** — linear in what we price; for options today that's variance units.
+- **target** — the axis linear in PnL; for options today that's annualised vol points.
+
+Two transform steps bridge them: `unit_conversion` (raw → calc, default `affine_power`) and `calc_to_target` (calc → target, default `annualised_sqrt`). A new `risk_space_aggregation` step (default `arithmetic_mean`) averages blocks within a space; the existing `aggregation.sum_spaces` step sums across spaces. The block-authoring surface gains `applies_to: list[tuple[str, str]] | None` so a single event block fans out to every matched dim.
+
+**Rationale:** (1) **The math matches the epistemology.** Multiple estimators of the same risk SHOULD average (Sharpe improves as `1/√n`); multiple independent risks SHOULD sum (Sharpe improves as `√n`). The old "sum everywhere" model over-counted the former case and was silently wrong for traders using multiple RV streams on the same dim. (2) **Pluggable calc→target.** A non-options product (rates, credit, equity-vol-of-vol) needs a different target axis — having it in the registry means a new asset class is a transform registration, not a pipeline rewrite. Default keeps numbers bit-identical to today for the options path. (3) **`applies_to` closes the FOMC-fanout ergonomic gap.** Today a single event block needed N `StreamConfig`s (one per dim); with `applies_to=[(BTC, Q1), (BTC, Q2), …]` or `None` (all dims), one block covers the full universe.
+
+**Consequences:** Schema change on every intermediate frame (`blocks_df`, `block_series_df`, `space_series_df`, `dim_calc_df`, `dim_target_df`, `desired_pos_df`). `block_fair_df` + `block_var_df` + `space_agg_df` are gone; the new flat `block_series_df` carries fair / var / market in one pass, `space_series_df` carries the space-mean, `dim_target_df` carries target-space totals + edge. `target_value` is removed from block rows end-to-end (Pydantic + TS + UI). The existing hardcoded VP block at the old `pipeline.py:264-307` is deleted — its math now lives inside `calc_to_target.annualised_sqrt`. Mock-scenario numerics are unchanged on the options path (default transforms reproduce the old behaviour exactly); any prod deploy that overrode `scale` / `offset` / `exponent` for non-options assets now needs to pick an explicit `calc_to_target` too. New per-stream `applies_to` validates at ingest (HTTP 400 when naming a dim not in the universe) rather than silently dropping.
+
+---
+
 ## 2026-04-21 — Lift the Manual Brain Rule
 
 **Context:** The Manual Brain Rule restricted LLMs from editing any file under `server/core/`. It was introduced in 2025 when the pricing math was unsettled and the LLM track record on dense numerical code was unknown. A year of handoffs (see `tasks/progress.md` — Int32/Float64 vstack cast, VAR_FLOOR spike) demonstrated that the bugs hitting the Brain were trivial one-liners the LLM could have landed directly; the rule was producing queue time, not safety. The 4-space pipeline rewrite (see `tasks/spec-pipeline-4-space.md`) touches `server/core/` comprehensively and cannot proceed under the old rule without a parallel human rewrite.

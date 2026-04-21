@@ -58,10 +58,13 @@ The equation `Desired Position = Edge x Bankroll / Variance` is the destination.
 
 The engine's inputs are **data streams** — any source that expresses a view on fair value. Each stream (realized vol, a scheduled FOMC event, a historical IV percentile reading, a funding rate) is defined by a `StreamConfig` that specifies:
 
-- **Target-space mapping** (`scale`, `offset`, `exponent`): how the stream's raw value converts to the engine's internal units. This is a simple polynomial transform: `target = (scale * raw + offset) ^ exponent`.
+- **Raw→calc mapping** (`scale`, `offset`, `exponent`): how the stream's raw value converts to the engine's calculation space — whatever is linear in what we price (for options today, variance units). Default transform: `(scale * raw + offset) ^ exponent`. A separate global `calc_to_target` step maps calculation space to target space — the axis the trader reads (annualised vol points for options).
+- **Applies to** (`applies_to`): the list of `(symbol, expiry)` pairs the stream's blocks fan out to. `None` (default) means "every pair in the pipeline's dim universe", so a single event block can cover every dim at once instead of needing N duplicates.
 - **Block configuration**: how the stream distributes its value through time (detailed below).
 
-Each stream produces one or more **blocks** — the atomic unit of value contribution. A stream keyed by `[symbol, expiry, event_id]` produces a separate block for each unique combination. Blocks are grouped into **spaces** — temporal windows that share a common market-implied value. A shifting stream (rolling realized vol) occupies a single "shifting" space. A static stream (a specific FOMC meeting) gets its own space anchored to its event timestamp.
+Each stream produces one or more **blocks** — the atomic unit of value contribution. A stream keyed by `[symbol, expiry, event_id]` produces a separate block for each unique combination. Blocks are grouped into **spaces** — independent risk dimensions that share a common market-implied reference. A shifting stream (rolling realized vol) occupies a single "shifting" space. A static stream (a specific FOMC meeting) gets its own space anchored to its event timestamp.
+
+The engine operates across four distinct spaces: **risk** (constituent risk dimensions, e.g. base-vol vs. event-vol), **raw** (whatever units the block is authored in), **calculation** (linear in what we price — variance for options), and **target** (the axis linear in PnL — annualised vol for options). Two transforms bridge raw → calc (`unit_conversion`) and calc → target (`calc_to_target`). This separation is load-bearing: combining independent risk dimensions is a sum (Sharpe combines as √n), combining multiple estimators of the *same* risk is a mean, and edge is linear in PnL only in target space.
 
 ### How Fair Value Is Built
 
@@ -71,19 +74,23 @@ Each block distributes fair value across a time grid from now to expiry. The sha
 - **Static vs. shifting** (`temporal_position`): Static blocks are anchored to a specific start timestamp (e.g. when an event window opens). Shifting blocks roll forward with the current time — they always start at "now."
 - **Decay** (`decay_end_size_mult`, `decay_rate_prop_per_min`): A block can decay from its start size to a smaller end size over its lifetime. This models how short-term edges erode — the initial market reaction to a signal (start size) fades toward the longer-term fundamental change the signal implies (end size). A `decay_end_size_mult` of 1.0 means no decay; 0.0 means the signal decays to nothing.
 
-At each timestamp in the grid, the block's contribution to fair value is its annualized value at that point multiplied by the remaining time-to-expiry (in year-fractions). The annualized value interpolates linearly between the start and end values for annualized streams, or stays constant for discrete streams.
+Stage B of the pipeline runs the `unit_conversion` transform on the block's three raw scalars (`raw_fair`, `raw_var`, `raw_market`) to produce three calc-space totals, then distributes each total across the block's live window via the `temporal_fair_value` transform. Rows outside `[start_timestamp, expiry]` are **omitted**, not zeroed, so downstream averaging only sees live contributors.
 
 ### How Blocks Aggregate
 
-Blocks sum — always, across every block within a `(symbol, expiry)` risk dimension. There is no `average` vs `offset` distinction: two uncorrelated signals with identical `(fair, var)` on the same space combine as `(2·fair, 2·var)`, which gives a combined Sharpe `2·fair / √(2·var) = √2 · fair/√var`, i.e. the textbook "√n improvement from N independent signals."
+Blocks within the same `(symbol, expiry, space_id)` are treated as **estimators of the same risk**: Stage C averages their per-timestamp fair / var / market contributions. Multiple blocks on the same space improve the estimate without inflating position size — three realized-vol estimators on BTC Q1 combine as a mean, not a sum.
 
-Each `space_id` groups blocks that share a **market-implied reference**, not an aggregation rule. The `market_value_inference` step collapses blocks to per-space rows and attaches a `space.market_fair(t)` curve (zero by default; non-zero when the desk sets an aggregate `total_vol` or a per-space market view). The aggregation step then sums across spaces into `total_fair`, `total_market_fair`, and `edge = total_fair − total_market_fair` per `(symbol, expiry, timestamp)`.
+Blocks in **different spaces** on the same `(symbol, expiry)` are treated as **independent risk dimensions**: Stage D.2 sums across spaces. Base vol and event vol on the same expiry both contribute to total position size — they're not competing estimators, they're separate things to be exposed to.
+
+`space.market_fair(t)` carries the shared market-implied reference for each space. Blocks authoring their own `market_value` contribute to the mean directly; blocks tagged `aggregate` leave it null so `market_value_inference` can fill it proportional to `space_fair(t)` given the user's aggregate `total_vol`; blocks tagged `passthrough` set `market = fair` so they contribute zero edge by construction (the safe no-view default).
+
+After the space-mean → sum chain, Stage E applies the selected `calc_to_target` transform (default `annualised_sqrt`: forward-integrate + annualise + sqrt × 100) to lift `total_fair_calc`, `total_var_calc`, `total_market_fair_calc` into target space. Edge is computed in target space directly: `edge = total_fair − total_market_fair`.
 
 ### How Variance Is Computed
 
-Variance for each block is `abs(fair) * var_fair_ratio`, where `var_fair_ratio` is the stream's confidence weight. This encodes a specific epistemic claim: **uncertainty scales with the size of the estimate**. A stream contributing a large fair value also contributes large variance — a bigger estimate means more room to be wrong. A stream the desk trusts more gets a lower `var_fair_ratio`, reducing its variance contribution relative to its fair value contribution, and thereby increasing the position size it can drive.
+Variance for each block is computed in raw space during Stage A. Default transform `fair_proportional`: `raw_var = |raw_fair| * var_fair_ratio`, where `var_fair_ratio` is the stream's confidence weight. This encodes a specific epistemic claim: **uncertainty scales with the size of the estimate**. A stream contributing a large fair value also contributes large variance — a bigger estimate means more room to be wrong. A stream the desk trusts more gets a lower `var_fair_ratio`, reducing its variance contribution relative to its fair value contribution, and thereby increasing the position size it can drive. Alternative variance transforms (`constant`, `squared_fair`) are available for sources whose noise profile is different.
 
-Total variance is summed across all blocks (no averaging — variances add, even within average-aggregated spaces). This means adding more streams always increases total variance, which tempers position size. More information is not free; it comes with more uncertainty to manage.
+Variances combine consistently with the space model: **average within a space** (estimators of the same risk converge), **sum across spaces** (independent risks add). Adding a second independent risk always increases total variance, which tempers position size. Adding a second estimator of an existing risk keeps total variance roughly the same. More information is not free; more *kinds* of risk cost more than more *data* on the same risk.
 
 ### Forward Smoothing and Execution
 
