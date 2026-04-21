@@ -77,6 +77,39 @@ class StreamHistoryBuffer:
                     self._key_spec[key_values] = {k: str(row.get(k, "")) for k in key_cols}
                 dq.append(StreamHistoryPoint(timestamp=ts, raw_value=raw_value))
 
+    def record_heartbeat(
+        self,
+        key_cols: list[str],
+        latest_rows: Iterable[dict[str, Any]],
+        at: datetime,
+    ) -> None:
+        """Extend each tracked key's history with a ``(at, latest_raw_value)``
+        point — so a stream whose producer only pushed once still renders as
+        a growing "live" line in the Inspector.
+
+        Reduces ``latest_rows`` to one entry per key (last write wins) and
+        appends a point per key whose deque exists. Dedupes on exact
+        ``timestamp``; skips keys not yet in the buffer (heartbeats never
+        create keys — they only extend what a real ingest already seeded).
+        """
+        latest_per_key: dict[tuple[str, ...], float] = {}
+        for row in latest_rows:
+            key_values = tuple(str(row.get(k, "")) for k in key_cols)
+            try:
+                latest_per_key[key_values] = float(row.get("raw_value", 0.0))
+            except (TypeError, ValueError):
+                continue
+        if not latest_per_key:
+            return
+        with self._lock:
+            for key_values, raw_value in latest_per_key.items():
+                dq = self._by_key.get(key_values)
+                if dq is None:
+                    continue
+                if dq and dq[-1].timestamp == at:
+                    continue
+                dq.append(StreamHistoryPoint(timestamp=at, raw_value=raw_value))
+
     def series(self) -> list[tuple[dict[str, str], list[StreamHistoryPoint]]]:
         """Return ``(key_spec, points)`` pairs, sorted by points' timestamps."""
         with self._lock:
