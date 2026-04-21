@@ -4,7 +4,7 @@ import type {
   PipelineTimeSeriesResponse,
 } from "../types";
 import { fetchDimensions, fetchTimeSeries } from "../services/pipelineApi";
-import { formatExpiry } from "../utils";
+import { dimensionKey, formatExpiry } from "../utils";
 import {
   POLL_INTERVAL_TIMESERIES_MS,
   PIPELINE_TIMESERIES_CACHE_MAX_ENTRIES,
@@ -20,10 +20,6 @@ import {
 // in the background so cached data never goes more than ~5s stale.
 
 const tsCache = new Map<string, PipelineTimeSeriesResponse>();
-
-function tsCacheKey(symbol: string, expiry: string, lookbackSeconds: number | null): string {
-  return `${symbol}|${expiry}|${lookbackSeconds ?? 0}`;
-}
 
 function tsCacheSet(key: string, value: PipelineTimeSeriesResponse): void {
   // Re-insert to mark as most-recently-used (Map preserves insertion order).
@@ -88,13 +84,13 @@ export function usePipelineTimeSeries(
   // Fetch time series on selection change + poll every 5s to track ticks.
   useEffect(() => {
     if (!selected) return;
-    const key = tsCacheKey(selected.symbol, selected.expiry, lookbackSeconds);
-    lastRequestedKeyRef.current = key;
+    const cacheKey = dimensionKey(selected.symbol, selected.expiry, lookbackSeconds);
+    lastRequestedKeyRef.current = cacheKey;
     setError(null);
 
     // Cache hit: hydrate synchronously. Cache miss: clear data so the
     // loading placeholder shows while the network request resolves.
-    const cached = tsCache.get(key);
+    const cached = tsCache.get(cacheKey);
     setData(cached ?? null);
 
     const controller = new AbortController();
@@ -103,13 +99,13 @@ export function usePipelineTimeSeries(
       fetchTimeSeries(selected.symbol, selected.expiry, lookbackSeconds, controller.signal)
         .then((res) => {
           if (controller.signal.aborted) return;
-          if (lastRequestedKeyRef.current !== key) return;
-          tsCacheSet(key, res);
+          if (lastRequestedKeyRef.current !== cacheKey) return;
+          tsCacheSet(cacheKey, res);
           setData(res);
         })
         .catch((err) => {
           if (controller.signal.aborted) return;
-          if (lastRequestedKeyRef.current !== key) return;
+          if (lastRequestedKeyRef.current !== cacheKey) return;
           setError(err instanceof Error ? err.message : String(err));
         });
     };

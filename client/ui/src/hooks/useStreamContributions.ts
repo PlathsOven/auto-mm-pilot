@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CurrentBlockDecomposition } from "../types";
 import { fetchTimeSeries } from "../services/pipelineApi";
+import { dimensionKey } from "../utils";
 import { CONTRIBUTIONS_CACHE_TTL_MS } from "../constants";
 
 export interface StreamContribution {
@@ -20,10 +21,6 @@ interface CacheEntry {
 }
 
 const cache = new Map<string, CacheEntry>();
-
-function cacheKey(symbol: string, expiry: string): string {
-  return `${symbol}|${expiry}`;
-}
 
 function buildContributions(
   blocks: CurrentBlockDecomposition[],
@@ -71,7 +68,7 @@ export function useStreamContributions(
       return;
     }
 
-    const key = cacheKey(cell.symbol, cell.expiry);
+    const key = dimensionKey(cell.symbol, cell.expiry);
     const now = Date.now();
 
     // Cache hit

@@ -13,15 +13,12 @@ from typing import Any
 
 import polars as pl
 
-from server.api.config import MARKET_VALUE_MISMATCH_ABS_TOL_VOL, UPDATE_THRESHOLD
+from server.api.config import (
+    MARKET_VALUE_MISMATCH_ABS_TOL_VOL,
+    UPDATE_THRESHOLD,
+    VOL_POINTS_SCALE,
+)
 from server.api.expiry import canonical_expiry_key
-
-
-# Decimal-vol → vol-points conversion: one "vol point" is 1% annualised
-# vol, i.e. decimal × 100. Applied to the aggregate ``marketVol`` pulled
-# from the per-user store so the wire format matches the pipeline's own
-# ``*_vp`` columns, which already arrive in vol points.
-VOL_POINTS_SCALE: float = 100.0
 
 
 # ---------------------------------------------------------------------------

@@ -27,17 +27,13 @@ from typing import Iterable
 
 import polars as pl
 
+from server.api.config import VOL_POINTS_SCALE
 from server.api.expiry import canonical_expiry_key as _expiry_key
 
 # Per-dimension entry cap. Each pipeline rerun appends one entry per active
 # (symbol, expiry) dim, so 4096 entries covers many hours of typical usage
 # even on a busy account; older entries fall off the deque first.
 POSITION_HISTORY_MAX_ENTRIES: int = 4096
-
-# Decimal → vol points multiplier. Mirrors ``VOL_POINTS_SCALE`` in
-# ``ws_serializers.py``; kept local so the history module doesn't pull in
-# the serializer's other tick-time concerns.
-_VOL_POINTS_SCALE: float = 100.0
 
 
 @dataclass(frozen=True)
@@ -114,7 +110,7 @@ class PositionHistoryBuffer:
                     smoothed_total_fair=_f(r.get("smoothed_total_fair")),
                     total_market_fair=_f(r.get("total_market_fair")),
                     smoothed_total_market_fair=_f(r.get("smoothed_total_market_fair")),
-                    market_vol=_f(mv.get(key, 0.0)) * _VOL_POINTS_SCALE,
+                    market_vol=_f(mv.get(key, 0.0)) * VOL_POINTS_SCALE,
                 ))
 
     def get_range(

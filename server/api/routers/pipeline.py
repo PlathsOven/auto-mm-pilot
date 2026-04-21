@@ -13,6 +13,7 @@ from fastapi.responses import Response
 
 from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
+from server.api.config import VOL_POINTS_SCALE
 from server.api.engine_state import (
     RISK_DIMENSION_COLS,
     get_pipeline_results,
@@ -27,10 +28,6 @@ from server.api.models import (
 )
 from server.api.stream_registry import parse_datetime_tolerant
 from server.api.ws import get_current_tick_ts, get_latest_payload
-
-# Decimal → vol points. Same value as ``VOL_POINTS_SCALE`` in the WS
-# serializer; kept local so this router doesn't drag in tick-time helpers.
-_VOL_POINTS_SCALE: float = 100.0
 
 log = logging.getLogger(__name__)
 
@@ -173,7 +170,7 @@ def _pipeline_timeseries_sync(
     # historical signal so it broadcasts the live value across the window.
     mv_store = mv_to_dict(user_id)
     mv_key = (symbol, canonical_expiry_key(expiry_dt))
-    current_market_vol_vp = mv_store.get(mv_key, 0.0) * _VOL_POINTS_SCALE
+    current_market_vol_vp = mv_store.get(mv_key, 0.0) * VOL_POINTS_SCALE
 
     if lookback_seconds is not None and lookback_seconds > 0:
         # Position view wants a true historical window. `desired_pos_df` is

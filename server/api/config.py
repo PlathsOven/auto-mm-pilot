@@ -95,6 +95,13 @@ SILENT_STREAM_THRESHOLD: int = int(os.environ.get("SILENT_STREAM_THRESHOLD", "5"
 # gaps are below the trader's display resolution and not worth surfacing.
 MARKET_VALUE_MISMATCH_ABS_TOL_VOL: float = 0.01
 
+# Decimal-vol → vol-points conversion: one "vol point" is 1% annualised
+# vol, i.e. decimal × 100. Applied when emitting user-entered aggregate
+# market vols (stored raw-decimal in the market-value store) onto the wire
+# and into the position-history buffer, so both paths read in vol points
+# and line up with the pipeline's own ``*_vp`` columns.
+VOL_POINTS_SCALE: float = 100.0
+
 # ── OpenRouter HTTP timeouts ─────────────────────────────────────────────
 
 OPENROUTER_TIMEOUT_SECS: float = 30.0
