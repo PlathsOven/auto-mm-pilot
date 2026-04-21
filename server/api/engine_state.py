@@ -25,7 +25,11 @@ from server.api.config import (
     SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT,
 )
 from server.api.llm.snapshot_buffer import SnapshotBufferConfig, SnapshotRingBuffer
-from server.api.position_history import PositionHistoryBuffer, build_from_desired_pos_df
+from server.api.position_history import (
+    PositionHistoryBuffer,
+    build_from_desired_pos_df,
+    build_per_space_at_tick,
+)
 from server.api.user_scope import UserRegistry
 from server.core.pipeline import run_pipeline
 from server.core.serializers import engine_state_from_pipeline, snapshot_from_pipeline
@@ -127,9 +131,14 @@ class EngineState:
 
         # Capture per-dimension desired-position point at `now`. Separate from
         # the LLM snapshot buffer so prompt payloads stay lean while the
-        # Position chart gets a full time series across reruns.
+        # Position chart gets a full time series across reruns. Per-space
+        # calc-space values are captured alongside so the Pipeline chart's
+        # decomposition view works across the historical window too.
         pos_rows = build_from_desired_pos_df(self.pipeline_results["desired_pos_df"], now)
-        self.position_history.push_rows(pos_rows, now, aggregate_market_values or {})
+        per_space = build_per_space_at_tick(self.pipeline_results["space_series_df"], now)
+        self.position_history.push_rows(
+            pos_rows, now, aggregate_market_values or {}, per_space,
+        )
 
         return self.pipeline_results
 

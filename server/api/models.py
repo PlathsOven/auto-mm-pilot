@@ -687,6 +687,21 @@ class BlockTimeSeries(_WireModel):
     var: list[float | None]
 
 
+class SpaceSeries(_WireModel):
+    """Per-space calc-space contribution lines, aligned with
+    ``AggregatedTimeSeries.timestamps``.
+
+    Spaces combine by a pure sum in calc space (Stage D.2 ``aggregation``),
+    so these arrays are linearly additive across ``space_id`` at any
+    timestamp — the Pipeline chart's decomposition view stacks them. Values
+    are in **calc space** (variance-linear), not the display's target-space
+    (vol-points) units — the chart labels the y-axis accordingly.
+    """
+    fair: list[float]
+    var: list[float]
+    market_fair: list[float]
+
+
 class AggregatedTimeSeries(_WireModel):
     """Aggregated time series across all blocks on one dimension.
 
@@ -694,6 +709,10 @@ class AggregatedTimeSeries(_WireModel):
     as the grid's Market tab and the WS ticker's ``marketVol`` field —
     emitted as a parallel vol-points series so the Pipeline chart's Market
     view reads identically to the grid cell.
+
+    ``per_space`` carries the calc-space decomposition keyed by
+    ``space_id``; empty when the payload comes from the historical ring
+    buffer (no per-space history captured there yet).
     """
     timestamps: list[str]
     total_fair: list[float]
@@ -707,6 +726,7 @@ class AggregatedTimeSeries(_WireModel):
     raw_desired_position: list[float]
     smoothed_desired_position: list[float]
     market_vol: list[float]
+    per_space: dict[str, SpaceSeries] = Field(default_factory=dict)
 
 
 class CurrentBlockDecomposition(_WireModel):

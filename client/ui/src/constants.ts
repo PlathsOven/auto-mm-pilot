@@ -37,7 +37,10 @@ export const CHAT_INPUT_MAX_HEIGHT_PX = 160;
 
 // Workbench right inspector column sizing + persistence keys.
 export const INSPECTOR_COLUMN_WIDTH_PX = 320;
+export const INSPECTOR_COLUMN_MIN_WIDTH_PX = 220;
+export const INSPECTOR_COLUMN_MAX_WIDTH_PX = 960;
 export const INSPECTOR_COLUMN_OPEN_KEY = "posit-inspector-open";
+export const INSPECTOR_COLUMN_WIDTH_KEY = "posit-inspector-width";
 
 // Bottom chat dock — independent of the inspector now.
 export const CHAT_DOCK_HEIGHT_PX = 280;
@@ -84,6 +87,16 @@ export const POSITION_LOOKBACK_KEY = "posit-position-lookback";
 // Pipeline chart "Link grid" toggle — when on, the pipeline view mirrors the
 // position grid's active view mode.
 export const PIPELINE_LINK_KEY = "posit-pipeline-linked";
+
+// Pipeline chart "Decompose" toggle — when on (and metric ∈ {fair, variance,
+// marketCalc} and smoothing = instant), the chart renders per-risk-space
+// stacked contributions in calc space (variance-linear) rather than the
+// single aggregated line in vol-points.
+export const PIPELINE_DECOMPOSE_KEY = "posit-pipeline-decompose";
+
+// Metrics whose calc-space per-space decomposition is emitted in the
+// timeseries payload. Used to gate the Decompose toggle in the panel.
+export const DECOMPOSABLE_METRICS: readonly Metric[] = ["fair", "variance", "marketCalc"];
 
 // Block inspector "Follow focus" toggle — auto-filters the table to the
 // workbench focus dimension when on.

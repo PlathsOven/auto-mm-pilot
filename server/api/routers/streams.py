@@ -243,46 +243,35 @@ async def stream_timeseries(
     stream_name: str,
     user: User = Depends(current_user),
 ) -> StreamTimeseriesResponse:
-    """Return per-key-combination time series of raw/market values for a stream.
+    """Return per-key-combination time series of raw values for a stream.
 
-    Sourced from the in-memory snapshot rows on the per-user stream registry —
-    no new storage. Snapshot rows are grouped by their key-column values so the
-    Inspector can render one chart per (symbol, expiry) (or whatever the
-    stream's ``key_cols`` define).
+    Sourced from the per-registration ``StreamHistoryBuffer`` — a ring buffer
+    of every ingested ``(timestamp, raw_value)`` per key tuple. ``row_count``
+    reflects the total points across every key (what the chart actually
+    plots), not the latest-batch size.
     """
     registry = get_stream_registry(user.id)
     reg = registry.get(stream_name)
     if reg is None:
         raise HTTPException(status_code=404, detail=f"Stream '{stream_name}' not found")
 
-    grouped: dict[tuple[str, ...], list[StreamTimeseriesPoint]] = {}
-    key_specs: dict[tuple[str, ...], dict[str, str]] = {}
-    for row in reg.snapshot_rows:
-        key_values = tuple(str(row.get(k, "")) for k in reg.key_cols)
-        ts_raw = row.get("timestamp")
-        ts_str = ts_raw.isoformat() if hasattr(ts_raw, "isoformat") else str(ts_raw)
-        try:
-            raw_value = float(row.get("raw_value", 0.0))
-        except (TypeError, ValueError):
-            continue
-        grouped.setdefault(key_values, []).append(
-            StreamTimeseriesPoint(timestamp=ts_str, raw_value=raw_value)
-        )
-        key_specs.setdefault(
-            key_values, {k: str(row.get(k, "")) for k in reg.key_cols}
-        )
-
-    series = [
-        StreamKeyTimeseries(key=key_specs[k], points=sorted(pts, key=lambda p: p.timestamp))
-        for k, pts in grouped.items()
-    ]
-    series.sort(key=lambda s: tuple(s.key.values()))
+    series: list[StreamKeyTimeseries] = []
+    total_points = 0
+    for key_spec, pts in reg.history.series():
+        series.append(StreamKeyTimeseries(
+            key=key_spec,
+            points=[
+                StreamTimeseriesPoint(timestamp=p.timestamp.isoformat(), raw_value=p.raw_value)
+                for p in pts
+            ],
+        ))
+        total_points += len(pts)
 
     return StreamTimeseriesResponse(
         stream_name=reg.stream_name,
         key_cols=list(reg.key_cols),
         status=reg.status,
-        row_count=len(reg.snapshot_rows),
+        row_count=total_points,
         series=series,
     )
 
