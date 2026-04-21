@@ -116,13 +116,44 @@ const ALL_COLUMNS: ColumnDef<BlockRow, any>[] = [
     cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
   }),
   // Output values (hidden by default)
-  col.accessor("target_value", {
-    header: "Target Value",
-    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
-  }),
   col.accessor("raw_value", {
     header: "Raw Value",
     cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
+  }),
+  col.accessor("market_value_source", {
+    header: "Market Source",
+    cell: (info) => {
+      const v = info.getValue();
+      if (v == null) return <span className="text-mm-text-dim">—</span>;
+      return (
+        <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium uppercase ${
+          v === "block" ? "bg-mm-accent/10 text-mm-accent"
+          : v === "aggregate" ? "bg-mm-warn/15 text-mm-warn"
+          : "bg-black/[0.04] text-mm-text-dim"
+        }`}>
+          {v}
+        </span>
+      );
+    },
+  }),
+  col.accessor("applies_to", {
+    header: "Applies To",
+    cell: (info) => {
+      const v = info.getValue() as [string, string][] | null | undefined;
+      if (v == null || v.length === 0) {
+        return (
+          <span className="rounded-full bg-mm-accent/10 px-1.5 py-0.5 text-[9px] font-medium text-mm-accent">
+            all dims
+          </span>
+        );
+      }
+      return (
+        <span className="text-[10px] text-mm-text-dim">
+          {v.length === 1 ? `${v[0][0]}/${v[0][1]}` : `${v.length} dims`}
+        </span>
+      );
+    },
+    enableSorting: false,
   }),
   // Timing (hidden by default)
   col.accessor("start_timestamp", { header: "Start TS" }),
@@ -137,6 +168,7 @@ const DEFAULT_VISIBLE = new Set([
   "symbol",
   "expiry",
   "space_id",
+  "applies_to",
   "fair",
   "var",
 ]);

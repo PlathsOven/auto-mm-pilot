@@ -66,6 +66,8 @@ export interface ConfigureStreamRequest {
   description?: string | null;
   sample_csv?: string | null;
   value_column?: string | null;
+  /** (symbol, expiry) pairs this stream's blocks fan out to. null = every pair. */
+  applies_to?: [string, string][] | null;
 }
 
 /**

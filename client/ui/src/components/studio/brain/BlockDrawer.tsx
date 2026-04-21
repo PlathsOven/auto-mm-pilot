@@ -11,7 +11,8 @@ import {
   draftFromBlock,
   draftFromCommandParams,
 } from "./blockDrawerState";
-import { SnapshotTable, ReadOnlyField } from "./BlockDrawerParts";
+import { SnapshotTable, ReadOnlyField, AppliesToField } from "./BlockDrawerParts";
+import { fetchBlocks } from "../../../services/blockApi";
 import { useSnapshotEditor } from "./useSnapshotEditor";
 import { useBlockDraftSubmit } from "./useBlockDraftSubmit";
 
@@ -39,8 +40,37 @@ interface Props {
  */
 export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved }: Props) {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  const [dimUniverse, setDimUniverse] = useState<[string, string][]>([]);
   const { submitting, error, submit, clearError } = useBlockDraftSubmit(mode, onSaved, onClose);
   const snapshotEditor = useSnapshotEditor(setDraft);
+
+  // The applies_to chip field needs the current (symbol, expiry) universe.
+  // Pull it from the already-cached block list — each row carries a dim
+  // pair, and the union across all blocks is the universe.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetchBlocks()
+      .then((rows) => {
+        if (cancelled) return;
+        const seen = new Set<string>();
+        const pairs: [string, string][] = [];
+        for (const r of rows) {
+          const key = `${r.symbol}|${r.expiry}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          pairs.push([r.symbol, r.expiry]);
+        }
+        pairs.sort((a, b) => (a[0] === b[0] ? a[1].localeCompare(b[1]) : a[0].localeCompare(b[0])));
+        setDimUniverse(pairs);
+      })
+      .catch(() => {
+        if (!cancelled) setDimUniverse([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   // Reset draft when the drawer opens or the block changes
   useEffect(() => {
@@ -206,6 +236,16 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
             </div>
           </section>
 
+          {/* Applies to — which (symbol, expiry) pairs this block fans out to */}
+          <section className="flex flex-col gap-3 border-t border-black/[0.04] pt-3">
+            <AppliesToField
+              value={draft.applies_to}
+              options={dimUniverse}
+              onChange={(next) => canEdit ? patch("applies_to", next) : undefined}
+              readOnly={readOnly}
+            />
+          </section>
+
           {/* Output values (inspect/edit only) */}
           {mode !== "create" && block && (
             <section className="flex flex-col gap-3 border-t border-black/[0.04] pt-3">
@@ -215,9 +255,13 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
               <div className="grid grid-cols-3 gap-3">
                 <ReadOnlyField label="fair" value={block.fair} />
                 <ReadOnlyField label="variance" value={block.var} />
-                <ReadOnlyField label="target_value" value={block.target_value} />
                 <ReadOnlyField label="raw_value" value={block.raw_value} />
               </div>
+              {block.market_value_source != null && (
+                <p className="text-[10px] text-mm-text-dim">
+                  Market source: <span className="font-mono text-mm-text">{block.market_value_source}</span>
+                </p>
+              )}
             </section>
           )}
 

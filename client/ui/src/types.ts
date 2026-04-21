@@ -379,11 +379,14 @@ export interface BlockRow {
   scale: number;
   offset: number;
   exponent: number;
+  /** (symbol, expiry) pairs this block fans out to. null / missing means
+   *  every pair in the dim universe (default behaviour). */
+  applies_to?: [string, string][] | null;
   // Output values
-  target_value: number;
   raw_value: number;
   fair: number | null;
   var: number | null;
+  market_value_source?: "block" | "aggregate" | "passthrough" | null;
   // Timing
   start_timestamp: string | null;
   updated_at: string | null;
