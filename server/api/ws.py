@@ -21,6 +21,7 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Any
 
 import polars as pl
 from fastapi import WebSocket, WebSocketDisconnect
@@ -224,7 +225,7 @@ def _build_user_payload_sync(user_id: str, real_now: datetime) -> str:
 
     positions = positions_at_tick(desired_pos_df, ts, state.prev_positions, mv_to_dict(user_id))
 
-    updates: list = []
+    updates: list[dict[str, Any]] = []
     if ts_idx != state.last_ts_idx:
         updates = updates_from_diff(positions, state.prev_positions, state.tick_count)
         for pos in positions:

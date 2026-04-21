@@ -303,13 +303,22 @@ def _attach_market_value_source(
 # Time grid (internal — not in the return dict)
 # ---------------------------------------------------------------------------
 
+# Time-grid density thresholds — coarsen the per-dim grid as time-to-expiry
+# grows so distant-expiry paths don't blow up the row count. Buckets measured
+# from now to the dim's expiry.
+_SECS_PER_DAY: int = 86_400
+GRID_INTERVAL_BREAKPOINT_2D_SECS: int = 2 * _SECS_PER_DAY
+GRID_INTERVAL_BREAKPOINT_30D_SECS: int = 30 * _SECS_PER_DAY
+GRID_INTERVAL_BREAKPOINT_365D_SECS: int = 365 * _SECS_PER_DAY
+
+
 def _pick_grid_interval(ttx_secs: float, default: str) -> str:
     """Choose a time-grid interval for a single risk dimension."""
-    if ttx_secs <= 2 * 86_400:
+    if ttx_secs <= GRID_INTERVAL_BREAKPOINT_2D_SECS:
         return default
-    if ttx_secs <= 30 * 86_400:
+    if ttx_secs <= GRID_INTERVAL_BREAKPOINT_30D_SECS:
         return "15m"
-    if ttx_secs <= 365 * 86_400:
+    if ttx_secs <= GRID_INTERVAL_BREAKPOINT_365D_SECS:
         return "1h"
     return "4h"
 
