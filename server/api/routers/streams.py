@@ -184,6 +184,11 @@ async def configure_stream(
             description=req.description,
             sample_csv=req.sample_csv,
             value_column=req.value_column,
+            applies_to=(
+                [tuple(p) for p in req.applies_to]
+                if req.applies_to is not None
+                else None
+            ),
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

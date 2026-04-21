@@ -35,16 +35,16 @@ def _blocks_from_pipeline(user_id: str) -> list[BlockRowResponse]:
         return []
 
     blocks_df = results["blocks_df"]
-    block_var_df = results.get("block_var_df")
+    block_series_df = results.get("block_series_df")
 
     latest_vars: dict[str, dict[str, float]] = {}
-    if block_var_df is not None and block_var_df.height > 0:
+    if block_series_df is not None and block_series_df.height > 0:
         current_ts = get_current_tick_ts(user_id)
 
         if current_ts is not None:
-            at_or_before = block_var_df.filter(pl.col("timestamp") <= current_ts)
+            at_or_before = block_series_df.filter(pl.col("timestamp") <= current_ts)
             missing_blocks = (
-                block_var_df.filter(
+                block_series_df.filter(
                     ~pl.col("block_name").is_in(at_or_before["block_name"].unique())
                 )
                 .sort("timestamp")
@@ -61,7 +61,7 @@ def _blocks_from_pipeline(user_id: str) -> list[BlockRowResponse]:
                 best_rows = pl.concat([best_rows, missing_blocks])
         else:
             best_rows = (
-                block_var_df
+                block_series_df
                 .sort("timestamp")
                 .group_by("block_name")
                 .first()
@@ -105,6 +105,12 @@ def _blocks_from_pipeline(user_id: str) -> list[BlockRowResponse]:
         raw_expiry = block_dict.get("expiry")
         expiry_str = format_expiry(raw_expiry) if raw_expiry is not None else ""
 
+        reg = get_stream_registry(user_id).get(stream_name)
+        applies_to = (
+            [tuple(p) for p in reg.applies_to] if reg is not None and reg.applies_to is not None
+            else None
+        )
+
         rows.append(BlockRowResponse(
             block_name=block_name,
             stream_name=stream_name,
@@ -120,10 +126,11 @@ def _blocks_from_pipeline(user_id: str) -> list[BlockRowResponse]:
             scale=block_dict["scale"],
             offset=block_dict["offset"],
             exponent=block_dict["exponent"],
-            target_value=block_dict["target_value"],
-            raw_value=block_dict["raw_value"],
+            applies_to=applies_to,
+            raw_value=block_dict.get("raw_fair", 0.0),
             fair=block_latest_var.get("fair"),
             var=block_latest_var.get("var"),
+            market_value_source=block_dict.get("market_value_source"),
             start_timestamp=start_str,
             updated_at=_dt.now().isoformat(),
         ))
@@ -168,6 +175,11 @@ async def create_manual_block(
             offset=req.offset,
             exponent=req.exponent,
             block=block,
+            applies_to=(
+                [tuple(p) for p in req.applies_to]
+                if req.applies_to is not None
+                else None
+            ),
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -191,6 +203,14 @@ async def create_manual_block(
     if stream_configs:
         try:
             await rerun_and_broadcast(user.id, stream_configs)
+        except ValueError as exc:
+            # applies_to validation + other config errors from build_blocks_df
+            # surface as 400 so the client can show the offending pair.
+            try:
+                registry.delete(req.stream_name)
+            except KeyError:
+                pass
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except Exception as exc:
             log.exception("Pipeline re-run failed after manual block creation")
             try:
@@ -224,7 +244,11 @@ async def create_manual_block(
         scale=req.scale,
         offset=req.offset,
         exponent=req.exponent,
-        target_value=0.0,
+        applies_to=(
+            [tuple(p) for p in req.applies_to]
+            if req.applies_to is not None
+            else None
+        ),
         raw_value=raw_val,
         updated_at=_dt.now().isoformat(),
     )
@@ -264,7 +288,16 @@ async def update_block(
         block = reg.block
 
     assert scale is not None and offset is not None and exponent is not None and block is not None
-    registry.configure(stream_name, scale=scale, offset=offset, exponent=exponent, block=block)
+    # Preserve any existing applies_to unless the caller explicitly set it.
+    existing_applies_to = reg.applies_to
+    applies_to = (
+        [tuple(p) for p in req.applies_to] if req.applies_to is not None
+        else existing_applies_to
+    )
+    registry.configure(
+        stream_name, scale=scale, offset=offset, exponent=exponent, block=block,
+        applies_to=applies_to,
+    )
 
     if req.snapshot_rows is not None:
         try:
@@ -278,6 +311,8 @@ async def update_block(
     if stream_configs:
         try:
             await rerun_and_broadcast(user.id, stream_configs)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except Exception as exc:
             log.exception("Pipeline re-run failed after block update")
             raise HTTPException(

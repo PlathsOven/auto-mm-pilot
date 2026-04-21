@@ -106,11 +106,21 @@ class BlockConfigPayload(BaseModel):
 
 
 class AdminConfigureStreamRequest(BaseModel):
-    """Admin fills in the pipeline-facing parameters to move stream → READY."""
-    scale: float = Field(..., description="Multiplicative scale for raw → target conversion")
-    offset: float = Field(0.0, description="Additive offset for raw → target conversion")
-    exponent: float = Field(1.0, description="Power exponent for raw → target conversion")
+    """Admin fills in the pipeline-facing parameters to move stream → READY.
+
+    ``scale`` / ``offset`` / ``exponent`` are the raw→calc conversion
+    parameters (unit_conversion step). The final target-space map is a
+    separate ``calc_to_target`` step configured globally via the transforms
+    endpoint, not per stream.
+    """
+    scale: float = Field(..., description="Multiplicative scale for raw → calc conversion")
+    offset: float = Field(0.0, description="Additive offset for raw → calc conversion")
+    exponent: float = Field(1.0, description="Power exponent for raw → calc conversion")
     block: BlockConfigPayload = Field(default_factory=BlockConfigPayload)
+    # None → fan this stream's blocks out to every (symbol, expiry) in the
+    # dim universe at Stage A. A list → exactly those pairs; ingest raises
+    # HTTP 400 if any pair isn't in the current dim universe.
+    applies_to: list[tuple[str, str]] | None = None
     # Authoring-only fields — not consumed by the pipeline, stored so the
     # Stream Canvas can re-hydrate the exact draft the user last activated.
     description: str | None = None
@@ -248,11 +258,14 @@ class BlockRowResponse(BaseModel):
     scale: float
     offset: float
     exponent: float
+    # Which (symbol, expiry) pairs this block fans out to — None means "every
+    # pair in the dim universe" (default behaviour).
+    applies_to: list[tuple[str, str]] | None = None
     # Output values
-    target_value: float
     raw_value: float
     fair: float | None = None
     var: float | None = None
+    market_value_source: Literal["block", "aggregate", "passthrough"] | None = None
     # Timing
     start_timestamp: str | None = None
     updated_at: str | None = None
@@ -266,7 +279,7 @@ class ManualBlockRequest(BaseModel):
     """User creates a manual block by specifying all input parameters."""
     stream_name: str = Field(..., min_length=1, description="Name for the manual stream")
     key_cols: list[str] = Field(default_factory=lambda: ["symbol", "expiry"], description="Index columns")
-    scale: float = Field(1.0, description="Multiplicative scale for raw → target conversion")
+    scale: float = Field(1.0, description="Multiplicative scale for raw → calc conversion")
     offset: float = Field(0.0, description="Additive offset")
     exponent: float = Field(1.0, description="Power exponent")
     block: BlockConfigPayload = Field(default_factory=BlockConfigPayload)
@@ -279,6 +292,10 @@ class ManualBlockRequest(BaseModel):
         default=None,
         description="Optional custom space_id (overrides auto-computed value from temporal_position).",
     )
+    applies_to: list[tuple[str, str]] | None = Field(
+        default=None,
+        description="(symbol, expiry) pairs this block fans out to. None = every pair in the dim universe.",
+    )
 
 
 class UpdateBlockRequest(BaseModel):
@@ -288,6 +305,7 @@ class UpdateBlockRequest(BaseModel):
     exponent: float | None = None
     block: BlockConfigPayload | None = None
     snapshot_rows: list[SnapshotRow] | None = None
+    applies_to: list[tuple[str, str]] | None = None
 
 
 class ClientWsInboundFrame(BaseModel):
@@ -408,8 +426,12 @@ class TransformConfigRequest(BaseModel):
     temporal_fair_value_params: dict[str, Any] | None = None
     variance: str | None = None
     variance_params: dict[str, Any] | None = None
+    risk_space_aggregation: str | None = None
+    risk_space_aggregation_params: dict[str, Any] | None = None
     aggregation: str | None = None
     aggregation_params: dict[str, Any] | None = None
+    calc_to_target: str | None = None
+    calc_to_target_params: dict[str, Any] | None = None
     position_sizing: str | None = None
     position_sizing_params: dict[str, Any] | None = None
     smoothing: str | None = None

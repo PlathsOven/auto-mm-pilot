@@ -94,6 +94,10 @@ class StreamRegistration:
     sample_csv: str | None = None
     value_column: str | None = None
 
+    # Which (symbol, expiry) pairs this stream's blocks fan out to.
+    # None (default) means "every pair in the pipeline's dim universe".
+    applies_to: list[tuple[str, str]] | None = None
+
     @property
     def status(self) -> str:
         if self.scale is None or self.block is None:
@@ -131,6 +135,11 @@ class StreamRegistration:
             exponent=self.exponent,
             block=self.block,
             space_id_override=self.space_id_override,
+            applies_to=(
+                [tuple(p) for p in self.applies_to]
+                if self.applies_to is not None
+                else None
+            ),
         )
 
 
@@ -268,6 +277,7 @@ class StreamRegistry:
         description: str | None = None,
         sample_csv: str | None = None,
         value_column: str | None = None,
+        applies_to: list[tuple[str, str]] | None = None,
     ) -> StreamRegistration:
         """Admin sets the pipeline-facing parameters → moves stream to READY."""
         with self._lock:
@@ -281,6 +291,7 @@ class StreamRegistry:
             reg.description = description
             reg.sample_csv = sample_csv
             reg.value_column = value_column
+            reg.applies_to = applies_to
             log.info("Stream '%s' configured (status=%s)", stream_name, reg.status)
             return reg
 

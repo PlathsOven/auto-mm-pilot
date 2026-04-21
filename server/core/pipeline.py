@@ -71,8 +71,21 @@ def build_blocks_df(
     in the universe.
     """
     # Pass 1: dedup, collect dim universe, compute metadata and calc totals.
+    # The canonical-key set normalises expiry to its ISO string so JSON-
+    # supplied applies_to entries (strings from the API) match snapshot
+    # values (datetime objects from Polars).
     per_stream_dfs: list[tuple[StreamConfig, pl.DataFrame]] = []
     dim_universe_set: set[tuple] = set()
+    dim_universe_canon: set[tuple[str, ...]] = set()
+
+    def _canon_dim(values: tuple) -> tuple[str, ...]:
+        canon: list[str] = []
+        for c, v in zip(risk_dimension_cols, values):
+            if c == "expiry":
+                canon.append(canonical_expiry_key(v))
+            else:
+                canon.append(str(v))
+        return tuple(canon)
 
     for sc in streams:
         missing = set(risk_dimension_cols) - set(sc.key_cols)
@@ -89,7 +102,9 @@ def build_blocks_df(
             )
 
         for row in snap.iter_rows(named=True):
-            dim_universe_set.add(tuple(row[c] for c in risk_dimension_cols))
+            dim_tuple = tuple(row[c] for c in risk_dimension_cols)
+            dim_universe_set.add(dim_tuple)
+            dim_universe_canon.add(_canon_dim(dim_tuple))
 
         extra_keys = [k for k in sc.key_cols if k not in risk_dimension_cols]
         block_name_expr = (
@@ -158,20 +173,24 @@ def build_blocks_df(
         return pl.DataFrame()
 
     dim_universe = sorted(dim_universe_set)
+    canon_to_native = {_canon_dim(t): t for t in dim_universe_set}
     parts: list[pl.DataFrame] = []
 
     for sc, stream_df in per_stream_dfs:
         if sc.applies_to is None:
             applies_to = dim_universe
         else:
-            normalised = [tuple(p) for p in sc.applies_to]
-            missing = [p for p in normalised if p not in dim_universe_set]
-            if missing:
+            # Canonicalise user-supplied pairs (strings from JSON) and match
+            # against the canonical universe; resolve matches back to native
+            # (datetime-typed) tuples for the cross-join.
+            requested_canon = [_canon_dim(tuple(p)) for p in sc.applies_to]
+            missing_canon = [c for c in requested_canon if c not in dim_universe_canon]
+            if missing_canon:
                 raise ValueError(
                     f"Stream '{sc.stream_name}' applies_to contains dims "
-                    f"not in universe: {missing}"
+                    f"not in universe: {missing_canon}"
                 )
-            applies_to = normalised
+            applies_to = [canon_to_native[c] for c in requested_canon]
 
         if not applies_to:
             continue
