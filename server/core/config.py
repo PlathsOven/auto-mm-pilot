@@ -53,6 +53,16 @@ class StreamConfig:
     latest row per key.  It must be a superset of the pipeline's
     ``risk_dimension_cols`` (e.g. ``["symbol", "expiry"]``), plus any extra keys
     specific to the stream (e.g. ``"event_id"``).
+
+    ``scale`` / ``offset`` / ``exponent`` parameterise the raw→calc unit
+    conversion step, not raw→target — the final target-space map is now a
+    separate ``calc_to_target`` step.
+
+    ``applies_to`` controls which ``(symbol, expiry)`` pairs the stream's
+    blocks fan out to at Stage A. ``None`` (default) means "every pair in
+    the pipeline's dim universe". A list means exactly those pairs;
+    ingest validates each entry is in the dim universe and raises with
+    the offending pair(s) on mismatch.
     """
 
     stream_name: str
@@ -67,6 +77,7 @@ class StreamConfig:
     conversion_params: dict[str, float] = field(default_factory=dict)
     block: BlockConfig = field(default_factory=BlockConfig)
     space_id_override: str | None = None
+    applies_to: list[tuple[str, str]] | None = None
 
     def get_conversion_params(self) -> dict[str, float]:
         """Return conversion params, falling back to legacy fields."""

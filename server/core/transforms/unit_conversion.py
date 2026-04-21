@@ -1,4 +1,14 @@
-"""Unit-conversion transforms — map raw data to target (variance) space."""
+"""Unit-conversion transforms — Stage A/B raw → calculation space map.
+
+These functions convert each stream's raw authoring units (percent, SD,
+variance points, annualised vol, etc.) into the pipeline's calculation
+space — whatever is linear in what we price. For options today that's
+variance units; `affine_power(x; scale=1, offset=0, exponent=2)` with
+raw_fair in vol takes that to variance.
+
+The raw → target map is now a two-step chain: unit_conversion (here)
+followed by calc_to_target (Stage E). Users pick both independently.
+"""
 
 from __future__ import annotations
 

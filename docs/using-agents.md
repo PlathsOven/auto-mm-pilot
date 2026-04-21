@@ -2,7 +2,7 @@
 
 This is the operator's playbook for coding this repo with the help of AI agents. Two harnesses are supported: **Claude Code** (primary) and **Windsurf** (secondary). Both run the same slash commands with byte-identical bodies. Pick whichever tool you prefer — or use both.
 
-If you read only one line of this document, read this one: **`server/core/` is HUMAN ONLY.** Agents may read it. They must never write to it. A `PreToolUse` hook in `.claude/settings.json` blocks any `Edit`/`Write`/`MultiEdit`/`NotebookEdit` against a path containing `server/core/`. The rule is enforced mechanically; the rest of this guide assumes you won't try to route around it.
+If you read only one line of this document, read this one: **always `/kickoff` before you touch code.** Agents are fast; a plan you've read and approved is the cheapest way to keep them pointed at the right problem.
 
 ---
 
@@ -34,8 +34,6 @@ Do this once per machine. Skip to §2 if you've already done it.
 4. **Install your preferred harness.**
    - **Claude Code (primary):** install the CLI, open the repo directory, and confirm the `.claude/commands/` slash commands appear in the slash-command palette.
    - **Windsurf (secondary):** open the repo in Windsurf; the `.windsurf/workflows/` commands will load automatically.
-
-5. **Verify the Manual Brain hook is active (Claude Code only).** Open a Claude Code session in the repo and ask the agent to `Write` a file at a fake path like `/tmp/server/core/verify.txt`. The tool call must fail with `BLOCKED: server/core/ is HUMAN ONLY (Manual Brain rule). See CLAUDE.md.` If it succeeds, the hook isn't loaded — restart the session and try again. **Do not proceed with agent coding until this verification passes.**
 
 ---
 
@@ -102,7 +100,6 @@ Once you approve a plan, the agent executes it. Your job during execution:
 4. **If the agent gets stuck:**
    - **Bug fix failing 2+ times in a row:** tell the agent to run `/logic-audit`. Two failed fixes almost always means the bug is structural and surface patches won't hold.
    - **Plan no longer matches reality:** interrupt, describe what you see, ask for a revised plan.
-   - **Agent touches `server/core/`:** the hook will block it. Don't work around the block — investigate the underlying need. The Manual Brain rule exists because that code is legally and mathematically sensitive.
 
 5. **Agent asks for approval on a non-trivial decision:** give a direct answer. "Yes / no / use option B" is far better than "up to you" — agents trained to defer will stall waiting for a signal.
 
@@ -144,7 +141,6 @@ At the end of a productive session, skim the diff between `tasks/todo.md` at ses
 
 | Symptom | Cause / Fix |
 |---|---|
-| Agent tries to edit `server/core/` and gets blocked | The hook is working. Don't work around it — investigate why the change seems necessary. If the Brain actually needs to change, that's a human task; open `tasks/progress.md` with the findings. |
 | `/debug` keeps failing on the same bug | Invoke `/logic-audit`. Two failed fixes = structural problem. Surface patches won't hold. |
 | Pydantic model and TypeScript interface have drifted | Pydantic is upstream. Update `client/ui/src/types.ts` to match `server/api/models.py`. See `docs/conventions.md` §Schemas. |
 | WebSocket stops updating after a server code change | Singleton WS ticker didn't restart. Call `restart_ticker()` via an admin request, or restart the server entirely. Documented in `CLAUDE.md` §Known Gotchas. |
@@ -179,17 +175,16 @@ Zero output = clean.
 
 ---
 
-## 9. The five things that matter most
+## 9. The four things that matter most
 
-If you forget this document, remember these five rules:
+If you forget this document, remember these four rules:
 
-1. **`server/core/` is HUMAN ONLY.** The hook enforces it. Don't work around it.
-2. **Always `/kickoff` first.** Never jump into `/implement` or `/debug` without a plan.
-3. **Review every diff, approve every commit.** Agents are fast; you are the brake.
-4. **Never `git add .`** — always explicit paths. Never push without asking.
-5. **Write lessons down.** Every correction becomes a line in `tasks/lessons.md`. That's how the agent gets smarter on your specific codebase.
+1. **Always `/kickoff` first.** Never jump into `/implement` or `/debug` without a plan.
+2. **Review every diff, approve every commit.** Agents are fast; you are the brake.
+3. **Never `git add .`** — always explicit paths. Never push without asking.
+4. **Write lessons down.** Every correction becomes a line in `tasks/lessons.md`. That's how the agent gets smarter on your specific codebase.
 
-Everything else in this document is detail. These five are the spine.
+Everything else in this document is detail. These four are the spine.
 
 ---
 
@@ -203,4 +198,4 @@ Everything else in this document is detail. These five are the spine.
 - `docs/stack-status.md` — PROD / MOCK / STUB / OFF per component
 - `tasks/todo.md`, `tasks/progress.md`, `tasks/lessons.md` — session-crossing state
 - `.claude/commands/` and `.windsurf/workflows/` — the 10 slash commands
-- `.claude/settings.json` — hooks (PreToolUse block + Stop verification)
+- `.claude/settings.json` — hooks (Stop verification — typecheck, compileall, drift-check)

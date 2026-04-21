@@ -16,7 +16,8 @@ const STEP_LABELS: Record<StepKey, string> = {
   decay_profile: "Decay Profile",
   temporal_fair_value: "Temporal Fair Value",
   variance: "Variance",
-  aggregation: "Aggregation",
+  aggregation: "Space Aggregation",
+  calc_to_target: "Calc → Target",
   position_sizing: "Position Sizing",
   smoothing: "Smoothing",
 };

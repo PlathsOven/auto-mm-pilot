@@ -64,6 +64,7 @@ export function useBlockDraftSubmit(
             block: blockConfig,
             snapshot_rows,
             space_id: draft.space_id.trim() || undefined,
+            applies_to: draft.applies_to ?? null,
           };
           await createManualBlock(payload);
         } else {
@@ -73,6 +74,7 @@ export function useBlockDraftSubmit(
             exponent: draft.exponent,
             block: blockConfig,
             snapshot_rows,
+            applies_to: draft.applies_to ?? null,
           };
           await updateBlock(draft.stream_name, payload);
         }

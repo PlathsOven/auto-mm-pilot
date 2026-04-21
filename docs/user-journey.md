@@ -74,7 +74,6 @@ The customer has a discretionary view — "I think ETH vol is going to spike aro
 - **Never show a raw stack trace to the trader.** Errors in the terminal are rendered as human-readable cards, not Python tracebacks.
 - **WS connection state is always visible.** If the WS disconnects, the UI shows it immediately. No silent staleness — if the trader can see numbers, those numbers are from the current tick.
 - **Latency budget: <200ms per tick render.** The pipeline tick interval is set by the server; the UI must keep up without dropping frames.
-- **`# HUMAN WRITES LOGIC HERE` stubs are visible and untouched.** Agents may add them when generating skeleton code, but never remove existing ones.
 
 ## Edge Cases
 

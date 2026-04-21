@@ -31,6 +31,8 @@ export interface ManualBlockPayload {
   block: BlockConfigPayload;
   snapshot_rows: SnapshotRow[];
   space_id?: string;
+  /** (symbol, expiry) pairs this block fans out to. null = every pair. */
+  applies_to?: [string, string][] | null;
 }
 
 export async function createManualBlock(
@@ -52,6 +54,7 @@ export interface UpdateBlockPayload {
   exponent?: number;
   block?: BlockConfigPayload;
   snapshot_rows?: SnapshotRow[];
+  applies_to?: [string, string][] | null;
 }
 
 export async function updateBlock(

@@ -12,7 +12,7 @@ Posit is an advisory trading platform for crypto options market-making desks. It
 | `client/ui/` | LLM | Electron + React dashboard |
 | `server/api/` | LLM | FastAPI routing, WebSocket transport, request/response models |
 | `server/api/llm/` | LLM | OpenRouter client, LLM service, system prompts, snapshot buffer |
-| `server/core/` | **HUMAN ONLY** | Proprietary math — the "Brain". LLMs must never modify. |
+| `server/core/` | LLM | Proprietary math — the pricing pipeline. |
 | `pitch/` | LLM | Next.js presentation deck (architecture slides, links to deployed client for demo) |
 | `prototyping/` | LLM | Notebooks for manual API exploration |
 
@@ -21,13 +21,13 @@ Posit is an advisory trading platform for crypto options market-making desks. It
 1. Raw data stream → ingested at local client
 2. Data format standardization → cleaned in local client
 3. *— TRANSMISSION ACROSS VISIBILITY BARRIER —*
-4. Target space unit conversion → Python server (HUMAN ONLY)
-5. Timestamp × fair value → Python server (HUMAN ONLY)
-6. Desired position simulation → Python server (HUMAN ONLY)
+4. Block expansion → Python server (`build_blocks_df`, raw→calc)
+5. Risk-space aggregation → Python server (per-space mean over blocks)
+6. Calc→target + smoothing + position sizing → Python server
 7. *— TRANSMISSION ACROSS VISIBILITY BARRIER —*
 8. Desired position → displayed in local client terminal
 
-Steps 4–6 are the Manual Brain. When an LLM generates code that touches these steps, the function body must be empty with the comment `# HUMAN WRITES LOGIC HERE`.
+See `docs/product.md` for the 4-space model (risk / raw / calc / target) these steps traverse.
 
 ## Key Files
 
@@ -73,7 +73,7 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `client/ui/src/components/studio/brain/BlockDrawer.tsx` | Unified block drawer — create (empty or LLM-prefilled), edit (manual blocks), inspect (stream blocks). Draft state in `blockDrawerState.ts`, sub-components in `BlockDrawerParts.tsx`, submit + snapshot-edit callbacks in `useBlockDraftSubmit` and `useSnapshotEditor` hooks. |
 | `client/ui/src/pages/AnatomyPage.tsx` | Top-level Anatomy mode — thin wrapper around `AnatomyCanvas` |
 | `client/ui/src/services/engineCommands.ts` | Engine-command parser + executor — strips `engine-command` fenced blocks from LLM text, routes to BlockDrawer or auto-executes |
-| `client/ui/src/components/floor/StreamStatusList.tsx` | Workbench data-streams list (name + last update). Single-click sets stream focus → opens `StreamInspector` in the rail. |
+| `client/ui/src/components/floor/StreamStatusList.tsx` | Workbench data-streams list (name + last update + per-row power toggle for `active`). Row-body click sets stream focus; power icon flips the stream's `active` flag via `PATCH /api/streams/{name}/active`. |
 | `client/ui/src/services/streamTimeseriesApi.ts` | HTTP client for `GET /api/streams/{name}/timeseries`. Sourced from in-memory snapshot rows. |
 | `client/ui/src/components/studio/StreamLibrary.tsx` | Anatomy — stream CRUD |
 | `client/ui/src/components/studio/StreamCanvas.tsx` | Anatomy — 7-section stream config |
@@ -105,13 +105,13 @@ Steps 4–6 are the Manual Brain. When an LLM generates code that touches these 
 | `server/api/llm/prompts/general.py` | General mode: catch-all conversational, minimal engine summary |
 | `server/api/llm/prompts/build.py` | Build mode: stream onboarding + opinion → `create_stream` / `create_manual_block` engine commands |
 | `server/api/llm/test_investigation.py` | **CLI harness, not prod code** — interactive test for Zone E investigation LLM with mock pipeline data |
-| `server/core/__init__.py` | Core pipeline package — re-exports public API (HUMAN ONLY) |
-| `server/core/config.py` | `BlockConfig`, `StreamConfig` dataclasses, `SECONDS_PER_YEAR` (HUMAN ONLY) |
-| `server/core/helpers.py` | `annualize`, `deannualize`, `raw_to_target_expr` (HUMAN ONLY) |
-| `server/core/transforms/` | Pipeline transform package — one module per step (`registry`, `unit_conversion`, `decay`, `fair_value`, `variance`, `aggregation`, `position_sizing`, `smoothing`, `market_value_inference`). Public API re-exported from `__init__.py`. |
-| `server/core/pipeline.py` | All pipeline step functions + `run_pipeline()` orchestrator (HUMAN ONLY) |
-| `server/core/mock_scenario.py` | Mock stream configs, scenario params, market pricing (HUMAN ONLY) |
-| `server/core/serializers.py` | DataFrame→dict bridge for LLM prompt injection (HUMAN ONLY) |
+| `server/core/__init__.py` | Core pipeline package — re-exports public API |
+| `server/core/config.py` | `BlockConfig`, `StreamConfig` dataclasses, `SECONDS_PER_YEAR` |
+| `server/core/helpers.py` | `annualize`, `deannualize`, `raw_to_target_expr` |
+| `server/core/transforms/` | Pipeline transform package — one module per step (`registry`, `unit_conversion`, `decay`, `fair_value`, `variance`, `risk_space_aggregation`, `market_value_inference`, `aggregation`, `calc_to_target`, `smoothing`, `position_sizing`). Public API re-exported from `__init__.py`. |
+| `server/core/pipeline.py` | All pipeline step functions + `run_pipeline()` orchestrator |
+| `server/core/mock_scenario.py` | Mock stream configs, scenario params, market pricing |
+| `server/core/serializers.py` | DataFrame→dict bridge for LLM prompt injection |
 | `prototyping/test_api.ipynb` | API integration test notebook — exercises full prod-mode pipeline via HTTP |
 | `Procfile` | Railway start command for FastAPI server |
 | `runtime.txt` | Python version pin for Railway |
@@ -135,8 +135,3 @@ See `docs/decisions.md` for the full reasoning behind each.
 
 - **Server API boundary:** all request/response shapes defined in `server/api/models.py` (Pydantic). Validation runs automatically at request time.
 - **Client API boundary:** all inbound/outbound shapes defined in `client/ui/src/types.ts` (TS interfaces). These must match the Pydantic models — when changing one, check the other.
-- **Manual Brain boundary (hard invariant):** `server/core/` is HUMAN ONLY. LLMs may:
-  - Read files to understand behavior.
-  - Import from `server/core/` in other layers.
-  - Write empty stub functions with `# HUMAN WRITES LOGIC HERE` when necessary.
-  LLMs may NOT write, modify, or refactor files under `server/core/`. When a bug traces there, stop and report findings.

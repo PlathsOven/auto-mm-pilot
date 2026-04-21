@@ -33,6 +33,8 @@ export interface Draft {
   offset: number;
   exponent: number;
   space_id: string;
+  /** (symbol, expiry) pairs this block fans out to. null = every dim. */
+  applies_to: [string, string][] | null;
   block: DraftBlockConfig;
   snapshot_headers: string[];
   snapshot_rows: SnapshotRowDraft[];
@@ -66,6 +68,7 @@ export const EMPTY_DRAFT: Draft = {
   offset: 0.0,
   exponent: 1.0,
   space_id: "",
+  applies_to: null,
   block: {
     annualized: true,
     temporal_position: "shifting",
@@ -105,6 +108,7 @@ export function draftFromBlock(b: BlockRow): Draft {
     offset: b.offset,
     exponent: b.exponent,
     space_id: b.space_id,
+    applies_to: b.applies_to ?? null,
     block: {
       annualized: b.annualized,
       temporal_position: b.temporal_position,
@@ -147,6 +151,14 @@ export function draftFromCommandParams(params: Record<string, unknown>): Draft {
       })
     : [emptyRow(headers)];
 
+  const rawAppliesTo = params.applies_to;
+  const appliesTo: [string, string][] | null = Array.isArray(rawAppliesTo)
+    ? (rawAppliesTo as unknown[]).map((p) => {
+        const pair = p as unknown[];
+        return [String(pair[0]), String(pair[1])] as [string, string];
+      })
+    : null;
+
   return {
     stream_name: (params.stream_name as string) ?? "",
     key_cols_raw: keyCols?.join(", ") ?? "symbol, expiry",
@@ -154,6 +166,7 @@ export function draftFromCommandParams(params: Record<string, unknown>): Draft {
     offset: typeof params.offset === "number" ? params.offset : 0.0,
     exponent: typeof params.exponent === "number" ? params.exponent : 1.0,
     space_id: (params.space_id as string) ?? "",
+    applies_to: appliesTo,
     block: {
       annualized: typeof blk.annualized === "boolean" ? blk.annualized : EMPTY_DRAFT.block.annualized,
       temporal_position: (blk.temporal_position as "static" | "shifting") ?? EMPTY_DRAFT.block.temporal_position,

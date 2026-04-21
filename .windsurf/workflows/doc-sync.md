@@ -43,6 +43,3 @@ done
 
 ### 9. Present
 Show the human every proposed edit grouped by file. **Do not commit until approved.** When committing, use a single `docs:` commit that lists all touched files explicitly.
-
-### Manual Brain reminder
-Never propose edits to files under `server/core/`. If a doc update would imply editing there, stop and report the need to the human.

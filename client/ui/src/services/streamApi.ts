@@ -54,6 +54,25 @@ export async function deleteStream(streamName: string): Promise<void> {
   });
 }
 
+/**
+ * Flip a stream's active flag. Deactivation is non-destructive — the stream
+ * stays in the registry with its full config, but its blocks drop out of the
+ * pipeline until reactivated. The server reruns the pipeline synchronously
+ * and restarts the ticker so the grid updates within one tick.
+ */
+export async function setStreamActive(
+  streamName: string,
+  active: boolean,
+): Promise<RegisteredStream> {
+  return apiFetch<RegisteredStream>(
+    `/api/streams/${encodeURIComponent(streamName)}/active`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ active }),
+    },
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Stream activation (PENDING → READY)
 // ---------------------------------------------------------------------------
@@ -66,6 +85,8 @@ export interface ConfigureStreamRequest {
   description?: string | null;
   sample_csv?: string | null;
   value_column?: string | null;
+  /** (symbol, expiry) pairs this stream's blocks fan out to. null = every pair. */
+  applies_to?: [string, string][] | null;
 }
 
 /**

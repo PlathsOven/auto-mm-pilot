@@ -6,19 +6,11 @@ Format per entry: **Rule.** Then `Why:` (what went wrong, so edge cases can be j
 
 ---
 
-## Never modify `server/core/`
+## Manual Brain Rule lifted 2026-04-21 — `server/core/` is a normal LLM lane
 
-**Why:** The core math is the product and the IP. A subtle sign error or off-by-one in variance computation produces plausible-looking numbers that silently destroy PnL. The blast radius of a bad edit here is unbounded, and the bug is very hard to catch in review.
+**Why:** Between 2025 and 2026-04-20, LLMs were barred from editing any file under `server/core/` (the "Manual Brain Rule"). The bugs that actually traced into that lane during that window were one-liner type casts and VAR_FLOOR bounds — trivial fixes whose handoff to a human cost far more than a mis-edit would have. The rule was producing queue time, not safety. The 4-space pipeline rewrite (`tasks/spec-pipeline-4-space.md`) was the forcing function. See `docs/decisions.md` 2026-04-21 for the full reasoning.
 
-**How to apply:** Any tool call that would `Edit` or `Write` a file under `server/core/` stops immediately. If a bug traces into `server/core/`, document the findings in `tasks/progress.md` and hand off to the human — do not "fix" it. A PreToolUse hook in `.claude/settings.json` enforces this at the tool level, but the rule is the primary authority.
-
----
-
-## `# HUMAN WRITES LOGIC HERE` stubs are sacred
-
-**Why:** These stubs mark the Manual Brain interface. They tell the human "this is where the math goes." If an LLM removes them during cleanup or refactor (thinking they are dead code), the human loses the map of what still needs to be written.
-
-**How to apply:** During `/cleanup`, `/refactor`, or any sweep that removes "unused" code, explicitly skip lines containing `HUMAN WRITES LOGIC HERE`. If you are tempted to delete one because "the function isn't called anywhere," do not. Check with the human first.
+**How to apply:** `server/core/` is now edited normally — plan, edit, typecheck, commit. No special stubs, no `# HUMAN WRITES LOGIC HERE` markers, no PreToolUse hook. The usual rails still apply: `/kickoff` before non-trivial work, surgical commits, human review on every diff. Numerical correctness in the pricing math is sensitive regardless of who authors it — reviewers should exercise extra care on sign conventions, dtype casts, division-by-near-zero, and any identity the aggregation preserves.
 
 ---
 

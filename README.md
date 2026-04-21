@@ -213,7 +213,7 @@ auto-mm-pilot/
 │   └── ui/              # React SPA
 ├── server/              # FastAPI + Polars server (proprietary compute)
 │   ├── api/             # Routes, WS, LLM integration, engine state
-│   └── core/            # Pricing pipeline — HUMAN ONLY (Manual Brain rule)
+│   └── core/            # Pricing pipeline (Polars)
 ├── docs/                # Architecture, product theory, user flows, stack status
 ├── tasks/               # todo, lessons, progress trackers
 ├── pitch/               # Investor/demo materials
@@ -233,4 +233,4 @@ See `docs/architecture.md` for the full component map, MVP pipeline, and Key Fil
 
 ## Contributing
 
-This repo uses a dual-harness agent setup. If you're making code changes through Claude Code or Windsurf, read `CLAUDE.md` first — it enumerates the Manual Brain rule (`server/core/` is HUMAN ONLY), the schema source-of-truth (`server/api/models.py` for Pydantic, `client/ui/src/types.ts` for TypeScript), and the commit discipline. Slash commands live in `.claude/commands/` and `.windsurf/workflows/` and must stay byte-identical.
+This repo uses a dual-harness agent setup. If you're making code changes through Claude Code or Windsurf, read `CLAUDE.md` first — it enumerates the schema source-of-truth (`server/api/models.py` for Pydantic, `client/ui/src/types.ts` for TypeScript) and the commit discipline. Slash commands live in `.claude/commands/` and `.windsurf/workflows/` and must stay byte-identical.

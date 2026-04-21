@@ -138,3 +138,101 @@ export function ReadOnlyField({ label, value }: { label: string; value: number |
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// AppliesToField — multi-select (symbol, expiry) chips
+// ---------------------------------------------------------------------------
+
+/**
+ * Multi-select for the stream's ``applies_to`` list. Shows every pair in
+ * the current dim universe as a chip; unchecked = "null" = all dims.
+ *
+ * The store contract: ``null`` means "fan out to every pair in the dim
+ * universe" (default). An explicit list means "exactly these pairs".
+ * Empty list is a client-side state only — submit collapses it to null.
+ */
+export function AppliesToField({
+  value,
+  options,
+  onChange,
+  readOnly,
+}: {
+  value: [string, string][] | null;
+  options: [string, string][];
+  onChange: (next: [string, string][] | null) => void;
+  readOnly: boolean;
+}) {
+  const isAll = value === null;
+  const selectedKey = (pair: [string, string]) => `${pair[0]}|${pair[1]}`;
+  const selectedSet = new Set(isAll ? [] : (value ?? []).map(selectedKey));
+
+  const togglePair = (pair: [string, string]) => {
+    if (readOnly) return;
+    const key = selectedKey(pair);
+    const current = isAll ? [] : (value ?? []);
+    const next = selectedSet.has(key)
+      ? current.filter((p) => selectedKey(p) !== key)
+      : [...current, pair];
+    onChange(next.length === 0 ? null : next);
+  };
+
+  const setAll = () => {
+    if (readOnly) return;
+    onChange(null);
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-medium text-mm-text-dim">Applies to</span>
+        {!readOnly && !isAll && (
+          <button
+            type="button"
+            onClick={setAll}
+            className="text-[9px] text-mm-accent hover:underline"
+            title="Reset to all dims"
+          >
+            Reset to all
+          </button>
+        )}
+      </div>
+      {isAll ? (
+        <div className="flex flex-wrap gap-1">
+          <span
+            className="rounded-full bg-mm-accent/10 px-2 py-0.5 text-[10px] font-medium text-mm-accent"
+            title="This block fans out to every (symbol, expiry) pair in the dim universe."
+          >
+            All dims
+          </span>
+        </div>
+      ) : null}
+      {options.length === 0 ? (
+        <p className="text-[10px] italic text-mm-text-dim">
+          No dims in the universe yet — register at least one stream with a snapshot.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-1">
+          {options.map((pair) => {
+            const key = selectedKey(pair);
+            const isSelected = selectedSet.has(key);
+            return (
+              <button
+                key={key}
+                type="button"
+                disabled={readOnly}
+                onClick={() => togglePair(pair)}
+                className={`rounded-full border px-2 py-0.5 text-[10px] transition-colors ${
+                  isSelected
+                    ? "border-mm-accent bg-mm-accent/10 text-mm-accent"
+                    : "border-black/[0.08] bg-transparent text-mm-text-dim hover:border-mm-accent/40 hover:text-mm-text"
+                } ${readOnly ? "cursor-default opacity-80" : "cursor-pointer"}`}
+              >
+                {pair[0]}/{pair[1]}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

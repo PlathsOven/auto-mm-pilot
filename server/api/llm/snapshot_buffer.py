@@ -180,7 +180,7 @@ def _extract_stream_contributions(
     for block in snapshot.get("block_summary", []):
         name = block.get("stream_name", "unknown")
         entry = streams.setdefault(name, {"fair": 0.0, "market": 0.0})
-        fair = block.get("fair", block.get("target_value", 0))
+        fair = block.get("fair", 0.0)
         entry["fair"] += float(fair)
     return streams
 

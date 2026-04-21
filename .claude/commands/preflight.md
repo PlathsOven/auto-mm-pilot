@@ -46,13 +46,7 @@ Read `tasks/lessons.md` and search for any entry that mentions:
 
 If there's a relevant lesson, honor it. Lessons exist because the mistake already happened once.
 
-### 5. Manual Brain Check
-
-Does any file you intend to edit live under `server/core/`? If yes — **STOP**. You cannot write, modify, or refactor anything under `server/core/`. Report the need to the human and do not propose code changes for that lane.
-
-Does your change require that `server/core/` behavior change to succeed? If yes — **STOP** and escalate. Do not patch around the Brain.
-
-### 6. List Files to Modify
+### 5. List Files to Modify
 
 Output an exhaustive list of files you will create, modify, or delete. Include:
 - Full path
@@ -62,7 +56,7 @@ Output an exhaustive list of files you will create, modify, or delete. Include:
 
 If any file is outside the lane implied by the task, justify it explicitly or move that change into a separate task.
 
-### 7. Identify Risks
+### 6. Identify Risks
 
 For this specific change, enumerate:
 - **Schema drift risk** — could this leave Pydantic and TS out of sync?
@@ -73,7 +67,7 @@ For this specific change, enumerate:
 
 Flag each applicable risk with a one-line mitigation.
 
-### 8. Present the Plan
+### 7. Present the Plan
 
 Output a structured plan:
 

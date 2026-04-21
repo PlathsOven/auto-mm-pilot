@@ -19,8 +19,7 @@ Narrow down the root cause. Work through these layers in order:
 1. **UI rendering** (`client/ui/`) — component state, props, display logic
 2. **Data transport** (`client/adapter/`, `server/api/`) — serialization, WebSocket messages, API routes
 3. **Data format** — schema mismatches between `server/api/models.py` (Pydantic) and `client/ui/src/types.ts` (TypeScript)
-
-**CRITICAL:** If the bug appears to originate in `server/core/`, STOP. Report your findings in `tasks/progress.md` and let the human investigate. Do NOT modify core logic to work around the bug. Do NOT patch around the Brain.
+4. **Pricing math** (`server/core/`) — sign conventions, dtype casts, division-by-near-zero, aggregation identity violations
 
 ### 4. Fix
 Apply the **minimal** fix that addresses the root cause:

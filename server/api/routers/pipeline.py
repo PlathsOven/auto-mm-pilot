@@ -68,15 +68,14 @@ def _pipeline_timeseries_sync(
     if results is None:
         return None
 
-    block_var_df = results["block_var_df"]
+    block_series_df = results["block_series_df"]
     pos_df = results["desired_pos_df"]
     blocks_df = results["blocks_df"]
 
-    # (block_name, stream_name) → start_timestamp lookup. `block_fair_df`
-    # (and therefore `block_var_df`) doesn't carry `start_timestamp`, so
-    # we source it from the flat `blocks_df` whose identity is the full
-    # composite key. Used to stamp the per-block series payload with its
-    # block-side identity material.
+    # (block_name, stream_name) → start_timestamp lookup. `block_series_df`
+    # doesn't carry `start_timestamp`, so we source it from the flat
+    # `blocks_df` whose identity is the full composite key. Used to stamp
+    # the per-block series payload with its block-side identity material.
     start_ts_map: dict[tuple[str, str], _dt | None] = {}
     if {"block_name", "stream_name", "start_timestamp"} <= set(blocks_df.columns):
         for r in blocks_df.select("block_name", "stream_name", "start_timestamp").to_dicts():
@@ -90,7 +89,7 @@ def _pipeline_timeseries_sync(
     # paths can leave one or the other dtype, and a strict `== expiry_dt`
     # silently drops everything in the mismatched case (the bug behind
     # "no contributing blocks for any cell").
-    block_var_filtered = block_var_df.filter(
+    block_var_filtered = block_series_df.filter(
         (pl.col("symbol") == symbol)
         & (pl.col("expiry").cast(pl.Date) == expiry_date)
     ).drop_nulls(subset=["fair"])

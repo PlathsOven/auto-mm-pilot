@@ -96,7 +96,6 @@ Before reporting the design as ready:
 - [ ] No invariant from `docs/user-journey.md` §Invariants is violated
 - [ ] The design works in the empty/mock state (`POSIT_MODE=mock`) as well as production
 - [ ] WS disconnect mid-interaction is handled gracefully
-- [ ] The design does not require changes to `server/core/` (Manual Brain rule)
 - [ ] The design is achievable with the current stack (React, Tailwind, react-grid-layout, Context providers)
 
 ### 7. Handoff

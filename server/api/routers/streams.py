@@ -8,10 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
+from server.api.engine_state import get_engine, rerun_and_broadcast
 from server.api.models import (
     AdminConfigureStreamRequest,
     BlockConfigPayload,
     CreateStreamRequest,
+    SetStreamActiveRequest,
     StreamKeyTimeseries,
     StreamListResponse,
     StreamResponse,
@@ -22,6 +24,7 @@ from server.api.models import (
 )
 from server.api.stream_registry import StreamRegistration, get_stream_registry
 from server.api.unregistered_push_store import get_store as get_unregistered_push_store
+from server.api.ws import restart_ticker
 from server.core.config import BlockConfig
 
 log = logging.getLogger(__name__)
@@ -45,6 +48,7 @@ def _stream_to_response(reg: StreamRegistration) -> StreamResponse:
         stream_name=reg.stream_name,
         key_cols=reg.key_cols,
         status=reg.status,
+        active=reg.active,
         scale=reg.scale,
         offset=reg.offset,
         exponent=reg.exponent,
@@ -123,6 +127,7 @@ async def describe_stream(
         stream_name=reg.stream_name,
         key_cols=list(reg.key_cols),
         status=reg.status,
+        active=reg.active,
         scale=reg.scale,
         offset=reg.offset,
         exponent=reg.exponent,
@@ -184,9 +189,52 @@ async def configure_stream(
             description=req.description,
             sample_csv=req.sample_csv,
             value_column=req.value_column,
+            applies_to=(
+                [tuple(p) for p in req.applies_to]
+                if req.applies_to is not None
+                else None
+            ),
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _stream_to_response(reg)
+
+
+@router.patch("/api/streams/{stream_name}/active", response_model=StreamResponse)
+async def set_stream_active(
+    stream_name: str,
+    req: SetStreamActiveRequest,
+    user: User = Depends(current_user),
+) -> StreamResponse:
+    """Flip a stream's active flag and re-run the pipeline.
+
+    Non-destructive: the stream stays in the registry with its full config.
+    When deactivated, the stream drops out of ``build_stream_configs`` so the
+    pipeline runs as if it wasn't there. When the last active stream is
+    deactivated the pipeline can't run (zero streams) — we clear the cached
+    results and restart the ticker so the grid renders empty instead of
+    showing stale positions.
+    """
+    registry = get_stream_registry(user.id)
+    try:
+        reg = registry.set_active(stream_name, req.active)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    stream_configs = registry.build_stream_configs()
+    if stream_configs:
+        try:
+            await rerun_and_broadcast(user.id, stream_configs)
+        except Exception as exc:
+            log.exception("Pipeline rerun failed after set_active")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Stream active flag saved but pipeline rerun failed: {exc}",
+            ) from exc
+    else:
+        get_engine(user.id).pipeline_results = None
+        await restart_ticker(user.id)
+
     return _stream_to_response(reg)
 
 
