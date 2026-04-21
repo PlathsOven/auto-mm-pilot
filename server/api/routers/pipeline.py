@@ -149,6 +149,10 @@ def _aggregated_from_history(
     ``desired_pos_df`` is wiped at every rerun, so any lookback beyond the
     last rerun must come from the persistent buffer that accumulates across
     reruns (see ``server/api/position_history``).
+
+    Per-space decomposition is not captured in the ring buffer, so
+    ``perSpace`` is emitted as an empty dict — the chart's decomposition
+    toggle treats that as "unavailable".
     """
     history = get_position_history(user_id).get_range(
         symbol=symbol,
@@ -168,20 +172,74 @@ def _aggregated_from_history(
         "rawDesiredPosition": [p.raw_desired_position for p in history],
         "smoothedDesiredPosition": [p.smoothed_desired_position for p in history],
         "marketVol": [p.market_vol for p in history],
+        "perSpace": {},
     }
 
 
+def _per_space_from_projection(
+    space_series_df: pl.DataFrame,
+    symbol: str,
+    expiry_date: _dt,
+    timestamps: list[_dt],
+) -> dict[str, dict[str, list[float]]]:
+    """Pivot ``space_series_df`` to per-space fair/var/market arrays aligned
+    with the pos-sorted timestamp order.
+
+    Returns a dict keyed by ``space_id``; each value is
+    ``{"fair": [...], "var": [...], "marketFair": [...]}`` in calc space
+    (variance-linear). Missing ticks for a space are filled with 0 so the
+    chart's stacked view stays continuous.
+    """
+    if space_series_df.is_empty() or not timestamps:
+        return {}
+    filtered = space_series_df.filter(
+        (pl.col("symbol") == symbol)
+        & (pl.col("expiry").cast(pl.Date) == expiry_date)
+        & (pl.col("timestamp").is_in(timestamps))
+    )
+    if filtered.is_empty():
+        return {}
+    ts_index = {t: i for i, t in enumerate(timestamps)}
+    per_space: dict[str, dict[str, list[float]]] = {}
+    for space_id in sorted(filtered["space_id"].unique().to_list()):
+        sd = filtered.filter(pl.col("space_id") == space_id)
+        fair_arr = [0.0] * len(timestamps)
+        var_arr = [0.0] * len(timestamps)
+        market_arr = [0.0] * len(timestamps)
+        for ts, fair, var, mkt in sd.select(
+            "timestamp", "space_fair", "space_var", "space_market_fair",
+        ).rows():
+            idx = ts_index.get(ts)
+            if idx is None:
+                continue
+            fair_arr[idx] = float(fair) if fair is not None else 0.0
+            var_arr[idx] = float(var) if var is not None else 0.0
+            market_arr[idx] = float(mkt) if mkt is not None else 0.0
+        per_space[space_id] = {
+            "fair": fair_arr,
+            "var": var_arr,
+            "marketFair": market_arr,
+        }
+    return per_space
+
+
 def _aggregated_from_projection(
-    pos_sorted: pl.DataFrame, current_market_vol_vp: float,
+    pos_sorted: pl.DataFrame,
+    current_market_vol_vp: float,
+    space_series_df: pl.DataFrame,
+    symbol: str,
+    expiry_date: _dt,
 ) -> dict:
     """Build the aggregated payload from the live forward projection.
 
     The projection has no historical market-vol signal, so the live user-set
-    value is broadcast across every timestamp in the window.
+    value is broadcast across every timestamp in the window. ``perSpace`` is
+    derived from the same forward grid as ``pos_sorted`` so the
+    decomposition chart stacks cleanly.
     """
-    timestamps = [t.isoformat() for t in pos_sorted["timestamp"].to_list()]
+    timestamps = pos_sorted["timestamp"].to_list()
     return {
-        "timestamps": timestamps,
+        "timestamps": [t.isoformat() for t in timestamps],
         "totalFair": pos_sorted["total_fair"].to_list(),
         "smoothedTotalFair": pos_sorted["smoothed_total_fair"].to_list(),
         "totalMarketFair": pos_sorted["total_market_fair"].to_list(),
@@ -193,6 +251,9 @@ def _aggregated_from_projection(
         "rawDesiredPosition": pos_sorted["raw_desired_position"].to_list(),
         "smoothedDesiredPosition": pos_sorted["smoothed_desired_position"].to_list(),
         "marketVol": [current_market_vol_vp] * len(timestamps),
+        "perSpace": _per_space_from_projection(
+            space_series_df, symbol, expiry_date, timestamps,
+        ),
     }
 
 
@@ -251,6 +312,7 @@ def _pipeline_timeseries_sync(
         return None
 
     block_series_df = results["block_series_df"]
+    space_series_df = results["space_series_df"]
     pos_df = results["desired_pos_df"]
     blocks_df = results["blocks_df"]
 
@@ -292,7 +354,10 @@ def _pipeline_timeseries_sync(
             user_id, symbol, expiry_dt, slice_ts, lookback_seconds,
         )
     else:
-        aggregated = _aggregated_from_projection(pos_sorted, current_market_vol_vp)
+        aggregated = _aggregated_from_projection(
+            pos_sorted, current_market_vol_vp,
+            space_series_df, symbol, expiry_dt.date(),
+        )
 
     current_blocks, current_agg = _current_decomposition(
         block_var_filtered, pos_sorted, start_ts_map,

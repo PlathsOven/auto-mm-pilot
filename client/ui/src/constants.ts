@@ -85,6 +85,16 @@ export const POSITION_LOOKBACK_KEY = "posit-position-lookback";
 // position grid's active view mode.
 export const PIPELINE_LINK_KEY = "posit-pipeline-linked";
 
+// Pipeline chart "Decompose" toggle — when on (and metric ∈ {fair, variance,
+// marketCalc} and smoothing = instant), the chart renders per-risk-space
+// stacked contributions in calc space (variance-linear) rather than the
+// single aggregated line in vol-points.
+export const PIPELINE_DECOMPOSE_KEY = "posit-pipeline-decompose";
+
+// Metrics whose calc-space per-space decomposition is emitted in the
+// timeseries payload. Used to gate the Decompose toggle in the panel.
+export const DECOMPOSABLE_METRICS: readonly Metric[] = ["fair", "variance", "marketCalc"];
+
 // Block inspector "Follow focus" toggle — auto-filters the table to the
 // workbench focus dimension when on.
 export const BLOCKS_FOLLOW_FOCUS_KEY = "posit-blocks-follow-focus";

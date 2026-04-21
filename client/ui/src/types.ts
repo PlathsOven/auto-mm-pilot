@@ -328,6 +328,17 @@ export interface BlockTimeSeries {
   var: (number | null)[];
 }
 
+/** Per-space calc-space (variance-linear) decomposition lines, aligned with
+ *  ``AggregatedTimeSeries.timestamps``. Spaces sum linearly in calc space
+ *  (pipeline Stage D.2), so these arrays stack additively at any timestamp.
+ *  Values are NOT in target-space (vol-points) units — the chart's
+ *  decomposition view labels the y-axis accordingly. */
+export interface SpaceSeries {
+  fair: number[];
+  var: number[];
+  marketFair: number[];
+}
+
 /** Aggregated time series across all blocks */
 export interface AggregatedTimeSeries {
   timestamps: string[];
@@ -344,6 +355,9 @@ export interface AggregatedTimeSeries {
   /** User-entered aggregate market vol (vol points). Step-function over time,
    *  constant across a projection window — mirrors the grid's Market tab. */
   marketVol: number[];
+  /** Per-space calc-space decomposition keyed by ``space_id``. Empty when
+   *  sourced from the historical ring buffer (no per-space history yet). */
+  perSpace: Record<string, SpaceSeries>;
 }
 
 /** Current decomposition snapshot for the latest timestamp */
