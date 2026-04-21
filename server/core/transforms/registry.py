@@ -258,13 +258,13 @@ _define_step("temporal_fair_value",
              infrastructure_params=["blocks_df", "time_grid", "risk_dimension_cols", "now", "decay_fn"])
 
 _define_step("variance",
-             contract_doc="(block_fair_df: pl.DataFrame, **params) -> pl.DataFrame",
-             infrastructure_params=["block_fair_df"])
+             contract_doc="(blocks_df: pl.DataFrame, **params) -> pl.DataFrame",
+             infrastructure_params=["blocks_df"])
 
 _define_step("market_value_inference",
-             contract_doc="(block_var_df, risk_dimension_cols, aggregate_market_values, space_market_values, now, **params) -> pl.DataFrame",
+             contract_doc="(space_series_df, risk_dimension_cols, aggregate_market_values, space_market_values, now, **params) -> pl.DataFrame",
              infrastructure_params=[
-                 "block_var_df", "risk_dimension_cols",
+                 "space_series_df", "risk_dimension_cols",
                  "aggregate_market_values", "space_market_values", "now",
              ])
 

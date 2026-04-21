@@ -26,18 +26,26 @@ def snapshot_from_pipeline(
 
     Returns the same structure that the LLM prompts expect:
         - block_summary: list[dict] — one per block with stream_name,
-          raw_value, target_value, space_id, etc.
+          raw_fair, space_id, plus time-varying fair/var/market at the
+          requested timestamp.
+        - space_summary: list[dict] — one per (risk_dim, space_id) at the
+          timestamp, with space_fair / space_var / space_market_fair.
         - current_agg: dict — total_fair, total_market_fair, edge, var.
         - current_position: dict — smoothed_edge, smoothed_var,
           raw_desired_position, smoothed_desired_position.
         - scenario: dict — bankroll, smoothing_hl_secs, now, risk_dimension.
     """
     blocks_df = results["blocks_df"]
-    block_var_df = results["block_var_df"]
+    block_series_df = results["block_series_df"]
+    space_series_df = results["space_series_df"]
     desired_pos_df = results["desired_pos_df"]
 
     block_summary = _serialize_blocks_df(blocks_df, risk_dimension_cols)
-    _enrich_block_summary_at_timestamp(block_summary, block_var_df, timestamp)
+    _enrich_block_summary_at_timestamp(block_summary, block_series_df, timestamp)
+
+    space_summary = _serialize_space_series_at_timestamp(
+        space_series_df, timestamp, risk_dimension_cols,
+    )
 
     current_agg = _extract_agg_at_timestamp(desired_pos_df, timestamp, risk_dimension_cols)
     current_position = _extract_position_at_timestamp(desired_pos_df, timestamp)
@@ -58,6 +66,7 @@ def snapshot_from_pipeline(
 
     return {
         "block_summary": block_summary,
+        "space_summary": space_summary,
         "current_agg": current_agg,
         "current_position": current_position,
         "scenario": scenario,
@@ -88,7 +97,7 @@ def engine_state_from_pipeline(
             "updatedAt": _serialize_value(timestamp),
         })
 
-    stream_names = blocks_df["stream_name"].unique().to_list()
+    stream_names = blocks_df["stream_name"].unique().to_list() if blocks_df.height > 0 else []
     streams = [
         {
             "id": f"stream-{name}",
@@ -135,9 +144,11 @@ def _serialize_blocks_df(
     """Convert blocks_df rows to list of dicts for block_summary."""
     summary_cols = risk_dimension_cols + [
         "block_name", "stream_name", "space_id",
-        "raw_value", "target_value",
+        "raw_fair", "raw_var", "raw_market",
+        "calc_fair_total", "calc_var_total", "calc_market_total",
         "var_fair_ratio", "annualized", "temporal_position",
         "decay_end_size_mult", "decay_rate_prop_per_min",
+        "market_value_source",
     ]
     available = [c for c in summary_cols if c in blocks_df.columns]
     rows = blocks_df.select(available).to_dicts()
@@ -149,11 +160,13 @@ def _serialize_blocks_df(
 
 def _enrich_block_summary_at_timestamp(
     block_summary: list[dict[str, Any]],
-    block_var_df: pl.DataFrame,
+    block_series_df: pl.DataFrame,
     timestamp: dt.datetime,
 ) -> None:
-    """Add time-varying fair / var to block_summary in place."""
-    ts_slice = block_var_df.filter(pl.col("timestamp") == timestamp)
+    """Add time-varying fair / var / market to block_summary in place."""
+    if block_series_df.is_empty():
+        return
+    ts_slice = block_series_df.filter(pl.col("timestamp") == timestamp)
     if ts_slice.height == 0:
         return
 
@@ -162,6 +175,7 @@ def _enrich_block_summary_at_timestamp(
         lookup[row["block_name"]] = {
             "fair": row.get("fair", 0.0),
             "var": row.get("var", 0.0),
+            "market": row.get("market", 0.0),
         }
 
     for block in block_summary:
@@ -170,12 +184,35 @@ def _enrich_block_summary_at_timestamp(
             block.update(lookup[bn])
 
 
+def _serialize_space_series_at_timestamp(
+    space_series_df: pl.DataFrame,
+    timestamp: dt.datetime,
+    risk_dimension_cols: list[str],
+) -> list[dict[str, Any]]:
+    """Emit per-(risk_dim, space_id) rows at the given timestamp."""
+    if space_series_df.is_empty():
+        return []
+    ts_slice = space_series_df.filter(pl.col("timestamp") == timestamp)
+    if ts_slice.height == 0:
+        return []
+
+    cols = risk_dimension_cols + ["space_id", "space_fair", "space_var", "space_market_fair"]
+    available = [c for c in cols if c in ts_slice.columns]
+    rows = ts_slice.select(available).to_dicts()
+    for row in rows:
+        for k, v in row.items():
+            row[k] = _serialize_value(v)
+    return rows
+
+
 def _extract_agg_at_timestamp(
     desired_pos_df: pl.DataFrame,
     timestamp: dt.datetime,
     risk_dimension_cols: list[str],
 ) -> dict[str, Any]:
     """Extract aggregated values at a specific timestamp."""
+    if desired_pos_df.is_empty():
+        return {}
     row_df = desired_pos_df.filter(pl.col("timestamp") == timestamp)
     if row_df.height == 0:
         return {}
@@ -196,6 +233,8 @@ def _extract_position_at_timestamp(
     timestamp: dt.datetime,
 ) -> dict[str, Any]:
     """Extract position values at a specific timestamp."""
+    if desired_pos_df.is_empty():
+        return {}
     row_df = desired_pos_df.filter(pl.col("timestamp") == timestamp)
     if row_df.height == 0:
         return {}
