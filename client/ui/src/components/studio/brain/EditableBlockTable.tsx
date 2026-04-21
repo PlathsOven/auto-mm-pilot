@@ -193,6 +193,9 @@ interface Props {
   onRowClick?: (block: BlockRow) => void;
   /** Optional separate handler for "edit this block" (double-click + Edit btn). */
   onRowEdit?: (block: BlockRow) => void;
+  /** Suppress the internal "Block Inspector" title + counts line when the
+   *  table is embedded in a tabbed container that owns the title area. */
+  hideTitle?: boolean;
 }
 
 /**
@@ -203,7 +206,7 @@ interface Props {
  */
 const ALL = "__all__";
 
-export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowClick, onRowEdit }: Props) {
+export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowClick, onRowEdit, hideTitle }: Props) {
   const { focus } = useFocus();
   const [blocks, setBlocks] = useState<BlockRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -354,12 +357,16 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
     <section className="flex h-full min-h-0 flex-col p-3">
       {/* Header row */}
       <div className="mb-2 flex shrink-0 flex-wrap items-center gap-2">
-        <h3 className="zone-header">Block Inspector</h3>
-        <span className="text-[10px] text-mm-text-dim" title={`${sourceCounts.stream} stream + ${sourceCounts.manual} manual = ${blocks.length} total`}>
-          {visibleCount === blocks.length
-            ? `${blocks.length} total · ${sourceCounts.stream} stream + ${sourceCounts.manual} manual`
-            : `${visibleCount} of ${blocks.length} (${sourceCounts.stream} stream + ${sourceCounts.manual} manual)`}
-        </span>
+        {!hideTitle && (
+          <>
+            <h3 className="zone-header">Block Inspector</h3>
+            <span className="text-[10px] text-mm-text-dim" title={`${sourceCounts.stream} stream + ${sourceCounts.manual} manual = ${blocks.length} total`}>
+              {visibleCount === blocks.length
+                ? `${blocks.length} total · ${sourceCounts.stream} stream + ${sourceCounts.manual} manual`
+                : `${visibleCount} of ${blocks.length} (${sourceCounts.stream} stream + ${sourceCounts.manual} manual)`}
+            </span>
+          </>
+        )}
 
         <select
           value={symbolFilter}

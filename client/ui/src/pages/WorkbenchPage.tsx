@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { DesiredPositionGrid } from "../components/DesiredPositionGrid";
 import { StreamStatusList } from "../components/floor/StreamStatusList";
-import { EditableBlockTable } from "../components/studio/brain/EditableBlockTable";
+import { BlockStreamPanel } from "../components/workbench/BlockStreamPanel";
 import { BlockDrawer } from "../components/studio/brain/BlockDrawer";
 import { InspectorColumn } from "../components/workbench/InspectorColumn";
 import { UpdatesTicker } from "../components/workbench/UpdatesTicker";
@@ -66,7 +66,7 @@ export function WorkbenchPage() {
             <StreamStatusList />
           </section>
           <section className="glass-panel flex min-w-0 flex-1 overflow-hidden">
-            <EditableBlockTable
+            <BlockStreamPanel
               refreshKey={blockRefreshKey}
               onRowClick={onBlockRowClick}
               headerAction={
