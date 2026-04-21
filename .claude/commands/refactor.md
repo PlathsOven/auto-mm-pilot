@@ -26,13 +26,12 @@ A structured workflow for taming codebases built primarily through AI-assisted "
 ### 1. Context Load
 
 Read these files and internalize the constraints before touching anything:
-- `CLAUDE.md` — harness rules, Manual Brain, code style, schema source-of-truth
+- `CLAUDE.md` — harness rules, code style, schema source-of-truth
 - `docs/architecture.md` — component map, MVP pipeline, Key Files table, boundaries
 - `docs/conventions.md` — patterns used vs. avoided, file organization, commit format
 - `docs/stack-status.md` — which components are PROD / MOCK / STUB / OFF
 
 Hard constraints to hold in memory throughout:
-- `server/core/` is **HUMAN ONLY** — audit it, report findings, but NEVER modify it
 - All changes must stay within your approved lane
 - Surgical commits only — never `git add .`
 
@@ -41,7 +40,7 @@ Hard constraints to hold in memory throughout:
 ### 2. Scope
 
 Ask the user:
-- **Full codebase** (excluding `server/core/`) — default
+- **Full codebase** — default
 - **Single lane** (e.g., `client/ui/`, `server/api/`, `pitch/`)
 - **Specific files**
 
@@ -111,7 +110,7 @@ Every pass of /refactor must reduce LOC and indirection. Hunt aggressively for a
 - [ ] **Duplicate logic** — same computation / conditional / formatting expressed in 2+ places. Extract to one helper (or collapse to the existing one) and update callers.
 - [ ] **Re-export / pass-through indirection** — files whose only job is re-exports; classes that wrap a handful of static methods for no gain; providers that just pass props. Inline the consumer's import and delete the shim — *unless* the indirection buys real legibility (e.g., flattening a deeply-nested JSX provider stack).
 - [ ] **Over-typed dicts** — `dict[str, Any]` / `Record<string, unknown>` where a narrower typed shape exists or could easily be written. Tighten to the real shape.
-- [ ] **Stale TODO/FIXME** — no owner and no issue ticket → resolve or delete. **Exception:** `# HUMAN WRITES LOGIC HERE` stubs are sacred; never remove them.
+- [ ] **Stale TODO/FIXME** — no owner and no issue ticket → resolve or delete.
 - [ ] **Copy-paste artifacts** — variable names that reference a different context (e.g., `userList` in a file about instruments) because the code was copy-pasted from another file.
 - [ ] **Debug leftovers** — `console.log`, `print()`, `debugger` statements in non-debug code paths.
 - [ ] **Placeholder / example data** — "replace with real entries" scaffolding that never got replaced; stub constants from abandoned features.
@@ -211,8 +210,6 @@ Apply domain naming, add type hints, extract magic numbers to named constants.
 5. After editing, re-read the file to confirm it's clean
 
 **Execution rules:**
-- **NEVER modify `server/core/`** — document needed changes, skip. The Manual Brain rule is absolute.
-- **`# HUMAN WRITES LOGIC HERE` stubs are sacred** — never remove them in a cleanup pass.
 - If a refactor touches >5 files, pause after each file and verify syntax before continuing
 - Preserve comments and docstrings unless provably wrong or stale
 - If you discover a new issue mid-refactor that wasn't in the report, note it but do NOT fix it — it goes in the next `/refactor` cycle

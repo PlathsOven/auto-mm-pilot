@@ -99,9 +99,6 @@ Create `tasks/spec-<feature-name>.md` with this structure:
 ## Out of Scope
 - <thing 1 and why>
 - <thing 2 and why>
-
-## Manual Brain Boundary
-<If this feature touches behavior in server/core/, describe the interface boundary. The spec stops at the boundary; the human owns the implementation on the other side.>
 ```
 
 ### 3. Present & Confirm
@@ -112,7 +109,3 @@ Show the spec to the user. Ask:
 - Is anything in "Out of Scope" actually in scope?
 
 Iterate until the user approves. Only after approval should `/implement` be invoked against the spec.
-
-### Manual Brain reminder
-
-If the feature requires writing logic inside `server/core/`, the spec must stop at the interface boundary and declare that the implementation on the other side is a human task. Do not write Python code inside `server/core/` even as part of spec scaffolding. Empty `# HUMAN WRITES LOGIC HERE` stubs are the only allowed form.

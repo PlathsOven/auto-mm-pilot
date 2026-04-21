@@ -60,7 +60,7 @@ For the area under audit, sketch what the **smallest correct implementation** wo
 - What are the types at the boundaries?
 - What is the data flow in plain English?
 
-The alternative must satisfy every **real** requirement (user-visible behavior, security, performance, the Manual Brain restriction). Drop anything that exists for hypothetical future requirements.
+The alternative must satisfy every **real** requirement (user-visible behavior, security, performance). Drop anything that exists for hypothetical future requirements.
 
 ### 5. Identify the Root Design Decision
 
@@ -101,7 +101,3 @@ Output a report structured as:
 ```
 
 **STOP. Do NOT refactor.** Wait for human decision on which path to take. Logic audits are diagnostic; the fix is a separate action.
-
-### Manual Brain reminder
-
-If the audit traces into `server/core/`, **describe the finding but do not propose code changes**. The human owns any redesign of the Brain. Your output is diagnosis, not prescription, for that lane.

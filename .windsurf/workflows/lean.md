@@ -32,14 +32,12 @@ If a finding requires any of the above, note it and defer to `/refactor`. This p
 ### 1. Context Load
 
 Read these first so the sweep respects the hard invariants:
-- `CLAUDE.md` — Manual Brain rule, harness sync, surgical commits, schema source-of-truth
+- `CLAUDE.md` — harness sync, surgical commits, schema source-of-truth
 - `docs/architecture.md` — Key Files table (what's wired into the production flow) and Component Map
 - `docs/stack-status.md` — which components are PROD / MOCK / STUB / OFF (MOCK and STUB files look unused but are load-bearing scaffolding; do not delete)
-- `tasks/lessons.md` — recent corrections, especially around sacred stubs
+- `tasks/lessons.md` — recent corrections that constrain what can be deleted.
 
 Hard constraints to hold throughout:
-- `server/core/` is **HUMAN ONLY** — read-only audit. Never edit or delete files under this path.
-- `# HUMAN WRITES LOGIC HERE` stubs are **sacred** — never remove, even if the enclosing function appears unused.
 - Files flagged in `docs/stack-status.md` as MOCK / STUB (e.g. `DailyWrap.tsx`, `server/api/llm/context_db.py`, `server/api/llm/test_investigation.py`) are intentional scaffolding — do not delete without human approval, even if the call graph says they're orphans.
 - Entry-point defaults that frameworks auto-wire (`App.tsx`, `main.tsx`, FastAPI routers registered via `include_router`) look orphan to naïve grep — exclude them.
 
@@ -48,7 +46,7 @@ Hard constraints to hold throughout:
 ### 2. Scope
 
 Ask the user:
-- **Full codebase** (excluding `server/core/`) — default
+- **Full codebase** — default
 - **Single lane** — `client/ui/`, `server/api/`, `pitch/`, etc.
 - **Specific files or directories**
 
@@ -62,7 +60,7 @@ Scan every file in scope. For every candidate, record: `path:line | category | r
 
 - [ ] Files that nothing imports anywhere in the project.
 - Verify by grepping every named export of the file across the repo. If every export has zero external importers, the file is an orphan.
-- Exclusions: framework entry points (`App.tsx`, `main.tsx`, `index.ts` entry bundles), FastAPI routers auto-registered via `include_router(...)`, files listed as MOCK/STUB in `docs/stack-status.md`, files under `server/core/`, files named in the Key Files table of `docs/architecture.md`.
+- Exclusions: framework entry points (`App.tsx`, `main.tsx`, `index.ts` entry bundles), FastAPI routers auto-registered via `include_router(...)`, files listed as MOCK/STUB in `docs/stack-status.md`, files named in the Key Files table of `docs/architecture.md`.
 
 #### 3B. Unused Exports & Symbols
 
@@ -104,7 +102,6 @@ Scan every file in scope. For every candidate, record: `path:line | category | r
 
 - [ ] Multi-line commented-out code blocks with no owner and no linked issue.
 - [ ] `TODO` / `FIXME` comments with no owner, no ticket, and no plausible resolution path.
-- **Exception:** `# HUMAN WRITES LOGIC HERE` stubs are sacred. Never delete, even if the enclosing function body is empty. These are the Manual Brain interface boundary.
 
 #### 3I. Debug Leftovers
 
@@ -172,8 +169,6 @@ After approval, work category by category in the approved execution order.
 5. After the category's edits, re-run verification (see §6) before moving to the next category.
 
 **Execution rules:**
-- **NEVER modify `server/core/`.** Report findings; skip.
-- **`# HUMAN WRITES LOGIC HERE` stubs are sacred.** Never remove.
 - **Surgical edits.** No drive-by fixes. If you spot a rename opportunity or a pattern divergence mid-deletion, note it for the next `/refactor` — do not touch it here.
 - If a deletion turns out to break something unexpected, revert that specific deletion and flag it in the report with the reason it couldn't be removed. Continue with the rest of the category.
 - Never use `--no-verify`. Never bypass hooks.

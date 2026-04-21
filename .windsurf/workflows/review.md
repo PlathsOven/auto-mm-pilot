@@ -25,7 +25,6 @@ Walk every file in scope against all ten pillars. Be concrete — cite file path
 
 **2. Architecture & Lane Compliance**
 - [ ] All changes stay within the expected lane(s)
-- [ ] No modifications to `server/core/` (the Brain — Manual Brain rule)
 - [ ] Cross-lane imports are read-only references, not mutations
 - [ ] Visibility barrier respected — no core math on the client side
 - [ ] Data flows match the MVP pipeline in `docs/architecture.md`
@@ -33,7 +32,6 @@ Walk every file in scope against all ten pillars. Be concrete — cite file path
 **3. Conventions**
 - [ ] Patterns used match the established ones in `docs/conventions.md` (Polars not Pandas, Pydantic at boundaries, async httpx, etc.)
 - [ ] Naming is consistent with existing codebase patterns
-- [ ] `# HUMAN WRITES LOGIC HERE` stubs are used and not deleted
 - [ ] No new dependencies without justification
 - [ ] Commit messages follow conventional format
 

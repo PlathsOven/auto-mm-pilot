@@ -8,7 +8,7 @@ description: Periodic codebase hygiene sweep to reduce entropy and prevent bloat
 Read `CLAUDE.md` and `docs/conventions.md` so you know which patterns are canonical and which are drift.
 
 ### 2. Scope
-Identify the lane or directory to sweep. Default to the full codebase excluding `server/core/` (Manual Brain rule — `server/core/` is HUMAN ONLY and must not be touched by a cleanup pass).
+Identify the lane or directory to sweep. Default to the full codebase.
 
 ### 3. Sweep Checklist
 Scan every file in scope for:
@@ -17,7 +17,6 @@ Scan every file in scope for:
 - Unused functions, variables, or classes
 - Commented-out code blocks (remove unless marked with a TODO that has an owner)
 - Unreachable branches
-- **`# HUMAN WRITES LOGIC HERE` stubs are sacred — never remove them, even if the function body is empty.** These stubs mark the Manual Brain interface boundary and are part of the Python-to-core contract.
 
 **Import Hygiene**
 - Unused imports
@@ -42,7 +41,6 @@ Output a categorized list of findings with file paths and line numbers. Do NOT a
 Apply fixes one category at a time. After each category:
 - Re-run verification: `npm --prefix client/ui run typecheck` + `python -m compileall server/ -q`
 - Confirm no regressions
-- Never touch `server/core/`
 
 ### 6. Commit
 One surgical commit per category. Stage explicit paths only:

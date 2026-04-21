@@ -18,10 +18,7 @@ When editing any command, update **both** files in the same commit. A Stop hook 
 - **No lint/format tooling installed** (prettier/ruff/black). Logged in `tasks/todo.md`.
 
 ## Architecture (pointer)
-Client ingests + displays; server computes. Core math in `server/core/` is off-limits. Full system map: `docs/architecture.md`.
-
-## Manual Brain Rule (IMPORTANT — load-bearing invariant)
-**Never write, modify, or refactor any file under `server/core/`.** LLMs may read it, import from it, and write empty `# HUMAN WRITES LOGIC HERE` stubs when generating skeleton Python that must touch pipeline steps 4–6. When a bug traces into `server/core/`, stop and report findings in `tasks/progress.md`. Do not patch around it. Enforced by a PreToolUse hook in `.claude/settings.json`, but the rule is the primary authority.
+Client ingests + displays; server computes. Full system map: `docs/architecture.md`.
 
 ## Schemas (read before crossing API boundary)
 - **Python (server) shapes:** `server/api/models.py` (Pydantic).

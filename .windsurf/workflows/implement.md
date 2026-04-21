@@ -23,7 +23,6 @@ Output a step-by-step implementation plan. Include:
 ### 4. Execute
 Implement the approved plan. Follow these rules:
 - Only touch files within your confirmed lane
-- For any Python file touching MVP steps 4–6, use empty function bodies with `# HUMAN WRITES LOGIC HERE` — never write logic inside `server/core/`
 - Add all necessary imports at the top of each file
 - Follow existing code style and naming conventions in the lane (see `docs/conventions.md`)
 

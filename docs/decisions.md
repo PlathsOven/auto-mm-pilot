@@ -6,6 +6,18 @@ Format per entry: **Date — Decision**. Then `Context:`, `Decision:`, `Rational
 
 ---
 
+## 2026-04-21 — Lift the Manual Brain Rule
+
+**Context:** The Manual Brain Rule restricted LLMs from editing any file under `server/core/`. It was introduced in 2025 when the pricing math was unsettled and the LLM track record on dense numerical code was unknown. A year of handoffs (see `tasks/progress.md` — Int32/Float64 vstack cast, VAR_FLOOR spike) demonstrated that the bugs hitting the Brain were trivial one-liners the LLM could have landed directly; the rule was producing queue time, not safety. The 4-space pipeline rewrite (see `tasks/spec-pipeline-4-space.md`) touches `server/core/` comprehensively and cannot proceed under the old rule without a parallel human rewrite.
+
+**Decision:** Remove the Manual Brain Rule end-to-end. `server/core/` is now a normal LLM-owned lane. Delete the `PreToolUse` hook in `.claude/settings.json`. Strip the Manual Brain sections from `CLAUDE.md`, `docs/architecture.md`, `docs/using-agents.md`, `tasks/lessons.md`, and every `.claude/commands/*.md` / `.windsurf/workflows/*.md` pair. Keep this decision entry and the replacement lesson in `tasks/lessons.md` as the historical record. Supersedes the 2025 "Manual Brain restriction" entry.
+
+**Rationale:** Solo-trader workflow. Faster iteration wins over the marginal safety of a human-only lane when the track record shows the bar is reachable by current agents. The rule made sense as insurance in 2025; by 2026 it's taxation. The 4-space rewrite is the forcing function — doing it under the old rule would have meant a parallel human track with no net safety benefit.
+
+**Consequences:** LLMs can now `Edit`/`Write` under `server/core/`. The normal safety rails still apply: plan before code (via `/kickoff`), surgical commits, typecheck + compileall on Stop, human review on every diff. Reviewers should remain alert to numerical correctness in the pricing math — that lane is mathematically sensitive regardless of who authors it. The 2025 restriction entry remains in the log as context for why the rule existed.
+
+---
+
 ## 2026-04-20 — Space-level market value + sum-only aggregation
 
 **Context:** Aggregation previously split blocks into `average` and `offset` modes within each space, then combined `average` (mean) with `offset` (sum) to produce `space_fair`. This under-counted the Sharpe benefit of adding independent alphas in the same space: two uncorrelated signals with identical `(edge, var)` on the same space yielded `e/√(2v)` under the old math instead of the correct combined `√2 · e/√v`. Market-implied value was per-block, which forced every block to carry its own `market_value` snapshot column even when the desk's view of market was at the symbol/expiry level.
@@ -154,7 +166,7 @@ Format per entry: **Date — Decision**. Then `Context:`, `Decision:`, `Rational
 
 **Rationale:** The value of Posit is not in hiding how it works — it is in providing the epistemological framework itself and the platform to use it. A user who understands blocks, spaces, and var_fair_ratio can configure their own streams more effectively and reason about position changes more precisely. Hiding the framework was creating friction without adding defensible value.
 
-**Consequences:** The LLM will now use framework terminology and quote exact values when helpful. The `server/core/` Manual Brain restriction is unchanged — that is about code authorship quality, not IP. The physical client/server split remains for deployment architecture, though its original IP motivation is no longer primary.
+**Consequences:** The LLM will now use framework terminology and quote exact values when helpful. The physical client/server split remains for deployment architecture, though its original IP motivation is no longer primary.
 
 ---
 

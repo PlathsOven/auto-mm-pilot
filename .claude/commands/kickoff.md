@@ -10,7 +10,7 @@ Run at the top of any non-trivial session. Kickoff is the phase where you transi
 
 ### 1. Read the Instruction Layer
 
-- `CLAUDE.md` is auto-loaded, but re-read it explicitly here so the hard rules (Manual Brain, harness sync, surgical commits, schema source-of-truth) are top-of-mind.
+- `CLAUDE.md` is auto-loaded, but re-read it explicitly here so the hard rules (harness sync, surgical commits, schema source-of-truth) are top-of-mind.
 - `.windsurfrules` if running under Windsurf (otherwise skip — it just points at `CLAUDE.md`).
 
 ### 2. Restore Project State
@@ -32,8 +32,6 @@ Read the user's task description carefully. Restate it in one sentence to confir
 ### 5. Read Relevant Source
 
 Use the Key Files table in `docs/architecture.md` as a map to find the files the task will touch. Read them fully — do not skim. If a file you expect to exist is not in the table, grep for it and flag the table as stale in your plan output.
-
-**Manual Brain:** if any file you would need to read or modify lives under `server/core/`, read-only is OK but writes are prohibited. Report the scope limit in step 6.
 
 ### 6. Output a Step-by-Step Plan
 

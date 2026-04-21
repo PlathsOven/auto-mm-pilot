@@ -2,7 +2,7 @@
 
 ## File Organization
 
-- **Target file size: <300 lines.** Documented convention; enforcement is deferred. `server/core/transforms.py` (726) and several client components exceed this today — they will be addressed in a follow-up `/refactor` session. `server/core/` is exempt from restructuring (HUMAN ONLY).
+- **Target file size: <300 lines.** Documented convention; enforcement is deferred. Several client components exceed this today — they will be addressed in a follow-up `/refactor` session.
 - **One concept per file.** A panel component, a service client, a provider — each in its own file.
 - **Tests colocated** where they exist (e.g. `server/api/llm/test_investigation.py` sits next to `service.py`). Note: `test_investigation.py` is a CLI harness, not an automated test.
 - **Barrel files are avoided.** Import from the concrete file, not from an index re-export.
@@ -43,22 +43,6 @@
 - **Default exports.** Named exports only.
 - **Magic numbers.** Hoist to a named constant, or add a comment explaining the value.
 - **`# noqa` / `@ts-ignore` without a written reason.** If you must silence a check, say why.
-
-## The Manual Brain Restriction
-
-**`server/core/` is HUMAN ONLY.** LLMs (Claude Code, Windsurf, any agent) are strictly forbidden from writing, modifying, or refactoring files under `server/core/`. This is the load-bearing invariant of the project.
-
-**What LLMs MAY do:**
-- Read `server/core/` files to understand behavior.
-- Import from `server/core/` in other layers.
-- When generating Python that touches pipeline steps 4–6 (target space conversion, fair value, desired position), create empty function bodies with the comment `# HUMAN WRITES LOGIC HERE`.
-
-**What LLMs MUST NOT do:**
-- Write anything inside a `server/core/` file.
-- "Fix" a bug that traces into `server/core/`. Stop and report findings; the human owns the fix.
-- Remove or alter `# HUMAN WRITES LOGIC HERE` stubs during cleanup or refactor.
-
-This is enforced by a PreToolUse hook in `.claude/settings.json` that blocks `Edit`/`Write` to any path under `server/core/`. The hook is a safety net, not the rule — the rule is that you already know not to touch it.
 
 ## Commit Message Format
 
