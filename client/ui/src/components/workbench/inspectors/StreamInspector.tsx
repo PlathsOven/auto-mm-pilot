@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import { useFocus } from "../../../providers/FocusProvider";
+import { useWebSocket } from "../../../providers/WebSocketProvider";
 import { fetchStreamTimeseries } from "../../../services/streamTimeseriesApi";
+import { setStreamActive } from "../../../services/streamApi";
 import type { StreamTimeseriesResponse, StreamKeyTimeseries } from "../../../types";
 import { POLL_INTERVAL_TIMESERIES_MS } from "../../../constants";
 import { BLOCK_COLORS, sci, TOOLTIP_STYLE } from "../../PipelineChart/chartOptions";
@@ -23,9 +25,32 @@ const MAX_SERIES_RENDERED = 6;
  */
 export function StreamInspector({ name }: StreamInspectorProps) {
   const { clearFocus } = useFocus();
+  const { payload } = useWebSocket();
   const [data, setData] = useState<StreamTimeseriesResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [togglePending, setTogglePending] = useState(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+
+  // Source of truth for the active flag is the WS payload — it's refreshed
+  // every tick and already drives the streams list. Default to true so the
+  // button renders as "Deactivate" while the first tick is in flight.
+  const active = useMemo(() => {
+    const match = payload?.streams.find((s) => s.name === name);
+    return match ? match.active : true;
+  }, [payload, name]);
+
+  const handleToggleActive = useCallback(async () => {
+    setTogglePending(true);
+    setToggleError(null);
+    try {
+      await setStreamActive(name, !active);
+    } catch (err) {
+      setToggleError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTogglePending(false);
+    }
+  }, [name, active]);
 
   useEffect(() => {
     let aborted = false;
@@ -83,6 +108,11 @@ export function StreamInspector({ name }: StreamInspectorProps) {
                 {data.status}
               </span>
             )}
+            {!active && (
+              <span className="ml-1 rounded bg-mm-text-dim/15 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wider text-mm-text-dim">
+                Inactive
+              </span>
+            )}
           </span>
           <span className="text-[13px] font-semibold text-mm-text">{name}</span>
           {data && (
@@ -91,16 +121,32 @@ export function StreamInspector({ name }: StreamInspectorProps) {
             </span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={clearFocus}
-          className="rounded-md p-1 text-[11px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
-          title="Clear focus (Esc)"
-        >
-          ✕
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleToggleActive}
+            disabled={togglePending}
+            className={`whitespace-nowrap rounded-md px-2 py-1 text-[10px] font-medium transition-colors disabled:cursor-wait disabled:opacity-50 ${
+              active
+                ? "border border-mm-error/30 text-mm-error hover:bg-mm-error/10"
+                : "border border-mm-accent/30 text-mm-accent hover:bg-mm-accent/10"
+            }`}
+            title={active ? "Deactivate stream (keeps config, pauses pipeline contribution)" : "Reactivate stream"}
+          >
+            {active ? "Deactivate" : "Reactivate"}
+          </button>
+          <button
+            type="button"
+            onClick={clearFocus}
+            className="rounded-md p-1 text-[11px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
+            title="Clear focus (Esc)"
+          >
+            ✕
+          </button>
+        </div>
       </header>
 
+      {toggleError && <p className="rounded-md border border-mm-error/30 bg-mm-error/[0.06] px-2 py-1 text-[10px] text-mm-error">{toggleError}</p>}
       {error && <p className="rounded-md border border-mm-error/30 bg-mm-error/[0.06] px-2 py-1 text-[10px] text-mm-error">{error}</p>}
 
       {chartOption ? (

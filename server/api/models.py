@@ -133,6 +133,7 @@ class StreamResponse(BaseModel):
     stream_name: str
     key_cols: list[str]
     status: Literal["PENDING", "READY"]
+    active: bool = True
     scale: float | None = None
     offset: float | None = None
     exponent: float | None = None
@@ -157,6 +158,7 @@ class StreamStateResponse(BaseModel):
     stream_name: str
     key_cols: list[str]
     status: Literal["PENDING", "READY"]
+    active: bool = True
     scale: float | None = None
     offset: float | None = None
     exponent: float | None = None
@@ -166,6 +168,11 @@ class StreamStateResponse(BaseModel):
     value_column: str | None = None
     row_count: int
     last_ingest_ts: str | None = None
+
+
+class SetStreamActiveRequest(BaseModel):
+    """Flip a stream's active flag without touching any other field."""
+    active: bool
 
 
 class StreamTimeseriesPoint(BaseModel):
@@ -475,18 +482,25 @@ class MarketValueListResponse(BaseModel):
 # Broadcast wire shapes (camelCase on the wire — see _WireModel)
 # ---------------------------------------------------------------------------
 # These models formalize the JSON shapes currently composed as raw dicts
-# in ``ws_serializers.py`` (streams_from_blocks, context_at_tick,
+# in ``ws_serializers.py`` (streams_from_registry, context_at_tick,
 # positions_at_tick, updates_from_diff) and in ``routers/pipeline.py``
 # (block/aggregated/current-decomposition time series).  Wire shape is
 # unchanged; the models add runtime contract validation + a single
 # source of truth for the TS mirrors in ``client/ui/src/types.ts``.
 
 class DataStream(_WireModel):
-    """One data-stream entry in the pipeline broadcast."""
+    """One data-stream entry in the pipeline broadcast.
+
+    ``active`` mirrors the registry flag — inactive streams are still emitted
+    on the WS payload (so the UI can render them dimmed and offer a
+    reactivate affordance) but their blocks don't appear in the pipeline
+    output for this tick.
+    """
     id: str
     name: str
     status: Literal["ONLINE", "DEGRADED", "OFFLINE"]
     last_heartbeat: int
+    active: bool = True
 
 
 class GlobalContext(_WireModel):

@@ -73,7 +73,7 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `client/ui/src/components/studio/brain/BlockDrawer.tsx` | Unified block drawer — create (empty or LLM-prefilled), edit (manual blocks), inspect (stream blocks). Draft state in `blockDrawerState.ts`, sub-components in `BlockDrawerParts.tsx`, submit + snapshot-edit callbacks in `useBlockDraftSubmit` and `useSnapshotEditor` hooks. |
 | `client/ui/src/pages/AnatomyPage.tsx` | Top-level Anatomy mode — thin wrapper around `AnatomyCanvas` |
 | `client/ui/src/services/engineCommands.ts` | Engine-command parser + executor — strips `engine-command` fenced blocks from LLM text, routes to BlockDrawer or auto-executes |
-| `client/ui/src/components/floor/StreamStatusList.tsx` | Workbench data-streams list (name + last update). Single-click sets stream focus → opens `StreamInspector` in the rail. |
+| `client/ui/src/components/floor/StreamStatusList.tsx` | Workbench data-streams list (name + last update + per-row power toggle for `active`). Row-body click sets stream focus; power icon flips the stream's `active` flag via `PATCH /api/streams/{name}/active`. |
 | `client/ui/src/services/streamTimeseriesApi.ts` | HTTP client for `GET /api/streams/{name}/timeseries`. Sourced from in-memory snapshot rows. |
 | `client/ui/src/components/studio/StreamLibrary.tsx` | Anatomy — stream CRUD |
 | `client/ui/src/components/studio/StreamCanvas.tsx` | Anatomy — 7-section stream config |

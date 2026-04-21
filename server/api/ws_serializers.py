@@ -197,33 +197,38 @@ def updates_from_diff(
     return updates
 
 
-def streams_from_blocks(
-    blocks_df: pl.DataFrame,
+def streams_from_registry(
+    registrations: list[Any],
     timestamp: datetime,
-    allowed_names: set[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Derive DataStream entries from block stream names.
+    """Derive DataStream entries directly from the per-user stream registry.
 
-    When ``allowed_names`` is provided, the result is intersected with it so
-    stale stream names from older pipeline runs (renames, deletions) don't
-    appear in the WS payload. Caller passes the current per-user registry's
-    stream names — keeps the WS broadcast a single source of truth with the
-    registry, which prevents the StreamInspector from 404ing on a stream the
-    server no longer knows about.
+    Sourcing from the registry (instead of the pipeline's ``blocks_df``)
+    keeps deactivated streams visible on the WS payload so the UI can render
+    them with a reactivate affordance — a stream dropped from
+    ``build_stream_configs`` has no blocks in the pipeline output but must
+    still appear in the list.
+
+    A stream is included iff it is READY and has snapshot rows (the same gate
+    ``build_stream_configs`` applies before the ``active`` filter). PENDING
+    streams and READY-but-empty streams are hidden; they have nothing to
+    contribute on the Workbench "is data flowing?" surface.
     """
-    names = sorted(blocks_df["stream_name"].unique().to_list())
-    if allowed_names is not None:
-        names = [n for n in names if n in allowed_names]
     ts_ms = int(timestamp.timestamp() * 1000)
-    return [
-        {
+    out: list[dict[str, Any]] = []
+    for i, reg in enumerate(
+        sorted(registrations, key=lambda r: r.stream_name)
+    ):
+        if reg.status != "READY" or not reg.has_snapshot:
+            continue
+        out.append({
             "id": f"stream-{i}",
-            "name": name,
+            "name": reg.stream_name,
             "status": "ONLINE",
             "lastHeartbeat": ts_ms,
-        }
-        for i, name in enumerate(names)
-    ]
+            "active": reg.active,
+        })
+    return out
 
 
 def context_at_tick(timestamp: datetime) -> dict[str, Any]:

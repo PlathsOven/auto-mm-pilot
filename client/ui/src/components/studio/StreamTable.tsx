@@ -11,7 +11,7 @@ import {
 } from "@tanstack/react-table";
 import type { RegisteredStream } from "../../types";
 import { useRegisteredStreams } from "../../hooks/useRegisteredStreams";
-import { deleteStream } from "../../services/streamApi";
+import { deleteStream, setStreamActive } from "../../services/streamApi";
 
 const columnHelper = createColumnHelper<RegisteredStream>();
 
@@ -64,6 +64,19 @@ export function StreamTable({ filter, onFilterChange, onOpenStream }: Props) {
     async (streamName: string) => {
       try {
         await deleteStream(streamName);
+        await refresh();
+        setMutationError(null);
+      } catch (err) {
+        setMutationError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [refresh],
+  );
+
+  const handleToggleActive = useCallback(
+    async (streamName: string, nextActive: boolean) => {
+      try {
+        await setStreamActive(streamName, nextActive);
         await refresh();
         setMutationError(null);
       } catch (err) {
@@ -179,6 +192,36 @@ export function StreamTable({ filter, onFilterChange, onOpenStream }: Props) {
         size: 100,
       }),
       columnHelper.display({
+        id: "active",
+        header: "Active",
+        cell: (info) => {
+          const s = info.row.original;
+          if (s.status === "PENDING") return null;
+          return (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={s.active}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleActive(s.stream_name, !s.active);
+              }}
+              className={`relative inline-flex h-[14px] w-[26px] items-center rounded-full transition-colors ${
+                s.active ? "bg-mm-accent" : "bg-mm-text-dim/30"
+              }`}
+              title={s.active ? "Deactivate stream" : "Reactivate stream"}
+            >
+              <span
+                className={`inline-block h-[10px] w-[10px] transform rounded-full bg-white shadow-sm transition-transform ${
+                  s.active ? "translate-x-[14px]" : "translate-x-[2px]"
+                }`}
+              />
+            </button>
+          );
+        },
+        size: 70,
+      }),
+      columnHelper.display({
         id: "actions",
         header: "",
         cell: (info) => {
@@ -214,7 +257,7 @@ export function StreamTable({ filter, onFilterChange, onOpenStream }: Props) {
         size: 90,
       }),
     ],
-    [expanded, openCanvas, handleDelete, toggleExpand],
+    [expanded, openCanvas, handleDelete, handleToggleActive, toggleExpand],
   );
 
   const table = useReactTable({
@@ -300,7 +343,9 @@ export function StreamTable({ filter, onFilterChange, onOpenStream }: Props) {
                 <Fragment key={row.id}>
                   <tr
                     onClick={() => openCanvas(s.stream_name)}
-                    className="cursor-pointer border-t border-black/[0.03] transition-colors hover:bg-mm-accent/5"
+                    className={`cursor-pointer border-t border-black/[0.03] transition-colors hover:bg-mm-accent/5 ${
+                      s.status === "READY" && !s.active ? "opacity-55" : ""
+                    }`}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <td

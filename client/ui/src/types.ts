@@ -1,12 +1,18 @@
 /** Status of an individual data stream adapter */
 export type StreamStatus = "ONLINE" | "DEGRADED" | "OFFLINE";
 
-/** A single data stream / adapter entry */
+/** A single data stream / adapter entry.
+ *
+ *  `active` mirrors the registry toggle — inactive streams are still emitted
+ *  on the WS payload (so the UI can render and reactivate them) but their
+ *  blocks don't appear in the pipeline output for this tick.
+ */
 export interface DataStream {
   id: string;
   name: string;
   status: StreamStatus;
   lastHeartbeat: number;
+  active: boolean;
 }
 
 /** Status of a registered stream in the server registry */
@@ -27,6 +33,7 @@ export interface RegisteredStream {
   stream_name: string;
   key_cols: string[];
   status: RegisteredStreamStatus;
+  active: boolean;
   scale: number | null;
   offset: number | null;
   exponent: number | null;

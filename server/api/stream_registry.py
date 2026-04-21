@@ -98,6 +98,13 @@ class StreamRegistration:
     # None (default) means "every pair in the pipeline's dim universe".
     applies_to: list[tuple[str, str]] | None = None
 
+    # Non-destructive on/off switch. When False, the stream stays in the
+    # registry with its config intact but is skipped in ``build_stream_configs``
+    # so it no longer contributes to the pipeline. The trader flips this from
+    # the Workbench stream list / Inspector to pause a feed without losing
+    # its mapping.
+    active: bool = True
+
     @property
     def status(self) -> str:
         if self.scale is None or self.block is None:
@@ -295,6 +302,21 @@ class StreamRegistry:
             log.info("Stream '%s' configured (status=%s)", stream_name, reg.status)
             return reg
 
+    # -- Active toggle ------------------------------------------------------
+
+    def set_active(self, stream_name: str, active: bool) -> StreamRegistration:
+        """Flip a stream between active (contributing to the pipeline) and
+        inactive (held in the registry but skipped in ``build_stream_configs``).
+        """
+        with self._lock:
+            reg = self._streams.get(stream_name)
+            if reg is None:
+                raise KeyError(f"Stream '{stream_name}' not found")
+            if reg.active != active:
+                reg.active = active
+                log.info("Stream '%s' active=%s", stream_name, active)
+            return reg
+
     # -- Delete -------------------------------------------------------------
 
     def delete(self, stream_name: str) -> None:
@@ -339,11 +361,16 @@ class StreamRegistry:
     # -- Pipeline consumption -----------------------------------------------
 
     def build_stream_configs(self) -> list[StreamConfig]:
-        """Build ``list[StreamConfig]`` from all READY streams that have snapshots."""
+        """Build ``list[StreamConfig]`` from all READY + active streams with snapshots.
+
+        Inactive streams are skipped — the pipeline runs as if they didn't
+        exist, but their config stays in the registry so the trader can flip
+        them back on from the UI.
+        """
         with self._lock:
             configs: list[StreamConfig] = []
             for reg in self._streams.values():
-                if reg.status == "READY" and reg.has_snapshot:
+                if reg.status == "READY" and reg.has_snapshot and reg.active:
                     try:
                         configs.append(reg.to_stream_config())
                     except Exception:

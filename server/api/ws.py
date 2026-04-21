@@ -37,7 +37,7 @@ from server.api.ws_serializers import (
     context_at_tick,
     market_value_mismatches_from_positions,
     positions_at_tick,
-    streams_from_blocks,
+    streams_from_registry,
     updates_from_diff,
 )
 
@@ -141,11 +141,20 @@ def _silent_streams_for(user_id: str) -> list[SilentStreamAlert]:
 
 
 def _heartbeat_payload(user_id: str | None = None) -> str:
-    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now_ms = int(now.timestamp() * 1000)
     unregistered = _unregistered_pushes_for(user_id) if user_id else []
     silent = _silent_streams_for(user_id) if user_id else []
+    # Even with no live pipeline results, surface registry-known streams so
+    # the UI can render (and reactivate) them — e.g. when the trader has
+    # deactivated every stream.
+    streams: list = []
+    if user_id is not None:
+        streams = streams_from_registry(
+            get_stream_registry(user_id).list_streams(), now,
+        )
     return _build_payload(
-        streams=[],
+        streams=streams,
         context={"lastUpdateTimestamp": now_ms},
         positions=[],
         updates=[],
@@ -196,7 +205,7 @@ def _build_user_payload_sync(user_id: str, real_now: datetime) -> str:
     if timeline is None:
         return _heartbeat_payload(user_id)
 
-    desired_pos_df, blocks_df, timestamps = timeline
+    desired_pos_df, _blocks_df, timestamps = timeline
     state = _get_state(user_id)
 
     # Find latest ts <= real_now (walking forward from previous idx is O(1)
@@ -224,11 +233,7 @@ def _build_user_payload_sync(user_id: str, real_now: datetime) -> str:
         state.last_ts_idx = ts_idx
 
     registry = get_stream_registry(user_id)
-    allowed_stream_names = {r.stream_name for r in registry.list_streams()}
-    streams = streams_from_blocks(blocks_df, timestamps[0], allowed_names=allowed_stream_names)
-    ts_ms = int(real_now.timestamp() * 1000)
-    for s in streams:
-        s["lastHeartbeat"] = ts_ms
+    streams = streams_from_registry(registry.list_streams(), real_now)
 
     state.tick_count += 1
     return _build_payload(
