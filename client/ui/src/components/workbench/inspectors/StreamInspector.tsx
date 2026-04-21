@@ -210,11 +210,16 @@ function buildChartOption(series: StreamKeyTimeseries[]): EChartsOption {
       rawArr[idx] = p.raw_value;
     }
     const label = formatKey(s.key);
+    // showSymbol: true is load-bearing when the series has a single point —
+    // a one-point line has nothing to connect and would render as nothing
+    // otherwise (the Inspector's first render right after stream activation
+    // lands here, before the WS ticker's heartbeat has appended anything).
     seriesSpecs.push({
       name: `${label} raw`,
       type: "line",
       data: rawArr,
-      showSymbol: false,
+      showSymbol: true,
+      symbolSize: 4,
       lineStyle: { width: 1.5, color },
       itemStyle: { color },
       connectNulls: true,
