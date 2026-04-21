@@ -1,18 +1,40 @@
 /**
  * Static DAG layout for the Anatomy pipeline canvas.
  *
- * React Flow is responsible for drag/pan/zoom, but the initial positions of
- * the fixed pipeline nodes are hardcoded here so the graph always reads in
- * left-to-right DAG order with the fair-value / variance branch clearly
- * visible. Stream node positions are computed at runtime from the registry
- * (stacked vertically to the left of `unit_conversion`).
+ * React Flow owns drag / pan / zoom; positions and edge shapes are
+ * hand-authored so the graph reads as the 4-space pipeline (risk / raw
+ * / calc / target) for a single (symbol, expiry) slice.
+ *
+ * Ontology: nodes = transformations, edges = values. Each edge label
+ * carries the value name plus its current granularity in parentheses
+ * so the graph doubles as a shape-of-data legend:
+ *   (block)          — one row per block
+ *   (block, t)       — per-block time series
+ *   (space, t)       — per-(dim, space) time series, blocks collapsed
+ *   (t)              — per-dim time series, spaces collapsed
+ *
+ * Three coloured tracks (fair / var / market) run in parallel through
+ * the main pipeline, with two explicit structural crossings:
+ *
+ *   - `market_value_inference` sits off the main horizontal line,
+ *     below the calc lane. Only market + fair flow in; only filled
+ *     market flows out, back up to `aggregation`. fair and var bypass
+ *     MVI entirely (they go directly RSA → aggregation).
+ *   - `calc_to_target` merges fair + market into edge. Handle count
+ *     drops 3 → 2 (edge + var) so the merge is visible as a taper.
+ *   - `position_sizing` merges edge + var into a single position
+ *     output. Handle count drops 2 → 1.
+ *
+ * Three lane bands tint the background to mark raw / calc / target
+ * spaces; `unit_conversion` and `calc_to_target` straddle lane
+ * boundaries via a two-tone chip in each node's header.
  */
 
 export const PIPELINE_ORDER = [
   "unit_conversion",
-  "decay_profile",
   "temporal_fair_value",
-  "variance",
+  "risk_space_aggregation",
+  "market_value_inference",
   "aggregation",
   "calc_to_target",
   "smoothing",
@@ -23,44 +45,51 @@ export type StepKey = (typeof PIPELINE_ORDER)[number];
 
 /** Plain-language one-liner shown as the step node's subtitle. */
 export const PIPELINE_NARRATIVE: Record<StepKey, string> = {
-  unit_conversion: "Map raw units into calculation space (e.g. variance).",
-  decay_profile: "Decide how a block's influence fades over time.",
-  temporal_fair_value: "Compose blocks into a fair / var / market time series.",
-  variance: "Quantify uncertainty around the fair value.",
-  aggregation: "Sum across risk spaces within each (symbol, expiry).",
-  calc_to_target: "Forward-integrate + annualise calc space into target space.",
-  smoothing: "Stabilise edge and variance against short-term noise.",
-  position_sizing: "Translate edge + variance + bankroll into a position.",
+  unit_conversion: "Map raw → calc space.",
+  temporal_fair_value: "Distribute per-block totals across time.",
+  risk_space_aggregation: "Mean across blocks per (dim, space).",
+  market_value_inference: "Fill missing market(space, t) using fair(space, t).",
+  aggregation: "Sum spaces per (dim, t).",
+  calc_to_target: "Calc → target. edge = fair − market.",
+  smoothing: "EWM-smooth edge and var.",
+  position_sizing: "pos = edge · bankroll / var.",
 };
 
-/** Column x-coordinates (pixels) for each pipeline step.
- *
- * Node cards are ~240px wide — the 380px column spacing leaves ~140px of
- * free space for the edge label chip between each pair of nodes. */
+// ---------------------------------------------------------------------------
+// Coordinates
+// ---------------------------------------------------------------------------
+
+// Main pipeline pitch is 640 px (240-px cards + 400 px free space).
+// 400 px is the floor that keeps the three parallel per-track labels
+// clear of adjacent cards AND gives the two RSA → MVI detour labels
+// enough vertical room that they never crowd the main-line labels.
+// market_value_inference sits off the main line in the gap between
+// RSA and aggregation, dropped down to Y_MVI — the gap reserves
+// horizontal space without requiring a separate main-line column.
 const X = {
   streams: 0,
-  unit_conversion: 380,
-  decay_profile: 760,
-  temporal_fair_value: 1140,
-  variance: 1520,
-  aggregation: 1900,
-  calc_to_target: 2280,
-  smoothing: 2660,
-  position_sizing: 3040,
-  output: 3420,
+  unit_conversion: 640,
+  temporal_fair_value: 1280,
+  risk_space_aggregation: 1920,
+  market_value_inference: 2240,
+  aggregation: 2560,
+  calc_to_target: 3200,
+  smoothing: 3840,
+  position_sizing: 4480,
+  output: 5120,
 };
 
-/** Base y-row (main track). */
 const Y_MAIN = 240;
-/** Variance branch row — offset downward to show the fork clearly. */
-const Y_VARIANCE = 440;
+// Y_MVI pushes MVI well below the main line so the three RSA ↔ MVI ↔
+// aggregation detour labels live in their own vertical band, ~300 px
+// clear of the main-line labels at y ≈ Y_MAIN + 35..75% of card.
+const Y_MVI = 640;
 
-/** Hardcoded positions for the transform step nodes + the output node. */
-export const STEP_NODE_POSITIONS: Record<StepKey, { x: number; y: number }> = {
+export const STEP_NODE_POSITIONS: Partial<Record<StepKey, { x: number; y: number }>> = {
   unit_conversion: { x: X.unit_conversion, y: Y_MAIN },
-  decay_profile: { x: X.decay_profile, y: Y_MAIN },
   temporal_fair_value: { x: X.temporal_fair_value, y: Y_MAIN },
-  variance: { x: X.variance, y: Y_VARIANCE },
+  risk_space_aggregation: { x: X.risk_space_aggregation, y: Y_MAIN },
+  market_value_inference: { x: X.market_value_inference, y: Y_MVI },
   aggregation: { x: X.aggregation, y: Y_MAIN },
   calc_to_target: { x: X.calc_to_target, y: Y_MAIN },
   smoothing: { x: X.smoothing, y: Y_MAIN },
@@ -69,32 +98,191 @@ export const STEP_NODE_POSITIONS: Record<StepKey, { x: number; y: number }> = {
 
 export const OUTPUT_NODE_POSITION = { x: X.output, y: Y_MAIN };
 
-/** Column x for stream nodes (stacked vertically to the left of unit_conversion). */
 export const STREAM_COLUMN_X = X.streams;
-/** Vertical spacing between stacked stream nodes. */
 export const STREAM_ROW_HEIGHT = 90;
 
-/**
- * Edge definitions between transform nodes. Each edge carries an optional
- * `label` describing the data that flows along it. Stream → unit_conversion
- * edges are generated at runtime from the registered stream list.
- */
+// ---------------------------------------------------------------------------
+// Tracks (fair / var / market / edge)
+// ---------------------------------------------------------------------------
+
+export type TrackKey = "fair" | "var" | "market" | "edge";
+
+/** Vertical position (percentage of node height) for each track's
+ *  handle. fair / var / market are parallel before calc_to_target;
+ *  `edge` sits between fair and var post-CTT so the 3 → 2 taper
+ *  signals the fair + market → edge merge. */
+export const TRACK_TOP_PCT: Record<TrackKey, number> = {
+  fair: 35,
+  var: 55,
+  market: 75,
+  edge: 40,
+};
+
+/** Colour each track gets on its edge stroke + handle dots. */
+export const TRACK_COLORS: Record<TrackKey, string> = {
+  fair: "rgba(99,102,241,0.75)",    // indigo-500
+  var: "rgba(251,146,60,0.75)",     // orange-400
+  market: "rgba(16,185,129,0.75)",  // emerald-500
+  edge: "rgba(139,92,246,0.85)",    // violet-500
+};
+
+export interface NodeTrackSpec {
+  in: readonly TrackKey[];
+  out: readonly TrackKey[];
+}
+
+/** Which named handles each main transform node exposes. An empty list
+ *  falls back to a single default (unnamed, centred) handle — used for
+ *  unit_conversion's raw input (stream edges have no handle spec) and
+ *  position_sizing's position output (one edge to the output node). */
+export const NODE_TRACKS: Partial<Record<StepKey, NodeTrackSpec>> = {
+  unit_conversion: { in: [], out: ["fair", "var", "market"] },
+  temporal_fair_value: {
+    in: ["fair", "var", "market"],
+    out: ["fair", "var", "market"],
+  },
+  risk_space_aggregation: {
+    in: ["fair", "var", "market"],
+    out: ["fair", "var", "market"],
+  },
+  // MVI only uses fair (for inference) + market (the value it fills);
+  // it outputs only filled market back to the main pipeline.
+  market_value_inference: { in: ["fair", "market"], out: ["market"] },
+  aggregation: {
+    in: ["fair", "var", "market"],
+    out: ["fair", "var", "market"],
+  },
+  calc_to_target: {
+    in: ["fair", "var", "market"],
+    out: ["edge", "var"],
+  },
+  smoothing: { in: ["edge", "var"], out: ["edge", "var"] },
+  position_sizing: { in: ["edge", "var"], out: [] },
+};
+
+// ---------------------------------------------------------------------------
+// Lane bands (raw / calc / target)
+// ---------------------------------------------------------------------------
+
+const TRANSFORM_HALF_WIDTH = 120;
+const UC_CENTRE_X = X.unit_conversion + TRANSFORM_HALF_WIDTH;
+const CTT_CENTRE_X = X.calc_to_target + TRANSFORM_HALF_WIDTH;
+const OUTPUT_RIGHT_X = X.output + 220;
+const LANE_PAD_LEFT = 60;
+const LANE_PAD_RIGHT = 60;
+const LANE_Y = 100;
+// Extended so the band cleanly covers market_value_inference, which
+// sits below the main line at Y_MVI (640) + 140 = 780.
+const LANE_HEIGHT = 700;
+
+export interface AnatomyLaneBand {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  tint: string;
+}
+
+export const LANE_BANDS: AnatomyLaneBand[] = [
+  {
+    id: "lane-raw",
+    label: "raw",
+    x: -LANE_PAD_LEFT,
+    y: LANE_Y,
+    width: UC_CENTRE_X + LANE_PAD_LEFT,
+    height: LANE_HEIGHT,
+    tint: "rgba(99,102,241,0.05)",
+  },
+  {
+    id: "lane-calc",
+    label: "calc",
+    x: UC_CENTRE_X,
+    y: LANE_Y,
+    width: CTT_CENTRE_X - UC_CENTRE_X,
+    height: LANE_HEIGHT,
+    tint: "rgba(79,70,229,0.07)",
+  },
+  {
+    id: "lane-target",
+    label: "target",
+    x: CTT_CENTRE_X,
+    y: LANE_Y,
+    width: OUTPUT_RIGHT_X + LANE_PAD_RIGHT - CTT_CENTRE_X,
+    height: LANE_HEIGHT,
+    tint: "rgba(16,185,129,0.07)",
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Lane-boundary chips — nodes that straddle two lanes display a
+// two-tone header chip naming the split (e.g. "raw → calc").
+// ---------------------------------------------------------------------------
+
+export interface AnatomyLaneBoundary {
+  from: string;
+  to: string;
+}
+
+export const LANE_BOUNDARIES: Partial<Record<StepKey, AnatomyLaneBoundary>> = {
+  unit_conversion: { from: "raw", to: "calc" },
+  calc_to_target: { from: "calc", to: "target" },
+};
+
+// ---------------------------------------------------------------------------
+// Edges
+// ---------------------------------------------------------------------------
+
+/** Bundled label carried by every stream → unit_conversion edge.
+ *  Granularity only — specific columns vary per stream. */
+export const STREAM_EDGE_LABEL = "(block)";
+
 export interface AnatomyEdgeDef {
   id: string;
   source: StepKey | "output";
   target: StepKey | "output";
+  sourceHandle?: TrackKey;
+  targetHandle?: TrackKey;
   label?: string;
 }
 
 export const PIPELINE_EDGES: AnatomyEdgeDef[] = [
-  { id: "e-uc-dp", source: "unit_conversion", target: "decay_profile", label: "calc totals" },
-  { id: "e-dp-tfv", source: "decay_profile", target: "temporal_fair_value", label: "decayed blocks" },
-  // The fork: temporal_fair_value feeds BOTH aggregation (fair) AND variance (var).
-  { id: "e-tfv-agg", source: "temporal_fair_value", target: "aggregation", label: "fair" },
-  { id: "e-tfv-var", source: "temporal_fair_value", target: "variance" },
-  { id: "e-var-agg", source: "variance", target: "aggregation", label: "var" },
-  { id: "e-agg-ctt", source: "aggregation", target: "calc_to_target", label: "calc-space totals" },
-  { id: "e-ctt-smooth", source: "calc_to_target", target: "smoothing", label: "target-space edge + var" },
-  { id: "e-smooth-ps", source: "smoothing", target: "position_sizing", label: "smoothed" },
-  { id: "e-ps-output", source: "position_sizing", target: "output", label: "desired position" },
+  // unit_conversion → temporal_fair_value — three parallel tracks emerge.
+  { id: "e-uc-td-fair", source: "unit_conversion", target: "temporal_fair_value", sourceHandle: "fair", targetHandle: "fair", label: "fair(block)" },
+  { id: "e-uc-td-var", source: "unit_conversion", target: "temporal_fair_value", sourceHandle: "var", targetHandle: "var", label: "var(block)" },
+  { id: "e-uc-td-market", source: "unit_conversion", target: "temporal_fair_value", sourceHandle: "market", targetHandle: "market", label: "market(block)" },
+
+  // temporal_fair_value → risk_space_aggregation (per block, t)
+  { id: "e-td-rsa-fair", source: "temporal_fair_value", target: "risk_space_aggregation", sourceHandle: "fair", targetHandle: "fair", label: "fair(block, t)" },
+  { id: "e-td-rsa-var", source: "temporal_fair_value", target: "risk_space_aggregation", sourceHandle: "var", targetHandle: "var", label: "var(block, t)" },
+  { id: "e-td-rsa-market", source: "temporal_fair_value", target: "risk_space_aggregation", sourceHandle: "market", targetHandle: "market", label: "market(block, t)" },
+
+  // RSA → aggregation (fair + var go direct; market is routed via MVI).
+  { id: "e-rsa-agg-fair", source: "risk_space_aggregation", target: "aggregation", sourceHandle: "fair", targetHandle: "fair", label: "fair(space, t)" },
+  { id: "e-rsa-agg-var", source: "risk_space_aggregation", target: "aggregation", sourceHandle: "var", targetHandle: "var", label: "var(space, t)" },
+
+  // RSA → MVI (fair as inference input; market carries the nullable
+  // pre-infer value).
+  { id: "e-rsa-mvi-fair", source: "risk_space_aggregation", target: "market_value_inference", sourceHandle: "fair", targetHandle: "fair", label: "fair(space, t)" },
+  { id: "e-rsa-mvi-market", source: "risk_space_aggregation", target: "market_value_inference", sourceHandle: "market", targetHandle: "market", label: "market(space, t)?" },
+
+  // MVI → aggregation (only the filled market rejoins the main flow).
+  { id: "e-mvi-agg-market", source: "market_value_inference", target: "aggregation", sourceHandle: "market", targetHandle: "market", label: "market(space, t)" },
+
+  // aggregation → calc_to_target — spaces collapsed; per-(dim, t).
+  { id: "e-agg-ctt-fair", source: "aggregation", target: "calc_to_target", sourceHandle: "fair", targetHandle: "fair", label: "fair(t)" },
+  { id: "e-agg-ctt-var", source: "aggregation", target: "calc_to_target", sourceHandle: "var", targetHandle: "var", label: "var(t)" },
+  { id: "e-agg-ctt-market", source: "aggregation", target: "calc_to_target", sourceHandle: "market", targetHandle: "market", label: "market(t)" },
+
+  // calc_to_target → smoothing — fair + market merged into edge inside CTT.
+  { id: "e-ctt-smooth-edge", source: "calc_to_target", target: "smoothing", sourceHandle: "edge", targetHandle: "edge", label: "edge(t)" },
+  { id: "e-ctt-smooth-var", source: "calc_to_target", target: "smoothing", sourceHandle: "var", targetHandle: "var", label: "var(t)" },
+
+  // smoothing → position_sizing
+  { id: "e-smooth-ps-edge", source: "smoothing", target: "position_sizing", sourceHandle: "edge", targetHandle: "edge", label: "smoothed_edge(t)" },
+  { id: "e-smooth-ps-var", source: "smoothing", target: "position_sizing", sourceHandle: "var", targetHandle: "var", label: "smoothed_var(t)" },
+
+  // position_sizing → output — edge + var merged into position.
+  { id: "e-ps-output", source: "position_sizing", target: "output", label: "position(t)" },
 ];
