@@ -14,6 +14,7 @@ from server.api.market_value_store import (
     set_entries,
 )
 from server.api.models import (
+    DeleteMarketValueResponse,
     MarketValueEntry,
     MarketValueListResponse,
     SetMarketValueRequest,
@@ -42,13 +43,13 @@ async def set_market_values(
     return MarketValueListResponse(entries=entries)
 
 
-@router.delete("/api/market-values/{symbol}/{expiry}")
+@router.delete("/api/market-values/{symbol}/{expiry}", response_model=DeleteMarketValueResponse)
 async def remove_market_value(
     symbol: str,
     expiry: str,
     user: User = Depends(current_user),
-) -> dict[str, bool | str]:
+) -> DeleteMarketValueResponse:
     existed = delete_market_value(user.id, symbol, expiry)
     if not existed:
         raise HTTPException(status_code=404, detail=f"No aggregate for {symbol}/{expiry}")
-    return {"deleted": True, "symbol": symbol, "expiry": expiry}
+    return DeleteMarketValueResponse(deleted=True, symbol=symbol, expiry=expiry)

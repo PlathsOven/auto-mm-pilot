@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { InspectorRouter } from "./InspectorRouter";
 import { useFocus } from "../../providers/FocusProvider";
 import { useHotkeys } from "../../hooks/useHotkeys";
+import { safeGetItem, safeSetItem } from "../../utils";
 import { INSPECTOR_COLUMN_OPEN_KEY, INSPECTOR_COLUMN_WIDTH_PX } from "../../constants";
 
 const HANDLE_WIDTH_PX = 18;
@@ -21,14 +22,14 @@ const HANDLE_WIDTH_PX = 18;
  * last choice is persisted to localStorage so it survives a reload.
  */
 export function InspectorColumn() {
-  const [open, setOpen] = useState<boolean>(() => {
-    try { return localStorage.getItem(INSPECTOR_COLUMN_OPEN_KEY) !== "false"; } catch { return true; }
-  });
+  const [open, setOpen] = useState<boolean>(
+    () => safeGetItem(INSPECTOR_COLUMN_OPEN_KEY) !== "false",
+  );
   const { focus } = useFocus();
 
   const persistOpen = useCallback((next: boolean) => {
     setOpen(next);
-    try { localStorage.setItem(INSPECTOR_COLUMN_OPEN_KEY, String(next)); } catch { /* ignore */ }
+    safeSetItem(INSPECTOR_COLUMN_OPEN_KEY, String(next));
   }, []);
 
   const toggleOpen = useCallback(() => persistOpen(!open), [open, persistOpen]);

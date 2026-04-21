@@ -6,6 +6,7 @@ import { useChat } from "../../providers/ChatProvider";
 import { useCommandPalette } from "../../providers/CommandPaletteProvider";
 import { useNotifications } from "../../providers/NotificationsProvider";
 import { useOnboarding } from "../../providers/OnboardingProvider";
+import { safeGetItem, safeSetItem } from "../../utils";
 import {
   LEFTNAV_COLLAPSED_WIDTH_PX,
   LEFTNAV_EXPANDED_WIDTH_PX,
@@ -55,14 +56,14 @@ export function LeftNav() {
     open: notificationsOpen,
   } = useNotifications();
 
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    try { return localStorage.getItem(LEFTNAV_OPEN_KEY) === "false"; } catch { return false; }
-  });
+  const [collapsed, setCollapsed] = useState<boolean>(
+    () => safeGetItem(LEFTNAV_OPEN_KEY) === "false",
+  );
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((c) => {
       const next = !c;
-      try { localStorage.setItem(LEFTNAV_OPEN_KEY, next ? "false" : "true"); } catch { /* ignore */ }
+      safeSetItem(LEFTNAV_OPEN_KEY, next ? "false" : "true");
       return next;
     });
   }, []);
@@ -72,7 +73,7 @@ export function LeftNav() {
   useEffect(() => {
     function onStorage(e: StorageEvent) {
       if (e.key !== LEFTNAV_OPEN_KEY) return;
-      try { setCollapsed(localStorage.getItem(LEFTNAV_OPEN_KEY) === "false"); } catch { /* ignore */ }
+      setCollapsed(safeGetItem(LEFTNAV_OPEN_KEY) === "false");
     }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);

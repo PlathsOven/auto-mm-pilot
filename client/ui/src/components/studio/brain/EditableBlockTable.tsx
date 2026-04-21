@@ -17,6 +17,8 @@ import {
   blockKeyOf,
   blockKeyToString,
   formatNullable,
+  safeGetItem,
+  safeSetItem,
   valColor,
 } from "../../../utils";
 import { POLL_INTERVAL_BLOCKS_MS, BLOCKS_FOLLOW_FOCUS_KEY } from "../../../constants";
@@ -222,9 +224,9 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
   const [expiryFilter, setExpiryFilter] = useState<string>(ALL);
   const [streamFilter, setStreamFilter] = useState<string>(ALL);
   const [sourceFilter, setSourceFilter] = useState<string>(ALL);
-  const [followFocus, setFollowFocus] = useState<boolean>(() => {
-    try { return localStorage.getItem(BLOCKS_FOLLOW_FOCUS_KEY) !== "false"; } catch { return true; }
-  });
+  const [followFocus, setFollowFocus] = useState<boolean>(
+    () => safeGetItem(BLOCKS_FOLLOW_FOCUS_KEY) !== "false",
+  );
 
   // Auto-filter to the focused dimension when "follow focus" is on. Reverting
   // is the same gesture: click the same focus again to unfocus, or toggle
@@ -264,7 +266,7 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
 
   const persistFollowFocus = useCallback((next: boolean) => {
     setFollowFocus(next);
-    try { localStorage.setItem(BLOCKS_FOLLOW_FOCUS_KEY, String(next)); } catch { /* ignore */ }
+    safeSetItem(BLOCKS_FOLLOW_FOCUS_KEY, String(next));
   }, []);
 
   const refresh = useCallback(async () => {

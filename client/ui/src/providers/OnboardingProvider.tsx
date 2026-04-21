@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { migrateLegacyStorageKey } from "../utils";
+import { migrateLegacyStorageKey, safeGetItem, safeSetItem } from "../utils";
 
 const STORAGE_KEY = "posit.onboarding.completed";
 const LEGACY_STORAGE_KEY = "apt.onboarding.completed";
@@ -27,11 +27,7 @@ const OnboardingContext = createContext<OnboardingContextValue | null>(null);
 
 function readCompleted(): boolean {
   migrateLegacyStorageKey(LEGACY_STORAGE_KEY, STORAGE_KEY);
-  try {
-    return localStorage.getItem(STORAGE_KEY) === "true";
-  } catch {
-    return false;
-  }
+  return safeGetItem(STORAGE_KEY) === "true";
 }
 
 export function OnboardingProvider({ children }: { children: ReactNode }) {
@@ -47,11 +43,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const closeOnboarding = useCallback(() => setOpen(false), []);
 
   const markCompleted = useCallback(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, "true");
-    } catch {
-      // ignore
-    }
+    safeSetItem(STORAGE_KEY, "true");
     setCompleted(true);
     setOpen(false);
   }, []);

@@ -64,7 +64,7 @@ export function NewStreamMenu({ onOpenBlank, onOpenTemplate }: Props) {
       </div>
 
       {open && (
-        <div className="absolute right-0 top-full z-40 mt-2 w-[320px] overflow-hidden rounded-lg border border-white/50 bg-white/85 py-1 shadow-lg shadow-black/[0.06] ring-1 ring-black/[0.06]" style={{ backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }}>
+        <div className="absolute right-0 top-full z-40 mt-2 w-[320px] overflow-hidden rounded-lg border border-white/50 bg-white/85 py-1 shadow-lg shadow-black/[0.06] ring-1 ring-black/[0.06] backdrop-blur-glass24">
           <button
             type="button"
             onClick={() => {

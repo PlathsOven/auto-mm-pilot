@@ -41,8 +41,8 @@ export function StreamAttributionHoverCard({ symbol, expiry, anchorRect }: Props
 
   return createPortal(
     <div
-      className="fixed z-[120] rounded-lg border border-white/50 bg-white/85 p-3 shadow-elev-3 ring-1 ring-black/[0.06]"
-      style={{ top, left, width: cardWidth, backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }}
+      className="fixed z-[120] rounded-lg border border-white/50 bg-white/85 p-3 shadow-elev-3 ring-1 ring-black/[0.06] backdrop-blur-glass24"
+      style={{ top, left, width: cardWidth }}
       // Don't intercept pointer events — the hover lives on the underlying td.
       // Setting pointer-events: none means moving over the card doesn't trigger
       // mouseleave on the cell (the card is pinned but can't be interacted with).

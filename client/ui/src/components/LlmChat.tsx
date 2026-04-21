@@ -3,6 +3,7 @@ import Markdown from "react-markdown";
 import { useChat } from "../providers/ChatProvider";
 import { Tabs, type TabItem } from "./ui/Tabs";
 import type { ChatMode } from "../types";
+import { safeGetItem, safeSetItem } from "../utils";
 import {
   CHAT_INPUT_MAX_HEIGHT_PX,
   CHAT_HISTORY_KEY,
@@ -103,9 +104,9 @@ function investigationLabel(ctx: NonNullable<ReturnType<typeof useChat>["investi
 }
 
 function loadHistory(): string[] {
+  const v = safeGetItem(CHAT_HISTORY_KEY);
+  if (!v) return [];
   try {
-    const v = localStorage.getItem(CHAT_HISTORY_KEY);
-    if (!v) return [];
     const parsed = JSON.parse(v);
     return Array.isArray(parsed) ? parsed.filter((s) => typeof s === "string") : [];
   } catch {
@@ -114,7 +115,7 @@ function loadHistory(): string[] {
 }
 
 function persistHistory(history: string[]): void {
-  try { localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(history.slice(-CHAT_HISTORY_MAX))); } catch { /* ignore */ }
+  safeSetItem(CHAT_HISTORY_KEY, JSON.stringify(history.slice(-CHAT_HISTORY_MAX)));
 }
 
 export function LlmChat() {
