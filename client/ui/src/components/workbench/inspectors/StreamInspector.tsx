@@ -215,15 +215,17 @@ function buildChartOption(series: StreamKeyTimeseries[]): EChartsOption {
       allTimestamps.push(p.timestamp);
     }
     const label = formatKey(s.key);
-    // showSymbol: true is load-bearing when the series has a single point —
-    // a one-point line has nothing to connect and would render as nothing
-    // otherwise (the Inspector's first render right after stream activation
-    // lands here, before the WS ticker's heartbeat has appended anything).
+    // Markers only on sparse series — a one-point series has nothing to
+    // connect and would render invisibly with showSymbol:false, but with
+    // heartbeat-dense data (one point every 2s) dots overwhelm the line.
+    // `<=2` keeps the symbol for the single-point "just activated" state
+    // and drops it the moment the heartbeat has produced a real line.
+    const sparse = data.length <= 2;
     seriesSpecs.push({
       name: `${label} raw`,
       type: "line",
       data,
-      showSymbol: true,
+      showSymbol: sparse,
       symbolSize: 4,
       lineStyle: { width: 1.5, color },
       itemStyle: { color },
