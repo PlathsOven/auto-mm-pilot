@@ -1,9 +1,11 @@
 import { useCallback, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { CommandPalette } from "./components/shared/CommandPalette";
 import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
 import { BlockDrawer } from "./components/studio/brain/BlockDrawer";
 import { HotkeyCheatsheet } from "./components/workbench/HotkeyCheatsheet";
 import { AppShell } from "./components/shell/AppShell";
+import { PositSplash } from "./components/shell/PositSplash";
 import { WorkbenchPage } from "./pages/WorkbenchPage";
 import { AnatomyCanvas } from "./components/studio/anatomy/AnatomyCanvas";
 import { DocsPage } from "./pages/DocsPage";
@@ -17,6 +19,7 @@ import { useFocus } from "./providers/FocusProvider";
 import { useCommandPalette } from "./providers/CommandPaletteProvider";
 import { useTimeOnApp } from "./hooks/useTimeOnApp";
 import { useHotkeys } from "./hooks/useHotkeys";
+import { useAppReady } from "./hooks/useAppReady";
 
 const MODE_PAGES: Record<ModeId, React.FC> = {
   workbench: WorkbenchPage,
@@ -26,6 +29,10 @@ const MODE_PAGES: Record<ModeId, React.FC> = {
   admin: AdminPage,
 };
 
+// Cross-fade duration for mode switches. Kept short enough not to feel like
+// a delay but long enough to read as a transition rather than a jump-cut.
+const MODE_FADE_S = 0.22;
+
 export function App() {
   const { user } = useAuth();
   const { mode } = useMode();
@@ -33,6 +40,7 @@ export function App() {
   const { clearFocus } = useFocus();
   const { togglePalette } = useCommandPalette();
   const [cheatsheetOpen, setCheatsheetOpen] = useState(false);
+  const { ready, message } = useAppReady();
 
   // Instrument time-on-app only for authenticated users.
   useTimeOnApp();
@@ -65,17 +73,56 @@ export function App() {
     "g k": () => togglePalette(),
   });
 
-  if (user === null) {
-    return <LoginPage />;
-  }
-
-  const Page = MODE_PAGES[mode];
-
   return (
     <>
-      <AppShell onShowCheatsheet={showCheatsheet}>
-        <Page />
-      </AppShell>
+      <AnimatePresence mode="wait">
+        {user === null ? (
+          <motion.div
+            key="login"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.24, ease: "easeOut" }}
+            className="h-full"
+          >
+            <LoginPage />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="app"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.28, ease: "easeOut" }}
+            className="h-full"
+          >
+            <AppShell onShowCheatsheet={showCheatsheet}>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={mode}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: MODE_FADE_S, ease: "easeOut" }}
+                  className="flex min-h-0 min-w-0 flex-1"
+                >
+                  {(() => {
+                    const Page = MODE_PAGES[mode];
+                    return <Page />;
+                  })()}
+                </motion.div>
+              </AnimatePresence>
+            </AppShell>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {user !== null && !ready && (
+          <PositSplash key="post-login-splash" message={message} />
+        )}
+      </AnimatePresence>
+
       <CommandPalette />
       <HotkeyCheatsheet open={cheatsheetOpen} onClose={() => setCheatsheetOpen(false)} />
       <OnboardingFlow />

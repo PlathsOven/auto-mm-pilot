@@ -237,6 +237,20 @@
   animation: anatomy-flow-pulse 2.2s ease-in-out infinite;
 }
 
+/* Honor prefers-reduced-motion for non-framer animations. Framer-motion has
+   its own built-in reducer; this covers the pure-CSS cases (sidebar width
+   transition, fade-highlight on rows/cells, anatomy flow pulse, any tailwind
+   `transition-*` classes). Trader accessibility: a user who's set reduced
+   motion should see positions snap rather than tween. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Highlight a stream node when its corresponding sidebar is open */
 .anatomy-node-highlighted > div {
   background-color: rgba(79, 91, 213, 0.06) !important;

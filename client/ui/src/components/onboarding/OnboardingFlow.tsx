@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useOnboarding } from "../../providers/OnboardingProvider";
 import { useMode } from "../../providers/ModeProvider";
 
@@ -35,8 +36,6 @@ export function OnboardingFlow() {
     if (open) setIndex(0);
   }, [open]);
 
-  if (!open) return null;
-
   const card = CARDS[index];
   const isFirst = index === 0;
   const isLast = index === CARDS.length - 1;
@@ -55,50 +54,77 @@ export function OnboardingFlow() {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/20 backdrop-blur-sm">
-      <div className="relative w-[600px] max-w-[90vw] overflow-hidden rounded-xl border border-white/50 bg-white/85 shadow-xl shadow-black/[0.08] ring-1 ring-black/[0.06] backdrop-blur-glass32">
-        <div className="flex flex-col px-8 py-8">
-          <h2 className="text-base font-semibold text-mm-accent">{card.heading}</h2>
-          <div className="mt-2 text-xs leading-relaxed text-mm-text-dim">{card.body}</div>
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          key="onboarding"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.24, ease: "easeOut" }}
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/20 backdrop-blur-sm"
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 8 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="relative w-[600px] max-w-[90vw] overflow-hidden rounded-xl border border-white/50 bg-white/85 shadow-xl shadow-black/[0.08] ring-1 ring-black/[0.06] backdrop-blur-glass32"
+          >
+            <div className="flex flex-col px-8 py-8">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={card.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.22, ease: "easeOut" }}
+                >
+                  <h2 className="text-base font-semibold text-mm-accent">{card.heading}</h2>
+                  <div className="mt-2 text-xs leading-relaxed text-mm-text-dim">{card.body}</div>
+                </motion.div>
+              </AnimatePresence>
 
-          <div className="my-6">
-            <PipelineDiagram highlight={card.highlight} />
-          </div>
+              <div className="my-6">
+                <PipelineDiagram highlight={card.highlight} />
+              </div>
 
-          <div className="flex items-center justify-between">
-            {!isFirst ? (
+              <div className="flex items-center justify-between">
+                {!isFirst ? (
+                  <button
+                    type="button"
+                    onClick={() => setIndex((i) => Math.max(i - 1, 0))}
+                    className="text-[10px] text-mm-text-dim transition-colors hover:text-mm-text"
+                  >
+                    ← Back
+                  </button>
+                ) : (
+                  <span />
+                )}
+                <button
+                  type="button"
+                  onClick={next}
+                  className="rounded-lg bg-mm-accent px-5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-mm-accent/90"
+                >
+                  {card.ctaLabel ?? "Next"}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-black/[0.06] bg-black/[0.03] px-4 py-2 text-[10px] text-mm-text-dim">
+              <span>{card.label}</span>
               <button
                 type="button"
-                onClick={() => setIndex((i) => Math.max(i - 1, 0))}
-                className="text-[10px] text-mm-text-dim hover:text-mm-text"
+                onClick={finish}
+                className="rounded px-2 py-0.5 transition-colors hover:bg-black/[0.04] hover:text-mm-text"
               >
-                ← Back
+                Skip onboarding
               </button>
-            ) : (
-              <span />
-            )}
-            <button
-              type="button"
-              onClick={next}
-              className="rounded-lg bg-mm-accent px-5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-mm-accent/90"
-            >
-              {card.ctaLabel ?? "Next"}
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between border-t border-black/[0.06] bg-black/[0.03] px-4 py-2 text-[10px] text-mm-text-dim">
-          <span>{card.label}</span>
-          <button
-            type="button"
-            onClick={finish}
-            className="rounded px-2 py-0.5 transition-colors hover:bg-black/[0.04] hover:text-mm-text"
-          >
-            Skip onboarding
-          </button>
-        </div>
-      </div>
-    </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 

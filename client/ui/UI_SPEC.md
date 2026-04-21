@@ -105,3 +105,17 @@ The UI is a fixed-height, single-page application (SPA) divided into four primar
 3. Focus-driven Workbench (`pages/WorkbenchPage.tsx`) inside the `AppShell` chrome — no draggable panel grid. Surfaces use `.glass-panel`.
 4. `rounded-lg` panels, `rounded-md` controls. Subtle gradient background. No box shadows on panels — glass surfaces with `backdrop-blur` and `ring-1 ring-black/[0.06]` for edge definition.
 5. ChatProvider context for shared investigation state across components.
+
+## 5. Motion Language
+
+* **Engine:** `framer-motion`. All overlay and route transitions go through `<AnimatePresence>`; ad-hoc CSS transitions remain only for low-cost hover states and the sidebar width tween.
+* **Enter/exit presets** — pick one per surface, never invent a new one:
+    * **Modal** (CommandPalette, HotkeyCheatsheet, OnboardingFlow): `opacity + scale 0.98→1 + y 4→0`, 220ms, ease `[0.22, 1, 0.36, 1]`. Backdrop fades in 180ms.
+    * **Drawer-right** (BlockDrawer, NotificationsCenter): `x: 100% → 0`, 280–300ms, same easing. Backdrop 200ms fade.
+    * **Drawer-bottom** (ChatDock): `height: 0 → effectiveHeight`, 260ms, same easing.
+    * **Popover** (small overlays): `opacity + scale 0.96→1 + y -4→0`, 180ms, ease-out.
+* **Page transitions** — mode cross-fade keyed on `mode` in `App.tsx`: 220ms opacity + subtle y drift (±4px). Auth boundary (LoginPage ↔ AppShell): 240–280ms fade.
+* **Splash:** `<PositSplash/>` is the brand moment — shown at app boot (pre-hydration HTML in `index.html`) and after login until `useAppReady()` returns `ready=true` (first WS tick + min 400ms display). The mark breathes at 2.6s infinite.
+* **Data-trust signals are NOT motion-layer chrome.** The cell `fade-highlight` (2s row emphasis), updates-feed card entry, and `anatomy-flow-pulse` are existing keyframes tuned to reinforce freshness — do not repurpose them or throttle them as part of a motion sweep.
+* **Reduced motion:** a `@media (prefers-reduced-motion: reduce)` rule in `index.css` collapses every transition and animation to 0.01ms. Framer-motion honors the same preference via its built-in reducer. Trader accessibility takes priority over polish.
+* **Button press:** interactive `motion.button` elements can opt into `whileTap={{ scale: 0.97 }}` — reserved for primary nav + primary form actions, not every hover target.

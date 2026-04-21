@@ -48,8 +48,11 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `.claude/commands/*.md` | Claude Code slash commands (harness primary) |
 | `.windsurf/workflows/*.md` | Windsurf workflows (harness secondary, must mirror `.claude/commands/`) |
 | `.claude/settings.json` | Claude Code hooks: block `server/core/` writes, typecheck + drift-check on Stop |
-| `client/ui/src/App.tsx` | Mounts `<AppShell/>` + global overlays (CommandPalette, HotkeyCheatsheet, OnboardingFlow, BlockDrawer). Hotkey wiring (`?`, `[`, `]`, `g`-chords). |
+| `client/ui/src/App.tsx` | Mounts `<AppShell/>` + global overlays (CommandPalette, HotkeyCheatsheet, OnboardingFlow, BlockDrawer). Owns auth↔app fade and mode cross-fade via `AnimatePresence`. Splash gate via `useAppReady`. Hotkey wiring (`?`, `[`, `]`, `g`-chords). |
 | `client/ui/src/components/shell/AppShell.tsx` | Three-region authenticated chrome — left `<LeftNav/>`, main slot, bottom `<StatusBar/>`. Replaces the deleted `GlobalContextBar`. |
+| `client/ui/src/components/shell/PositSplash.tsx` | Full-screen branded splash shown between login and first WS tick. Matches the body gradient, breathes the mark, drives its own enter fade + exit controlled by `<AnimatePresence>` in `App.tsx`. |
+| `client/ui/src/components/shell/PositLogo.tsx` | Posit wordmark + SVG mark (solid indigo point + offset reference circle). Used by the splash, LeftNav brand, and LoginPage. |
+| `client/ui/src/hooks/useAppReady.ts` | Owns the "app ready?" gate: signed-in + first-tick-received + min 400ms splash display. Returns `{ ready, message }` for the splash. |
 | `client/ui/src/components/shell/LeftNav.tsx` | Collapsible left sidebar — brand, mode nav, palette/chat/onboarding actions, `<UserMenu/>` pinned at the bottom. Persists collapsed state. |
 | `client/ui/src/components/shell/StatusBar.tsx` | 24px bottom strip — WS state, last-tick freshness, Posit Control toggle (advisory until server hook lands), palette + cheatsheet hints, UTC clock. |
 | `client/ui/src/components/ui/Tabs.tsx` | Reusable tab strip primitive (pill + underline variants). Used by WorkbenchRail, DesiredPositionGrid view modes, LlmChat mode select. |

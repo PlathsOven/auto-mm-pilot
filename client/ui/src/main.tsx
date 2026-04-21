@@ -40,3 +40,16 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </AppProviders>
   </React.StrictMode>,
 );
+
+// Fade out the pre-hydration splash once React has painted. A double rAF
+// guarantees we've rendered at least one frame before dismissing, so the
+// hand-off into the React-owned splash (or LoginPage) is seamless rather
+// than a flash of white.
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    const splash = document.getElementById("boot-splash");
+    if (!splash) return;
+    splash.classList.add("fade-out");
+    setTimeout(() => splash.remove(), 350);
+  });
+});

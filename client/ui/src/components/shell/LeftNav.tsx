@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Sidebar } from "../ui/Sidebar";
+import { PositLogo } from "./PositLogo";
 import { UserMenu } from "../UserMenu";
 import { useMode, MODE_LABELS, PRIMARY_MODES, type ModeId } from "../../providers/ModeProvider";
 import { useChat } from "../../providers/ChatProvider";
@@ -106,19 +108,45 @@ export function LeftNav() {
     >
       {/* Brand + collapse toggle */}
       <div className="flex shrink-0 items-center justify-between border-b border-black/[0.05] px-3 py-2.5">
-        {!collapsed && (
-          <div className="flex flex-col gap-0">
-            <span className="text-[13px] font-bold tracking-wide text-mm-accent">Posit</span>
-            <span className="text-[9px] text-mm-text-subtle">positional trading</span>
-          </div>
-        )}
+        <AnimatePresence initial={false} mode="wait">
+          {collapsed ? (
+            <motion.div
+              key="brand-mark"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="flex items-center justify-center"
+            >
+              <PositLogo size={14} markOnly />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="brand-full"
+              initial={{ opacity: 0, x: -4 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -4 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="flex items-center gap-2"
+            >
+              <PositLogo size={13} />
+              <span className="text-[9px] text-mm-text-subtle">positional trading</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <button
           type="button"
           onClick={toggleCollapsed}
           className="rounded-md p-1 text-[11px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          {collapsed ? "›" : "‹"}
+          <motion.span
+            animate={{ rotate: collapsed ? 0 : 180 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="inline-block"
+          >
+            ›
+          </motion.span>
         </button>
       </div>
 
@@ -180,20 +208,35 @@ function NavButton({
   onActivate: () => void;
 }) {
   return (
-    <button
+    <motion.button
       type="button"
       onClick={onActivate}
       title={item.label}
+      whileTap={{ scale: 0.97 }}
+      transition={{ duration: 0.12, ease: "easeOut" }}
       className={`relative flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors ${
         active
           ? "bg-mm-accent-soft text-mm-accent"
           : "text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
       } ${collapsed ? "justify-center" : ""}`}
     >
-      <span aria-hidden className={`text-[13px] leading-none ${active ? "text-mm-accent" : "text-mm-text-subtle"}`}>
+      <span aria-hidden className={`text-[13px] leading-none transition-colors ${active ? "text-mm-accent" : "text-mm-text-subtle"}`}>
         {item.icon}
       </span>
-      {!collapsed && <span className="flex-1 truncate text-left">{item.label}</span>}
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.span
+            key="label"
+            initial={{ opacity: 0, width: 0 }}
+            animate={{ opacity: 1, width: "auto" }}
+            exit={{ opacity: 0, width: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="flex-1 truncate text-left"
+          >
+            {item.label}
+          </motion.span>
+        )}
+      </AnimatePresence>
       {item.badge !== undefined && item.badge > 0 && (
         <span
           className={`${
@@ -206,6 +249,6 @@ function NavButton({
           {collapsed ? "" : item.badge}
         </span>
       )}
-    </button>
+    </motion.button>
   );
 }

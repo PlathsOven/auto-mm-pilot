@@ -40,8 +40,11 @@ export function Sidebar({
 
   return (
     <aside
-      className={`flex shrink-0 flex-col overflow-hidden ${borderClass} border-black/[0.06] bg-white/65 backdrop-blur-glass28 transition-[width] duration-150 ${className}`}
-      style={{ width }}
+      className={`flex shrink-0 flex-col overflow-hidden ${borderClass} border-black/[0.06] bg-white/65 backdrop-blur-glass28 ${className}`}
+      style={{
+        width,
+        transition: "width 240ms cubic-bezier(0.22, 1, 0.36, 1)",
+      }}
     >
       {children}
     </aside>
