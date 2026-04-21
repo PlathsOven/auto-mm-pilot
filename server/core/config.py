@@ -59,10 +59,19 @@ class StreamConfig:
     separate ``calc_to_target`` step.
 
     ``applies_to`` controls which ``(symbol, expiry)`` pairs the stream's
-    blocks fan out to at Stage A. ``None`` (default) means "every pair in
-    the pipeline's dim universe". A list means exactly those pairs;
-    ingest validates each entry is in the dim universe and raises with
-    the offending pair(s) on mismatch.
+    blocks land on at Stage A. Its meaning depends on the snapshot's
+    shape after dedup:
+
+      * **Scalar snap** (one row) — ``None`` means "every pair in the dim
+        universe" (the single row is fanned out via cross-join); an
+        explicit list means exactly those pairs.
+      * **Per-dim snap** (multiple rows) — ``None`` means "every pair the
+        snap already has data for" (each snap row stays on its native
+        dim); an explicit list filters snap rows via inner-join on the
+        risk-dimension cols.
+
+    Ingest validates each explicit entry is in the dim universe and
+    raises with the offending pair(s) on mismatch.
     """
 
     stream_name: str
