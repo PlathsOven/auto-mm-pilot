@@ -146,20 +146,22 @@ def _per_space_from_history(history: list) -> dict[str, dict[str, list[float]]]:
     Each point carries a per-space dict captured at its rerun moment. A
     space that appears in one rerun but not another (e.g. a new stream was
     added) shows up as 0.0 for points that predate it — the stacked chart
-    treats the missing space as "not contributing yet".
+    treats the missing space as "not contributing yet". ``getattr`` guards
+    against older instances that predate the ``per_space`` field surviving
+    across a hot reload.
     """
     if not history:
         return {}
     space_ids: set[str] = set()
     for p in history:
-        space_ids.update(p.per_space.keys())
+        space_ids.update(getattr(p, "per_space", {}).keys())
     per_space: dict[str, dict[str, list[float]]] = {}
     for sid in sorted(space_ids):
         fair_arr: list[float] = []
         var_arr: list[float] = []
         market_arr: list[float] = []
         for p in history:
-            entry = p.per_space.get(sid)
+            entry = getattr(p, "per_space", {}).get(sid)
             if entry is None:
                 fair_arr.append(0.0); var_arr.append(0.0); market_arr.append(0.0)
             else:
