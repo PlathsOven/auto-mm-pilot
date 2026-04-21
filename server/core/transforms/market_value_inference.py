@@ -35,16 +35,10 @@ from server.core.config import SECONDS_PER_YEAR
 from server.core.transforms.registry import transform
 
 
-def _t_years_for_expiry(expiry: object, now: _dt.datetime) -> float:
+def _t_years_for_expiry(expiry: _dt.datetime, now: _dt.datetime) -> float:
     """Forward span in year-fractions — matches the convention the UI's
     vol display uses (``sqrt(Σ_t fair / T_years)``)."""
-    if isinstance(expiry, _dt.datetime):
-        exp_dt = expiry
-    elif isinstance(expiry, _dt.date):
-        exp_dt = _dt.datetime(expiry.year, expiry.month, expiry.day)
-    else:
-        exp_dt = _dt.datetime.fromisoformat(canonical_expiry_key(expiry))
-    secs = (exp_dt - now).total_seconds()
+    secs = (expiry - now).total_seconds()
     return max(secs, 0.0) / SECONDS_PER_YEAR
 
 

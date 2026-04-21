@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import type { ChatMessage, ChatMode, InvestigationContext, PendingBlockCommand } from "../types";
 import { streamFetchSSE } from "../services/api";
 import { parseAndStripCommands, executeNonInteractiveCommands } from "../services/engineCommands";
-import { createIdGenerator } from "../utils";
 
 interface ChatState {
   messages: ChatMessage[];
@@ -35,7 +34,8 @@ export function useChat(): ChatState {
   return ctx;
 }
 
-const nextId = createIdGenerator("msg-");
+let messageCounter = 0;
+const nextId = (): string => `msg-${++messageCounter}`;
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);

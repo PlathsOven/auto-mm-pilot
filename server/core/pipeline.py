@@ -29,7 +29,6 @@ selections match the spec exactly and reproduce today's options numbers
 from __future__ import annotations
 
 import datetime as dt
-import logging
 from typing import Any
 
 import polars as pl
@@ -37,8 +36,6 @@ import polars as pl
 from server.api.expiry import canonical_expiry_key
 from server.core.config import SECONDS_PER_YEAR, StreamConfig
 from server.core.transforms import TransformRegistration, from_dict, get_step
-
-log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -383,7 +380,6 @@ def run_pipeline(
         get_step("smoothing").set_param_values({"half_life_secs": smoothing_hl_secs})
 
     unit_fn = get_step("unit_conversion").get_selected()
-    decay_fn = get_step("decay_profile").get_selected()
     var_fn = get_step("variance").get_selected()
     fair_fn = get_step("temporal_fair_value").get_selected()
     rsa_fn = get_step("risk_space_aggregation").get_selected()
@@ -422,7 +418,7 @@ def run_pipeline(
 
     # Stage B: time distribution of each calc total.
     block_series_df = fair_fn.fn(
-        blocks_df, time_grid, risk_dimension_cols, now, decay_fn,
+        blocks_df, time_grid, risk_dimension_cols, now,
         **fair_params,
     )
 

@@ -30,7 +30,7 @@ import datetime as dt
 import polars as pl
 
 from server.core.helpers import annualize, deannualize
-from server.core.transforms.registry import TransformRegistration, transform
+from server.core.transforms.registry import transform
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +123,6 @@ def _annualised_expr(
 def fv_standard(
     blocks_df: pl.DataFrame, time_grid: pl.DataFrame,
     risk_dimension_cols: list[str], now: dt.datetime,
-    decay_fn: TransformRegistration,
 ) -> pl.DataFrame:
     if blocks_df.is_empty():
         return pl.DataFrame()
@@ -210,7 +209,6 @@ def fv_standard(
 def fv_flat_forward(
     blocks_df: pl.DataFrame, time_grid: pl.DataFrame,
     risk_dimension_cols: list[str], now: dt.datetime,
-    decay_fn: TransformRegistration,
 ) -> pl.DataFrame:
     if blocks_df.is_empty():
         return pl.DataFrame()

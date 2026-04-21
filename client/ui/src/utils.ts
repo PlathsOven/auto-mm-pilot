@@ -21,12 +21,6 @@ export function formatAge(ms: number): string {
   return `${mins}m ago`;
 }
 
-/** Creates an auto-incrementing ID generator with a given prefix. */
-export function createIdGenerator(prefix: string): () => string {
-  let counter = 0;
-  return () => `${prefix}${++counter}`;
-}
-
 /** Converts an ISO-8601 (or already-formatted DDMMMYY) expiry to DDMMMYY.
  *
  *  Crucially, ISO strings without a timezone suffix (e.g.
