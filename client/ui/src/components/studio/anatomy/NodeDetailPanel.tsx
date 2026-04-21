@@ -6,6 +6,7 @@ import { StreamCanvas } from "../StreamCanvas";
 import { StreamTable } from "../StreamTable";
 import { NewStreamMenu } from "../NewStreamMenu";
 import type { StreamDraftPrefill } from "../canvasState";
+import { CommittableNumber, CommittableText } from "../sections/Field";
 import { useNotifications } from "../../../providers/NotificationsProvider";
 import { useMode } from "../../../providers/ModeProvider";
 import {
@@ -373,27 +374,23 @@ function ParamInput({
   }
 
   if (param.type === "float" || param.type === "int") {
+    const numericValue =
+      typeof value === "number" && Number.isFinite(value)
+        ? value
+        : typeof param.default === "number"
+          ? param.default
+          : NaN;
     return (
       <label className="flex flex-col gap-1">
         <span className="text-[10px] font-medium text-mm-text-dim">{param.name}</span>
-        <input
-          type="number"
-          value={value != null ? String(value) : ""}
+        <CommittableNumber
+          value={numericValue}
           step={param.type === "int" ? 1 : "any"}
           min={param.min ?? undefined}
           max={param.max ?? undefined}
-          onChange={(e) => {
-            const raw = e.target.value;
-            if (raw === "") {
-              onChange(param.name, param.default);
-              return;
-            }
-            onChange(
-              param.name,
-              param.type === "int" ? parseInt(raw, 10) : parseFloat(raw),
-            );
-          }}
-          className="form-input font-mono"
+          onChange={(next) =>
+            onChange(param.name, param.type === "int" ? Math.trunc(next) : next)
+          }
         />
       </label>
     );
@@ -402,11 +399,10 @@ function ParamInput({
   return (
     <label className="flex flex-col gap-1">
       <span className="text-[10px] font-medium text-mm-text-dim">{param.name}</span>
-      <input
-        type="text"
+      <CommittableText
         value={String(value ?? "")}
-        onChange={(e) => onChange(param.name, e.target.value)}
-        className="form-input font-mono"
+        mono
+        onChange={(next) => onChange(param.name, next)}
       />
     </label>
   );

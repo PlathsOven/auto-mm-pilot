@@ -24,6 +24,7 @@ export function IdentitySection({ value, onChange, state }: Props) {
           type="text"
           label="Stream name (snake_case)"
           required
+          committable
           placeholder="e.g. rolling_realized_vol"
           value={value.stream_name}
           onChange={(v) => patch("stream_name", v)}
@@ -32,6 +33,7 @@ export function IdentitySection({ value, onChange, state }: Props) {
           type="text"
           label="Key columns (comma-separated)"
           required
+          committable
           placeholder="symbol, expiry"
           value={value.key_cols.join(", ")}
           onChange={(v) =>
@@ -45,6 +47,7 @@ export function IdentitySection({ value, onChange, state }: Props) {
           type="textarea"
           label="What's your idea?"
           required={false}
+          committable
           placeholder="One sentence describing what this stream is supposed to capture."
           rows={2}
           value={value.description}
