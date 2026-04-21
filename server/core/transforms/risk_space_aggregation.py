@@ -53,17 +53,3 @@ def rsa_arithmetic_mean(
         .drop(["_has_aggregate", "_market_mean"])
         .sort(space_group_keys)
     )
-
-
-@transform("risk_space_aggregation", "confidence_weighted_mean",
-           description="Per-timestamp weighted mean over blocks within each space, "
-                       "weights = 1 / var_fair_ratio. Registered for forward "
-                       "compatibility; not yet implemented.")
-def rsa_confidence_weighted_mean(
-    block_series_df: pl.DataFrame,
-    risk_dimension_cols: list[str],
-) -> pl.DataFrame:
-    raise NotImplementedError(
-        "confidence_weighted_mean is registered as a future variant; "
-        "default arithmetic_mean is the only implemented form.",
-    )

@@ -356,8 +356,10 @@ def build_time_grid(
 # Full pipeline orchestrator
 # ---------------------------------------------------------------------------
 
-# Position sizing sentinel for degenerate variance — see tasks/progress.md
-# 2026-04-20 for the initial-spike artifact this does NOT yet bound.
+# Position sizing sentinel: below this variance floor the Kelly ratio
+# `edge * bankroll / var` is replaced with 0 to avoid division-by-near-zero
+# blow-ups. Does not clamp the in-band output — see the Kelly bounding
+# discussion if finite-upper-bound positions are needed.
 VAR_FLOOR: float = 1e-6
 
 

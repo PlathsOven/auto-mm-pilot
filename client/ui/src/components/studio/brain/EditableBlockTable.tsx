@@ -24,11 +24,6 @@ import { useFocus } from "../../../providers/FocusProvider";
 
 const col = createColumnHelper<BlockRow>();
 
-/** Composite React key for a block row. `block_name` alone is not unique. */
-function rowReactKey(row: BlockRow): string {
-  return `${blockKeyToString(blockKeyOf(row))}|${row.space_id}`;
-}
-
 /** All column definitions. The `id` doubles as the visibility key. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TanStack column helper produces heterogeneous accessor types
 const ALL_COLUMNS: ColumnDef<BlockRow, any>[] = [
@@ -520,7 +515,7 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
                   && blockKeyEquals(focus.key, blockKeyOf(row.original));
                 return (
                 <tr
-                  key={rowReactKey(row.original)}
+                  key={`${blockKeyToString(blockKeyOf(row.original))}|${row.original.space_id}`}
                   className={`border-t border-black/[0.03] transition-colors ${
                     isFocused ? "bg-mm-accent-soft" : "hover:bg-mm-accent/5"
                   } ${onRowClick ? "cursor-pointer" : ""}`}
