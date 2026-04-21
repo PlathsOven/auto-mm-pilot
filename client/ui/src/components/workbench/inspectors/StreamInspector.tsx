@@ -258,7 +258,20 @@ function buildChartOption(series: StreamKeyTimeseries[]): EChartsOption {
         return `<div style="font-weight:600;margin-bottom:4px;">${header}</div>${rows}`;
       },
     },
-    grid: { left: 50, right: 16, top: 12, bottom: 24 },
+    dataZoom: [
+      { type: "inside", filterMode: "filter" },
+      {
+        type: "slider",
+        bottom: 6,
+        height: 12,
+        borderColor: "transparent",
+        backgroundColor: "rgba(0,0,0,0.03)",
+        fillerColor: "rgba(79,91,213,0.10)",
+        handleStyle: { color: "#4f5bd5", borderColor: "rgba(255,255,255,0.6)" },
+        textStyle: { color: "#6e6e82", fontSize: 9 },
+      },
+    ],
+    grid: { left: 56, right: 16, top: 12, bottom: 48 },
     xAxis: {
       type: "time",
       axisLabel: {
@@ -274,7 +287,14 @@ function buildChartOption(series: StreamKeyTimeseries[]): EChartsOption {
     },
     yAxis: {
       type: "value",
-      axisLabel: { color: "#6e6e82", fontSize: 9, formatter: (v: number) => sci(v) },
+      name: "Raw",
+      // `scale: true` disables ECharts' default "include zero" behaviour,
+      // so tight clusters (e.g. rolling realized-vol in [0.40, 0.45]) fill
+      // the plot area instead of squashing against one edge. Matches the
+      // Pipeline chart's y-axis.
+      scale: true,
+      nameTextStyle: { color: "#6e6e82", fontSize: 10, padding: [0, 0, 0, -10] },
+      axisLabel: { color: "#6e6e82", fontSize: 10, formatter: (v: number) => sci(v) },
       splitLine: { lineStyle: { color: "rgba(0,0,0,0.04)" } },
       axisLine: { show: false },
     },
