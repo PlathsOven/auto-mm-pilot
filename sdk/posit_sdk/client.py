@@ -28,6 +28,7 @@ from posit_sdk.models import (
     StreamSpec,
     StreamState,
     WsAck,
+    ZeroPositionDiagnosticsResponse,
 )
 from posit_sdk.rest import RestClient
 from posit_sdk.ws import WsClient, WsState
@@ -784,6 +785,23 @@ class PositClient:
         payload = await self._require_rest().get_positions()
         self._maybe_warn_zero_edge(payload)
         return payload
+
+    async def diagnose_zero_positions(self) -> ZeroPositionDiagnosticsResponse:
+        """Explain every (symbol, expiry) whose ``desired_pos`` is ~zero.
+
+        Calls ``GET /api/diagnostics/zero-positions``. Returns one
+        ``ZeroPositionDiagnostic`` per near-zero pair, each carrying a
+        closed-enum ``reason`` (``no_market_value`` / ``zero_variance`` /
+        ``zero_bankroll`` / ``no_active_blocks`` / ``edge_coincidence`` /
+        ``unknown``) plus the scalars that produced it and a human-readable
+        ``hint``.
+
+        Intended for bring-up diagnosis — the integrator sees zero positions
+        somewhere, runs this, and the response tells them exactly which
+        lever to pull (set ``market_value``, flip a stream active, set
+        bankroll, etc.).
+        """
+        return await self._require_rest().diagnose_zero_positions()
 
     async def positions(
         self, *, poll_interval: float = 2.0,

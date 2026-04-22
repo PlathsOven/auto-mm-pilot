@@ -15,6 +15,7 @@ from posit_sdk.models import (
     SnapshotRow,
     StreamResponse,
     StreamState,
+    ZeroPositionDiagnosticsResponse,
 )
 
 _DEFAULT_TIMEOUT = 30.0
@@ -124,6 +125,11 @@ class RestClient:
         resp = await self._client.get("/api/positions")
         self._raise_for_status(resp)
         return PositionPayload.model_validate(resp.json())
+
+    async def diagnose_zero_positions(self) -> ZeroPositionDiagnosticsResponse:
+        resp = await self._client.get("/api/diagnostics/zero-positions")
+        self._raise_for_status(resp)
+        return ZeroPositionDiagnosticsResponse.model_validate(resp.json())
 
     # ----- Streams -----
 

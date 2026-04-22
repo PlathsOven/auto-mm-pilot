@@ -61,6 +61,8 @@ from posit_sdk.models import (
     StreamState,
     UpdateCard,
     WsAck,
+    ZeroPositionDiagnostic,
+    ZeroPositionDiagnosticsResponse,
 )
 from posit_sdk.ws import WsState
 
@@ -88,6 +90,8 @@ __all__ = [
     "BankrollResponse",
     "BlockRowResponse",
     "HealthResponse",
+    "ZeroPositionDiagnostic",
+    "ZeroPositionDiagnosticsResponse",
     # WebSocket models
     "PositionPayload",
     "DesiredPosition",

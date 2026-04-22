@@ -279,6 +279,48 @@ class BlockRowResponse(BaseModel):
     updated_at: str | None = None
 
 
+ZeroPositionReason = Literal[
+    "no_market_value",
+    "zero_variance",
+    "zero_bankroll",
+    "no_active_blocks",
+    "edge_coincidence",
+    "unknown",
+]
+
+
+class ZeroPositionDiagnostic(BaseModel):
+    """One (symbol, expiry) whose ``desired_pos`` is near-zero, with a reason.
+
+    Mirrors the server's ``ZeroPositionDiagnostic`` (camelCase on the wire).
+    ``aggregate_market_value`` is ``None`` when no aggregate is set for this
+    pair in the user's market value store.
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    symbol: str
+    expiry: str
+    raw_edge: float
+    raw_variance: float
+    desired_pos: float
+    total_fair: float
+    total_market_fair: float
+    aggregate_market_value: float | None = None
+    reason: ZeroPositionReason
+    hint: str
+
+
+class ZeroPositionDiagnosticsResponse(BaseModel):
+    """Response from ``PositClient.diagnose_zero_positions()``."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    bankroll: float
+    tick_timestamp: int | None = None
+    diagnostics: list[ZeroPositionDiagnostic]
+
+
 class WsAck(BaseModel):
     """ACK frame received after pushing a snapshot or market_value frame."""
 

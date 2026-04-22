@@ -227,6 +227,7 @@ them per pair.
 - `client.health()` → server reachability + version.
 - `client.describe_stream("rv_btc")` → status, row_count, last_ingest_ts. Use this as your "is my data actually landing?" check instead of `tail -f` on the server logs.
 - `client.positions()` degrades to REST polling if the WS is unavailable; one `WARNING` per degradation so you know latency has changed.
+- `client.diagnose_zero_positions()` → per `(symbol, expiry)` explanation for every near-zero desired position. Closed-enum `reason` (`no_market_value` / `zero_variance` / `zero_bankroll` / `no_active_blocks` / `edge_coincidence` / `unknown`), plus the raw scalars and a human-readable `hint`. Run this when the trader sees zeros and you need a one-shot diagnosis.
 
 ---
 

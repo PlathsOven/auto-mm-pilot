@@ -647,6 +647,46 @@ class SilentStreamAlert(_WireModel):
     last_seen: str  # ISO 8601 UTC
 
 
+ZeroPositionReason = Literal[
+    "no_market_value",
+    "zero_variance",
+    "zero_bankroll",
+    "no_active_blocks",
+    "edge_coincidence",
+    "unknown",
+]
+
+
+class ZeroPositionDiagnostic(_WireModel):
+    """One (symbol, expiry) whose desired_pos is (near-)zero, with a reason.
+
+    Returned from ``GET /api/diagnostics/zero-positions``. Surfaces the single
+    most common integrator failure ("my positions are zero and there's no
+    error") with a closed-enum reason + the scalars to verify.
+
+    ``aggregate_market_value`` is ``None`` when no aggregate has been set for
+    this (symbol, expiry); a concrete value means an entry exists in the
+    user's ``MarketValueStore``.
+    """
+    symbol: str
+    expiry: str
+    raw_edge: float
+    raw_variance: float
+    desired_pos: float
+    total_fair: float
+    total_market_fair: float
+    aggregate_market_value: float | None = None
+    reason: ZeroPositionReason
+    hint: str
+
+
+class ZeroPositionDiagnosticsResponse(_WireModel):
+    """Response for ``GET /api/diagnostics/zero-positions``."""
+    bankroll: float
+    tick_timestamp: int | None = None
+    diagnostics: list[ZeroPositionDiagnostic]
+
+
 class ServerPayload(_WireModel):
     """Top-level payload broadcast on ``/ws`` each tick."""
     streams: list[DataStream]
