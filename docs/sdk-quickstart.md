@@ -165,6 +165,20 @@ sees a push without `market_value`, and escalates to a typed
 `warnings.warn`, notebook-visible by default). Either is the signal
 that your positions are about to be zero for a structural reason.
 
+**Server-side hard guard.** On the *first* push to a freshly-configured
+stream, the server refuses any batch that would zero every position —
+i.e. no row carries `market_value` **and** no aggregate market value
+covers the `(symbol, expiry)` pairs in the batch. The SDK translates
+the 422 response into `PositZeroEdgeBlocked`. Recover by:
+
+1. Adding `market_value` to at least one row, **or**
+2. Calling `client.set_market_values([...])` to populate the aggregate
+   store for the missing pairs first, **or**
+3. Passing `allow_zero_edge=True` to `ingest_snapshot` / `push_snapshot`
+   — the explicit "yes, I accept zero positions" opt-out.
+
+Subsequent pushes are not gated — the first one establishes the pattern.
+
 ---
 
 ## Error cheatsheet
@@ -182,6 +196,7 @@ that your positions are about to be zero for a structural reason.
 | `PositApiError HTTP 409 Stream 'X' already exists` | Raw `create_stream` call on a pre-existing stream.                                 | Use `upsert_stream(...)` — it's idempotent.                                          |
 | `FutureWarning: create_stream is deprecated` / `configure_stream is deprecated` | You're on the two-phase legacy path. | Switch to `upsert_stream(...)` / `bootstrap_streams(...)`. Removed in v0.2. |
 | `PositZeroEdgeWarning: Streams ['X'] pushed rows without market_value` | The typed escalation of the market_value footgun — surfaced on `positions()`. | See "The `market_value` footgun" above. Suppress via `warnings.simplefilter("ignore", PositZeroEdgeWarning)` only if you accept the consequence. |
+| `PositZeroEdgeBlocked` (HTTP 422 `ZERO_EDGE_BLOCKED`) | Server refused your first push on a fresh stream — it would zero every position. | Add `market_value` on rows, call `set_market_values([...])` for the listed pairs, or pass `allow_zero_edge=True` to acknowledge zero positions. |
 
 ---
 

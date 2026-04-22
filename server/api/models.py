@@ -232,6 +232,15 @@ class SnapshotRequest(BaseModel):
             "and all key_cols defined on the stream."
         ),
     )
+    allow_zero_edge: bool = Field(
+        False,
+        description=(
+            "Acknowledge that the first push on a freshly-configured stream "
+            "may produce zero positions because no market_value is carried "
+            "(per-row or aggregate). Default False fails closed — see the "
+            "zero-edge guard for the contract."
+        ),
+    )
 
 
 class SnapshotResponse(BaseModel):
@@ -342,6 +351,14 @@ class ClientWsInboundFrame(BaseModel):
         description=(
             "Snapshot rows. Each row must contain 'timestamp', 'raw_value', "
             "and all key_cols defined on the stream."
+        ),
+    )
+    allow_zero_edge: bool = Field(
+        False,
+        description=(
+            "Acknowledge that the first push on a freshly-configured stream "
+            "may produce zero positions because no market_value is carried. "
+            "See SnapshotRequest.allow_zero_edge."
         ),
     )
 

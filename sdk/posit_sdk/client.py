@@ -12,6 +12,7 @@ from posit_sdk.exceptions import (
     PositConnectionError,
     PositStreamNotRegistered,
     PositValidationError,
+    PositZeroEdgeBlocked,
     PositZeroEdgeWarning,
 )
 from posit_sdk.models import (
@@ -554,13 +555,26 @@ class PositClient:
         return True
 
     async def ingest_snapshot(
-        self, stream_name: str, rows: list[SnapshotRow],
+        self,
+        stream_name: str,
+        rows: list[SnapshotRow],
+        *,
+        allow_zero_edge: bool = False,
     ) -> SnapshotResponse:
-        """Ingest snapshot rows via REST.  Use push_snapshot() for lower latency."""
+        """Ingest snapshot rows via REST.  Use push_snapshot() for lower latency.
+
+        Pass ``allow_zero_edge=True`` to acknowledge that the first push on a
+        freshly-configured stream may produce zero positions (no
+        ``market_value`` per-row or aggregate). Default False — the server
+        refuses with ``PositZeroEdgeBlocked`` rather than silently accepting
+        a push that will zero every position.
+        """
         self._assert_registered(stream_name)
         self._warn_if_missing_market_value(stream_name, rows)
         try:
-            return await self._require_rest().ingest_snapshot(stream_name, rows)
+            return await self._require_rest().ingest_snapshot(
+                stream_name, rows, allow_zero_edge=allow_zero_edge,
+            )
         except PositApiError as exc:
             if self._handle_not_registered(stream_name, exc):
                 raise PositStreamNotRegistered(stream_name) from exc
@@ -650,7 +664,11 @@ class PositClient:
     # ----- Pushes (WS preferred, REST fallback) -----
 
     async def push_snapshot(
-        self, stream_name: str, rows: list[SnapshotRow],
+        self,
+        stream_name: str,
+        rows: list[SnapshotRow],
+        *,
+        allow_zero_edge: bool = False,
     ) -> WsAck:
         """Push snapshot rows.
 
@@ -661,14 +679,21 @@ class PositClient:
         Raises ``PositStreamNotRegistered`` synchronously if the target stream
         is not known to be registered on the server — ensuring no snapshot
         rows ever reach an unregistered stream.
+
+        Raises ``PositZeroEdgeBlocked`` when the server's first-push zero-edge
+        guard fires. Pass ``allow_zero_edge=True`` to opt out.
         """
         self._assert_registered(stream_name)
         self._warn_if_missing_market_value(stream_name, rows)
         if self._ws_state() == WsState.OPEN:
-            return await self._require_ws().push_snapshot(stream_name, rows)
+            return await self._require_ws().push_snapshot(
+                stream_name, rows, allow_zero_edge=allow_zero_edge,
+            )
         self._maybe_warn_ws_fallback()
         try:
-            resp = await self._require_rest().ingest_snapshot(stream_name, rows)
+            resp = await self._require_rest().ingest_snapshot(
+                stream_name, rows, allow_zero_edge=allow_zero_edge,
+            )
         except PositApiError as exc:
             if self._handle_not_registered(stream_name, exc):
                 raise PositStreamNotRegistered(stream_name) from exc

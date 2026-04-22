@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import httpx
 
-from posit_sdk.exceptions import PositApiError, PositAuthError
+from posit_sdk.exceptions import PositApiError, PositAuthError, PositZeroEdgeBlocked
 from posit_sdk.models import (
     BankrollResponse,
     BlockConfig,
@@ -56,12 +56,28 @@ class RestClient:
     def _raise_for_status(self, resp: httpx.Response) -> None:
         if resp.status_code == 401:
             raise PositAuthError("Invalid or missing API key")
-        if not resp.is_success:
-            try:
-                detail = resp.json().get("detail") or resp.text
-            except Exception:
-                detail = resp.text
-            raise PositApiError(resp.status_code, str(detail))
+        if resp.is_success:
+            return
+        try:
+            detail = resp.json().get("detail") or resp.text
+        except Exception:
+            detail = resp.text
+        # Structured 422 with {"code": "ZERO_EDGE_BLOCKED", ...} → typed error.
+        if (
+            resp.status_code == 422
+            and isinstance(detail, dict)
+            and detail.get("code") == "ZERO_EDGE_BLOCKED"
+        ):
+            pairs = [
+                (p["symbol"], p["expiry"])
+                for p in detail.get("missing_pairs", [])
+            ]
+            raise PositZeroEdgeBlocked(
+                stream_name=detail.get("stream", ""),
+                missing_pairs=pairs,
+                message=str(detail),
+            )
+        raise PositApiError(resp.status_code, str(detail))
 
     # ----- Pipeline config -----
 
@@ -152,12 +168,19 @@ class RestClient:
     # ----- Snapshots -----
 
     async def ingest_snapshot(
-        self, stream_name: str, rows: list[SnapshotRow],
+        self,
+        stream_name: str,
+        rows: list[SnapshotRow],
+        *,
+        allow_zero_edge: bool = False,
     ) -> SnapshotResponse:
-        resp = await self._client.post(
-            "/api/snapshots",
-            json={"stream_name": stream_name, "rows": [r.model_dump() for r in rows]},
-        )
+        body: dict = {
+            "stream_name": stream_name,
+            "rows": [r.model_dump() for r in rows],
+        }
+        if allow_zero_edge:
+            body["allow_zero_edge"] = True
+        resp = await self._client.post("/api/snapshots", json=body)
         self._raise_for_status(resp)
         return SnapshotResponse(**resp.json())
 

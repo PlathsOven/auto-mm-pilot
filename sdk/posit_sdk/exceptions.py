@@ -67,3 +67,30 @@ class PositZeroEdgeWarning(UserWarning):
     Suppress via ``warnings.simplefilter("ignore", PositZeroEdgeWarning)`` if
     you accept the consequence.
     """
+
+
+class PositZeroEdgeBlocked(PositApiError):
+    """The server refused the first push on a freshly-configured stream.
+
+    Raised by ``ingest_snapshot`` / ``push_snapshot`` when the server's
+    zero-edge guard fires: no row carried ``market_value``, no aggregate
+    market value covered the pairs, and the call did not pass
+    ``allow_zero_edge=True``. The server returns HTTP 422 with
+    ``detail.code = "ZERO_EDGE_BLOCKED"``; the SDK translates to this typed
+    subclass so integrators can react without string-matching on a message.
+
+    ``missing_pairs`` lists the ``(symbol, expiry)`` pairs that lacked any
+    market value source. Fix forward by setting per-row ``market_value``,
+    calling ``set_market_values(...)`` for those pairs, or passing
+    ``allow_zero_edge=True`` to confirm zero positions are expected.
+    """
+
+    def __init__(
+        self,
+        stream_name: str,
+        missing_pairs: list[tuple[str, str]],
+        message: str,
+    ) -> None:
+        super().__init__(status_code=422, message=message)
+        self.stream_name = stream_name
+        self.missing_pairs = missing_pairs

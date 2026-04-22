@@ -264,13 +264,20 @@ class WsClient:
             raise PositConnectionError(f"ACK timeout for seq={seq}")
 
     async def push_snapshot(
-        self, stream_name: str, rows: list[SnapshotRow],
+        self,
+        stream_name: str,
+        rows: list[SnapshotRow],
+        *,
+        allow_zero_edge: bool = False,
     ) -> WsAck:
         """Push snapshot rows and wait for the server ACK."""
-        return await self._send({
+        frame: dict = {
             "stream_name": stream_name,
             "rows": [r.model_dump() for r in rows],
-        })
+        }
+        if allow_zero_edge:
+            frame["allow_zero_edge"] = True
+        return await self._send(frame)
 
     async def push_market_values(
         self, entries: list[MarketValueEntry],

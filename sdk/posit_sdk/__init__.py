@@ -41,6 +41,7 @@ from posit_sdk.exceptions import (
     PositError,
     PositStreamNotRegistered,
     PositValidationError,
+    PositZeroEdgeBlocked,
     PositZeroEdgeWarning,
 )
 from posit_sdk.models import (
@@ -73,6 +74,7 @@ __all__ = [
     "PositApiError",
     "PositValidationError",
     "PositStreamNotRegistered",
+    "PositZeroEdgeBlocked",
     "PositZeroEdgeWarning",
     # Input models
     "SnapshotRow",
