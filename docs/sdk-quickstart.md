@@ -200,6 +200,28 @@ Subsequent pushes are not gated — the first one establishes the pattern.
 
 ---
 
+## Fan-out for scalar-shaped feeds
+
+Some feeds are naturally scalar — a market-wide funding rate, an event
+announcement, a global indicator — and don't carry `(symbol, expiry)` on
+each row. But every Posit stream must be dimensioned on the risk cols.
+Use `push_fanned_snapshot` to duplicate each scalar row across a universe:
+
+```python
+await client.push_fanned_snapshot(
+    "fomc_event",
+    [SnapshotRow(timestamp="2026-03-20T14:00:00",
+                 raw_value=0.25, market_value=0.25)],
+    # Pass universe=[...] for a scoped fan-out, or omit to fetch
+    # the server's current (symbol, expiry) universe automatically.
+)
+```
+
+Input rows must not already carry `symbol`/`expiry` — the helper inserts
+them per pair.
+
+---
+
 ## Observability during development
 
 - `client.health()` → server reachability + version.

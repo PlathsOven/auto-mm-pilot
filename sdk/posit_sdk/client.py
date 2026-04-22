@@ -705,6 +705,61 @@ class PositClient:
             pipeline_rerun=resp.pipeline_rerun,
         )
 
+    async def push_fanned_snapshot(
+        self,
+        stream_name: str,
+        rows: list[SnapshotRow],
+        *,
+        universe: list[tuple[str, str]] | None = None,
+        allow_zero_edge: bool = False,
+    ) -> WsAck:
+        """Fan scalar-shaped rows across a ``(symbol, expiry)`` universe.
+
+        Every Posit stream must carry the server's risk dimensions — today
+        ``(symbol, expiry)``. But plenty of real feeds are scalar-shaped:
+        a global funding rate, an event announcement, a market-wide
+        indicator. This helper duplicates each input row once per pair in
+        ``universe``, attaching ``symbol`` and ``expiry`` to the row copy
+        so the server's key-cols invariant is satisfied without the caller
+        having to rewrite the fan-out themselves.
+
+        Input rows **must not** already carry ``symbol`` or ``expiry`` —
+        the helper inserts them, and a pre-existing value would be a bug
+        in the caller's mental model. If ``universe`` is None, the SDK
+        fetches it from ``GET /api/pipeline/dimensions``; pass a list to
+        scope the fan-out to a subset (e.g. only BTC expiries).
+
+        Returns the ``WsAck`` from the underlying push (a single batched
+        ingest under the hood, not one per pair).
+        """
+        if not rows:
+            raise PositValidationError("push_fanned_snapshot requires at least one row")
+        for i, row in enumerate(rows):
+            extras = row.model_dump()
+            if "symbol" in extras or "expiry" in extras:
+                raise PositValidationError(
+                    f"push_fanned_snapshot: row {i} already carries symbol/expiry — "
+                    f"use push_snapshot for pre-fanned rows"
+                )
+
+        if universe is None:
+            universe = await self._require_rest().get_dimension_universe()
+        if not universe:
+            raise PositValidationError(
+                "push_fanned_snapshot: universe is empty — pass an explicit list "
+                "or ensure the pipeline has registered (symbol, expiry) pairs"
+            )
+
+        fanned: list[SnapshotRow] = []
+        for row in rows:
+            base = row.model_dump()
+            for sym, exp in universe:
+                fanned.append(SnapshotRow(**{**base, "symbol": sym, "expiry": exp}))
+
+        return await self.push_snapshot(
+            stream_name, fanned, allow_zero_edge=allow_zero_edge,
+        )
+
     async def push_market_values(
         self, entries: list[MarketValueEntry],
     ) -> WsAck:

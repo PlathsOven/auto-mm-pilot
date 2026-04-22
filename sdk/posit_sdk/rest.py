@@ -94,6 +94,19 @@ class RestClient:
         cols = data.get("dimensionCols") or data.get("dimension_cols") or []
         return list(cols)
 
+    async def get_dimension_universe(self) -> list[tuple[str, str]]:
+        """Return the current pipeline's (symbol, expiry) universe.
+
+        Unlike ``get_dimension_cols`` (stable config), this one varies with
+        the pipeline state — callers should re-fetch per fan-out operation
+        rather than cache across ticks.
+        """
+        resp = await self._client.get("/api/pipeline/dimensions")
+        self._raise_for_status(resp)
+        data = resp.json()
+        dims = data.get("dimensions") or []
+        return [(d["symbol"], d["expiry"]) for d in dims]
+
     # ----- Observability -----
 
     async def health(self) -> HealthResponse:
