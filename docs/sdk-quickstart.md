@@ -19,9 +19,10 @@ client you use to push those feeds and read the positions back.
     2. [Missing `market_value` → zero positions](#2-missing-market_value--zero-positions)
     3. [Units: raw → target](#3-units-raw--target)
 5. [Going to production](#going-to-production)
-6. [Debugging when positions look wrong](#debugging-when-positions-look-wrong)
-7. [Error cheatsheet](#error-cheatsheet)
-8. [Long-lived feeder checklist](#long-lived-feeder-checklist)
+6. [Long-running feeders](#long-running-feeders)
+7. [Debugging when positions look wrong](#debugging-when-positions-look-wrong)
+8. [Error cheatsheet](#error-cheatsheet)
+9. [Long-lived feeder checklist](#long-lived-feeder-checklist)
 
 ---
 
@@ -158,19 +159,26 @@ script is at the end.
 ### Phase 1 — Open the client
 
 ```python
-async with PositClient(
-    url=os.environ["POSIT_URL"],
-    api_key=os.environ["POSIT_API_KEY"],
-) as client:
+async with PositClient.from_env() as client:  # reads POSIT_URL / POSIT_API_KEY
     ...
 ```
 
-- **SDK action:** open an HTTP session with the `X-API-Key` header set;
-  probe `/api/streams` to validate the key.
+- **SDK action:** pull `POSIT_URL` and `POSIT_API_KEY` from the environment
+  (raises `PositValidationError` if either is missing — no silent `None`
+  URLs), open an HTTP session with the `X-API-Key` header set, probe
+  `/api/streams` to validate the key.
 - **Server action:** authenticate the key; return the user's registered
   streams (empty list on a fresh account).
 - **Verify:** no exception escapes `async with`. A bad key raises
   `PositAuthError` *here*, not on a later call.
+
+If you'd rather pass the credentials explicitly (e.g. from a secret
+manager), the constructor is equivalent:
+
+```python
+async with PositClient(url=URL, api_key=KEY) as client:
+    ...
+```
 
 `connect_ws` defaults to `False` (REST-only, the integrator norm). Pass
 `connect_ws=True` for live-streamed positions — covered in
@@ -251,14 +259,11 @@ for pos in payload.positions:
 Save as `feed.py` and run with `POSIT_URL=... POSIT_API_KEY=... python feed.py`:
 
 ```python
-import asyncio, os
+import asyncio
 from posit_sdk import PositClient, SnapshotRow
 
 async def main():
-    async with PositClient(
-        url=os.environ["POSIT_URL"],
-        api_key=os.environ["POSIT_API_KEY"],
-    ) as client:
+    async with PositClient.from_env() as client:
         await client.configure_stream_for_variance(
             "rv_btc", key_cols=["symbol", "expiry"],
         )
@@ -483,6 +488,74 @@ The queue is unbounded — drain it, or don't subscribe.
 
 ---
 
+## Long-running feeders
+
+Most real integrations look the same shape: one or more upstream WebSocket
+feeds, a few periodic re-pushes, run until someone kills the process. The
+SDK ships three primitives so you don't reinvent the plumbing:
+
+- `forward_websocket(url, handler)` — subscribe to a JSON feed with
+  auto-reconnect. Dispatches each parsed message to `handler`; logs and
+  skips bad frames and handler errors without dropping the connection.
+- `repeat(handler, every=N)` — call `handler` every N seconds, forever.
+  Exceptions are logged and swallowed so a transient bug doesn't stop the
+  timer.
+- `client.run(*coroutines)` — supervise the tasks concurrently. One task
+  raising does not kill the others; cancelling the client cancels all of
+  them cleanly.
+
+Together they collapse the feeder's `main()` to the shape you want:
+
+```python
+from posit_sdk import (
+    BlockConfig, MarketValueEntry, PositClient, SnapshotRow, StreamSpec,
+    forward_websocket, repeat,
+)
+
+SPECS = [
+    StreamSpec(stream_name="ema_iv", key_cols=["symbol", "expiry"],
+               exponent=2.0, block=BlockConfig(annualized=True)),
+    # ... more specs ...
+]
+
+async def handle_metric(client: PositClient, msg: dict) -> None:
+    # Your routing: msg["key"] → push_snapshot / push_market_values / etc.
+    ...
+
+async def republish_events(client: PositClient) -> None:
+    # Re-push the latest event rows so decay stays honest between pushes.
+    ...
+
+async def main() -> None:
+    async with PositClient.from_env() as client:
+        await client.bootstrap_streams(SPECS, bankroll=1_000_000.0)
+        await client.run(
+            forward_websocket("ws://feed:8100/metrics",
+                              lambda m: handle_metric(client, m)),
+            forward_websocket("ws://feed:8200/events",
+                              lambda m: handle_event(client, m)),
+            repeat(lambda: republish_events(client), every=30.0),
+        )
+```
+
+- **No reconnect loop** — `forward_websocket` handles drops internally.
+- **No `asyncio.gather` scaffolding** — `client.run` is the supervisor.
+- **No env-var validation** — `from_env` raises a clear
+  `PositValidationError` if `POSIT_URL` or `POSIT_API_KEY` is missing.
+
+If you're running **inside a notebook** or another process with its own
+event loop, use the primitives without `client.run`:
+
+```python
+task = asyncio.create_task(forward_websocket(URL, handler))
+# Cancel with task.cancel() to stop the feeder cleanly.
+```
+
+See `/Users/seangong/Documents/Projects/deribit-pricer/tools/posit_feed.py`
+for a complete ~75-line production feeder built on these primitives.
+
+---
+
 ## Debugging when positions look wrong
 
 Work top-down — the earlier question narrows everything below it.
@@ -576,9 +649,12 @@ Grouped by when you'd hit them.
 
 Before shipping:
 
-- [ ] Connects with an explicit `POSIT_URL` + `POSIT_API_KEY`; never hard-codes.
+- [ ] Connects via `PositClient.from_env()` — or passes `POSIT_URL` / `POSIT_API_KEY` explicitly, never hard-coded.
 - [ ] Uses `bootstrap_streams` / `upsert_stream` — never raw `create_stream`.
 - [ ] Sets `market_value` per-row **or** calls `set_market_values(…)` *before* the first ingest.
+- [ ] Upstream WebSocket feeds are consumed via `forward_websocket(url, handler)` — no hand-rolled reconnect loops.
+- [ ] Periodic re-pushes use `repeat(handler, every=N)` rather than ad-hoc `asyncio.sleep` tasks.
+- [ ] `main()` supervises with `client.run(*tasks)` — feeder tasks cancel cleanly when the client context exits.
 - [ ] Handles `PositStreamNotRegistered` by re-upserting, not by silent retry.
 - [ ] Treats `PositAuthError` as terminal — stops and surfaces it to the operator.
 - [ ] Subscribes to `client.events()` if running unattended (surface state changes somewhere visible).

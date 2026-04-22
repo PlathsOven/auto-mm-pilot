@@ -1,12 +1,12 @@
 """Posit SDK — client library for the Posit trading platform.
 
-Quick start::
+Quick start — one-shot integration::
 
     import asyncio
     from posit_sdk import PositClient, SnapshotRow, StreamSpec
 
     async def main():
-        async with PositClient(url="http://localhost:8001", api_key="...") as client:
+        async with PositClient.from_env() as client:  # reads POSIT_URL / POSIT_API_KEY
             # One idempotent call — create-or-reconfigure every stream.
             await client.bootstrap_streams(
                 [StreamSpec(stream_name="rv_btc",
@@ -22,13 +22,26 @@ Quick start::
                             symbol="BTC", expiry="27MAR26"),
             ])
 
-            # Receive live positions (requires connect_ws=True).
-            async for payload in client.positions():
-                for pos in payload.positions:
-                    print(pos.symbol, pos.expiry, pos.desired_pos)
-                break
+            payload = await client.get_positions()
+            for pos in payload.positions:
+                print(pos.symbol, pos.expiry, pos.desired_pos)
 
     asyncio.run(main())
+
+Long-running feeder (reconnecting WebSocket sources + periodic tasks)::
+
+    from posit_sdk import PositClient, forward_websocket, repeat
+
+    async def handle(client, msg): ...
+
+    async def main():
+        async with PositClient.from_env() as client:
+            await client.bootstrap_streams(SPECS, bankroll=1_000_000.0)
+            await client.run(
+                forward_websocket(URL_1, lambda m: handle(client, m)),
+                forward_websocket(URL_2, lambda m: handle(client, m)),
+                repeat(lambda: republish(client), every=30.0),
+            )
 
 Full guide: ``docs/sdk-quickstart.md``.
 """
@@ -68,6 +81,7 @@ from posit_sdk.models import (
     ZeroPositionDiagnostic,
     ZeroPositionDiagnosticsResponse,
 )
+from posit_sdk.runtime import forward_websocket, repeat, run_forever
 from posit_sdk.ws import WsState
 
 __all__ = [
@@ -108,4 +122,8 @@ __all__ = [
     "UpdateCard",
     "WsAck",
     "WsState",
+    # Runtime helpers for long-running feeders
+    "forward_websocket",
+    "repeat",
+    "run_forever",
 ]
