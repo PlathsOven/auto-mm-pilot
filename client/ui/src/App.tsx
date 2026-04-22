@@ -1,7 +1,6 @@
 import { useCallback, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CommandPalette } from "./components/shared/CommandPalette";
-import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
 import { BlockDrawer } from "./components/studio/brain/BlockDrawer";
 import { HotkeyCheatsheet } from "./components/workbench/HotkeyCheatsheet";
 import { AppShell } from "./components/shell/AppShell";
@@ -125,7 +124,6 @@ export function App() {
 
       <CommandPalette />
       <HotkeyCheatsheet open={cheatsheetOpen} onClose={() => setCheatsheetOpen(false)} />
-      <OnboardingFlow />
       <BlockDrawer
         open={pendingBlockCommand != null}
         mode="create"

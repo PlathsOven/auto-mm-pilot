@@ -6,7 +6,6 @@ import { WebSocketProvider } from "./providers/WebSocketProvider";
 import { ChatProvider } from "./providers/ChatProvider";
 import { FocusProvider } from "./providers/FocusProvider";
 import { ModeProvider } from "./providers/ModeProvider";
-import { OnboardingProvider } from "./providers/OnboardingProvider";
 import { CommandPaletteProvider } from "./providers/CommandPaletteProvider";
 import { NotificationsProvider } from "./providers/NotificationsProvider";
 import { TransformsProvider } from "./providers/TransformsProvider";
@@ -28,7 +27,6 @@ const AppProviders = composeProviders([
   ChatProvider,
   FocusProvider,
   ModeProvider,
-  OnboardingProvider,
   CommandPaletteProvider,
   TransformsProvider,
 ]);

@@ -15,8 +15,8 @@ interface AppShellProps {
  * Top-level chrome for the authenticated app.
  *
  * Three regions:
- *  - Left: collapsible `<LeftNav/>` (brand, modes, palette/chat/notifications/
- *    onboarding, user menu pinned at the bottom). Account + Admin are
+ *  - Left: collapsible `<LeftNav/>` (brand, modes, palette/chat/
+ *    notifications, user menu pinned at the bottom). Account + Admin are
  *    reachable via the user menu.
  *  - Main: `<TopBar/>` (mode + focus breadcrumb) + page slot.
  *  - Bottom: 24px `<StatusBar/>` — WS state, last-tick freshness, Posit

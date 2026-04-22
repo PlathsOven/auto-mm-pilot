@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useCommandPalette } from "../../providers/CommandPaletteProvider";
 import { useMode, type ModeId } from "../../providers/ModeProvider";
 import { useChat } from "../../providers/ChatProvider";
-import { useOnboarding } from "../../providers/OnboardingProvider";
 import { useWebSocket } from "../../providers/WebSocketProvider";
 import { useFocus } from "../../providers/FocusProvider";
 import { fetchBlocks } from "../../services/blockApi";
@@ -27,13 +26,12 @@ const PALETTE_RESULTS_LIMIT = 80;
  *
  * Mode-aware: includes navigate-to-mode commands plus dynamic cell commands
  * when WS positions exist (so the architect can jump to "btc 27mar26"
- * directly). Also exposes onboarding and chat actions.
+ * directly). Also exposes a chat toggle action.
  */
 export function CommandPalette() {
   const { open, closePalette, togglePalette } = useCommandPalette();
   const { setMode } = useMode();
   const { toggleDrawer } = useChat();
-  const { openOnboarding } = useOnboarding();
   const { payload } = useWebSocket();
   const { setFocus } = useFocus();
   const [query, setQuery] = useState("");
@@ -72,14 +70,8 @@ export function CommandPalette() {
         hint: "⌘/",
         run: () => { toggleDrawer(); closePalette(); },
       },
-      {
-        id: "open-onboarding",
-        group: "action",
-        title: "Replay onboarding tour",
-        run: () => { openOnboarding(); closePalette(); },
-      },
     ];
-  }, [setMode, closePalette, toggleDrawer, openOnboarding]);
+  }, [setMode, closePalette, toggleDrawer]);
 
   const cellCommands = useMemo<Command[]>(() => {
     if (!payload) return [];

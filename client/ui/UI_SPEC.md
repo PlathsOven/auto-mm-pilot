@@ -110,7 +110,7 @@ The UI is a fixed-height, single-page application (SPA) divided into four primar
 
 * **Engine:** `framer-motion`. All overlay and route transitions go through `<AnimatePresence>`; ad-hoc CSS transitions remain only for low-cost hover states and the sidebar width tween.
 * **Enter/exit presets** — pick one per surface, never invent a new one:
-    * **Modal** (CommandPalette, HotkeyCheatsheet, OnboardingFlow): `opacity + scale 0.98→1 + y 4→0`, 220ms, ease `[0.22, 1, 0.36, 1]`. Backdrop fades in 180ms.
+    * **Modal** (CommandPalette, HotkeyCheatsheet): `opacity + scale 0.98→1 + y 4→0`, 220ms, ease `[0.22, 1, 0.36, 1]`. Backdrop fades in 180ms.
     * **Drawer-right** (BlockDrawer, NotificationsCenter): `x: 100% → 0`, 280–300ms, same easing. Backdrop 200ms fade.
     * **Drawer-bottom** (ChatDock): `height: 0 → effectiveHeight`, 260ms, same easing.
     * **Popover** (small overlays): `opacity + scale 0.96→1 + y -4→0`, 180ms, ease-out.

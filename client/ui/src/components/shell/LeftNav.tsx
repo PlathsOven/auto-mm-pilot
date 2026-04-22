@@ -7,7 +7,6 @@ import { useMode, MODE_LABELS, PRIMARY_MODES, type ModeId } from "../../provider
 import { useChat } from "../../providers/ChatProvider";
 import { useCommandPalette } from "../../providers/CommandPaletteProvider";
 import { useNotifications } from "../../providers/NotificationsProvider";
-import { useOnboarding } from "../../providers/OnboardingProvider";
 import { safeGetItem, safeSetItem } from "../../utils";
 import {
   LEFTNAV_COLLAPSED_WIDTH_PX,
@@ -40,8 +39,8 @@ const PRIMARY_ICONS: Record<ModeId, string> = {
  *
  * Industry-standard pattern: collapsible icon-strip on the left. Hosts the
  * brand at top, a primary mode list (Workbench, Anatomy, Docs), pinned
- * actions (search palette, chat, onboarding), and the user menu pinned at
- * the bottom (which routes to Account / Admin via the mode system).
+ * actions (search palette, chat, notifications), and the user menu pinned
+ * at the bottom (which routes to Account / Admin via the mode system).
  *
  * Account + Admin are NOT in the primary nav — they're not workspaces, just
  * destinations. Reaching them goes through the user menu; leaving them is
@@ -51,7 +50,6 @@ export function LeftNav() {
   const { mode, setMode } = useMode();
   const { toggleDrawer } = useChat();
   const { openPalette } = useCommandPalette();
-  const { openOnboarding } = useOnboarding();
   const {
     togglePanel: toggleNotifications,
     count: notificationCount,
@@ -96,7 +94,6 @@ export function LeftNav() {
       onClick: toggleNotifications,
       badge: notificationCount,
     },
-    { label: "Onboarding", icon: "?", onClick: openOnboarding },
   ];
 
   return (
