@@ -13,8 +13,9 @@ interface StreamsState {
   addStream: (stream: RegisteredStream) => void;
 }
 
-// Module-level cache shared across subscribers so Floor's StreamStatusList
-// and Studio's StreamLibrary don't each hit the API independently.
+// Module-level cache shared across subscribers so Workbench's
+// StreamStatusList, Anatomy's StreamNode popovers, and StreamCanvas don't
+// each hit the API independently.
 interface Cache {
   streams: RegisteredStream[];
   loading: boolean;
@@ -76,8 +77,8 @@ function stopPolling() {
  * Shared registered-streams hook.
  *
  * Every subscriber sees the same cached list and a single 5s poll drives all
- * of them. This replaces the duplicate polling loops that previously lived
- * inside `StreamStatusList` (Floor) and `StreamLibrary` (Studio).
+ * of them. Consumers include `StreamStatusList` (Workbench), Anatomy's
+ * `StreamNode` popover, and `StreamCanvas` (create/edit form).
  *
  * Returns `{ streams, loading, error, refresh }`. Call `refresh()` after a
  * mutation to force an immediate refetch for all subscribers.

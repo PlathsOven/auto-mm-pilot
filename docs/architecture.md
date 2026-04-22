@@ -79,8 +79,11 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `client/ui/src/services/engineCommands.ts` | Engine-command parser + executor — strips `engine-command` fenced blocks from LLM text, routes to BlockDrawer or auto-executes |
 | `client/ui/src/components/floor/StreamStatusList.tsx` | Workbench data-streams list (name + last update + per-row power toggle for `active`). Row-body click sets stream focus; power icon flips the stream's `active` flag via `PATCH /api/streams/{name}/active`. |
 | `client/ui/src/services/streamTimeseriesApi.ts` | HTTP client for `GET /api/streams/{name}/timeseries`. Sourced from in-memory snapshot rows. |
-| `client/ui/src/components/studio/StreamLibrary.tsx` | Anatomy — stream CRUD |
-| `client/ui/src/components/studio/StreamCanvas.tsx` | Anatomy — 7-section stream config |
+| `client/ui/src/components/studio/anatomy/AnatomyCanvas.tsx` | Anatomy — React Flow DAG. Stream nodes (click to edit, hover for mapping/block details/active toggle/delete), `+ New stream` tile under the stream column, transform nodes, output node. |
+| `client/ui/src/components/studio/anatomy/nodes/StreamNode.tsx` | Stream node card + hover popover (portal-rendered). |
+| `client/ui/src/components/studio/anatomy/nodes/AddStreamNode.tsx` | `+ New stream` tile — click opens a blank StreamCanvas in the detail panel. |
+| `client/ui/src/components/studio/anatomy/NodeDetailPanel.tsx` | Right-side inspector hosted by AnatomyCanvas — renders StreamCanvas for stream nodes, TransformDetail for transforms. |
+| `client/ui/src/components/studio/StreamCanvas.tsx` | 7-section stream create/edit form — hosted inside NodeDetailPanel. |
 | `client/ui/src/services/api.ts` | `apiFetch` JSON wrapper + `streamFetchSSE` SSE helper — canonical HTTP/SSE path for every other service module |
 | `client/ui/src/services/llmApi.ts` | `streamChat()` — thin wrapper around `streamFetchSSE` for `POST /api/investigate` |
 | `client/ui/src/services/streamApi.ts` | HTTP client for stream CRUD, snapshot ingestion, market-pricing, bankroll endpoints |

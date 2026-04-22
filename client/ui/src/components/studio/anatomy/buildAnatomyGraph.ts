@@ -38,8 +38,14 @@ const PIPELINE_EDGE_STROKE_WIDTH = 1.75;
 // the node rectangles on first paint instead of waiting for DOM
 // measurement (which produced a blank minimap earlier).
 const STREAM_NODE_SIZE = { width: 200, height: 90 };
+const ADD_STREAM_NODE_SIZE = { width: 200, height: 44 };
 const TRANSFORM_NODE_SIZE = { width: 240, height: 140 };
 const OUTPUT_NODE_SIZE = { width: 220, height: 140 };
+
+// Spacing between the last stream node and the "+ New stream" tile. Smaller
+// than STREAM_ROW_HEIGHT because the tile is half-height — too much gap and
+// it looks orphaned from the column.
+const ADD_STREAM_GAP = 24;
 
 const EDGE_LABEL_STYLE = { fill: "#4a4a5a", fontSize: 9, fontWeight: 500 };
 const EDGE_LABEL_BG_STYLE = { fill: "#f4f4f7", fillOpacity: 0.92 };
@@ -78,9 +84,12 @@ export function buildAnatomyGraph(
     });
   }
 
-  // Stream nodes stacked on the left.
+  // Stream nodes stacked on the left. The column is centred around y=300;
+  // the trailing "+ New stream" tile counts as an extra row so the whole
+  // column stays balanced regardless of stream count.
   const totalStreams = streams.length;
-  const verticalCenter = 300 - (totalStreams * STREAM_ROW_HEIGHT) / 2;
+  const totalRows = totalStreams + 1;
+  const verticalCenter = 300 - (totalRows * STREAM_ROW_HEIGHT) / 2;
   streams.forEach((s, i) => {
     out.push({
       id: `stream-${s.stream_name}`,
@@ -94,6 +103,11 @@ export function buildAnatomyGraph(
         streamName: s.stream_name,
         status: s.status,
         keyCols: s.key_cols,
+        active: s.active,
+        scale: s.scale,
+        offset: s.offset,
+        exponent: s.exponent,
+        block: s.block,
       },
       draggable: true,
       className: highlightedStreamNames.has(s.stream_name)
@@ -113,6 +127,22 @@ export function buildAnatomyGraph(
       labelBgPadding: EDGE_LABEL_BG_PADDING,
       labelBgBorderRadius: EDGE_LABEL_BG_RADIUS,
     });
+  });
+
+  // "+ New stream" tile — sits directly under the last stream. Click routes
+  // through AnatomyCanvas.onNodeClick → openStream("new") which opens a
+  // blank StreamCanvas in the right detail panel.
+  out.push({
+    id: "add-stream",
+    type: "addStream",
+    position: {
+      x: STREAM_COLUMN_X,
+      y: verticalCenter + totalStreams * STREAM_ROW_HEIGHT + ADD_STREAM_GAP,
+    },
+    ...ADD_STREAM_NODE_SIZE,
+    data: {},
+    draggable: false,
+    selectable: false,
   });
 
   // Main transform step nodes.

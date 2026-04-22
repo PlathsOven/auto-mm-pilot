@@ -40,34 +40,28 @@ export interface AnatomySelectionState {
   closePanel: () => void;
   openStream: (name: string) => void;
   openTransform: (stepKey: StepKey) => void;
-  toggleListPanel: () => void;
-  showList: () => void;
 }
 
 /**
  * Owns the Anatomy right-panel selection state plus the URL-query sync.
  *
- * Initial selection and subsequent `query.stream` / `query.streams` changes
- * are reflected into the panel. Clearing the hash does *not* stomp a panel
- * the user opened manually via node clicks — we only react to the positive
- * cases.
+ * Initial selection and subsequent `query.stream` changes are reflected
+ * into the panel. Clearing the hash does *not* stomp a panel the user
+ * opened manually via node clicks — we only react to the positive cases.
  */
 export function useAnatomySelection(): AnatomySelectionState {
   const { query } = useMode();
 
   const [selection, setSelection] = useState<AnatomySelection>(() => {
     if (query.stream) return { kind: "stream", streamName: query.stream };
-    if (query.streams === "list") return { kind: "list" };
     return { kind: "none" };
   });
 
   useEffect(() => {
     if (query.stream) {
       setSelection({ kind: "stream", streamName: query.stream });
-    } else if (query.streams === "list") {
-      setSelection({ kind: "list" });
     }
-  }, [query.stream, query.streams]);
+  }, [query.stream]);
 
   const streamPrefill = useMemo<StreamDraftPrefill | null>(
     () => parsePrefill(query.stream, query.prefillName, query.prefillKeyCols, query.prefillRow),
@@ -83,11 +77,6 @@ export function useAnatomySelection(): AnatomySelectionState {
     (stepKey: StepKey) => setSelection({ kind: "transform", stepKey }),
     [],
   );
-  const toggleListPanel = useCallback(
-    () => setSelection((s) => (s.kind === "list" ? { kind: "none" } : { kind: "list" })),
-    [],
-  );
-  const showList = useCallback(() => setSelection({ kind: "list" }), []);
 
-  return { selection, streamPrefill, closePanel, openStream, openTransform, toggleListPanel, showList };
+  return { selection, streamPrefill, closePanel, openStream, openTransform };
 }

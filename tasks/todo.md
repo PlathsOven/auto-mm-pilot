@@ -24,7 +24,7 @@ Active work tracker. Three sections: In Progress, Completed This Session, Blocke
 
 ## Phase 3 candidates
 
-- [ ] Refactor `WorkbenchRail` + Anatomy `StreamSidebar` onto the shared `<Sidebar/>` primitive.
+- [ ] Refactor `WorkbenchRail` + Anatomy `NodeDetailPanel` onto the shared `<Sidebar/>` primitive.
 - [ ] Promote `Cmd-K` palette beyond jump-to: action commands (create stream, toggle rail, set mode parameters).
 - [ ] Wire the `Posit Control` toggle through to the server so the automation flag is honoured (today it's UI-only).
 - [ ] Code-split the JS bundle — single chunk is at ~608KB gzipped (vite warning).

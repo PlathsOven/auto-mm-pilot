@@ -69,7 +69,8 @@
 | **Block Drawer** | `client/ui/src/components/studio/brain/BlockDrawer.tsx` | `PROD` | Block API | Unified create/edit/inspect drawer |
 | **Engine Commands** | `client/ui/src/services/engineCommands.ts` | `PROD` | Stream API, Block API | Parses + executes engine-command fenced blocks from LLM responses |
 | **Stream Status List** | `client/ui/src/components/floor/StreamStatusList.tsx` | `PROD` | WebSocketProvider | Read-only stream list (name + last update) |
-| **Stream Library / Canvas** | `client/ui/src/components/studio/StreamLibrary.tsx`, `StreamCanvas.tsx` | `PROD` | stream API, TransformsProvider | Anatomy CRUD + activate flow with 7 sections |
+| **Stream Canvas** | `client/ui/src/components/studio/StreamCanvas.tsx` | `PROD` | stream API, TransformsProvider | 7-section create/edit form hosted in Anatomy's right detail panel |
+| **Anatomy DAG** | `client/ui/src/components/studio/anatomy/` | `PROD` | TransformsProvider, stream API | React Flow canvas — stream nodes (hover for details, click to edit), `+ New stream` tile, transform nodes, output node |
 | ~~Mock Data Generator~~ | ~~`client/ui/src/providers/MockDataProvider.ts`~~ | — | — | Deleted — remaining mock seeds inlined where needed |
 | ~~Daily Wrap~~ | ~~`client/ui/src/components/DailyWrap.tsx`~~ | — | — | Deleted — will be rebuilt when LLM-generated wrap is ready |
 | ~~Layout Provider~~ | ~~`client/ui/src/providers/LayoutProvider.tsx`~~ | — | — | Deleted in #34 (Phase 2) — focus-driven Workbench replaced react-grid-layout |
