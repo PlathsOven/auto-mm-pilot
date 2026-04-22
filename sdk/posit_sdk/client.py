@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 import warnings
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Awaitable
 
 from pydantic import create_model
 
@@ -82,6 +83,45 @@ class PositClient:
     over raw ``create_stream`` + ``configure_stream`` — the two-phase API
     emits a ``FutureWarning`` in v0.1 and will be removed in v0.2.
     """
+
+    @classmethod
+    def from_env(
+        cls,
+        *,
+        connect_ws: bool = False,
+        connect_timeout: float | None = 10.0,
+        ws_reconnect_delay: float = 1.0,
+        ws_max_reconnect_delay: float = 60.0,
+    ) -> "PositClient":
+        """Construct a ``PositClient`` from ``POSIT_URL`` + ``POSIT_API_KEY`` env vars.
+
+        Raises ``PositValidationError`` at call time when either variable is
+        missing or empty — avoids the ``None``-URL and deferred-401 surprises
+        that come from ``os.environ.get`` fallbacks in notebook / feeder code.
+
+        Keyword arguments match ``__init__`` and are forwarded through, so
+        ``PositClient.from_env(connect_ws=True)`` does what you expect.
+        """
+        url = (os.environ.get("POSIT_URL") or "").strip()
+        api_key = (os.environ.get("POSIT_API_KEY") or "").strip()
+        missing = [
+            name for name, value in (
+                ("POSIT_URL", url), ("POSIT_API_KEY", api_key),
+            ) if not value
+        ]
+        if missing:
+            raise PositValidationError(
+                f"PositClient.from_env(): missing environment variables: "
+                f"{', '.join(missing)}"
+            )
+        return cls(
+            url=url,
+            api_key=api_key,
+            connect_ws=connect_ws,
+            connect_timeout=connect_timeout,
+            ws_reconnect_delay=ws_reconnect_delay,
+            ws_max_reconnect_delay=ws_max_reconnect_delay,
+        )
 
     def __init__(
         self,
@@ -229,6 +269,27 @@ class PositClient:
             if event is None:
                 return
             yield event
+
+    async def run(self, *tasks: Awaitable[None]) -> None:
+        """Supervise long-running feeder coroutines until cancelled.
+
+        Thin wrapper over ``posit_sdk.runtime.run_forever``. Each task runs
+        concurrently; one task raising does not take down the rest (logged
+        at ERROR and moved on). Cancellation propagates — on ``async with``
+        exit every task is cancelled and awaited before the context closes.
+
+        Intended as the last statement of a feeder's ``main()``::
+
+            async with PositClient.from_env() as client:
+                await client.bootstrap_streams(SPECS, bankroll=...)
+                await client.run(
+                    forward_websocket(URL_1, handler_1),
+                    forward_websocket(URL_2, handler_2),
+                    repeat(republisher, every=30.0),
+                )
+        """
+        from posit_sdk.runtime import run_forever
+        await run_forever(*tasks)
 
     async def wait_until_ready(self, timeout: float = 10.0) -> None:
         """Block until the WS is OPEN or raise on auth / timeout.

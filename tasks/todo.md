@@ -8,6 +8,8 @@ Active work tracker. Three sections: In Progress, Completed This Session, Blocke
 
 ## Completed This Session
 
+- [x] 2026-04-22 — SDK leanness pass: runtime primitives for long-running feeders. New `sdk/posit_sdk/runtime.py` with `forward_websocket` (reconnecting WS source), `repeat` (periodic timer), `run_forever` (supervisor). `PositClient.from_env()` classmethod + `PositClient.run(*tasks)` method. Exported from package root. Rewrote `/Users/seangong/Documents/Projects/deribit-pricer/tools/posit_feed.py` onto the new surface — 184 → 145 LOC, `main()` collapsed from ~18 lines of env/reconnect/supervisor plumbing to 8 declarative lines. `docs/sdk-quickstart.md` gains a "Long-running feeders" section and updates the checklist. 9 new runtime tests, 97 SDK tests total green.
+
 - [x] 2026-04-22 — SDK integrator-audit Tier 1 (no-new-endpoint cleanup). Flipped `connect_ws` default to `False`; added `FutureWarning` on `create_stream`/`configure_stream`; added `configure_stream_for_variance` / `configure_stream_for_linear` factories; `BlockConfig.decay_end_size_mult` sentinel resolution; per-field docstrings on every `BlockConfig` field; `PositZeroEdgeWarning` typed-warning surfacing on `positions()`; fixed `:8000` → `:8001` docstrings; quickstart gains dual-auth, canonical-timestamp, canonical-market-value, deprecation note. See `docs/decisions.md` 2026-04-22 entry.
 
 - [x] 2026-04-22 — Tier 2: server-side zero-edge guard (§2.1), push_fanned_snapshot helper (§4.1), diagnose_zero_positions() endpoint + wrapper (§7.1). One commit each.
