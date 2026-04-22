@@ -790,6 +790,7 @@ class PositClient:
             seq=-1,
             rows_accepted=resp.rows_accepted,
             pipeline_rerun=resp.pipeline_rerun,
+            server_seq=resp.server_seq,
         )
 
     async def push_fanned_snapshot(

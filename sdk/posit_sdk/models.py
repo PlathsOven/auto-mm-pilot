@@ -220,6 +220,7 @@ class SnapshotResponse(BaseModel):
     stream_name: str
     rows_accepted: int
     pipeline_rerun: bool
+    server_seq: int = 0
 
 
 class StreamState(BaseModel):
@@ -322,12 +323,19 @@ class ZeroPositionDiagnosticsResponse(BaseModel):
 
 
 class WsAck(BaseModel):
-    """ACK frame received after pushing a snapshot or market_value frame."""
+    """ACK frame received after pushing a snapshot or market_value frame.
+
+    ``seq`` is the client-assigned correlation ID (``-1`` when the WS is
+    unavailable and the push fell back to REST). ``server_seq`` is the
+    server-assigned monotonic sequence number — populated on both the WS
+    and REST paths so consumers have a single reliable correlation key.
+    """
 
     type: Literal["ack"]
     seq: int
     rows_accepted: int = 0
     pipeline_rerun: bool = False
+    server_seq: int = 0
 
 
 # --- Wire models (camelCase on the wire, snake_case in Python) ---

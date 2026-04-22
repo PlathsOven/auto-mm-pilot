@@ -11,6 +11,7 @@ from server.api.auth.models import User
 from server.api.engine_state import rerun_and_broadcast
 from server.api.market_value_store import get_store as get_market_value_store
 from server.api.models import SnapshotRequest, SnapshotResponse
+from server.api.sequence_counter import get_counter as get_sequence_counter
 from server.api.stream_registry import get_stream_registry
 from server.api.unregistered_push_store import get_store as get_unregistered_push_store
 from server.api.zero_edge_guard import ZERO_EDGE_CODE, ZeroEdgeBlocked, check_zero_edge
@@ -99,4 +100,5 @@ async def ingest_snapshot(
         stream_name=req.stream_name,
         rows_accepted=accepted,
         pipeline_rerun=pipeline_rerun,
+        server_seq=get_sequence_counter(user.id).next(),
     )

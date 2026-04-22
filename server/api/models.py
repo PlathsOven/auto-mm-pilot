@@ -247,6 +247,14 @@ class SnapshotResponse(BaseModel):
     stream_name: str
     rows_accepted: int
     pipeline_rerun: bool
+    server_seq: int = Field(
+        0,
+        description=(
+            "Server-assigned monotonic sequence number for this ingest. "
+            "Paired with the WS ACK's server_seq so consumers have a single "
+            "correlation key regardless of transport."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -385,6 +393,13 @@ class ClientWsAck(BaseModel):
     seq: int = Field(..., description="Echoed sequence number from the inbound frame")
     rows_accepted: int = 0
     pipeline_rerun: bool = False
+    server_seq: int = Field(
+        0,
+        description=(
+            "Server-assigned monotonic sequence number — matches the value "
+            "`SnapshotResponse.server_seq` returns for the REST ingest path."
+        ),
+    )
 
 
 class ClientWsError(BaseModel):
