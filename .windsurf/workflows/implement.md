@@ -5,7 +5,7 @@ description: Core feature implementation loop with built-in dependency gating an
 ## /implement — Feature Implementation
 
 ### 1. Context Load
-Read `CLAUDE.md` and `docs/architecture.md` to restore project structure, lane ownership, and the MVP pipeline. If the task touches data that crosses the API boundary, also read `server/api/models.py` and `client/ui/src/types.ts`.
+Read `CLAUDE.md` and `docs/architecture.md` for project structure, lane ownership, and MVP pipeline. If the task crosses the API boundary, also read `server/api/models.py` and `client/ui/src/types.ts`.
 
 ### 2. Confirm Lane
 Identify your assigned directory lane from the user's prompt (see Component Map in `docs/architecture.md`). If no lane is specified, ask before proceeding. You may ONLY create/modify files within this lane.

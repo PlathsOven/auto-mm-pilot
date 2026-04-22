@@ -4,38 +4,31 @@ description: Architecture review and refactoring pass — canonicalize patterns,
 
 ## /refactor — Vibe-Code Rescue & Refactor
 
-A structured workflow for taming codebases built primarily through AI-assisted "vibe coding." Vibe-coded repos accumulate a specific class of entropy — not bugs, but **pattern drift**: the same intent expressed N different ways because each section was generated in a separate conversation. This workflow detects that drift, converges on canonical patterns, and locks them in.
-
----
+Tames AI-assisted repos that accumulate **pattern drift** — the same intent expressed N different ways because each section was generated in a separate conversation. Detects drift, converges on canonical patterns, locks them in.
 
 ### 0. Philosophy
 
-**Target reader:** a non-technical derivatives trader who writes Polars pipelines in Python and basic React dashboards. Every function must be legible to this person in under 30 seconds.
+**Target reader:** a non-technical derivatives trader who writes Polars pipelines in Python and basic React dashboards. Every function must be legible to this person in <30s.
 
-**Core principle:** Vibe-coded repos don't need more abstraction — they need *convergence* and *subtraction*. The goal is fewer patterns, fewer layers, fewer lines. When two approaches exist for the same thing, pick the simpler one and kill the other everywhere. When one approach exists for a thing that doesn't need doing, delete it entirely. **Every pass of /refactor must remove more LOC than it adds.**
+**Core principle:** vibe-coded repos need *convergence* and *subtraction*, not more abstraction. Fewer patterns, fewer layers, fewer lines. Two approaches for one intent → pick the simpler, kill the other. **Every /refactor pass must remove more LOC than it adds.**
 
 **Refactoring priorities (strict order):**
 1. **Canonicalize** — one pattern per intent, enforced everywhere
 2. **Minimize** — delete / inline / collapse anything that doesn't earn its keep (unused exports, thin wrappers, single-callsite helpers, speculative parameters, duplicated logic, pass-through indirection)
 3. **Vectorize** — scalar loops → columnar ops so logic scales with data size
-4. **Decompose** — god files/functions → single-purpose modules (but only when splitting *reduces* complexity; don't decompose for its own sake)
+4. **Decompose** — god files/functions → single-purpose modules (only when splitting *reduces* complexity)
 5. **Name** — domain vocabulary in every identifier
-
----
 
 ### 1. Context Load
 
-Read these files and internalize the constraints before touching anything:
+Read these before touching anything:
 - `CLAUDE.md` — harness rules, code style, schema source-of-truth
 - `docs/architecture.md` — component map, MVP pipeline, Key Files table, boundaries
 - `docs/conventions.md` — patterns used vs. avoided, file organization, commit format
 - `docs/stack-status.md` — which components are PROD / MOCK / STUB / OFF
+- **When scope includes `sdk/`** — `docs/sdk-quickstart.md` (the public ergonomic contract) and `sdk/posit_sdk/__init__.py` (the `__all__` export set). Symbols in `__all__` are a customer-facing contract; renames and deletions need a version-bump decision, not a silent trim.
 
-Hard constraints to hold in memory throughout:
-- All changes must stay within your approved lane
-- Surgical commits only — never `git add .`
-
----
+Hard constraints: stay within your approved lane; surgical commits only (never `git add .`).
 
 ### 2. Scope
 
@@ -44,11 +37,9 @@ Ask the user:
 - **Single lane** (e.g., `client/ui/`, `server/api/`, `pitch/`)
 - **Specific files**
 
----
-
 ### 3. Inventory — Map Before You Cut
 
-Before auditing code quality, build a structural map. This catches the macro-level rot that vibe coding produces.
+Build a structural map before auditing code quality.
 
 #### 3.0 File Census
 
@@ -66,7 +57,7 @@ Output the census as a table. Flag:
 
 #### 3.1 Pattern Divergence Scan
 
-The defining pathology of vibe code. Scan for multiple implementations of the same intent:
+Scan for multiple implementations of the same intent (the defining pathology of vibe code):
 
 - [ ] **Multiple HTTP client patterns** — some files use `fetch`, others use `axios`, others use a custom wrapper. Pick one, kill the rest.
 - [ ] **Multiple state management approaches** — mixing `useState` + prop drilling, Context, and ad-hoc global objects. Converge on one.
@@ -78,15 +69,11 @@ The defining pathology of vibe code. Scan for multiple implementations of the sa
 
 For each divergence found, propose the **canonical pattern** (the simplest, most Polars-native one) and list every file that needs to converge.
 
----
-
 ### 4. Deep Audit — Code Quality
 
-Now audit every file against these pillars. **Be ruthlessly critical.** Vibe-coded repos are full of "works but wrong" code — functional on the happy path, rotten underneath.
+Audit every file against these pillars. Be ruthlessly critical — vibe-coded repos are full of "works but wrong" code.
 
 #### 4A. Vectorization & Scalar Elimination
-
-Scalar code is the silent scaling killer. Catch it all.
 
 - [ ] **Row-by-row iteration** — `for row in ...`, `.iterrows()`, `.iter_rows()`, `.apply(lambda ...)` → replace with columnar Polars expressions (`with_columns`, `filter`, `group_by().agg()`) or NumPy broadcast ops
 - [ ] **Python-loop aggregation** — manual accumulators (`total = 0; for x in ...: total += x`) → `.sum()`, `.agg()`, `.fold()`
@@ -97,9 +84,9 @@ Scalar code is the silent scaling killer. Catch it all.
 
 #### 4B. Dead Weight & Bloat
 
-Every pass of /refactor must reduce LOC and indirection. Hunt aggressively for anything that can be deleted, inlined, or collapsed without changing behaviour. For each finding record `path:line | problem | action (delete / inline / collapse) | impact | effort | risk`.
+Hunt for anything that can be deleted, inlined, or collapsed without changing behaviour. Record `path:line | problem | action (delete/inline/collapse) | impact | effort | risk`.
 
-- [ ] **Unused exports** — `export` declarations (TS) or public functions (Python) with zero importers across the project. Confirm via repo-wide grep of the symbol name before deleting. Exception: React entry defaults (`App.tsx`, `main.tsx`), FastAPI router symbols auto-wired by include/registration.
+- [ ] **Unused exports** — `export` declarations (TS) or public functions (Python) with zero importers across the project. Confirm via repo-wide grep of the symbol name before deleting. Exception: React entry defaults (`App.tsx`, `main.tsx`), FastAPI router symbols auto-wired by include/registration, and any symbol in `sdk/posit_sdk/__init__.py.__all__` — those are a public contract, not dead weight; deletion requires a version-bump decision.
 - [ ] **Trivial wrappers** — functions whose entire body is `return otherFn(args)` or a single delegating call with no transformation. Inline the caller and delete the wrapper (and its file, if that was its only export).
 - [ ] **Single-callsite helpers** — functions / hooks / components called from exactly one place that inline in ≤10 lines. Prefer inline unless the abstraction barrier is load-bearing (>1 caller likely, crosses a public boundary, or is domain-named in a way that documents intent).
 - [ ] **Abandoned experiments** — half-built features, commented-out blocks, functions never reached from any entry point. If it's not in the active call graph, delete it.
@@ -126,8 +113,6 @@ Every pass of /refactor must reduce LOC and indirection. Hunt aggressively for a
 
 #### 4D. Naming & Readability
 
-The reader is a Polars-native trader. Write for them.
-
 - [ ] **Domain vocabulary in identifiers** — `fair_value`, `target_position`, `annualized_vol`, `bid_ask_spread` — NOT `x`, `tmp`, `val`, `data`, `result`, `item`
 - [ ] **Verb-phrase function names** — `compute_fair_value()`, `build_snapshot_df()`, `broadcast_tick()` — NOT `process()`, `handle()`, `run()`, `doStuff()`
 - [ ] **Polars pipeline style** — chain reads top-to-bottom like SQL: `df.filter(...).with_columns(...).group_by(...).agg(...)`. No intermediate temp variables unless naming adds genuine clarity.
@@ -153,7 +138,21 @@ The reader is a Polars-native trader. Write for them.
 - [ ] **Polars over Pandas** — migrate any Pandas usage unless a hard external dependency requires it
 - [ ] **No bare `except:`** — catch specific exceptions, log them, re-raise or return typed errors
 
----
+#### 4G. SDK Surface & Ergonomics (only when scope includes `sdk/`)
+
+Customer-facing integration surface — the shape the external user sees matters more than internal cleanliness. Quickstart promises "integration in under ~30 minutes"; each finding below is evidence that promise is slipping.
+
+- [ ] **Time-to-first-success bloat** — the `docs/sdk-quickstart.md` Hello World must stay ≤20 lines. If a change adds a required call or argument to get a first position update, either revert the requirement or collapse it into an existing atomic call.
+- [ ] **Validation delayed until I/O** — a bad input that could have been caught at construction (Pydantic validator, `__post_init__`) but instead raises on the first network round-trip. Move validation upstream so the error fires where the bad value was created, not where it was transmitted.
+- [ ] **Multi-step setup where one call suffices** — a sequence of calls always invoked in order (`create_stream` → `configure_stream` → `set_bankroll`) that should be collapsed into one atomic helper (see `bootstrap_streams`). Partial failures must roll back.
+- [ ] **Error types without an actionable fix** — every raised exception class should appear in `docs/sdk-quickstart.md`'s error cheatsheet with a named fix. If the user can't tell what to do from the message alone, the message is broken.
+- [ ] **Silent-zero footguns** — a "valid" input path that produces plausible-looking zeros downstream instead of an error (canonical case: omitting `market_value` collapses `edge` → `desired_pos` to 0). Must emit one `WARNING` per stream per client lifetime; never fail silently.
+- [ ] **Asymmetric REST/WS behaviour** — the same logical call must behave the same way across transports, or the divergence must be loud (one WARN per state transition, not per call).
+- [ ] **Idempotent setup** — any setup helper (`upsert_stream`, `bootstrap_streams`) must be safe to re-run on every process launch. A feeder that crash-loops must not create duplicate streams or leave partial state.
+- [ ] **Public symbol creep** — anything in `sdk/posit_sdk/__init__.py.__all__` that isn't load-bearing for the quickstart or a documented advanced flow. Every exported symbol is a backward-compat liability; stop adding them speculatively.
+- [ ] **Docstring drift from quickstart** — the class/method docstring says one thing, `docs/sdk-quickstart.md` says another. Converge on one source of truth (prefer the quickstart; update docstrings to match).
+
+**Backward-compat rule for §4G findings:** a `/refactor` pass over `sdk/` may *add* ergonomic helpers, *tighten* validation, *improve* error messages, and *widen* what a public symbol accepts. It may NOT silently rename or remove a symbol in `__all__`, change the shape of an existing public return type, or narrow a validator in a way that rejects previously-valid input — those are breaking changes requiring a version bump, deprecation window, or explicit user decision.
 
 ### 5. Report
 
@@ -178,43 +177,39 @@ End with:
 
 **STOP. Do NOT refactor yet. Wait for explicit approval of the report, canonical pattern choices, and execution order.**
 
----
-
 ### 6. Refactor Execution
 
 After approval, work in this strict order:
 
 #### Phase 0 — Logic Audit
-Before cutting any code, invoke `/logic-audit` on the highest-impact area identified in §5. A structural simplification at the root often eliminates 50% of the downstream refactor work — do it before you touch the surface. If the audit reveals the current shape is already near-minimal, proceed to Phase 1. If it reveals a deeper redesign, pause and present the alternative to the human before continuing the refactor.
+Invoke `/logic-audit` on the highest-impact area from §5. A structural simplification at the root often eliminates 50% of downstream refactor work. If the current shape is already near-minimal, proceed to Phase 1; if a deeper redesign surfaces, pause and present the alternative before continuing.
 
 #### Phase 1 — Delete & Inline (§4B)
-Delete / inline / collapse every §4B finding the report approved. This reduces surface for every subsequent phase — canonicalization has fewer files to touch, vectorization has fewer loops to fix, decomposition has fewer knots to untangle. The LOC delta after this phase should be sharply negative; if it isn't, revisit §4B before moving on.
+Delete / inline / collapse every approved §4B finding. Reduces surface for every subsequent phase. LOC delta should be sharply negative; if not, revisit §4B.
 
 #### Phase 2 — Canonicalize Patterns (§3.1)
-For each pattern divergence, apply the elected canonical pattern everywhere. This is the highest-leverage phase — it makes the codebase feel like one person wrote it.
+Apply the elected canonical pattern everywhere for each divergence. Highest-leverage phase — makes the codebase feel like one person wrote it.
 
 #### Phase 3 — Vectorize (§4A)
-Replace scalar loops with columnar operations. Consolidate parallel arrays into DataFrames. Refactor function signatures to accept DataFrames instead of loose args.
+Replace scalar loops with columnar operations. Consolidate parallel arrays into DataFrames. Refactor signatures to accept DataFrames instead of loose args.
 
 #### Phase 4 — Decompose & Modularize (§4C)
-Split god files, extract shared types, enforce dependency direction. Move misplaced files to correct directories.
+Split god files, extract shared types, enforce dependency direction. Move misplaced files.
 
 #### Phase 5 — Rename & Annotate (§4D)
 Apply domain naming, add type hints, extract magic numbers to named constants.
 
-**Per-file procedure within each phase:**
+**Per-file procedure:**
 1. Read the full file
 2. Apply edits via `multi_edit` (batch all changes to one file in one call)
-3. If a function signature changed, `grep_search` for all call sites and update them atomically in the same phase
-4. If a file was moved/renamed, update all imports in the same edit batch
-5. After editing, re-read the file to confirm it's clean
+3. If a signature changed, grep all call sites and update atomically in the same phase
+4. If a file was moved/renamed, update all imports in the same batch
+5. Re-read the file after editing to confirm it's clean
 
 **Execution rules:**
 - If a refactor touches >5 files, pause after each file and verify syntax before continuing
 - Preserve comments and docstrings unless provably wrong or stale
-- If you discover a new issue mid-refactor that wasn't in the report, note it but do NOT fix it — it goes in the next `/refactor` cycle
-
----
+- If you discover a new issue mid-refactor, note it but do NOT fix it — it goes in the next `/refactor` cycle
 
 ### 7. Regression Check
 
@@ -230,8 +225,6 @@ npm --prefix client/ui run typecheck 2>&1 | head -50
 
 Fix any errors before moving to the next phase. If a fix would be non-trivial, revert the breaking edit and flag it for the user.
 
----
-
 ### 8. Doc Sync
 
 Delegate to `/doc-sync`. Refactors frequently touch:
@@ -240,10 +233,9 @@ Delegate to `/doc-sync`. Refactors frequently touch:
 - `docs/stack-status.md` — component status transitions
 - `tasks/lessons.md` — add any lesson surfaced by the audit
 - `CLAUDE.md` — only if a load-bearing rule changed
+- `docs/sdk-quickstart.md` — if any `sdk/posit_sdk/` public export, exception type, or default changed, re-verify the Hello World listing and the error cheatsheet table still compile and match reality.
 
 Skip categories where nothing changed.
-
----
 
 ### 9. Commit
 
