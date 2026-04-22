@@ -52,6 +52,8 @@ from posit_sdk.models import (
     DesiredPosition,
     GlobalContext,
     HealthResponse,
+    IntegratorEvent,
+    IntegratorEventType,
     MarketValueEntry,
     PositionPayload,
     PositionTransport,
@@ -93,6 +95,8 @@ __all__ = [
     "HealthResponse",
     "ZeroPositionDiagnostic",
     "ZeroPositionDiagnosticsResponse",
+    "IntegratorEvent",
+    "IntegratorEventType",
     # WebSocket models
     "PositionPayload",
     "PositionTransport",

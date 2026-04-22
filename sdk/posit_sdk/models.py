@@ -378,6 +378,34 @@ class UpdateCard(_WireModel):
 PositionTransport = Literal["ws", "poll"]
 
 
+IntegratorEventType = Literal[
+    "market_value_missing",
+    "ws_fallback",
+    "ws_reconnected",
+    "positions_degraded",
+    "zero_edge_warning",
+]
+
+
+class IntegratorEvent(BaseModel):
+    """Structured SDK-side event for a monitoring consumer.
+
+    Every place that currently logs a ``WARNING`` also enqueues one of
+    these. Consumers drain the queue via ``PositClient.events()`` and route
+    to their own monitoring layer (Datadog / Slack / pager) without relying
+    on Python ``logging`` being configured.
+
+    ``stream_name`` is populated for events that involve a specific stream
+    (market-value-missing, zero-edge-warning) and ``None`` for connection-
+    level events (ws fallback / reconnect / positions degraded).
+    """
+
+    type: IntegratorEventType
+    stream_name: str | None = None
+    detail: str
+    timestamp: float  # epoch seconds (time.time())
+
+
 class PositionPayload(_WireModel):
     """Pipeline broadcast payload received over WebSocket or REST polling.
 

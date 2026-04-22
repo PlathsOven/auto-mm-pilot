@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import warnings
 from typing import AsyncGenerator
 
@@ -20,6 +21,8 @@ from posit_sdk.models import (
     BlockConfig,
     BlockRowResponse,
     HealthResponse,
+    IntegratorEvent,
+    IntegratorEventType,
     MarketValueEntry,
     PositionPayload,
     SnapshotResponse,
@@ -110,6 +113,10 @@ class PositClient:
         # Cleared after the warning fires so consumers aren't spammed once
         # they've started paying attention.
         self._zero_edge_pending: set[str] = set()
+        # Structured event queue — populated by every place that emits a
+        # WARNING, drained by events(). Unbounded by design — consumers
+        # that don't drain should not subscribe.
+        self._events_queue: asyncio.Queue[IntegratorEvent | None] | None = None
         # Known-registered streams on the server. Populated on __aenter__,
         # updated after every create/upsert/delete, and invalidated for a
         # single stream when the server returns STREAM_NOT_REGISTERED. Used
@@ -118,6 +125,7 @@ class PositClient:
 
     async def __aenter__(self) -> "PositClient":
         self._rest = RestClient(self._url, self._api_key)
+        self._events_queue = asyncio.Queue()
         await self._rest.__aenter__()
 
         # Auth hard-block: probe a REST endpoint that requires auth so a bad
@@ -151,12 +159,69 @@ class PositClient:
         return self
 
     async def __aexit__(self, *args: object) -> None:
+        if self._events_queue is not None:
+            # Sentinel unblocks any active events() iterator.
+            self._events_queue.put_nowait(None)
+            self._events_queue = None
         if self._ws:
             await self._ws.close()
             self._ws = None
         if self._rest:
             await self._rest.__aexit__(*args)
             self._rest = None
+
+    def _emit_event(
+        self,
+        event_type: IntegratorEventType,
+        *,
+        stream_name: str | None = None,
+        detail: str = "",
+    ) -> None:
+        """Enqueue a structured event for events() consumers. No-op if nobody
+        is subscribed (the queue still buffers — drain via events())."""
+        if self._events_queue is None:
+            return
+        self._events_queue.put_nowait(IntegratorEvent(
+            type=event_type,
+            stream_name=stream_name,
+            detail=detail,
+            timestamp=time.time(),
+        ))
+
+    def events(self) -> AsyncGenerator[IntegratorEvent, None]:
+        """Async iterator of structured SDK events.
+
+        Yields one ``IntegratorEvent`` per signal — market-value-missing,
+        WS fallback / reconnect, positions degraded, zero-edge warning.
+        Useful for routing SDK-side observability into a monitoring layer
+        (Datadog, Slack, pager) without relying on Python ``logging``
+        being configured.
+
+        Terminates when the client's context manager exits. Starting an
+        ``events()`` consumer *before* calling ``__aenter__`` raises
+        ``RuntimeError`` synchronously (so misuse fails at the call site,
+        not on first iteration).
+
+        **Backpressure:** the underlying queue is unbounded — a consumer
+        that doesn't drain grows memory over the process lifetime.
+        Consume it promptly or close the client.
+        """
+        if self._events_queue is None:
+            raise RuntimeError(
+                "events() requires the PositClient context manager to be open"
+            )
+        # Capture the queue now so the generator keeps draining after
+        # __aexit__ nulls self._events_queue — the sentinel still arrives.
+        return self._events_impl(self._events_queue)
+
+    async def _events_impl(
+        self, queue: asyncio.Queue[IntegratorEvent | None],
+    ) -> AsyncGenerator[IntegratorEvent, None]:
+        while True:
+            event = await queue.get()
+            if event is None:
+                return
+            yield event
 
     async def wait_until_ready(self, timeout: float = 10.0) -> None:
         """Block until the WS is OPEN or raise on auth / timeout.
@@ -203,11 +268,19 @@ class PositClient:
         if stream_name in self._market_value_warned:
             return
         self._market_value_warned.add(stream_name)
+        detail = (
+            f"Stream {stream_name!r}: {missing} row(s) pushed without "
+            f"market_value; per-block market defaults to fair, so edge will "
+            f"be 0. Set SnapshotRow.market_value or call set_market_values()."
+        )
         log.warning(
             "Stream %r: %d row(s) pushed without market_value; per-block "
             "market defaults to fair, so edge will be 0. Set SnapshotRow."
             "market_value or call set_market_values() to fix.",
             stream_name, missing,
+        )
+        self._emit_event(
+            "market_value_missing", stream_name=stream_name, detail=detail,
         )
 
     def _maybe_warn_zero_edge(self, payload: PositionPayload) -> None:
@@ -226,25 +299,38 @@ class PositClient:
             return
         streams = sorted(self._zero_edge_pending)
         self._zero_edge_pending.clear()
-        warnings.warn(
-            PositZeroEdgeWarning(
-                f"Streams {streams!r} pushed rows without market_value; "
-                f"positions will be zero until you set market_value per-row "
-                f"or call set_market_values() per (symbol, expiry)."
-            ),
-            stacklevel=3,
+        message = (
+            f"Streams {streams!r} pushed rows without market_value; "
+            f"positions will be zero until you set market_value per-row "
+            f"or call set_market_values() per (symbol, expiry)."
         )
+        warnings.warn(PositZeroEdgeWarning(message), stacklevel=3)
+        for name in streams:
+            self._emit_event(
+                "zero_edge_warning", stream_name=name, detail=message,
+            )
 
     def _maybe_warn_ws_fallback(self) -> None:
         """Log once per transition when pushes fall back to REST."""
         state = self._ws_state()
         if state == self._last_warned_ws_state:
             return
+        previous = self._last_warned_ws_state
         self._last_warned_ws_state = state
         log.warning(
             "Posit WS state=%s — push falling back to REST (slower but correct).",
             state.value,
         )
+        if state == WsState.OPEN and previous is not None:
+            self._emit_event(
+                "ws_reconnected",
+                detail=f"WS recovered to OPEN from {previous.value}",
+            )
+        else:
+            self._emit_event(
+                "ws_fallback",
+                detail=f"WS state={state.value}; push falling back to REST",
+            )
 
     # ----- Observability -----
 
@@ -834,13 +920,29 @@ class PositClient:
                 "Posit WS closed (state=%s); positions() degraded to REST polling.",
                 self._ws.state.value,
             )
+            self._emit_event(
+                "positions_degraded",
+                detail=(
+                    f"WS closed (state={self._ws.state.value}); positions() "
+                    f"degraded to REST polling"
+                ),
+            )
             async for payload in self._poll_positions(poll_interval):
                 yield payload
             return
 
+        ws_state_str = (
+            self._ws.state.value if self._ws is not None else "NONE"
+        )
         log.warning(
             "Posit WS not OPEN (state=%s); positions() degraded to REST polling.",
-            self._ws.state.value if self._ws is not None else "NONE",
+            ws_state_str,
+        )
+        self._emit_event(
+            "positions_degraded",
+            detail=(
+                f"WS not OPEN (state={ws_state_str}); positions() using REST polling"
+            ),
         )
         async for payload in self._poll_positions(poll_interval):
             yield payload
