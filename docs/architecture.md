@@ -48,12 +48,12 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `.claude/commands/*.md` | Claude Code slash commands (harness primary) |
 | `.windsurf/workflows/*.md` | Windsurf workflows (harness secondary, must mirror `.claude/commands/`) |
 | `.claude/settings.json` | Claude Code hooks: block `server/core/` writes, typecheck + drift-check on Stop |
-| `client/ui/src/App.tsx` | Mounts `<AppShell/>` + global overlays (CommandPalette, HotkeyCheatsheet, OnboardingFlow, BlockDrawer). Owns auth↔app fade and mode cross-fade via `AnimatePresence`. Splash gate via `useAppReady`. Hotkey wiring (`?`, `[`, `]`, `g`-chords). |
+| `client/ui/src/App.tsx` | Mounts `<AppShell/>` + global overlays (CommandPalette, HotkeyCheatsheet, BlockDrawer). Owns auth↔app fade and mode cross-fade via `AnimatePresence`. Splash gate via `useAppReady`. Hotkey wiring (`?`, `[`, `]`, `g`-chords). |
 | `client/ui/src/components/shell/AppShell.tsx` | Three-region authenticated chrome — left `<LeftNav/>`, main slot, bottom `<StatusBar/>`. Replaces the deleted `GlobalContextBar`. |
 | `client/ui/src/components/shell/PositSplash.tsx` | Full-screen branded splash shown between login and first WS tick. Matches the body gradient, breathes the mark, drives its own enter fade + exit controlled by `<AnimatePresence>` in `App.tsx`. |
 | `client/ui/src/components/shell/PositLogo.tsx` | Posit wordmark + SVG mark (solid indigo point + offset reference circle). Used by the splash, LeftNav brand, and LoginPage. |
 | `client/ui/src/hooks/useAppReady.ts` | Owns the "app ready?" gate: signed-in + first-tick-received + min 400ms splash display. Returns `{ ready, message }` for the splash. |
-| `client/ui/src/components/shell/LeftNav.tsx` | Collapsible left sidebar — brand, mode nav, palette/chat/onboarding actions, `<UserMenu/>` pinned at the bottom. Persists collapsed state. |
+| `client/ui/src/components/shell/LeftNav.tsx` | Collapsible left sidebar — brand, mode nav, palette/chat/notifications actions, `<UserMenu/>` pinned at the bottom. Persists collapsed state. |
 | `client/ui/src/components/shell/StatusBar.tsx` | 24px bottom strip — WS state, last-tick freshness, Posit Control toggle (advisory until server hook lands), palette + cheatsheet hints, UTC clock. |
 | `client/ui/src/components/ui/Tabs.tsx` | Reusable tab strip primitive (pill + underline variants). Used by WorkbenchRail, DesiredPositionGrid view modes, LlmChat mode select. |
 | `client/ui/src/components/ui/Sidebar.tsx` | Reusable sidebar shell (collapsible, glass). Used by LeftNav today; `WorkbenchRail` and Anatomy `StreamSidebar` keep their bespoke shells (Phase 3 cleanup candidate). |
@@ -79,8 +79,11 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `client/ui/src/services/engineCommands.ts` | Engine-command parser + executor — strips `engine-command` fenced blocks from LLM text, routes to BlockDrawer or auto-executes |
 | `client/ui/src/components/floor/StreamStatusList.tsx` | Workbench data-streams list (name + last update + per-row power toggle for `active`). Row-body click sets stream focus; power icon flips the stream's `active` flag via `PATCH /api/streams/{name}/active`. |
 | `client/ui/src/services/streamTimeseriesApi.ts` | HTTP client for `GET /api/streams/{name}/timeseries`. Sourced from in-memory snapshot rows. |
-| `client/ui/src/components/studio/StreamLibrary.tsx` | Anatomy — stream CRUD |
-| `client/ui/src/components/studio/StreamCanvas.tsx` | Anatomy — 7-section stream config |
+| `client/ui/src/components/studio/anatomy/AnatomyCanvas.tsx` | Anatomy — React Flow DAG. Stream nodes (click to edit, hover for mapping/block details/active toggle/delete), `+ New stream` tile under the stream column, transform nodes, output node. |
+| `client/ui/src/components/studio/anatomy/nodes/StreamNode.tsx` | Stream node card + hover popover (portal-rendered). |
+| `client/ui/src/components/studio/anatomy/nodes/AddStreamNode.tsx` | `+ New stream` tile — click opens a blank StreamCanvas in the detail panel. |
+| `client/ui/src/components/studio/anatomy/NodeDetailPanel.tsx` | Right-side inspector hosted by AnatomyCanvas — renders StreamCanvas for stream nodes, TransformDetail for transforms. |
+| `client/ui/src/components/studio/StreamCanvas.tsx` | 7-section stream create/edit form — hosted inside NodeDetailPanel. |
 | `client/ui/src/services/api.ts` | `apiFetch` JSON wrapper + `streamFetchSSE` SSE helper — canonical HTTP/SSE path for every other service module |
 | `client/ui/src/services/llmApi.ts` | `streamChat()` — thin wrapper around `streamFetchSSE` for `POST /api/investigate` |
 | `client/ui/src/services/streamApi.ts` | HTTP client for stream CRUD, snapshot ingestion, market-pricing, bankroll endpoints |

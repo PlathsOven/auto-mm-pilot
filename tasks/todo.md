@@ -8,6 +8,8 @@ Active work tracker. Three sections: In Progress, Completed This Session, Blocke
 
 ## Completed This Session
 
+- [x] 2026-04-23 — Cinematic auth page. New `client/ui/src/pages/LoginBackdrop.tsx` owns a full-bleed ambient stage (layered radial gradients matching the splash palette, two drifting blurred indigo/violet orbs, a slowly rotating concentric-rings motif echoing the brand mark, soft vignette). `LoginPage.tsx` reworked around it: hero lockup (breathing `PositLogo` @ 34px + "The framework for positional trading" tagline) above a dialled-up glass card (48px blur, saturate 1.6, inset top-edge highlight, deeper shadow). Inputs are frosted with an indigo focus-ring glow; submit button is a three-stop indigo→violet gradient with a top-edge specular shine. Entrance sequences backdrop → hero → card with layered delays. All motion routed through framer-motion so `prefers-reduced-motion` collapses it. Typecheck + build clean.
+
 - [x] 2026-04-22 — SDK leanness pass: runtime primitives for long-running feeders. New `sdk/posit_sdk/runtime.py` with `forward_websocket` (reconnecting WS source), `repeat` (periodic timer), `run_forever` (supervisor). `PositClient.from_env()` classmethod + `PositClient.run(*tasks)` method. Exported from package root. Rewrote `/Users/seangong/Documents/Projects/deribit-pricer/tools/posit_feed.py` onto the new surface — 184 → 145 LOC, `main()` collapsed from ~18 lines of env/reconnect/supervisor plumbing to 8 declarative lines. `docs/sdk-quickstart.md` gains a "Long-running feeders" section and updates the checklist. 9 new runtime tests, 97 SDK tests total green.
 
 - [x] 2026-04-22 — SDK integrator-audit Tier 1 (no-new-endpoint cleanup). Flipped `connect_ws` default to `False`; added `FutureWarning` on `create_stream`/`configure_stream`; added `configure_stream_for_variance` / `configure_stream_for_linear` factories; `BlockConfig.decay_end_size_mult` sentinel resolution; per-field docstrings on every `BlockConfig` field; `PositZeroEdgeWarning` typed-warning surfacing on `positions()`; fixed `:8000` → `:8001` docstrings; quickstart gains dual-auth, canonical-timestamp, canonical-market-value, deprecation note. See `docs/decisions.md` 2026-04-22 entry.
@@ -24,7 +26,7 @@ Active work tracker. Three sections: In Progress, Completed This Session, Blocke
 
 ## Phase 3 candidates
 
-- [ ] Refactor `WorkbenchRail` + Anatomy `StreamSidebar` onto the shared `<Sidebar/>` primitive.
+- [ ] Refactor `WorkbenchRail` + Anatomy `NodeDetailPanel` onto the shared `<Sidebar/>` primitive.
 - [ ] Promote `Cmd-K` palette beyond jump-to: action commands (create stream, toggle rail, set mode parameters).
 - [ ] Wire the `Posit Control` toggle through to the server so the automation flag is honoured (today it's UI-only).
 - [ ] Code-split the JS bundle — single chunk is at ~608KB gzipped (vite warning).

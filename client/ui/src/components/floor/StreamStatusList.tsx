@@ -45,7 +45,7 @@ export function StreamStatusList() {
       <div className="mb-3 flex items-center justify-between border-b border-black/[0.06] pb-2">
         <h2 className="zone-header">Data Streams</h2>
         <button
-          onClick={() => navigate("anatomy?streams=list")}
+          onClick={() => navigate("anatomy")}
           className="rounded-md bg-mm-accent/8 px-2 py-0.5 text-[10px] font-medium text-mm-accent transition-colors hover:bg-mm-accent/10"
           title="Open Anatomy to create or edit streams"
         >

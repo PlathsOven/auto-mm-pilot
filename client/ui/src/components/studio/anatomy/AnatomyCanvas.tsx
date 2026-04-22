@@ -17,7 +17,8 @@ import { useWebSocket } from "../../../providers/WebSocketProvider";
 import { useRegisteredStreams } from "../../../hooks/useRegisteredStreams";
 import { ANATOMY_STARTUP_GRACE_MS } from "../../../constants";
 
-import { StreamNode } from "./nodes/StreamNode";
+import { StreamNode, type StreamNodeData } from "./nodes/StreamNode";
+import { AddStreamNode } from "./nodes/AddStreamNode";
 import { TransformNode } from "./nodes/TransformNode";
 import { OutputNode } from "./nodes/OutputNode";
 import { LaneBandNode } from "./nodes/LaneBandNode";
@@ -29,6 +30,7 @@ import { useTransformEditors } from "./useTransformEditors";
 
 const NODE_TYPES: NodeTypes = {
   stream: StreamNode,
+  addStream: AddStreamNode,
   transform: TransformNode,
   output: OutputNode,
   laneBand: LaneBandNode,
@@ -40,17 +42,18 @@ const NODE_TYPES: NodeTypes = {
  * Horizontal pipeline system diagram rendered with React Flow.
  *
  * - **Stream nodes** stack vertically on the left, each draggable, each
- *   feeding `unit_conversion`. Click → opens the unified right-side
+ *   feeding `unit_conversion`. Click → opens the right-side
  *   `<NodeDetailPanel/>` with that stream's `<StreamCanvas/>` editor.
+ *   Hover → popover listing mapping / confidence / block-shape details
+ *   plus an active toggle and delete.
+ * - **"+ New stream" tile** sits directly below the last stream. Click →
+ *   opens a blank StreamCanvas in the same right panel.
  * - **Transform nodes** sit in a left-to-right DAG with the fair-value /
  *   variance branch visible. Click → same right panel, with implementation
  *   picker + parameter editor.
- * - **The header "Streams list" button** opens the same right panel in
- *   list mode (browse/sort all streams). One panel, three contents — click
- *   any node again to close.
  * - **The "Desired Positions" output node** links through to Floor.
- * - **Default view**: just the canvas — no side panels. The detail panel and
- *   streams sidebar are opt-in based on user interaction.
+ * - **Default view**: just the canvas — no side panel. The detail panel
+ *   is opt-in based on user interaction.
  * - **Live flow**: when the WS payload carries positions, all edges gain
  *   React Flow's animated dashes plus a CSS stroke-opacity pulse (via the
  *   `anatomy-live` root class in index.css).
@@ -66,7 +69,7 @@ export function AnatomyCanvas() {
 function AnatomyCanvasInner() {
   const { steps, error, refresh } = useTransforms();
   const { streams } = useRegisteredStreams();
-  const { setMode, navigate } = useMode();
+  const { setMode } = useMode();
   const { payload } = useWebSocket();
   const positionCount = payload?.positions.length ?? 0;
   const reactFlowInstance = useReactFlow();
@@ -77,25 +80,10 @@ function AnatomyCanvasInner() {
     closePanel,
     openStream,
     openTransform,
-    toggleListPanel,
-    showList,
   } = useAnatomySelection();
 
   const { savingKey, saveError, onSelectTransform, onParamChange } = useTransformEditors();
 
-  /** Post-Activate feedback: jump to the Streams list (so the user sees
-   *  their new row) and pan the DAG to the new stream node so the canvas
-   *  visually signals "this is the thing you just created." Waiting until
-   *  the full lifecycle completes — before this point a navigation would
-   *  remount the form mid-activation and wipe the draft.
-   *
-   *  `navigate` is load-bearing: if we only updated local `selection` and
-   *  left the URL as `?stream=new&prefill…`, a subsequent "Register this
-   *  stream" click from another notification would write the same
-   *  `stream=new` URL, `query.stream` wouldn't change, and the sync
-   *  useEffect wouldn't fire — the panel would stay stuck on the list.
-   *  Navigating here keeps URL and state consistent so the next
-   *  notification click produces a real `query.stream` transition. */
   // Single-node fit helper — keeps the padding / zoom-range pair in sync
   // across the two sites that use it (click-to-focus + post-activation
   // auto-fit). Silently no-ops if the node isn't in the graph yet, which
@@ -120,7 +108,9 @@ function AnatomyCanvasInner() {
 
   const handleStreamActivated = useCallback(
     (name: string) => {
-      navigate("anatomy?streams=list");
+      // Close the detail panel so the "it worked" signal is the DAG pan +
+      // the newly-rendered stream node, not a form still occupying the rail.
+      closePanel();
       // Defer fitView a tick so the node is guaranteed to be in the DAG
       // (buildAnatomyGraph derives stream nodes from `streams`, which is
       // updated by StreamCanvas via `addStream()` on create). Node ids are
@@ -128,7 +118,7 @@ function AnatomyCanvasInner() {
       // silently fits to nothing and the viewport stays stuck.
       setTimeout(() => fitNodeIntoView(`stream-${name}`, 500), 0);
     },
-    [navigate, fitNodeIntoView],
+    [closePanel, fitNodeIntoView],
   );
 
   // Is the system "live"? Use the WS payload as the signal — when positions
@@ -137,13 +127,11 @@ function AnatomyCanvasInner() {
 
   // Which stream nodes should the DAG highlight?
   //   - right panel inspecting a stream → just that one
-  //   - right panel showing the stream list → every stream
   //   - otherwise → none
   const highlightedStreamNames = useMemo(() => {
     if (selection.kind === "stream") return new Set([selection.streamName]);
-    if (selection.kind === "list") return new Set(streams.map((s) => s.stream_name));
     return new Set<string>();
-  }, [selection, streams]);
+  }, [selection]);
 
   // ---------------------------------------------------------------------
   // Build React Flow nodes + edges
@@ -192,13 +180,20 @@ function AnatomyCanvasInner() {
       // Lane bands are decorative and never interactive.
       if (node.type === "laneBand") return;
 
-      // Toggle: clicking the currently-focused transform closes the panel.
-      // Stream clicks always go to the list (see below) — they don't
-      // self-toggle, since the list is shared across every stream node.
+      // Toggle: clicking the currently-focused transform or stream closes
+      // the panel.
       if (
         selection.kind === "transform"
         && node.type === "transform"
         && selection.stepKey === node.id
+      ) {
+        closePanel();
+        return;
+      }
+      if (
+        selection.kind === "stream"
+        && node.type === "stream"
+        && `stream-${selection.streamName}` === node.id
       ) {
         closePanel();
         return;
@@ -209,19 +204,24 @@ function AnatomyCanvasInner() {
       fitNodeIntoView(node.id);
 
       if (node.type === "stream") {
-        // Stream nodes open the streams list, not the per-stream editor.
-        // The user picks a row in the list to open the editor for that one.
-        // (Earlier this passed `node.id` to openStream, but node.id is the
-        // ReactFlow id `stream-{name}` — that prefix then surfaced as the
-        // initial Stream Name in the editor and failed snake_case validation.)
-        showList();
+        // Open the editor for this specific stream. node.id is prefixed
+        // `stream-{name}` — pull the real name from the node data so we
+        // pass the bare name to openStream (a `stream-` prefix would
+        // otherwise surface as the initial Stream Name in the editor and
+        // fail snake_case validation).
+        const streamName = (node.data as StreamNodeData).streamName;
+        openStream(streamName);
+      } else if (node.type === "addStream") {
+        // StreamCanvas's initialDraft() treats "new" as the URL sentinel
+        // for "open create mode with an empty identity".
+        openStream("new");
       } else if (node.type === "transform") {
         openTransform(node.id as StepKey);
       } else if (node.type === "output") {
         setMode("workbench");
       }
     },
-    [fitNodeIntoView, setMode, selection, closePanel, openTransform, showList],
+    [fitNodeIntoView, setMode, selection, closePanel, openTransform, openStream],
   );
 
   const onPaneClick = useCallback(() => {
@@ -306,19 +306,6 @@ function AnatomyCanvasInner() {
               Live pipeline architecture. Click a node to inspect or edit it.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={toggleListPanel}
-              className={`rounded-md border px-2 py-1 text-[10px] transition-colors ${
-                selection.kind === "list"
-                  ? "border-mm-accent/60 bg-mm-accent/10 text-mm-accent"
-                  : "border-black/[0.06] text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text"
-              }`}
-            >
-              {selection.kind === "list" ? "Hide streams" : "Streams list"}
-            </button>
-          </div>
         </header>
 
         {saveError && (
@@ -362,8 +349,6 @@ function AnatomyCanvasInner() {
           onSelectTransform={onSelectTransform}
           onParamChange={onParamChange}
           onClose={closePanel}
-          onOpenStream={openStream}
-          onShowList={showList}
           onStreamActivated={handleStreamActivated}
           streamPrefill={streamPrefill}
         />
