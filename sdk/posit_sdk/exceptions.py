@@ -51,3 +51,19 @@ class PositStreamNotRegistered(PositError):
             f"Call create_stream() or upsert_stream() first."
         )
         self.stream_name = stream_name
+
+
+class PositZeroEdgeWarning(UserWarning):
+    """Positions came back zero after a push that omitted ``market_value``.
+
+    Emitted via ``warnings.warn`` on the first ``positions()`` / ``get_positions``
+    payload after the SDK observed a snapshot push without ``market_value`` on
+    a stream. Without ``market_value``, each block's market defaults to its
+    own fair → ``edge = 0`` → ``desired_pos = 0``; the stream reports healthy
+    but positions silently flatline. Subclassing ``UserWarning`` means
+    notebooks and plain ``python -W`` surface it by default; logs-only
+    warnings are easy to miss.
+
+    Suppress via ``warnings.simplefilter("ignore", PositZeroEdgeWarning)`` if
+    you accept the consequence.
+    """

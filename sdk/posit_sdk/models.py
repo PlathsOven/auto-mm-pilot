@@ -29,9 +29,26 @@ class SnapshotRow(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    timestamp: str = Field(..., description="ISO 8601 or DDMMMYY timestamp")
-    raw_value: float
-    market_value: float | None = None
+    timestamp: str = Field(
+        ...,
+        description=(
+            "Canonical: ISO 8601 (e.g. '2026-03-27T00:00:00'). "
+            "Also accepted for convenience: DDMMMYY (e.g. '27MAR26'). "
+            "Prefer ISO in new feeds — mixing formats within a stream works "
+            "but is a legacy accommodation."
+        ),
+    )
+    raw_value: float = Field(..., description="Stream's natural measurement.")
+    market_value: float | None = Field(
+        None,
+        description=(
+            "Market-implied value in the same units as raw_value. Required "
+            "to produce non-zero edge — omitting it makes the block's market "
+            "default to its own fair and desired_pos collapse to 0. Supply "
+            "per-row OR use the aggregate path (set_market_values / "
+            "push_market_values) per (symbol, expiry)."
+        ),
+    )
 
     @field_validator("timestamp")
     @classmethod
@@ -57,21 +74,94 @@ class BlockConfig(BaseModel):
     The ``@model_validator`` below mirrors the server's ``__post_init__``
     checks in ``server/core/config.py`` — catching contradictions here avoids
     a 422 round-trip and gives a clearer stack frame at the SDK boundary.
+
+    ``decay_end_size_mult`` is a *sentinel-resolved* default: leave it ``None``
+    and the SDK picks ``1.0`` for annualized streams / ``0.0`` for discrete
+    ones. Pass an explicit value only if you know why.
     """
 
-    annualized: bool = True
-    size_type: Literal["fixed", "relative"] = "fixed"
-    aggregation_logic: Literal["average", "offset"] = "average"
-    temporal_position: Literal["static", "shifting"] = "shifting"
-    decay_end_size_mult: float = Field(1.0, ge=0)
-    decay_rate_prop_per_min: float = Field(0.0, ge=0)
-    decay_profile: Literal["linear"] = "linear"
-    var_fair_ratio: float = 1.0
+    annualized: bool = Field(
+        True,
+        description=(
+            "True when the stream measures an annualized quantity (e.g. "
+            "annualized vol, IV). False for discrete/event streams whose "
+            "values do not decay over calendar time."
+        ),
+    )
+    size_type: Literal["fixed", "relative"] = Field(
+        "fixed",
+        description=(
+            "'fixed' — block size is independent of the underlying variance. "
+            "'relative' — block size scales with variance (annualized only). "
+            "Use 'relative' when a market's confidence in a reading grows "
+            "with its own level (rarely needed)."
+        ),
+    )
+    aggregation_logic: Literal["average", "offset"] = Field(
+        "average",
+        description=(
+            "How this block combines with peers on the same (symbol, expiry, "
+            "space). 'average' — mean with peers (default, safe). 'offset' — "
+            "adds on top of the peer mean. Switch to 'offset' when the block "
+            "represents an additional adjustment rather than a competing view."
+        ),
+    )
+    temporal_position: Literal["static", "shifting"] = Field(
+        "shifting",
+        description=(
+            "'shifting' — block's time anchor advances with the tick "
+            "(default, correct for live feeds). 'static' — block is pinned "
+            "to its ingest time (use for one-off snapshots / opinions that "
+            "should not follow the wall clock)."
+        ),
+    )
+    decay_end_size_mult: float | None = Field(
+        None,
+        ge=0,
+        description=(
+            "Size multiplier at the end of the block's decay window, relative "
+            "to start. Sentinel-resolved: None → 1.0 on annualized streams "
+            "(no decay), 0.0 on discrete streams (full decay). Pass 0.5 to "
+            "halve size over the window. Validator rejects non-zero values "
+            "on annualized=False streams."
+        ),
+    )
+    decay_rate_prop_per_min: float = Field(
+        0.0,
+        ge=0,
+        description=(
+            "Fractional decay rate per minute. 0.0 disables temporal decay. "
+            "Typical values: 1e-4 for slow-moving RV, 1e-2 for event shocks. "
+            "Tune upward if you observe stale readings dominating fresh ones."
+        ),
+    )
+    decay_profile: Literal["linear"] = Field(
+        "linear",
+        description="Shape of the decay curve. Only 'linear' is implemented today.",
+    )
+    var_fair_ratio: float = Field(
+        1.0,
+        description=(
+            "Confidence weight. Higher = tighter distribution around fair = "
+            "larger position size from this block. 1.0 is the neutral default. "
+            "Raise to ~2.0 for high-confidence views, lower to ~0.5 for "
+            "speculative ones. Tune *after* observing real desired_pos output."
+        ),
+    )
 
     @model_validator(mode="after")
     def _consistency(self) -> "BlockConfig":
         if self.size_type == "relative" and not self.annualized:
             raise ValueError("size_type='relative' requires annualized=True")
+        # Resolve the decay_end_size_mult sentinel: annualized → 1.0 (no
+        # decay), discrete → 0.0 (full decay). Done here rather than via
+        # a default_factory so the value is explicit in the serialized form.
+        if self.decay_end_size_mult is None:
+            object.__setattr__(
+                self,
+                "decay_end_size_mult",
+                1.0 if self.annualized else 0.0,
+            )
         if self.decay_end_size_mult != 0 and not self.annualized:
             raise ValueError(
                 "decay_end_size_mult is only applicable for annualized streams "

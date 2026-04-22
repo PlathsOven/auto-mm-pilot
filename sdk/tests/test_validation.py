@@ -21,10 +21,24 @@ URL = "http://localhost:8000"
 # BlockConfig cross-field rules (mirror server `__post_init__`)
 # ---------------------------------------------------------------------------
 
-def test_blockconfig_rejects_non_annualized_with_decay_end_size_mult() -> None:
-    """Default decay_end_size_mult=1.0 incompatible with annualized=False."""
+def test_blockconfig_non_annualized_default_decay_resolves_to_zero() -> None:
+    """Sentinel default — BlockConfig(annualized=False) picks 0.0 for decay."""
+    cfg = BlockConfig(annualized=False)
+    assert cfg.annualized is False
+    assert cfg.decay_end_size_mult == 0.0
+
+
+def test_blockconfig_annualized_default_decay_resolves_to_one() -> None:
+    """Sentinel default — BlockConfig() (annualized=True) picks 1.0 for decay."""
+    cfg = BlockConfig()
+    assert cfg.annualized is True
+    assert cfg.decay_end_size_mult == 1.0
+
+
+def test_blockconfig_rejects_explicit_nonzero_decay_on_discrete() -> None:
+    """Explicit contradictions still rejected — only defaults stop fighting."""
     with pytest.raises(ValueError, match="decay_end_size_mult"):
-        BlockConfig(annualized=False)
+        BlockConfig(annualized=False, decay_end_size_mult=0.5)
 
 
 def test_blockconfig_accepts_non_annualized_with_zero_decay() -> None:

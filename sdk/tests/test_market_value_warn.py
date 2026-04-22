@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import logging
+import warnings
 
 import httpx
 import pytest
 import respx
 
-from posit_sdk import PositClient, SnapshotRow
+from posit_sdk import PositClient, PositZeroEdgeWarning, SnapshotRow
 
 
 URL = "http://localhost:8000"
@@ -121,3 +122,84 @@ async def test_warn_separate_per_stream(
             r for r in caplog.records if "market_value" in r.getMessage()
         ]
         assert len(mv_warnings) == 2
+
+
+# ---------------------------------------------------------------------------
+# PositZeroEdgeWarning — in-band escalation on positions() payload
+# ---------------------------------------------------------------------------
+
+def _positions_payload() -> dict:
+    return {
+        "streams": [],
+        "context": {"lastUpdateTimestamp": 1000},
+        "positions": [],
+        "updates": [],
+    }
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_zero_edge_warning_fires_on_first_positions_payload() -> None:
+    """After a bare-market push, positions() surfaces PositZeroEdgeWarning once."""
+    respx.get(f"{URL}/api/streams").mock(
+        return_value=httpx.Response(
+            200,
+            json={"streams": [
+                {"stream_name": "rv", "key_cols": ["symbol", "expiry"], "status": "READY"},
+            ]},
+        )
+    )
+    respx.post(f"{URL}/api/snapshots").mock(
+        return_value=httpx.Response(
+            200,
+            json={"stream_name": "rv", "rows_accepted": 1, "pipeline_rerun": True},
+        )
+    )
+    respx.get(f"{URL}/api/positions").mock(
+        return_value=httpx.Response(200, json=_positions_payload()),
+    )
+
+    async with PositClient(url=URL, api_key="ok", connect_ws=False) as client:
+        await client.ingest_snapshot("rv", [_row(0)])  # no market_value
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always")
+            await client.get_positions()
+        zero_edge = [w for w in captured if issubclass(w.category, PositZeroEdgeWarning)]
+        assert len(zero_edge) == 1
+        assert "rv" in str(zero_edge[0].message)
+
+        # Second fetch — warning already surfaced; no repeat.
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always")
+            await client.get_positions()
+        zero_edge = [w for w in captured if issubclass(w.category, PositZeroEdgeWarning)]
+        assert zero_edge == []
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_no_zero_edge_warning_when_market_value_present() -> None:
+    respx.get(f"{URL}/api/streams").mock(
+        return_value=httpx.Response(
+            200,
+            json={"streams": [
+                {"stream_name": "rv", "key_cols": ["symbol", "expiry"], "status": "READY"},
+            ]},
+        )
+    )
+    respx.post(f"{URL}/api/snapshots").mock(
+        return_value=httpx.Response(
+            200,
+            json={"stream_name": "rv", "rows_accepted": 1, "pipeline_rerun": True},
+        )
+    )
+    respx.get(f"{URL}/api/positions").mock(
+        return_value=httpx.Response(200, json=_positions_payload()),
+    )
+    async with PositClient(url=URL, api_key="ok", connect_ws=False) as client:
+        await client.ingest_snapshot("rv", [_row(0, market_value=0.5)])
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always")
+            await client.get_positions()
+        zero_edge = [w for w in captured if issubclass(w.category, PositZeroEdgeWarning)]
+        assert zero_edge == []

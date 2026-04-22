@@ -12,7 +12,8 @@ SDK should have caught for you — please open an issue.
 
 ## Prerequisites
 
-1. A Posit server reachable over HTTPS (or `http://localhost:8000` in dev).
+1. A Posit server reachable over HTTPS (or `http://localhost:8001` in dev —
+   the server binds `:8001`, not `:8000`).
 2. An account on that server — the operator creates one via signup; the
    API key is surfaced on the Account page.
 3. Python 3.10+ and `pip install posit-sdk`.
@@ -28,6 +29,10 @@ curl -H "X-API-Key: $POSIT_API_KEY" $POSIT_URL/api/streams  # list of registered
 Long-lived feeder processes **must** repeat this check on every reconnect.
 The SDK handles it automatically; hand-rolled clients must not.
 
+**API key — same token, two injection surfaces.** REST sends
+`X-API-Key: <key>` as a header; the WebSocket appends `?api_key=<key>` to
+the upgrade URL. The SDK does both for you; hand-rolled clients must match.
+
 ---
 
 ## Hello world
@@ -40,7 +45,10 @@ import asyncio
 from posit_sdk import PositClient, SnapshotRow, StreamSpec
 
 async def main():
-    async with PositClient(url="http://localhost:8000", api_key="...") as client:
+    # Default connect_ws=False — REST-only is the integrator norm.  Pass
+    # connect_ws=True if you want live-streamed positions() / low-latency push.
+    async with PositClient(url="http://localhost:8001", api_key="...",
+                           connect_ws=True) as client:
         await client.bootstrap_streams(
             [StreamSpec(stream_name="rv_btc",
                         key_cols=["symbol", "expiry"],
@@ -59,6 +67,16 @@ async def main():
 asyncio.run(main())
 ```
 
+Prefer a shortcut for the common transforms:
+
+```python
+# vol → variance
+await client.configure_stream_for_variance("rv_btc", ["symbol", "expiry"])
+# linear (degenerates to passthrough when scale=1.0, offset=0.0)
+await client.configure_stream_for_linear("funding_bps",
+                                         ["symbol", "expiry"], scale=0.01)
+```
+
 Key behaviours this already gets right for you:
 
 - **Auth hard-block.** A bad API key raises `PositAuthError` from
@@ -66,15 +84,28 @@ Key behaviours this already gets right for you:
 - **Idempotent setup.** `bootstrap_streams` is safe to re-run on every
   process launch — streams get created if absent, reconfigured if present,
   atomically rolled back on any failure.
-- **Typed validation.** `BlockConfig(annualized=False, decay_end_size_mult=1.0)`
+- **Typed validation.** `BlockConfig(size_type="relative", annualized=False)`
   raises at construction time; `SnapshotRow(timestamp="yesterday", ...)`
-  raises on the row itself; `create_stream(key_cols=["symbol"])` raises
+  raises on the row itself; `upsert_stream(key_cols=["symbol"])` raises
   with a message that names the missing risk dimension (`expiry`).
+- **Sentinel defaults.** `BlockConfig(annualized=False)` works — the SDK
+  resolves `decay_end_size_mult` to the right value per `annualized` so the
+  default never fights the validator.
 - **No silent pushes.** `push_snapshot` to an unregistered stream raises
   `PositStreamNotRegistered` synchronously — no HTTP traffic leaves
   the process.
+- **Typed zero-edge warning.** The first `positions()` payload after a push
+  missing `market_value` emits `PositZeroEdgeWarning` via `warnings.warn` —
+  the notebook-visible escalation of the logs-only WARN.
 - **WS → REST fallback.** If the live socket is down, pushes fall back to
   REST (slower but correct) and one WARN per state transition is logged.
+
+> **Why `create_stream` + `configure_stream` are deprecated.**  The two-phase
+> setup left every integrator in a PENDING-before-READY gap where pushes
+> could silently land in limbo.  `upsert_stream` (one stream) /
+> `bootstrap_streams` (many) collapse both phases into one atomic,
+> idempotent call with self-rollback. The raw two-phase methods now emit
+> `FutureWarning` and will be removed in posit-sdk v0.2.
 
 ---
 
@@ -116,10 +147,23 @@ position is 0.00. You didn't break anything — you forgot `market_value`.
 block's market to its own `fair`. `edge = fair - market_fair` collapses
 to 0. `desired_pos = edge · bankroll / var` collapses to 0.
 
-**Fix.** Pass `market_value` on every row (preferred), or call
-`set_market_values([...])` to set the aggregate per `(symbol, expiry)`.
-The SDK emits one `WARNING` per stream the first time it sees a push
-without `market_value` — heed it.
+**Fix.** Pick one canonical path:
+
+1. **Per-row `market_value`.** Pass it on every `SnapshotRow` you push.
+   Fine-grained, fine for one-off and event-driven streams.
+2. **Aggregate via `set_market_values(...)`.** One value per `(symbol,
+   expiry)` — the pipeline applies it to every block on that dimension
+   under this feeder. Cleaner when many streams share a single market
+   reference (e.g. total vol per expiry).
+
+Mixing is allowed — per-row values override the aggregate on their own
+`(symbol, expiry, stream)` tuple. Do not assume any other precedence.
+
+**Discoverability.** The SDK emits a `logging.WARNING` the first time it
+sees a push without `market_value`, and escalates to a typed
+`PositZeroEdgeWarning` on the next `positions()` payload (surfaced via
+`warnings.warn`, notebook-visible by default). Either is the signal
+that your positions are about to be zero for a structural reason.
 
 ---
 
@@ -130,12 +174,14 @@ without `market_value` — heed it.
 | `PositAuthError` from `__aenter__`      | Your API key is invalid or expired.                                                  | Rotate the key on the Account page; update `api_key=` in the client ctor.            |
 | `PositConnectionError` from `__aenter__`| WS handshake timed out (`connect_timeout`, default 10s).                             | Check server reachability. Pass `connect_timeout=None` to skip WS wait.              |
 | `PositValidationError: key_cols must include [...]` | Your `key_cols` don't cover the server's risk dimensions (`["symbol", "expiry"]`).  | Include both. Extra stream-specific keys (e.g. `event_id`) are fine alongside.       |
-| `PositValidationError: timestamp must be ISO 8601 or DDMMMYY` | Row timestamp is unparseable.                                                       | Use `"2026-03-27T00:00:00"` or `"27MAR26"`.                                          |
+| `PositValidationError: timestamp must be ISO 8601 or DDMMMYY` | Row timestamp is unparseable.                                                       | Use `"2026-03-27T00:00:00"` (canonical). `"27MAR26"` is accepted for legacy feeds.   |
 | `ValueError: decay_end_size_mult is only applicable for annualized streams` | Contradictory `BlockConfig` — caught at construction.                              | Either `annualized=True` or `decay_end_size_mult=0`.                                 |
 | `PositStreamNotRegistered: Stream 'X' is not registered` | You're pushing to a stream the server doesn't know. Often a server restart wiped the registry. | Call `upsert_stream(...)` with the same spec you registered originally, then retry. |
 | `PositApiError HTTP 409 {"code": "STREAM_NOT_REGISTERED", ...}` | Same as above but from a hand-rolled client. | Register via `POST /api/streams` + `POST /api/streams/{name}/configure` before pushing. |
 | `PositApiError HTTP 422 ... is not READY` | Stream is registered but has no `scale`/`block` configured.                         | `configure_stream(name, scale=..., block=...)` or `upsert_stream(...)`.              |
 | `PositApiError HTTP 409 Stream 'X' already exists` | Raw `create_stream` call on a pre-existing stream.                                 | Use `upsert_stream(...)` — it's idempotent.                                          |
+| `FutureWarning: create_stream is deprecated` / `configure_stream is deprecated` | You're on the two-phase legacy path. | Switch to `upsert_stream(...)` / `bootstrap_streams(...)`. Removed in v0.2. |
+| `PositZeroEdgeWarning: Streams ['X'] pushed rows without market_value` | The typed escalation of the market_value footgun — surfaced on `positions()`. | See "The `market_value` footgun" above. Suppress via `warnings.simplefilter("ignore", PositZeroEdgeWarning)` only if you accept the consequence. |
 
 ---
 
