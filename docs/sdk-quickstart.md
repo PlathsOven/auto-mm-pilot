@@ -11,16 +11,110 @@ client you use to push those feeds and read the positions back.
 
 **Contents**
 
-1. [Install + sanity-check](#install--sanity-check)
-2. [Your first integration (5 minutes)](#your-first-integration-5-minutes)
-3. [Three things that will bite you](#three-things-that-will-bite-you)
-    1. [Every stream is dimensioned on `(symbol, expiry)`](#a-every-stream-is-dimensioned-on-symbol-expiry)
-    2. [Missing `market_value` → zero positions](#b-missing-market_value--zero-positions)
-    3. [Units: raw → target](#c-units-raw--target)
-4. [Going to production](#going-to-production)
-5. [Debugging when positions look wrong](#debugging-when-positions-look-wrong)
-6. [Error cheatsheet](#error-cheatsheet)
-7. [Long-lived feeder checklist](#long-lived-feeder-checklist)
+1. [How Posit computes a position](#how-posit-computes-a-position) — the mental model before the code.
+2. [Install + sanity-check](#install--sanity-check)
+3. [Your first integration, step by step](#your-first-integration-step-by-step)
+4. [Three data-model rules that bite](#three-data-model-rules-that-bite)
+    1. [Every stream is dimensioned on `(symbol, expiry)`](#1-every-stream-is-dimensioned-on-symbol-expiry)
+    2. [Missing `market_value` → zero positions](#2-missing-market_value--zero-positions)
+    3. [Units: raw → target](#3-units-raw--target)
+5. [Going to production](#going-to-production)
+6. [Debugging when positions look wrong](#debugging-when-positions-look-wrong)
+7. [Error cheatsheet](#error-cheatsheet)
+8. [Long-lived feeder checklist](#long-lived-feeder-checklist)
+
+---
+
+## How Posit computes a position
+
+Read this section before the code — the rest of the doc makes much more
+sense once you see how the pieces fit.
+
+### The pipeline, end to end
+
+```
+        YOUR FEED                          MARKET REFERENCE
+      (raw readings)                  (what market implies for the same thing)
+             │                                       │
+             │                                       │
+             ▼                                       ▼
+    push_snapshot(rows with             set_market_values([...])
+    raw_value + market_value)           — or market_value per row
+             │                                       │
+             └──────────── one stream ───────────────┘
+                              │
+                              ▼
+           ┌────────────────────────────────────────┐
+           │ target = (scale·raw + offset)**exponent │  (stream transform)
+           └────────────────────────────────────────┘
+                              │
+                              ▼
+                 blocks  (per symbol × expiry × stream)
+                              │
+                              ▼
+                 aggregate per (symbol, expiry):
+                    total_fair         ← sum of block fairs (your view)
+                    total_market_fair  ← sum from market_value (market's view)
+                    var                ← aggregated block variance
+                              │
+                              ▼
+                    edge = total_fair − total_market_fair
+                    desired_pos = edge · bankroll / var     (Kelly sizing)
+                              │
+                              ▼
+           get_positions()  or  async for payload in positions()
+```
+
+### The five pieces
+
+**Streams** are named channels — one per data source you want Posit to
+reason about (`rv_btc`, `ema_iv`, `fomc_event`). You register each once
+and keep pushing rows.
+
+**Rows** (`SnapshotRow`) are individual readings. Each row carries:
+
+- `raw_value` — your source's native number (e.g. realised vol 0.65).
+- `market_value` — what the market implies for the same thing at the same
+  instant (e.g. ATM IV 0.70). **Mandatory for non-zero positions** — see
+  [rule #2](#2-missing-market_value--zero-positions).
+- Key columns — at minimum `symbol` and `expiry`, which partition the
+  pipeline's risk universe.
+
+**The transform** maps raw values into *target space* per
+`target = (scale · raw + offset) ** exponent`. Target space is where the
+pipeline math happens — typically variance, since vol-squared is additive
+and vol is not. `configure_stream_for_variance` sets `exponent=2`;
+`configure_stream_for_linear` sets `exponent=1`.
+
+**Blocks** are the pipeline's per-`(stream, symbol, expiry)` statistic:
+a *fair* (your view, in target space), a *market_fair* (from
+`market_value`, same transform), and a *var* (confidence in the fair).
+You tune block behaviour via `BlockConfig` (decay, var/fair ratio, etc.).
+Most integrators use the default.
+
+**Bankroll** is your risk capital — a single scalar per account. Kelly
+sizing reads it on every pipeline run. Set it once at startup with
+`client.set_bankroll(...)`.
+
+### The output
+
+Per `(symbol, expiry)`, Posit produces a `DesiredPosition` with:
+
+- `total_fair`, `total_market_fair`, `edge`, `variance`
+- `desired_pos = edge · bankroll / var` (smoothed; `raw_desired_pos` is
+  unsmoothed).
+
+You read it via `get_positions()` (one-shot REST) or
+`async for payload in client.positions()` (streaming WebSocket — opt-in
+with `connect_ws=True`).
+
+### What triggers a rerun
+
+Every push (`push_snapshot`, `set_market_values`, `push_market_values`)
+triggers a pipeline rerun on the server. `get_positions()` reads the
+latest computed payload; the WebSocket consumer gets it as a broadcast.
+
+That's the whole model. Now let's implement it.
 
 ---
 
@@ -50,14 +144,111 @@ on the Account page before continuing.
 
 > **One API key, two surfaces.** REST uses the `X-API-Key` header; the
 > WebSocket appends `?api_key=…` to the upgrade URL. Same token; the SDK
-> handles both.
+> handles both for you.
 
 ---
 
-## Your first integration (5 minutes)
+## Your first integration, step by step
 
-The minimum viable feeder: register one stream, push one row, read one
-position. REST-only (the default) — no WebSocket required.
+Five phases — connect, register, seed market reference, push data, read
+positions. Each phase explains what the SDK call does, what the server
+does in response, and how you can verify it worked. The full runnable
+script is at the end.
+
+### Phase 1 — Open the client
+
+```python
+async with PositClient(
+    url=os.environ["POSIT_URL"],
+    api_key=os.environ["POSIT_API_KEY"],
+) as client:
+    ...
+```
+
+- **SDK action:** open an HTTP session with the `X-API-Key` header set;
+  probe `/api/streams` to validate the key.
+- **Server action:** authenticate the key; return the user's registered
+  streams (empty list on a fresh account).
+- **Verify:** no exception escapes `async with`. A bad key raises
+  `PositAuthError` *here*, not on a later call.
+
+`connect_ws` defaults to `False` (REST-only, the integrator norm). Pass
+`connect_ws=True` for live-streamed positions — covered in
+[Going to production](#live-streamed-positions-websocket).
+
+### Phase 2 — Register a stream
+
+```python
+await client.configure_stream_for_variance(
+    "rv_btc", key_cols=["symbol", "expiry"],
+)
+```
+
+- **SDK action:** call the idempotent `upsert_stream` wrapper with
+  `exponent=2` preset (vol → variance). Safe to re-run on every launch.
+- **Server action:** create the stream if absent (status `READY`);
+  reconfigure if present; both in one atomic call.
+- **Verify:** `await client.describe_stream("rv_btc")` returns
+  `status="READY"`, `row_count=0`, `last_ingest_ts=None`.
+
+Need multiple streams at once with atomic rollback on failure? See
+[`bootstrap_streams`](#register-everything-atomically) in production.
+
+### Phase 3 — Set bankroll
+
+```python
+await client.set_bankroll(1_000_000.0)
+```
+
+- **SDK action:** one REST PATCH.
+- **Server action:** replace the stored bankroll; any future pipeline
+  rerun uses the new value in Kelly sizing.
+- **Verify:** `await client.get_bankroll()` returns the value.
+
+### Phase 4 — Push one reading
+
+```python
+await client.push_snapshot("rv_btc", [
+    SnapshotRow(
+        timestamp="2026-01-01T00:00:00",
+        raw_value=0.65,     # realised vol (65% annualised, decimal)
+        market_value=0.70,  # market-implied vol, same units
+        symbol="BTC",
+        expiry="27MAR26",
+    ),
+])
+```
+
+- **SDK action:** validate the row client-side (timestamp parses,
+  `key_cols` present), POST to `/api/snapshots` (falls back from WS when
+  `connect_ws=False`).
+- **Server action:** validate against the stream's `key_cols`; store the
+  row; run the whole pipeline (raw → transform → blocks → aggregate →
+  edge → position); broadcast the new payload on the WS.
+- **Verify:** response has `rows_accepted=1`, `pipeline_rerun=true`.
+  `describe_stream("rv_btc")` now shows `row_count=1` and a
+  `last_ingest_ts`.
+
+Why `market_value` on the row? Without it, `edge` collapses to 0 and so
+does the position. See [rule #2](#2-missing-market_value--zero-positions).
+
+### Phase 5 — Read Posit's advice
+
+```python
+payload = await client.get_positions()
+for pos in payload.positions:
+    print(pos.symbol, pos.expiry, pos.desired_pos)
+```
+
+- **SDK action:** GET `/api/positions`; parse into `PositionPayload`.
+- **Server action:** return the latest broadcast payload computed by the
+  last pipeline rerun.
+- **Verify:** `payload.positions` has exactly one `DesiredPosition` for
+  `(BTC, 27MAR26)` with a non-zero `desired_pos`.
+
+### The full script
+
+Save as `feed.py` and run with `POSIT_URL=... POSIT_API_KEY=... python feed.py`:
 
 ```python
 import asyncio, os
@@ -68,27 +259,21 @@ async def main():
         url=os.environ["POSIT_URL"],
         api_key=os.environ["POSIT_API_KEY"],
     ) as client:
-        # 1. Register the stream. Idempotent — safe to re-run on every launch.
-        #    `_for_variance` is a shortcut that sets exponent=2 (vol → variance),
-        #    which is the common case for a realised-vol feed.
         await client.configure_stream_for_variance(
             "rv_btc", key_cols=["symbol", "expiry"],
         )
         await client.set_bankroll(1_000_000.0)
 
-        # 2. Push one reading. `market_value` is mandatory for non-zero
-        #    positions — see "Three things that will bite you" below.
         await client.push_snapshot("rv_btc", [
             SnapshotRow(
                 timestamp="2026-01-01T00:00:00",
-                raw_value=0.65,     # realised vol (65% annualised, decimal)
-                market_value=0.70,  # market-implied vol, same units
+                raw_value=0.65,
+                market_value=0.70,
                 symbol="BTC",
                 expiry="27MAR26",
             ),
         ])
 
-        # 3. Read back Posit's advice.
         payload = await client.get_positions()
         for pos in payload.positions:
             print(pos.symbol, pos.expiry, pos.desired_pos)
@@ -96,52 +281,41 @@ async def main():
 asyncio.run(main())
 ```
 
-What the SDK handles so you don't have to:
-
-- **Auth fails fast.** A bad key raises `PositAuthError` on the `async
-  with` entry — no later call mis-fires silently against a dead key.
-- **Setup is idempotent.** `configure_stream_for_variance` wraps
-  `upsert_stream`; re-running with the same args is a no-op.
-- **No silent pushes.** Pushing to an unregistered stream raises
-  `PositStreamNotRegistered` synchronously — no HTTP traffic leaves the
-  process.
-- **Validation at the call site.** Bad timestamps, malformed `BlockConfig`,
-  and `key_cols` that miss the server's risk dimensions all raise before
-  the network.
-
 ---
 
-## Three things that will bite you
+## Three data-model rules that bite
 
-These are the three data-model facts every integrator has to internalise.
-Missing any one of them silently produces wrong answers.
+These are the three facts the pipeline enforces. Miss any of them and
+you get wrong answers — sometimes silently.
 
-### a. Every stream is dimensioned on `(symbol, expiry)`
+### 1. Every stream is dimensioned on `(symbol, expiry)`
 
 **Rule.** Posit's pipeline operates per `(symbol, expiry)` pair. Every
 stream's `key_cols` must include both. Extra keys (e.g. `event_id`) are
 fine alongside.
 
-**If your feed is scalar.** Some feeds are global — a funding rate, a
-macro event, a market-wide indicator — and don't have `symbol`/`expiry`
-on each row. Fan them out instead:
+**Why:** the aggregation step groups blocks by `(symbol, expiry)`. A
+stream that lacks either column has no way to map into the universe.
+
+**If your feed is scalar** — a global funding rate, a macro event, a
+market-wide indicator — you don't have `symbol`/`expiry` on each row.
+The SDK fans them out for you:
 
 ```python
-# Scalar row → duplicated across every live (symbol, expiry) pair.
+# One scalar row → duplicated across every live (symbol, expiry) pair.
 await client.push_fanned_snapshot(
     "fomc_event",
     [SnapshotRow(timestamp="2026-03-20T14:00:00",
                  raw_value=0.25, market_value=0.25)],
     # universe=[("BTC", "27MAR26"), ...] for a scoped fan-out,
-    # or omit to auto-fetch the server's current universe.
+    # or omit to auto-fetch the server's current (symbol, expiry) list.
 )
 ```
 
-The helper stamps `symbol` and `expiry` on each copy. Input rows must
-not already carry those fields (that's a programming error, not a
-style choice).
+Input rows must **not** already carry `symbol` or `expiry` — the helper
+inserts them per pair.
 
-### b. Missing `market_value` → zero positions
+### 2. Missing `market_value` → zero positions
 
 > **The single most common integrator failure.**
 
@@ -165,17 +339,17 @@ other precedence.
 
 **Safety net — three progressively louder defenses:**
 
-| Layer         | When it fires                                              | What you see                              |
-|---------------|------------------------------------------------------------|-------------------------------------------|
-| SDK log       | First bare-market push per stream                          | `logging.WARNING`                         |
-| SDK warning   | First `positions()` payload after a bare-market push       | `PositZeroEdgeWarning` (notebook-visible) |
-| Server guard  | First push to a *fresh* stream with no market value anywhere | HTTP 422 → `PositZeroEdgeBlocked`       |
+| Layer         | When it fires                                                  | What you see                              |
+|---------------|----------------------------------------------------------------|-------------------------------------------|
+| SDK log       | First bare-market push per stream                              | `logging.WARNING`                         |
+| SDK warning   | First `positions()` payload after a bare-market push           | `PositZeroEdgeWarning` (notebook-visible) |
+| Server guard  | First push to a *fresh* stream with no market value anywhere   | HTTP 422 → `PositZeroEdgeBlocked`         |
 
-If you genuinely want a zero-edge first push (e.g. you know the first
-rows are sighting data and aggregate values will arrive later), pass
-`allow_zero_edge=True` to `ingest_snapshot` / `push_snapshot`.
+If you genuinely want a zero-edge first push (e.g. sighting data before
+market values arrive), pass `allow_zero_edge=True` to `ingest_snapshot` /
+`push_snapshot`.
 
-### c. Units: raw → target
+### 3. Units: raw → target
 
 **Rule.** Every stream applies a transform from raw units to target
 units before the pipeline sees the value:
@@ -184,33 +358,33 @@ units before the pipeline sees the value:
 target = (scale · raw + offset) ** exponent
 ```
 
-Target space is where the math runs — typically **variance**. Raw
-space is whatever your feed emits natively.
+Target space is where the math runs — typically **variance**, because
+variance is linearly additive across blocks and vol is not.
 
 **Pick the right helper:**
 
-| Your feed                          | Helper                                                              | Transform      |
-|------------------------------------|---------------------------------------------------------------------|----------------|
-| Annualised vol (e.g. `0.65`)       | `configure_stream_for_variance(name, key_cols)`                     | `raw²`         |
-| Already in target units            | `configure_stream_for_linear(name, key_cols)`                       | `raw`          |
-| Needs re-scaling (e.g. bps → dec)  | `configure_stream_for_linear(name, key_cols, scale=0.01)`           | `0.01 · raw`   |
-| Anything custom                    | `upsert_stream(name, key_cols=…, scale=…, offset=…, exponent=…)`    | caller's choice|
+| Your feed                          | Helper                                                              | Transform       |
+|------------------------------------|---------------------------------------------------------------------|-----------------|
+| Annualised vol (e.g. `0.65`)       | `configure_stream_for_variance(name, key_cols)`                     | `raw²`          |
+| Already in target units            | `configure_stream_for_linear(name, key_cols)`                       | `raw`           |
+| Needs re-scaling (e.g. bps → dec)  | `configure_stream_for_linear(name, key_cols, scale=0.01)`           | `0.01 · raw`    |
+| Anything custom                    | `upsert_stream(name, key_cols=…, scale=…, offset=…, exponent=…)`    | caller's choice |
 
 **The rule that catches the most people.** `raw_value` and `market_value`
-must share units *before* the transform. If both are vol (0.65 / 0.70)
-and `exponent=2`, they both land in variance consistently. Never mix vol
-and pre-squared variance within one stream.
+must share units *before* the transform. If both are vol (`0.65` / `0.70`)
+with `exponent=2`, they both land in variance consistently. Never mix
+vol and pre-squared variance within one stream.
 
 ---
 
 ## Going to production
 
 The hello-world runs; now you need it to survive restarts, handle
-reconnects, and stay observable. Adopt these patterns as you go.
+reconnects, and stay observable.
 
 ### Register everything atomically
 
-One call registers or reconfigures every stream plus bankroll, and rolls
+One call registers or reconfigures every stream plus bankroll, rolling
 back any newly-created streams if later steps fail:
 
 ```python
@@ -230,8 +404,8 @@ await client.bootstrap_streams(
 ```
 
 Safe to re-run on every process launch: existing streams reconfigure in
-place, new ones get created, a mid-flight failure unwinds the ones this
-call created.
+place, new ones get created, a mid-flight failure unwinds only the
+streams this call created.
 
 > **Do not use** `create_stream` + `configure_stream` (the two-phase API).
 > They emit `FutureWarning` in v0.1 and are removed in v0.2. `upsert_stream`
@@ -335,8 +509,8 @@ Run this right after a push to confirm the server accepted it. Beats
 
 ### 3. Why is a position zero?
 
-The one-shot diagnostic for the audit's #1 question. Returns one entry
-per near-zero `(symbol, expiry)` with a closed-enum `reason`:
+The one-shot diagnostic for the most common integrator question. Returns
+one entry per near-zero `(symbol, expiry)` with a closed-enum `reason`:
 
 ```python
 report = await client.diagnose_zero_positions()
@@ -392,7 +566,7 @@ Grouped by when you'd hit them.
 
 | Signal                                               | Meaning                                                               | Action                                                              |
 |------------------------------------------------------|-----------------------------------------------------------------------|---------------------------------------------------------------------|
-| `PositZeroEdgeWarning`                               | `warnings.warn` on the first payload after a bare-market push.        | See [`market_value` section](#b-missing-market_value--zero-positions). |
+| `PositZeroEdgeWarning`                               | `warnings.warn` on the first payload after a bare-market push.        | See [`market_value` section](#2-missing-market_value--zero-positions). |
 | `payload.transport == "poll"`                        | WS dropped; `positions()` is polling at `poll_interval`.              | Surface a stale-data indicator. The SDK recovers if WS reconnects.  |
 | `payload.prev_seq != last_seen`                      | Gap detected between payloads — you missed some mid-stream.           | Call `positions_since(last_seen)` to backfill.                      |
 
