@@ -536,11 +536,15 @@ class PositClient:
 
         if existing is not None and list(existing.key_cols) != list(key_cols):
             log.info(
-                "Stream %r key_cols changed %s -> %s; recreating.",
+                "Stream %r key_cols migration %s -> %s; server preserves rows "
+                "when the new set is a superset or subset of the old.",
                 stream_name, existing.key_cols, key_cols,
             )
-            await self._require_rest().delete_stream(stream_name)
-            existing = None
+            updated = await self._require_rest().update_stream(
+                stream_name, new_key_cols=key_cols,
+            )
+            # existing is still registered — reuse it for the configure step.
+            existing = updated
 
         created_fresh = existing is None
         if created_fresh:

@@ -89,7 +89,9 @@ async def test_upsert_reconfigures_when_key_cols_match() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_upsert_recreates_when_key_cols_change() -> None:
+async def test_upsert_migrates_when_key_cols_change() -> None:
+    """Key-col change now PATCHes the stream; server preserves rows on
+    superset/subset migration (audit §3.2)."""
     existing = {
         "stream_name": "evt",
         "key_cols": ["symbol", "expiry"],
@@ -102,16 +104,18 @@ async def test_upsert_recreates_when_key_cols_change() -> None:
         return_value=httpx.Response(200, json={"streams": [existing]})
     )
     _dims_mock()
-    delete_route = respx.delete(f"{URL}/api/streams/evt").mock(
-        return_value=httpx.Response(204)
-    )
-    create_route = respx.post(f"{URL}/api/streams").mock(
+    delete_route = respx.delete(f"{URL}/api/streams/evt")
+    create_route = respx.post(f"{URL}/api/streams")
+    patch_route = respx.patch(f"{URL}/api/streams/evt").mock(
         return_value=httpx.Response(
-            201,
+            200,
             json={
                 "stream_name": "evt",
                 "key_cols": ["symbol", "expiry", "event_id"],
-                "status": "PENDING",
+                "status": "READY",
+                "scale": 1.0,
+                "offset": 0.0,
+                "exponent": 1.0,
             },
         )
     )
@@ -134,8 +138,10 @@ async def test_upsert_recreates_when_key_cols_change() -> None:
             "evt", key_cols=["symbol", "expiry", "event_id"],
         )
 
-    assert delete_route.called
-    assert create_route.called
+    # New path: PATCH migration, no delete + no recreate.
+    assert patch_route.called
+    assert not delete_route.called
+    assert not create_route.called
     assert configure_route.called
     assert resp.key_cols == ["symbol", "expiry", "event_id"]
 

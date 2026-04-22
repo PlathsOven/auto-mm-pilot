@@ -258,17 +258,67 @@ class StreamRegistry:
         new_name: str | None = None,
         new_key_cols: list[str] | None = None,
     ) -> StreamRegistration:
-        """User updates stream_name and/or key_cols."""
+        """User updates stream_name and/or key_cols.
+
+        ``key_cols`` changes:
+          - **Superset** (new ⊇ old): rows are preserved; added columns are
+            populated with None on existing rows. The producer is expected
+            to backfill the new columns on the next push.
+          - **Subset** (new ⊂ old): rows are preserved; dropped columns are
+            removed from each row. Collisions on the new key set collapse
+            deterministically — first-seen wins per (new_key_tuple).
+          - **Disjoint / overlap** (neither superset nor subset): rows are
+            cleared. Zero-surprise fallback for the cases where migration
+            is ambiguous.
+        """
         with self._lock:
             reg = self._streams.get(stream_name)
             if reg is None:
                 raise KeyError(f"Stream '{stream_name}' not found")
 
             if new_key_cols is not None and new_key_cols != reg.key_cols:
-                reg.key_cols = list(new_key_cols)
-                reg.snapshot_rows = []
-                reg.history.clear()
-                log.info("Stream '%s' key_cols updated to %s (snapshot cleared)", stream_name, new_key_cols)
+                old = set(reg.key_cols)
+                new = set(new_key_cols)
+                if new.issuperset(old):
+                    added = new - old
+                    for row in reg.snapshot_rows:
+                        for col in added:
+                            row.setdefault(col, None)
+                    reg.key_cols = list(new_key_cols)
+                    log.info(
+                        "Stream '%s' key_cols superset migration %s → %s; "
+                        "%d rows preserved with None in %s.",
+                        stream_name, sorted(old), new_key_cols,
+                        len(reg.snapshot_rows), sorted(added),
+                    )
+                elif new.issubset(old):
+                    dropped = old - new
+                    seen: dict[tuple, dict[str, Any]] = {}
+                    for row in reg.snapshot_rows:
+                        stripped = {
+                            k: v for k, v in row.items() if k not in dropped
+                        }
+                        key_tuple = tuple(stripped.get(k) for k in new_key_cols)
+                        if key_tuple not in seen:
+                            seen[key_tuple] = stripped
+                    reg.snapshot_rows = list(seen.values())
+                    reg.key_cols = list(new_key_cols)
+                    log.info(
+                        "Stream '%s' key_cols subset migration %s → %s; "
+                        "%d rows preserved (dropped %s), collisions collapsed "
+                        "first-seen.",
+                        stream_name, sorted(old), new_key_cols,
+                        len(reg.snapshot_rows), sorted(dropped),
+                    )
+                else:
+                    reg.key_cols = list(new_key_cols)
+                    reg.snapshot_rows = []
+                    reg.history.clear()
+                    log.info(
+                        "Stream '%s' key_cols disjoint migration %s → %s; "
+                        "rows cleared (no deterministic mapping).",
+                        stream_name, sorted(old), new_key_cols,
+                    )
 
             if new_name is not None and new_name != stream_name:
                 if new_name in self._streams:
