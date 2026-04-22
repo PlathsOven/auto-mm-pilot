@@ -73,9 +73,9 @@ export function WorkbenchPage() {
                 <button
                   type="button"
                   onClick={openCreateBlock}
-                  className="rounded-md bg-mm-accent px-2.5 py-1 text-[10px] font-semibold text-white transition-colors hover:bg-mm-accent/90"
+                  className="btn-accent-gradient rounded-md px-2.5 py-1 text-[10px] font-semibold"
                 >
-                  + Manual block
+                  <span className="relative">+ Manual block</span>
                 </button>
               }
             />

@@ -165,16 +165,8 @@ export function LoginPage() {
                 type="submit"
                 disabled={pending}
                 whileTap={pending ? undefined : { scale: 0.98 }}
-                className="group relative mt-1 overflow-hidden rounded-lg px-3.5 py-2.5 text-sm font-medium text-white shadow-[0_8px_20px_-8px_rgba(79,91,213,0.55)] transition-shadow hover:shadow-[0_10px_24px_-6px_rgba(79,91,213,0.65)] disabled:opacity-60 disabled:shadow-none"
-                style={{
-                  background:
-                    "linear-gradient(135deg, #5966e0 0%, #4f5bd5 50%, #7b6cf0 100%)",
-                }}
+                className="btn-accent-gradient mt-1 rounded-lg px-3.5 py-2.5 text-sm"
               >
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent opacity-70 transition-opacity duration-300 group-hover:opacity-100"
-                />
                 <span className="relative">
                   {pending ? "Please wait…" : isSignup ? "Create account" : "Sign in"}
                 </span>

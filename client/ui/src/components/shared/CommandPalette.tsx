@@ -142,7 +142,7 @@ export function CommandPalette() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className="fixed inset-0 z-[100] bg-black/20"
+            className="fixed inset-0 z-[100] bg-black/25 backdrop-blur-[2px]"
             onClick={closePalette}
             aria-hidden
           />
@@ -152,7 +152,7 @@ export function CommandPalette() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: -8 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-x-0 top-[15vh] z-[101] mx-auto w-[560px] max-w-[90vw] overflow-hidden rounded-lg border border-white/50 bg-white/80 shadow-xl shadow-black/[0.08] ring-1 ring-black/[0.06] backdrop-blur-glass32"
+            className="glass-panel-xl fixed inset-x-0 top-[15vh] z-[101] mx-auto w-[560px] max-w-[90vw] overflow-hidden"
           >
         <div className="border-b border-black/[0.06] px-3 py-2">
           <input
@@ -188,14 +188,20 @@ export function CommandPalette() {
               key={cmd.id}
               onMouseEnter={() => setActiveIdx(i)}
               onClick={cmd.run}
-              className={`flex w-full items-center justify-between gap-3 rounded-md px-3 py-1.5 text-left text-xs transition-colors ${
+              className={`flex w-full items-center justify-between gap-3 rounded-md px-3 py-1.5 text-left text-xs transition-all duration-150 ${
                 i === activeIdx
-                  ? "bg-mm-accent/10 text-mm-accent"
-                  : "text-mm-text hover:bg-black/[0.04]"
+                  ? "bg-mm-accent/12 text-mm-accent ring-1 ring-mm-accent/20"
+                  : "text-mm-text hover:bg-white/50"
               }`}
             >
               <span className="flex items-baseline gap-2">
-                <span className="rounded bg-black/[0.04] px-1.5 py-0.5 text-[8px] uppercase text-mm-text-dim">
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[8px] uppercase tracking-wider transition-colors ${
+                    i === activeIdx
+                      ? "bg-mm-accent/15 text-mm-accent"
+                      : "bg-black/[0.04] text-mm-text-dim"
+                  }`}
+                >
                   {cmd.group}
                 </span>
                 <span className="font-medium">{cmd.title}</span>
@@ -207,7 +213,7 @@ export function CommandPalette() {
           ))}
         </div>
 
-        <div className="flex items-center justify-between border-t border-black/[0.06] bg-black/[0.02] px-3 py-1.5 text-[9px] text-mm-text-dim">
+        <div className="flex items-center justify-between border-t border-black/[0.06] bg-white/30 px-3 py-1.5 text-[9px] text-mm-text-dim">
           <span>↑↓ to move · ↵ to select · esc to close</span>
           <span>⌘K</span>
         </div>
