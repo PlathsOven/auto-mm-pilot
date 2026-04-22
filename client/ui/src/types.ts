@@ -431,6 +431,20 @@ export interface PipelineTimeSeriesResponse {
   };
 }
 
+/** Response for ``GET /api/pipeline/contributions`` — per-space calc-space
+ *  decomposition over a unified ``now − lookback → expiry`` axis. The seam
+ *  is marked by ``currentTs`` (rendered as a vertical line on the chart).
+ *  Values are in calc space (variance-linear) and stack additively across
+ *  ``space_id`` at any timestamp.
+ */
+export interface PipelineContributionsResponse {
+  symbol: string;
+  expiry: string;
+  currentTs: string | null;
+  timestamps: string[];
+  perSpace: Record<string, SpaceSeries>;
+}
+
 // ---------------------------------------------------------------------------
 // Transform configuration
 // ---------------------------------------------------------------------------

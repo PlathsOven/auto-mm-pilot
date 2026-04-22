@@ -50,7 +50,9 @@ Format per entry: **Rule.** Then `Why:` (what went wrong, so edge cases can be j
 
 **Why:** After switching the pipeline chart's xAxis to `type: "time"` with `[timestamp, value]` pair data, clicking the Fair or Variance tab blanked the entire Workbench. With no ErrorBoundary mounted, ECharts throwing inside its stacker (triggered by `stack: "fair"` on a time axis with nullable series) unmounts the whole React tree. The `stack` feature is only officially supported on a category axis; with time it either produces garbage or throws.
 
-**How to apply:** For any stacked series, use `xAxis.type: "category"` with `data: timestamps` and plain value arrays (aligned by index) on each series. A `formatter` on `axisLabel` gives back the pretty HH:MM display. Reserve `type: "time"` for single-series or non-stacked charts only. Consider mounting an ErrorBoundary above the Workbench so ECharts (or any descendant) crashes don't take down the entire UI.
+**How to apply:** For stacked series with nullable data, use `xAxis.type: "category"` with `data: timestamps` and plain value arrays (aligned by index) on each series. A `formatter` on `axisLabel` gives back the pretty HH:MM display. Consider mounting an ErrorBoundary above the Workbench so ECharts (or any descendant) crashes don't take down the entire UI.
+
+**Stack IS compatible with `type: "time"` if every value is numeric** (no nulls, no undefineds — zero-default before passing to ECharts). The Pipeline Contributions tabs (`client/ui/src/components/PipelineChart/contributionsOptions.ts`) use `xAxis.type: "time"` + `stack: "contrib"` + `areaStyle.opacity: 0.45` on null-free tuple data, and the stacker renders translucent bands correctly across a proportional time axis. The original crash was the stacker's null-handling, not the time-axis pairing itself. When the design requires proportional time (e.g. a sparse ring-buffer segment stitched to a dense forward grid), prefer this to the category-axis workaround; when nulls are unavoidable, fall back to category.
 
 ---
 

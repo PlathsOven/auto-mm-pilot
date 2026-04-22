@@ -5,43 +5,30 @@ auto_execution_mode: 3
 
 ## /lean — Subtraction Pass
 
-A narrow, deep workflow focused on **one axis only: deletion**. Every finding must be something that can disappear with no behaviour change. No canonicalization, no vectorization, no decomposition, no renaming — those belong in `/refactor`. This command exists so a lean pass can be run without the overhead of a full architectural refactor.
+A narrow workflow focused on **one axis only: deletion**. Every finding must disappear with no behaviour change. No canonicalization, vectorization, decomposition, or renaming — those belong in `/refactor`.
 
 **Companion commands:**
-- `/cleanup` — lightweight hygiene checklist (imports, naming drift, magic numbers)
-- `/refactor` — full 5-phase architecture pass (delete + canonicalize + vectorize + decompose + rename)
-- `/lean` — *this command*. Subtraction only, applied exhaustively.
-
----
+- `/cleanup` — lightweight hygiene (imports, naming drift, magic numbers)
+- `/refactor` — full 5-phase pass (delete + canonicalize + vectorize + decompose + rename)
+- `/lean` — *this command*: subtraction only, applied exhaustively
 
 ### 0. Philosophy
 
-**Core principle:** A lean pass that adds net LOC has failed. The only output this command produces is a smaller, equivalent codebase. When in doubt between "delete" and "keep," delete — if it turns out to matter, `git revert` is cheap; carrying dead weight forever is not.
+**Core principle:** a lean pass that adds net LOC has failed. The only output is a smaller, equivalent codebase. When in doubt, delete — `git revert` is cheap; carrying dead weight forever is not.
 
-**What this command does NOT do:**
-- Rename variables for clarity
-- Rewrite loops as vectorized expressions
-- Split god files
-- Introduce new abstractions or "cleaner" patterns
-- Convert one style to another
-
-If a finding requires any of the above, note it and defer to `/refactor`. This pass is subtraction and only subtraction.
-
----
+**What this command does NOT do:** rename, vectorize, split god files, introduce abstractions, or convert styles. If a finding requires any of these, note it and defer to `/refactor`.
 
 ### 1. Context Load
 
-Read these first so the sweep respects the hard invariants:
+Read these first:
 - `CLAUDE.md` — harness sync, surgical commits, schema source-of-truth
-- `docs/architecture.md` — Key Files table (what's wired into the production flow) and Component Map
-- `docs/stack-status.md` — which components are PROD / MOCK / STUB / OFF (MOCK and STUB files look unused but are load-bearing scaffolding; do not delete)
-- `tasks/lessons.md` — recent corrections that constrain what can be deleted.
+- `docs/architecture.md` — Key Files table and Component Map
+- `docs/stack-status.md` — PROD / MOCK / STUB / OFF (MOCK and STUB files look unused but are load-bearing scaffolding; do not delete)
+- `tasks/lessons.md` — recent corrections that constrain what can be deleted
 
-Hard constraints to hold throughout:
-- Files flagged in `docs/stack-status.md` as MOCK / STUB (e.g. `DailyWrap.tsx`, `server/api/llm/context_db.py`, `server/api/llm/test_investigation.py`) are intentional scaffolding — do not delete without human approval, even if the call graph says they're orphans.
-- Entry-point defaults that frameworks auto-wire (`App.tsx`, `main.tsx`, FastAPI routers registered via `include_router`) look orphan to naïve grep — exclude them.
-
----
+Hard constraints:
+- Files flagged MOCK/STUB in `docs/stack-status.md` (e.g. `DailyWrap.tsx`, `server/api/llm/context_db.py`, `server/api/llm/test_investigation.py`) are intentional scaffolding — do not delete without human approval, even if the call graph says they're orphans.
+- Framework-auto-wired entry points (`App.tsx`, `main.tsx`, FastAPI routers registered via `include_router`) look orphan to naïve grep — exclude them.
 
 ### 2. Scope
 
@@ -50,11 +37,9 @@ Ask the user:
 - **Single lane** — `client/ui/`, `server/api/`, `pitch/`, etc.
 - **Specific files or directories**
 
----
-
 ### 3. Sweep — Deletion Candidates
 
-Scan every file in scope. For every candidate, record: `path:line | category | reason | projected LOC saved | risk (low/med/high)`.
+For every candidate, record: `path:line | category | reason | projected LOC saved | risk (low/med/high)`.
 
 #### 3A. Orphan Files
 
@@ -130,8 +115,6 @@ Scan every file in scope. For every candidate, record: `path:line | category | r
 - [ ] `import` / `from X import Y` where `Y` does not exist in `X` (LLM hallucination debris).
 - [ ] Imports of removed modules that lint hasn't caught yet.
 
----
-
 ### 4. Report
 
 Output a structured kill list grouped by category 3A → 3M:
@@ -155,25 +138,21 @@ End the report with:
 
 **STOP. Do NOT delete anything yet. Wait for explicit approval of the kill list and execution order.**
 
----
-
 ### 5. Execution
 
-After approval, work category by category in the approved execution order.
+After approval, work category by category in the approved order.
 
 **Per-category procedure:**
-1. Stage the deletions for that category only (may span multiple files).
-2. For each file touched: read the full file first, then apply deletions via `Edit` (batch all deletions in one file in sequential `Edit` calls or a single multi-edit where supported).
-3. If a symbol was deleted, grep for its name repo-wide and update / remove every reference in the same category batch — never leave a dangling import.
-4. If a file was deleted, update every import of it in the same batch.
-5. After the category's edits, re-run verification (see §6) before moving to the next category.
+1. Stage deletions for that category only (may span multiple files)
+2. For each file: read fully first, then apply deletions via `Edit`
+3. If a symbol was deleted, grep repo-wide and update/remove every reference in the same batch — never leave a dangling import
+4. If a file was deleted, update every import of it in the same batch
+5. Re-run verification (§6) before moving to the next category
 
 **Execution rules:**
-- **Surgical edits.** No drive-by fixes. If you spot a rename opportunity or a pattern divergence mid-deletion, note it for the next `/refactor` — do not touch it here.
-- If a deletion turns out to break something unexpected, revert that specific deletion and flag it in the report with the reason it couldn't be removed. Continue with the rest of the category.
+- Surgical edits only. If you spot a rename or pattern divergence mid-deletion, note it for `/refactor` — do not touch it here.
+- If a deletion breaks something unexpected, revert that deletion, flag it in the report with the reason, and continue with the rest of the category.
 - Never use `--no-verify`. Never bypass hooks.
-
----
 
 ### 6. Verification
 
@@ -189,11 +168,9 @@ npm --prefix client/ui run typecheck 2>&1 | head -50
 
 Fix import / typing fallout in the same category batch. If a fix requires changing non-trivial logic, revert the deletion — this command is subtraction only; logic changes go to `/refactor`.
 
----
-
 ### 7. Commit
 
-One surgical commit per category, using native git only. Example message shapes:
+One surgical commit per category, using native git. Example message shapes:
 
 ```bash
 git add <files...>

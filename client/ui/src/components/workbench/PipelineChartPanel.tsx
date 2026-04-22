@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PipelineChart } from "../PipelineChart";
+import { PipelineContributionsChart } from "./PipelineContributionsChart";
 import { Tabs, type TabItem } from "../ui/Tabs";
-import { MetricDropdown, SmoothingToggle } from "../ui/MetricControls";
+import {
+  ContributionMetricDropdown,
+  MetricDropdown,
+  SmoothingToggle,
+} from "../ui/MetricControls";
 import { useFocus } from "../../providers/FocusProvider";
 import { useWebSocket } from "../../providers/WebSocketProvider";
 import { usePipelineTimeSeries } from "../../hooks/usePipelineTimeSeries";
+import { usePipelineContributions } from "../../hooks/usePipelineContributions";
 import {
   formatExpiry,
   metricOf,
@@ -17,13 +23,16 @@ import {
 } from "../../utils";
 import type { ViewMode } from "../../types";
 import {
+  CONTRIBUTION_METRICS,
+  CONTRIBUTION_METRIC_KEY,
   POSITION_LOOKBACK_OPTIONS,
   DEFAULT_POSITION_LOOKBACK_LABEL,
   POSITION_LOOKBACK_KEY,
   PIPELINE_LINK_KEY,
-  PIPELINE_DECOMPOSE_KEY,
-  DECOMPOSABLE_METRICS,
+  PIPELINE_TAB_KEY,
   VIEW_MODE_META,
+  type ContributionMetric,
+  type PipelineTab,
 } from "../../constants";
 
 interface PipelineChartPanelProps {
@@ -36,21 +45,53 @@ interface PipelineChartPanelProps {
   onGridViewModeChange: (mode: ViewMode) => void;
 }
 
+const PIPELINE_TABS: readonly TabItem<PipelineTab>[] = [
+  { value: "metric", label: "Metric", title: "Single-metric time series" },
+  {
+    value: "contributions",
+    label: "Contributions",
+    title: "Per-space stacked calc-space contributions over now − lookback → expiry",
+  },
+];
+
 /**
- * Pipeline chart panel — same dropdown + Instant/Smoothed controls as the
- * Overview grid, visually identical via the shared `MetricDropdown` +
- * `SmoothingToggle` primitives. "Link grid" (default on, persisted)
- * mirrors both metric and smoothing from the grid bidirectionally.
+ * Pipeline chart panel — tabbed: Metric (single-metric time series,
+ * mirrors the Overview grid cell semantics) and Contributions (per-space
+ * calc-space stack covering now − lookback → expiry, so the trader can
+ * see which spaces drive Fair / Variance / Market across revealed history
+ * and forward projection in one view).
+ *
+ * Lookback and the (symbol, expiry) dropdown are shared controls — both
+ * tabs pin to the same workbench focus. Metric-specific controls
+ * (metric dropdown, smoothing, "Link grid") only render on the Metric
+ * tab.
  */
 export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: PipelineChartPanelProps) {
   const { focus } = useFocus();
   const { payload } = useWebSocket();
 
+  const [activeTab, setActiveTab] = useState<PipelineTab>(() => {
+    const saved = safeGetItem(PIPELINE_TAB_KEY);
+    return saved === "contributions" ? "contributions" : "metric";
+  });
+  const persistTab = useCallback((next: PipelineTab) => {
+    setActiveTab(next);
+    safeSetItem(PIPELINE_TAB_KEY, next);
+  }, []);
+
+  const [contributionMetric, setContributionMetric] = useState<ContributionMetric>(() => {
+    const saved = safeGetItem(CONTRIBUTION_METRIC_KEY);
+    return (CONTRIBUTION_METRICS as readonly string[]).includes(saved ?? "")
+      ? (saved as ContributionMetric)
+      : "fair";
+  });
+  const persistContributionMetric = useCallback((next: ContributionMetric) => {
+    setContributionMetric(next);
+    safeSetItem(CONTRIBUTION_METRIC_KEY, next);
+  }, []);
+
   const [linked, setLinked] = useState<boolean>(
     () => safeGetItem(PIPELINE_LINK_KEY) !== "false",
-  );
-  const [decompose, setDecompose] = useState<boolean>(
-    () => safeGetItem(PIPELINE_DECOMPOSE_KEY) === "true",
   );
   const gridMetric = metricOf(gridViewMode).metric;
   const gridSmoothing = metricOf(gridViewMode).smoothing;
@@ -84,11 +125,6 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
     safeSetItem(PIPELINE_LINK_KEY, String(next));
   }, []);
 
-  const persistDecompose = useCallback((next: boolean) => {
-    setDecompose(next);
-    safeSetItem(PIPELINE_DECOMPOSE_KEY, String(next));
-  }, []);
-
   // Resolve a (symbol, expiry) to channel from the current focus. Block
   // focus carries its full composite key, so we can route the chart to
   // the block's dimension.
@@ -112,22 +148,29 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
     return opt?.seconds ?? null;
   }, [lookbackLabel]);
 
-  const { dimensions, selected, setSelected, data, error, loading } = usePipelineTimeSeries(
-    focusDimension,
+  const {
+    dimensions,
+    selected,
+    setSelected,
+    data: timeSeriesData,
+    error: timeSeriesError,
+    loading: timeSeriesLoading,
+  } = usePipelineTimeSeries(focusDimension, lookbackSeconds);
+
+  // Contributions tab pins to the same (symbol, expiry) selection the
+  // Metric tab drives — workbench focus is shared across both tabs. The
+  // endpoint returns every metric's per-space arrays in one shot, so
+  // flipping the Fair / Variance / Market dropdown inside the tab is a
+  // client-side render switch, not a re-fetch.
+  const contributionsActive = activeTab === "contributions";
+  const {
+    data: contribData,
+    error: contribError,
+    loading: contribLoading,
+  } = usePipelineContributions(
+    contributionsActive ? selected : null,
     lookbackSeconds,
   );
-
-  // Decomposition only works when (a) the metric has a calc-space form,
-  // (b) the smoothing toggle is Instant (per-space smoothing isn't computed
-  // server-side), and (c) the payload carries perSpace data — the history
-  // path emits an empty dict since the ring buffer holds no per-space trace.
-  const decomposable = useMemo(() => {
-    if (!DECOMPOSABLE_METRICS.includes(effectiveMetric)) return false;
-    if (effectiveSmoothing !== "instant") return false;
-    if (!data || !data.aggregated.perSpace) return false;
-    return Object.keys(data.aggregated.perSpace).length > 0;
-  }, [effectiveMetric, effectiveSmoothing, data]);
-  const effectiveDecompose = decompose && decomposable;
 
   // Keep local state in sync while linked so unlinking doesn't jump.
   useEffect(() => {
@@ -168,27 +211,40 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-black/[0.06] px-3 pb-2 pt-1.5">
         <div className="flex items-baseline gap-2">
           <h2 className="zone-header">Pipeline</h2>
-          {meta.unit && (
+          {activeTab === "metric" && meta.unit && (
             <span className="text-[10px] text-mm-text-dim">({meta.unit})</span>
           )}
+          {contributionsActive && (
+            <span className="text-[10px] text-mm-text-dim">(calc · variance units)</span>
+          )}
+          <Tabs
+            items={PIPELINE_TABS}
+            value={activeTab}
+            onChange={persistTab}
+            variant="pill"
+            size="sm"
+            className="ml-1"
+          />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label
-            className={`flex items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] transition-colors ${
-              linked
-                ? "border-mm-accent/30 bg-mm-accent-soft text-mm-accent"
-                : "border-black/[0.08] text-mm-text-dim hover:bg-black/[0.04]"
-            }`}
-            title="When on, pipeline controls mirror the position grid"
-          >
-            <input
-              type="checkbox"
-              checked={linked}
-              onChange={(e) => persistLinked(e.target.checked)}
-              className="accent-mm-accent"
-            />
-            <span>Link grid</span>
-          </label>
+          {activeTab === "metric" && (
+            <label
+              className={`flex items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] transition-colors ${
+                linked
+                  ? "border-mm-accent/30 bg-mm-accent-soft text-mm-accent"
+                  : "border-black/[0.08] text-mm-text-dim hover:bg-black/[0.04]"
+              }`}
+              title="When on, pipeline controls mirror the position grid"
+            >
+              <input
+                type="checkbox"
+                checked={linked}
+                onChange={(e) => persistLinked(e.target.checked)}
+                className="accent-mm-accent"
+              />
+              <span>Link grid</span>
+            </label>
+          )}
           <Tabs
             items={lookbackTabs}
             value={lookbackLabel}
@@ -208,51 +264,41 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
               </option>
             ))}
           </select>
-          <MetricDropdown value={effectiveMetric} onChange={setMetric} />
-          <SmoothingToggle
-            value={effectiveSmoothing}
-            onChange={setSmoothing}
-            disabled={!smoothable}
-          />
-          <label
-            className={`flex items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] transition-colors ${
-              !decomposable
-                ? "cursor-not-allowed border-black/[0.06] text-mm-text-subtle opacity-60"
-                : effectiveDecompose
-                  ? "border-mm-accent/30 bg-mm-accent-soft text-mm-accent"
-                  : "border-black/[0.08] text-mm-text-dim hover:bg-black/[0.04]"
-            }`}
-            title={
-              !DECOMPOSABLE_METRICS.includes(effectiveMetric)
-                ? "Decompose is available for Fair / Variance / Market (Calc) only"
-                : effectiveSmoothing !== "instant"
-                  ? "Decompose requires Instant smoothing (per-space smoothing isn't computed)"
-                  : !decomposable
-                    ? "Per-space decomposition not available for this window"
-                    : "Stack per-risk-space calc-space contributions"
-            }
-          >
-            <input
-              type="checkbox"
-              checked={effectiveDecompose}
-              disabled={!decomposable}
-              onChange={(e) => persistDecompose(e.target.checked)}
-              className="accent-mm-accent"
+          {activeTab === "metric" ? (
+            <>
+              <MetricDropdown value={effectiveMetric} onChange={setMetric} />
+              <SmoothingToggle
+                value={effectiveSmoothing}
+                onChange={setSmoothing}
+                disabled={!smoothable}
+              />
+            </>
+          ) : (
+            <ContributionMetricDropdown
+              value={contributionMetric}
+              onChange={persistContributionMetric}
             />
-            <span>Decompose</span>
-          </label>
+          )}
         </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        <PipelineChart
-          data={data}
-          loading={loading}
-          error={error}
-          metric={effectiveMetric}
-          smoothing={effectiveSmoothing}
-          decompose={effectiveDecompose}
-        />
+        {activeTab === "metric" ? (
+          <PipelineChart
+            data={timeSeriesData}
+            loading={timeSeriesLoading}
+            error={timeSeriesError}
+            metric={effectiveMetric}
+            smoothing={effectiveSmoothing}
+          />
+        ) : (
+          <PipelineContributionsChart
+            data={contribData}
+            loading={contribLoading}
+            error={contribError}
+            metric={contributionMetric}
+          />
+        )}
       </div>
     </div>
   );

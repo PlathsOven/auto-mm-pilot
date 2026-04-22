@@ -159,17 +159,22 @@ function AnatomyCanvasInner() {
   // (e.g. on every click, since `highlightedStreamNames` is part of the
   // rebuild key) — which used to cancel per-click fit animations and
   // snap the viewport back onto the streams.
+  //
+  // Gate the fit on stream nodes being *present* — not just any nodes.
+  // `useTransforms` and `useRegisteredStreams` resolve independently; if
+  // `steps` wins the race, `nodes` is non-empty with only transform +
+  // output nodes and the old fallback (`fitNodes = undefined` → fit-all)
+  // locked in a full-DAG viewport before streams ever arrived.
   const hasInitiallyFit = useRef(false);
   useEffect(() => {
     if (hasInitiallyFit.current) return;
-    if (nodes.length === 0) return;
     const streamIds = nodes
       .filter((n) => n.type === "stream")
       .map((n) => ({ id: n.id }));
-    const fitNodes = streamIds.length > 0 ? streamIds : undefined;
+    if (streamIds.length === 0) return;
     const t = setTimeout(() => {
       reactFlowInstance.fitView({
-        nodes: fitNodes,
+        nodes: streamIds,
         padding: 0.4,
         minZoom: 0.9,
         maxZoom: 1.4,

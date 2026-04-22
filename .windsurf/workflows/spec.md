@@ -4,15 +4,13 @@ description: Interview the user and write a complete feature spec to tasks/spec-
 
 ## /spec — Feature Specification Writer
 
-For any feature that is bigger than a one-file change, write a spec before writing code. A good spec stops entire classes of rework: ambiguous requirements, missed edge cases, silent scope creep, and "the user actually wanted something different" surprises.
+For any feature bigger than a one-file change, write a spec first. Stops whole classes of rework: ambiguous requirements, missed edge cases, silent scope creep, "user wanted something different" surprises.
 
-The spec lives at `tasks/spec-<feature-name>.md` and is the source of truth until the feature ships. `/implement` may reference it; `/review` will check the final code against it.
-
----
+Spec lives at `tasks/spec-<feature-name>.md` and is the source of truth until ship. `/implement` references it; `/review` checks the final code against it.
 
 ### 1. Interview the User
 
-Ask one round of focused questions. Do not assume — the whole point of the spec phase is to surface assumptions before they harden into code. Cover:
+Ask one round of focused questions to surface assumptions before they harden into code. Cover:
 
 **User stories**
 - Who is the user for this feature? (Primary trader? Operator? Both?)
