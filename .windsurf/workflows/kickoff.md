@@ -4,9 +4,7 @@ description: Session start — restore context, read relevant files, output a pl
 
 ## /kickoff — Session Start
 
-Run at the top of any non-trivial session. Kickoff is the phase where you transition from "cold start" to "enough context to propose a plan." Never skip it; never start editing before it completes.
-
----
+Run at the top of any non-trivial session. Transitions from "cold start" to "enough context to propose a plan." Never skip; never start editing before it completes.
 
 ### 1. Read the Instruction Layer
 

@@ -4,15 +4,13 @@ description: Pre-change context load + risk assessment before touching any non-t
 
 ## /preflight — Pre-Change Checklist
 
-Run before any change that touches more than one file, crosses the client/server boundary, or edits an area you have not read in this session. Preflight catches problems cheaply — at read-time instead of commit-time.
+Run before any change touching >1 file, crossing the client/server boundary, or editing an unread area. Catches problems at read-time instead of commit-time.
 
 **When to run:**
 - Before `/implement` on any task touching >3 files
 - Before `/debug` on a bug with unclear origin
-- Before any change crossing the Pydantic ↔ TS interface boundary
+- Before any change crossing the Pydantic ↔ TS boundary
 - When editing a file >300 lines
-
----
 
 ### 1. Load Schemas at the Boundary
 

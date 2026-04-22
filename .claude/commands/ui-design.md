@@ -4,9 +4,7 @@ description: UI design workflow grounded in user journey, persona needs, and att
 
 ## /ui-design — UI Design
 
-Run before implementing any UI change that affects layout, interaction patterns, or information hierarchy. This workflow ensures every design decision is grounded in the trader persona, their minimal essential needs, and how they actually use the terminal.
-
----
+Run before any UI change that affects layout, interaction patterns, or information hierarchy. Grounds every decision in the trader persona and how they actually use the terminal.
 
 ### 1. Context Load
 
@@ -20,13 +18,13 @@ If the design task touches a specific component, also read that component file a
 
 ### 2. Persona Grounding
 
-Before proposing anything, restate these five dimensions for the primary persona (quant desk head running a 24/7 crypto options book):
+Restate these five dimensions for the primary persona (quant desk head running a 24/7 crypto options book):
 
-1. **Minimal essential needs** — What does the trader *must* see or do to get value from this screen/component? Strip away everything that is not load-bearing. Reference the specific flow from `docs/user-journey.md` (Flow 1–4) that this task touches.
-2. **Desired emotional state** — The trader should feel: in control, confident the numbers are live and correct, able to act quickly. He should never feel: confused about what changed, uncertain whether data is stale, overwhelmed by information density. State which of these emotional targets the current task affects.
-3. **Intuitive actions** — What would the trader instinctively try to do? Click a cell to investigate. Scan left-to-right for the biggest number. Look at color to judge direction before reading the value. Design for these instincts, not against them.
-4. **Attention hierarchy** — Where does the trader look first? The desired position grid dominates visual attention. Changes (highlights, deltas) pull the eye. The updates feed is peripheral until something moves. Chat is on-demand. Identify where in this hierarchy the current task lives.
-5. **Trust signals** — What tells the trader the system is working? WS connection indicator, last-tick timestamp, highlight on fresh data, absence of stale indicators. If the current task could affect trust, state how.
+1. **Minimal essential needs** — what must the trader see/do to get value? Strip away non-load-bearing. Reference the specific `docs/user-journey.md` flow (1–4) this task touches.
+2. **Desired emotional state** — should feel: in control, confident numbers are live/correct, able to act quickly. Should never feel: confused about what changed, uncertain about staleness, overwhelmed. State which emotional targets the task affects.
+3. **Intuitive actions** — what would the trader instinctively try? Click a cell to investigate. Scan left-to-right for the biggest number. Look at color before reading value. Design for these instincts.
+4. **Attention hierarchy** — where does the trader look first? Desired position grid dominates. Changes (highlights, deltas) pull the eye. Updates feed is peripheral until something moves. Chat is on-demand. Identify where this task lives.
+5. **Trust signals** — WS connection indicator, last-tick timestamp, highlight on fresh data, absence of stale indicators. If the task affects trust, state how.
 
 ### 3. Scope the Design Task
 
@@ -38,7 +36,7 @@ Identify:
 
 ### 4. Design Principles Checklist
 
-Walk the proposed design against each principle. Cite specific decisions for each:
+Walk the design against each principle. Cite specific decisions:
 
 **Information hierarchy**
 - [ ] The most important data has the most visual weight (size, contrast, position)
