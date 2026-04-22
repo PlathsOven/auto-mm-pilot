@@ -8,7 +8,7 @@ pure (no module-level state) and operate on Polars DataFrames.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any
 
 import polars as pl
@@ -19,6 +19,17 @@ from server.api.config import (
     VOL_POINTS_SCALE,
 )
 from server.api.expiry import canonical_expiry_key
+
+
+def to_epoch_ms(dt: datetime) -> int:
+    # Naive datetimes across this codebase carry UTC wall-clock values
+    # (the `datetime.now(timezone.utc).replace(tzinfo=None)` pattern), but
+    # `datetime.timestamp()` on a naive dt treats it as LOCAL time — which
+    # shifts the emitted epoch by the server's UTC offset. Attach UTC before
+    # converting so the wire value matches wall clock on any host timezone.
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return int(dt.timestamp() * 1000)
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +92,7 @@ def positions_at_tick(
     # Per (symbol, expiry), take the row with the latest timestamp
     rows = at_or_before.sort("timestamp").group_by(["symbol", "expiry"]).agg(pl.all().last())
 
-    ts_ms = int(timestamp.timestamp() * 1000)
+    ts_ms = to_epoch_ms(timestamp)
 
     # Vectorised rename + format: build the wire-shape DataFrame in one pass,
     # then call .to_dicts() instead of looping with iter_rows.
@@ -215,7 +226,7 @@ def streams_from_registry(
     streams and READY-but-empty streams are hidden; they have nothing to
     contribute on the Workbench "is data flowing?" surface.
     """
-    ts_ms = int(timestamp.timestamp() * 1000)
+    ts_ms = to_epoch_ms(timestamp)
     out: list[dict[str, Any]] = []
     for i, reg in enumerate(
         sorted(registrations, key=lambda r: r.stream_name)
@@ -235,5 +246,5 @@ def streams_from_registry(
 def context_at_tick(timestamp: datetime) -> dict[str, Any]:
     """Build the global context payload for a single tick."""
     return {
-        "lastUpdateTimestamp": int(timestamp.timestamp() * 1000),
+        "lastUpdateTimestamp": to_epoch_ms(timestamp),
     }

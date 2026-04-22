@@ -39,6 +39,7 @@ from server.api.ws_serializers import (
     market_value_mismatches_from_positions,
     positions_at_tick,
     streams_from_registry,
+    to_epoch_ms,
     updates_from_diff,
 )
 
@@ -143,7 +144,7 @@ def _silent_streams_for(user_id: str) -> list[SilentStreamAlert]:
 
 def _heartbeat_payload(user_id: str | None = None) -> str:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    now_ms = int(now.timestamp() * 1000)
+    now_ms = to_epoch_ms(now)
     unregistered = _unregistered_pushes_for(user_id) if user_id else []
     silent = _silent_streams_for(user_id) if user_id else []
     # Even with no live pipeline results, surface registry-known streams so
