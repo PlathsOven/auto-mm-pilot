@@ -31,6 +31,7 @@ from server.api.config import TICK_INTERVAL_SECS
 from server.api.engine_state import get_pipeline_results, rerun_pipeline
 from server.api.market_value_store import clear_dirty, is_dirty, to_dict as mv_to_dict
 from server.api.models import ServerPayload, SilentStreamAlert, UnregisteredPushAttempt
+from server.api.positions_replay_store import get_store as get_replay_store
 from server.api.silent_stream_store import get_store as get_silent_stream_store
 from server.api.stream_registry import get_stream_registry
 from server.api.unregistered_push_store import get_store as get_unregistered_push_store
@@ -105,6 +106,9 @@ def _build_payload(
     unregistered_pushes: list | None = None,
     silent_streams: list | None = None,
     market_value_mismatches: list | None = None,
+    *,
+    seq: int = 0,
+    prev_seq: int = 0,
 ) -> str:
     return ServerPayload(
         streams=streams,
@@ -114,6 +118,8 @@ def _build_payload(
         unregistered_pushes=unregistered_pushes or [],
         silent_streams=silent_streams or [],
         market_value_mismatches=market_value_mismatches or [],
+        seq=seq,
+        prev_seq=prev_seq,
     ).model_dump_json(by_alias=True)
 
 
@@ -246,7 +252,8 @@ def _build_user_payload_sync(user_id: str, real_now: datetime) -> str:
             reg.history.record_heartbeat(reg.key_cols, reg.snapshot_rows, real_now)
 
     state.tick_count += 1
-    return _build_payload(
+    seq, prev_seq = get_replay_store(user_id).next_seq_and_prev()
+    payload = _build_payload(
         streams,
         context_at_tick(ts),
         positions,
@@ -254,7 +261,11 @@ def _build_user_payload_sync(user_id: str, real_now: datetime) -> str:
         _unregistered_pushes_for(user_id),
         _silent_streams_for(user_id),
         market_value_mismatches_from_positions(positions),
+        seq=seq,
+        prev_seq=prev_seq,
     )
+    get_replay_store(user_id).record(seq, prev_seq, payload)
+    return payload
 
 
 # ---------------------------------------------------------------------------

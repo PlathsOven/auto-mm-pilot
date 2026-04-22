@@ -4,14 +4,15 @@ Active work tracker. Three sections: In Progress, Completed This Session, Blocke
 
 ## In Progress
 
-_(Format example — replace with real entries as work starts.)_
-
-- [ ] Example feature: add FOMC event stream preset
-    - [ ] Read `server/api/stream_registry.py` and `client/ui/src/components/studio/StreamCanvas.tsx` to understand the 7-section config
-    - [ ] Add preset button in `StreamLibrary.tsx`
-    - [ ] Verify via `/kickoff` + manual activation flow
+- [ ] **SDK integrator-audit Tier 4** (out-of-codebase): §1.1 PyPI publish with SemVer + compat matrix. Needs: decision on public vs. private index, versioning commitment (v0.1 → v0.2 removal of `create_stream`/`configure_stream`), compat-matrix format.
 
 ## Completed This Session
+
+- [x] 2026-04-22 — SDK integrator-audit Tier 1 (no-new-endpoint cleanup). Flipped `connect_ws` default to `False`; added `FutureWarning` on `create_stream`/`configure_stream`; added `configure_stream_for_variance` / `configure_stream_for_linear` factories; `BlockConfig.decay_end_size_mult` sentinel resolution; per-field docstrings on every `BlockConfig` field; `PositZeroEdgeWarning` typed-warning surfacing on `positions()`; fixed `:8000` → `:8001` docstrings; quickstart gains dual-auth, canonical-timestamp, canonical-market-value, deprecation note. See `docs/decisions.md` 2026-04-22 entry.
+
+- [x] 2026-04-22 — Tier 2: server-side zero-edge guard (§2.1), push_fanned_snapshot helper (§4.1), diagnose_zero_positions() endpoint + wrapper (§7.1). One commit each.
+
+- [x] 2026-04-22 — Tier 3: PositionPayload.transport freshness field (§9.1), client.events() structured stream (§7.2), server-assigned server_seq unifies REST + WS (§6.1), PositionPayload.seq + /api/positions/since replay (§9.2), superset/subset key_cols migration (§3.2), per-stream typed SnapshotRow via row_class_for (§4.2). One commit each.
 
 - [x] 2026-04-21 — Motion + branded splash pass. Added framer-motion (~55KB gz). New primitives: `PositLogo.tsx`, `PositSplash.tsx`, `useAppReady.ts`. Pre-hydration splash in `index.html` + React-owned splash gated on first WS tick (min 400ms display). Overlays animated: `BlockDrawer`, `CommandPalette`, `HotkeyCheatsheet`, `NotificationsCenter`, `ChatDock`, `OnboardingFlow`. Auth↔app fade + mode cross-fade in `App.tsx`. Login panel toggle (login/signup) now transitions between states; confirm-password row expands. LeftNav brand + label transitions, `whileTap` scale on NavButton, smoother sidebar width easing. `prefers-reduced-motion` honored via `index.css` + framer's reducer. See `docs/decisions.md` 2026-04-21 (Motion language + branded splash entry) and `UI_SPEC.md` §5.
 

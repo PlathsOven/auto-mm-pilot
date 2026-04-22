@@ -232,12 +232,29 @@ class SnapshotRequest(BaseModel):
             "and all key_cols defined on the stream."
         ),
     )
+    allow_zero_edge: bool = Field(
+        False,
+        description=(
+            "Acknowledge that the first push on a freshly-configured stream "
+            "may produce zero positions because no market_value is carried "
+            "(per-row or aggregate). Default False fails closed — see the "
+            "zero-edge guard for the contract."
+        ),
+    )
 
 
 class SnapshotResponse(BaseModel):
     stream_name: str
     rows_accepted: int
     pipeline_rerun: bool
+    server_seq: int = Field(
+        0,
+        description=(
+            "Server-assigned monotonic sequence number for this ingest. "
+            "Paired with the WS ACK's server_seq so consumers have a single "
+            "correlation key regardless of transport."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +361,14 @@ class ClientWsInboundFrame(BaseModel):
             "and all key_cols defined on the stream."
         ),
     )
+    allow_zero_edge: bool = Field(
+        False,
+        description=(
+            "Acknowledge that the first push on a freshly-configured stream "
+            "may produce zero positions because no market_value is carried. "
+            "See SnapshotRequest.allow_zero_edge."
+        ),
+    )
 
 
 class ClientWsMarketValueFrame(BaseModel):
@@ -368,6 +393,13 @@ class ClientWsAck(BaseModel):
     seq: int = Field(..., description="Echoed sequence number from the inbound frame")
     rows_accepted: int = 0
     pipeline_rerun: bool = False
+    server_seq: int = Field(
+        0,
+        description=(
+            "Server-assigned monotonic sequence number — matches the value "
+            "`SnapshotResponse.server_seq` returns for the REST ingest path."
+        ),
+    )
 
 
 class ClientWsError(BaseModel):
@@ -630,8 +662,53 @@ class SilentStreamAlert(_WireModel):
     last_seen: str  # ISO 8601 UTC
 
 
+ZeroPositionReason = Literal[
+    "no_market_value",
+    "zero_variance",
+    "zero_bankroll",
+    "no_active_blocks",
+    "edge_coincidence",
+    "unknown",
+]
+
+
+class ZeroPositionDiagnostic(_WireModel):
+    """One (symbol, expiry) whose desired_pos is (near-)zero, with a reason.
+
+    Returned from ``GET /api/diagnostics/zero-positions``. Surfaces the single
+    most common integrator failure ("my positions are zero and there's no
+    error") with a closed-enum reason + the scalars to verify.
+
+    ``aggregate_market_value`` is ``None`` when no aggregate has been set for
+    this (symbol, expiry); a concrete value means an entry exists in the
+    user's ``MarketValueStore``.
+    """
+    symbol: str
+    expiry: str
+    raw_edge: float
+    raw_variance: float
+    desired_pos: float
+    total_fair: float
+    total_market_fair: float
+    aggregate_market_value: float | None = None
+    reason: ZeroPositionReason
+    hint: str
+
+
+class ZeroPositionDiagnosticsResponse(_WireModel):
+    """Response for ``GET /api/diagnostics/zero-positions``."""
+    bankroll: float
+    tick_timestamp: int | None = None
+    diagnostics: list[ZeroPositionDiagnostic]
+
+
 class ServerPayload(_WireModel):
-    """Top-level payload broadcast on ``/ws`` each tick."""
+    """Top-level payload broadcast on ``/ws`` each tick.
+
+    ``seq`` / ``prev_seq`` are per-user monotonic broadcast sequence numbers;
+    together they let a reconnecting consumer detect gaps and fetch missed
+    payloads via ``GET /api/positions/since/{seq}``.
+    """
     streams: list[DataStream]
     context: GlobalContext
     positions: list[DesiredPosition]
@@ -639,6 +716,21 @@ class ServerPayload(_WireModel):
     unregistered_pushes: list[UnregisteredPushAttempt] = Field(default_factory=list)
     silent_streams: list[SilentStreamAlert] = Field(default_factory=list)
     market_value_mismatches: list[MarketValueMismatchAlert] = Field(default_factory=list)
+    seq: int = 0
+    prev_seq: int = 0
+
+
+class PositionsSinceResponse(_WireModel):
+    """Response for ``GET /api/positions/since/{seq}``.
+
+    ``payloads`` are full ServerPayloads with monotonically increasing
+    ``seq``. ``gap_detected`` is True if the caller asked for a seq older
+    than the server's replay buffer holds — in that case ``payloads`` is
+    the oldest N, and the caller should assume state is stale.
+    """
+    payloads: list[ServerPayload]
+    gap_detected: bool = False
+    latest_seq: int
 
 
 # ---------------------------------------------------------------------------

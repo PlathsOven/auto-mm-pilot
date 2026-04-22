@@ -31,6 +31,7 @@ from pydantic import ValidationError
 
 from server.api.client_ws_auth import authenticate_client_ws
 from server.api.engine_state import rerun_and_broadcast
+from server.api.market_value_store import get_store as get_market_value_store
 from server.api.market_value_store import set_entries as mv_set_entries
 from server.api.models import (
     ClientWsAck,
@@ -38,9 +39,11 @@ from server.api.models import (
     ClientWsInboundFrame,
     ClientWsMarketValueFrame,
 )
+from server.api.sequence_counter import get_counter as get_sequence_counter
 from server.api.stream_registry import get_stream_registry
 from server.api.unregistered_push_store import get_store as get_unregistered_push_store
 from server.api.ws import get_latest_payload, register_client, unregister_client
+from server.api.zero_edge_guard import ZERO_EDGE_CODE, ZeroEdgeBlocked, check_zero_edge
 
 log = logging.getLogger(__name__)
 
@@ -93,10 +96,29 @@ async def _process_snapshot_frame(user_id: str, data: dict, websocket: WebSocket
     frame = ClientWsInboundFrame(**data)
 
     registry = get_stream_registry(user_id)
+    rows_payload = [r.model_dump() for r in frame.rows]
+
+    reg = registry.get(frame.stream_name)
+    if reg is not None:
+        try:
+            check_zero_edge(
+                reg,
+                rows_payload,
+                get_market_value_store(user_id),
+                allow_zero_edge=frame.allow_zero_edge,
+            )
+        except ZeroEdgeBlocked as exc:
+            err = ClientWsError(
+                seq=frame.seq,
+                detail=(
+                    f"{ZERO_EDGE_CODE}: {exc}"
+                ),
+            )
+            await websocket.send_text(err.model_dump_json())
+            return
+
     try:
-        accepted = registry.ingest_snapshot(
-            frame.stream_name, [r.model_dump() for r in frame.rows],
-        )
+        accepted = registry.ingest_snapshot(frame.stream_name, rows_payload)
     except KeyError:
         # Record the unregistered-push attempt so the UI notifies the operator.
         # Re-raise — the generic handler in `_process_inbound_frame` still
@@ -109,17 +131,28 @@ async def _process_snapshot_frame(user_id: str, data: dict, websocket: WebSocket
 
     stream_configs = registry.build_stream_configs()
     pipeline_rerun = False
+    server_seq = get_sequence_counter(user_id).next()
     if stream_configs:
         try:
             await rerun_and_broadcast(user_id, stream_configs)
             pipeline_rerun = True
         except Exception:
             log.exception("Pipeline re-run failed after client WS snapshot")
-            ack = ClientWsAck(seq=frame.seq, rows_accepted=accepted, pipeline_rerun=False)
+            ack = ClientWsAck(
+                seq=frame.seq,
+                rows_accepted=accepted,
+                pipeline_rerun=False,
+                server_seq=server_seq,
+            )
             await websocket.send_text(ack.model_dump_json())
             return
 
-    ack = ClientWsAck(seq=frame.seq, rows_accepted=accepted, pipeline_rerun=pipeline_rerun)
+    ack = ClientWsAck(
+        seq=frame.seq,
+        rows_accepted=accepted,
+        pipeline_rerun=pipeline_rerun,
+        server_seq=server_seq,
+    )
     await websocket.send_text(ack.model_dump_json())
 
 

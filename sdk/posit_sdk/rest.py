@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import httpx
 
-from posit_sdk.exceptions import PositApiError, PositAuthError
+from posit_sdk.exceptions import PositApiError, PositAuthError, PositZeroEdgeBlocked
 from posit_sdk.models import (
     BankrollResponse,
     BlockConfig,
@@ -11,10 +11,12 @@ from posit_sdk.models import (
     HealthResponse,
     MarketValueEntry,
     PositionPayload,
+    PositionsSinceResponse,
     SnapshotResponse,
     SnapshotRow,
     StreamResponse,
     StreamState,
+    ZeroPositionDiagnosticsResponse,
 )
 
 _DEFAULT_TIMEOUT = 30.0
@@ -56,12 +58,28 @@ class RestClient:
     def _raise_for_status(self, resp: httpx.Response) -> None:
         if resp.status_code == 401:
             raise PositAuthError("Invalid or missing API key")
-        if not resp.is_success:
-            try:
-                detail = resp.json().get("detail") or resp.text
-            except Exception:
-                detail = resp.text
-            raise PositApiError(resp.status_code, str(detail))
+        if resp.is_success:
+            return
+        try:
+            detail = resp.json().get("detail") or resp.text
+        except Exception:
+            detail = resp.text
+        # Structured 422 with {"code": "ZERO_EDGE_BLOCKED", ...} → typed error.
+        if (
+            resp.status_code == 422
+            and isinstance(detail, dict)
+            and detail.get("code") == "ZERO_EDGE_BLOCKED"
+        ):
+            pairs = [
+                (p["symbol"], p["expiry"])
+                for p in detail.get("missing_pairs", [])
+            ]
+            raise PositZeroEdgeBlocked(
+                stream_name=detail.get("stream", ""),
+                missing_pairs=pairs,
+                message=str(detail),
+            )
+        raise PositApiError(resp.status_code, str(detail))
 
     # ----- Pipeline config -----
 
@@ -77,6 +95,19 @@ class RestClient:
         data = resp.json()
         cols = data.get("dimensionCols") or data.get("dimension_cols") or []
         return list(cols)
+
+    async def get_dimension_universe(self) -> list[tuple[str, str]]:
+        """Return the current pipeline's (symbol, expiry) universe.
+
+        Unlike ``get_dimension_cols`` (stable config), this one varies with
+        the pipeline state — callers should re-fetch per fan-out operation
+        rather than cache across ticks.
+        """
+        resp = await self._client.get("/api/pipeline/dimensions")
+        self._raise_for_status(resp)
+        data = resp.json()
+        dims = data.get("dimensions") or []
+        return [(d["symbol"], d["expiry"]) for d in dims]
 
     # ----- Observability -----
 
@@ -95,6 +126,16 @@ class RestClient:
         resp = await self._client.get("/api/positions")
         self._raise_for_status(resp)
         return PositionPayload.model_validate(resp.json())
+
+    async def diagnose_zero_positions(self) -> ZeroPositionDiagnosticsResponse:
+        resp = await self._client.get("/api/diagnostics/zero-positions")
+        self._raise_for_status(resp)
+        return ZeroPositionDiagnosticsResponse.model_validate(resp.json())
+
+    async def positions_since(self, seq: int) -> PositionsSinceResponse:
+        resp = await self._client.get(f"/api/positions/since/{seq}")
+        self._raise_for_status(resp)
+        return PositionsSinceResponse.model_validate(resp.json())
 
     # ----- Streams -----
 
@@ -152,12 +193,19 @@ class RestClient:
     # ----- Snapshots -----
 
     async def ingest_snapshot(
-        self, stream_name: str, rows: list[SnapshotRow],
+        self,
+        stream_name: str,
+        rows: list[SnapshotRow],
+        *,
+        allow_zero_edge: bool = False,
     ) -> SnapshotResponse:
-        resp = await self._client.post(
-            "/api/snapshots",
-            json={"stream_name": stream_name, "rows": [r.model_dump() for r in rows]},
-        )
+        body: dict = {
+            "stream_name": stream_name,
+            "rows": [r.model_dump() for r in rows],
+        }
+        if allow_zero_edge:
+            body["allow_zero_edge"] = True
+        resp = await self._client.post("/api/snapshots", json=body)
         self._raise_for_status(resp)
         return SnapshotResponse(**resp.json())
 

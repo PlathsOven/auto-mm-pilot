@@ -9,9 +9,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
 from server.api.engine_state import rerun_and_broadcast
+from server.api.market_value_store import get_store as get_market_value_store
 from server.api.models import SnapshotRequest, SnapshotResponse
+from server.api.sequence_counter import get_counter as get_sequence_counter
 from server.api.stream_registry import get_stream_registry
 from server.api.unregistered_push_store import get_store as get_unregistered_push_store
+from server.api.zero_edge_guard import ZERO_EDGE_CODE, ZeroEdgeBlocked, check_zero_edge
 
 log = logging.getLogger(__name__)
 
@@ -25,10 +28,35 @@ async def ingest_snapshot(
 ) -> SnapshotResponse:
     """Ingest snapshot rows for a READY stream and re-run the pipeline."""
     registry = get_stream_registry(user.id)
+    rows_payload = [r.model_dump() for r in req.rows]
+
+    reg = registry.get(req.stream_name)
+    if reg is not None:
+        try:
+            check_zero_edge(
+                reg,
+                rows_payload,
+                get_market_value_store(user.id),
+                allow_zero_edge=req.allow_zero_edge,
+            )
+        except ZeroEdgeBlocked as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": ZERO_EDGE_CODE,
+                    "stream": exc.stream_name,
+                    "missing_pairs": [
+                        {"symbol": s, "expiry": e} for s, e in exc.pairs
+                    ],
+                    "hint": (
+                        "Add market_value per row, call PUT /api/market-values "
+                        "for the missing pair(s), or set allow_zero_edge=true."
+                    ),
+                },
+            ) from exc
+
     try:
-        accepted = registry.ingest_snapshot(
-            req.stream_name, [r.model_dump() for r in req.rows],
-        )
+        accepted = registry.ingest_snapshot(req.stream_name, rows_payload)
     except KeyError as exc:
         # Record the attempt for the UI notification surface before raising.
         # The first row is representative — same-name attempts dedupe, so
@@ -72,4 +100,5 @@ async def ingest_snapshot(
         stream_name=req.stream_name,
         rows_accepted=accepted,
         pipeline_rerun=pipeline_rerun,
+        server_seq=get_sequence_counter(user.id).next(),
     )

@@ -3,7 +3,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+import warnings
 from typing import AsyncGenerator
+
+from pydantic import create_model
 
 from posit_sdk.exceptions import (
     PositApiError,
@@ -11,20 +15,26 @@ from posit_sdk.exceptions import (
     PositConnectionError,
     PositStreamNotRegistered,
     PositValidationError,
+    PositZeroEdgeBlocked,
+    PositZeroEdgeWarning,
 )
 from posit_sdk.models import (
     BankrollResponse,
     BlockConfig,
     BlockRowResponse,
     HealthResponse,
+    IntegratorEvent,
+    IntegratorEventType,
     MarketValueEntry,
     PositionPayload,
+    PositionsSinceResponse,
     SnapshotResponse,
     SnapshotRow,
     StreamResponse,
     StreamSpec,
     StreamState,
     WsAck,
+    ZeroPositionDiagnosticsResponse,
 )
 from posit_sdk.rest import RestClient
 from posit_sdk.ws import WsClient, WsState
@@ -37,35 +47,40 @@ def _http_to_ws(url: str) -> str:
 
 
 class PositClient:
-    """Posit SDK client — manages REST and WebSocket connections.
+    """Posit SDK client — manages REST and (optional) WebSocket connections.
 
     Usage::
 
-        async with PositClient(url="http://localhost:8000", api_key="my-key") as client:
-            # Configure a stream
-            await client.create_stream("rv_btc", key_cols=["symbol", "expiry"])
-            await client.configure_stream("rv_btc", scale=1.0)
-
-            # Push data via WebSocket (lower latency); falls back to REST
-            # when the WS is not OPEN.
-            await client.push_snapshot(
-                "rv_btc",
-                rows=[SnapshotRow(timestamp="2024-01-01T00:00:00Z", raw_value=0.65,
-                                  symbol="BTC", expiry="2024-06-28")],
+        async with PositClient(url="http://localhost:8001", api_key="my-key") as client:
+            await client.bootstrap_streams(
+                [StreamSpec(stream_name="rv_btc",
+                            key_cols=["symbol", "expiry"],
+                            exponent=2.0)],
+                bankroll=1_000_000.0,
             )
-
-            # Receive position updates
+            await client.push_snapshot("rv_btc", rows=[
+                SnapshotRow(timestamp="2026-01-01T00:00:00", raw_value=0.65,
+                            market_value=0.70, symbol="BTC", expiry="27MAR26"),
+            ])
             async for payload in client.positions():
                 for pos in payload.positions:
                     print(pos.symbol, pos.desired_pos)
+                break
 
-    Pass ``connect_ws=False`` for REST-only mode (no WebSocket connection).
+    **Auth.** Same API key, two injection surfaces — REST sends
+    ``X-API-Key: <key>``, WS appends ``?api_key=<key>`` to the upgrade URL.
+    The SDK does both for you; hand-rolled clients must match.
 
-    ``__aenter__`` hard-blocks on auth: a bad API key raises
-    ``PositAuthError`` immediately, so no subsequent call can silently fail
-    against a dead key. Pass ``connect_timeout=None`` to disable the WS
-    readiness wait if you want eager REST access while the WS is still
-    handshaking in the background.
+    **Connection.** Defaults to REST-only (``connect_ws=False``). Pass
+    ``connect_ws=True`` to open the live socket for lower-latency pushes and
+    streaming ``positions()``. ``__aenter__`` hard-blocks on auth — a bad key
+    raises ``PositAuthError`` immediately so no later call silently fails
+    against a dead key. Pass ``connect_timeout=None`` to skip the WS
+    readiness wait when ``connect_ws=True``.
+
+    **Idempotent setup.** Prefer ``upsert_stream`` / ``bootstrap_streams``
+    over raw ``create_stream`` + ``configure_stream`` — the two-phase API
+    emits a ``FutureWarning`` in v0.1 and will be removed in v0.2.
     """
 
     def __init__(
@@ -73,7 +88,7 @@ class PositClient:
         url: str,
         api_key: str,
         *,
-        connect_ws: bool = True,
+        connect_ws: bool = False,
         connect_timeout: float | None = 10.0,
         ws_reconnect_delay: float = 1.0,
         ws_max_reconnect_delay: float = 60.0,
@@ -96,6 +111,19 @@ class PositClient:
         # Streams for which we have already emitted the "no market_value →
         # edge will be 0" warning. One WARN per stream per client lifetime.
         self._market_value_warned: set[str] = set()
+        # Streams where we saw a push without market_value and have not yet
+        # surfaced a PositZeroEdgeWarning on the next positions() payload.
+        # Cleared after the warning fires so consumers aren't spammed once
+        # they've started paying attention.
+        self._zero_edge_pending: set[str] = set()
+        # Structured event queue — populated by every place that emits a
+        # WARNING, drained by events(). Unbounded by design — consumers
+        # that don't drain should not subscribe.
+        self._events_queue: asyncio.Queue[IntegratorEvent | None] | None = None
+        # Cache of per-stream typed SnapshotRow subclasses — each has the
+        # stream's key_cols declared as required str fields so callers get
+        # IDE completion + mypy coverage instead of extra="allow" sprawl.
+        self._row_class_cache: dict[str, type[SnapshotRow]] = {}
         # Known-registered streams on the server. Populated on __aenter__,
         # updated after every create/upsert/delete, and invalidated for a
         # single stream when the server returns STREAM_NOT_REGISTERED. Used
@@ -104,6 +132,7 @@ class PositClient:
 
     async def __aenter__(self) -> "PositClient":
         self._rest = RestClient(self._url, self._api_key)
+        self._events_queue = asyncio.Queue()
         await self._rest.__aenter__()
 
         # Auth hard-block: probe a REST endpoint that requires auth so a bad
@@ -137,12 +166,69 @@ class PositClient:
         return self
 
     async def __aexit__(self, *args: object) -> None:
+        if self._events_queue is not None:
+            # Sentinel unblocks any active events() iterator.
+            self._events_queue.put_nowait(None)
+            self._events_queue = None
         if self._ws:
             await self._ws.close()
             self._ws = None
         if self._rest:
             await self._rest.__aexit__(*args)
             self._rest = None
+
+    def _emit_event(
+        self,
+        event_type: IntegratorEventType,
+        *,
+        stream_name: str | None = None,
+        detail: str = "",
+    ) -> None:
+        """Enqueue a structured event for events() consumers. No-op if nobody
+        is subscribed (the queue still buffers — drain via events())."""
+        if self._events_queue is None:
+            return
+        self._events_queue.put_nowait(IntegratorEvent(
+            type=event_type,
+            stream_name=stream_name,
+            detail=detail,
+            timestamp=time.time(),
+        ))
+
+    def events(self) -> AsyncGenerator[IntegratorEvent, None]:
+        """Async iterator of structured SDK events.
+
+        Yields one ``IntegratorEvent`` per signal — market-value-missing,
+        WS fallback / reconnect, positions degraded, zero-edge warning.
+        Useful for routing SDK-side observability into a monitoring layer
+        (Datadog, Slack, pager) without relying on Python ``logging``
+        being configured.
+
+        Terminates when the client's context manager exits. Starting an
+        ``events()`` consumer *before* calling ``__aenter__`` raises
+        ``RuntimeError`` synchronously (so misuse fails at the call site,
+        not on first iteration).
+
+        **Backpressure:** the underlying queue is unbounded — a consumer
+        that doesn't drain grows memory over the process lifetime.
+        Consume it promptly or close the client.
+        """
+        if self._events_queue is None:
+            raise RuntimeError(
+                "events() requires the PositClient context manager to be open"
+            )
+        # Capture the queue now so the generator keeps draining after
+        # __aexit__ nulls self._events_queue — the sentinel still arrives.
+        return self._events_impl(self._events_queue)
+
+    async def _events_impl(
+        self, queue: asyncio.Queue[IntegratorEvent | None],
+    ) -> AsyncGenerator[IntegratorEvent, None]:
+        while True:
+            event = await queue.get()
+            if event is None:
+                return
+            yield event
 
     async def wait_until_ready(self, timeout: float = 10.0) -> None:
         """Block until the WS is OPEN or raise on auth / timeout.
@@ -180,29 +266,78 @@ class PositClient:
         stream looks healthy; positions just silently stay flat. This was
         the longest rabbit hole in the deribit-pricer integration.
         """
-        if stream_name in self._market_value_warned:
-            return
         missing = sum(1 for r in rows if r.market_value is None)
         if missing == 0:
             return
+        # Queue a typed warning for the next positions() payload — harder to
+        # miss than a log line inside a notebook / supervised process.
+        self._zero_edge_pending.add(stream_name)
+        if stream_name in self._market_value_warned:
+            return
         self._market_value_warned.add(stream_name)
+        detail = (
+            f"Stream {stream_name!r}: {missing} row(s) pushed without "
+            f"market_value; per-block market defaults to fair, so edge will "
+            f"be 0. Set SnapshotRow.market_value or call set_market_values()."
+        )
         log.warning(
             "Stream %r: %d row(s) pushed without market_value; per-block "
             "market defaults to fair, so edge will be 0. Set SnapshotRow."
             "market_value or call set_market_values() to fix.",
             stream_name, missing,
         )
+        self._emit_event(
+            "market_value_missing", stream_name=stream_name, detail=detail,
+        )
+
+    def _maybe_warn_zero_edge(self, payload: PositionPayload) -> None:
+        """Surface PositZeroEdgeWarning on the first payload after a bare push.
+
+        The SDK already logs the missing-``market_value`` WARN on the push
+        path, but a log line is easy to miss — especially in notebooks and
+        managed feeders with default ``logging`` config. Escalating to
+        ``warnings.warn(PositZeroEdgeWarning)`` on the payload side means
+        anyone calling ``positions()`` sees the signal in-band.
+
+        Fires exactly once per stream per client lifetime so consumers who
+        chose to continue are not spammed.
+        """
+        if not self._zero_edge_pending:
+            return
+        streams = sorted(self._zero_edge_pending)
+        self._zero_edge_pending.clear()
+        message = (
+            f"Streams {streams!r} pushed rows without market_value; "
+            f"positions will be zero until you set market_value per-row "
+            f"or call set_market_values() per (symbol, expiry)."
+        )
+        warnings.warn(PositZeroEdgeWarning(message), stacklevel=3)
+        for name in streams:
+            self._emit_event(
+                "zero_edge_warning", stream_name=name, detail=message,
+            )
 
     def _maybe_warn_ws_fallback(self) -> None:
         """Log once per transition when pushes fall back to REST."""
         state = self._ws_state()
         if state == self._last_warned_ws_state:
             return
+        previous = self._last_warned_ws_state
         self._last_warned_ws_state = state
         log.warning(
             "Posit WS state=%s — push falling back to REST (slower but correct).",
             state.value,
         )
+        if state == WsState.OPEN and previous is not None:
+            self._emit_event(
+                "ws_reconnected",
+                detail=f"WS recovered to OPEN from {previous.value}",
+            )
+        else:
+            self._emit_event(
+                "ws_fallback",
+                detail=f"WS state={state.value}; push falling back to REST",
+            )
 
     # ----- Observability -----
 
@@ -243,6 +378,23 @@ class PositClient:
     async def create_stream(
         self, name: str, key_cols: list[str],
     ) -> StreamResponse:
+        """**Deprecated** — use ``upsert_stream`` or ``bootstrap_streams`` instead.
+
+        Two-phase setup (``create_stream`` then ``configure_stream``) leaks the
+        ``PENDING`` state into caller code — pushes between the two calls
+        silently land in limbo, and a restart mid-setup leaves the desk
+        half-configured. ``upsert_stream`` collapses both into one atomic,
+        idempotent call with self-rollback on failure.
+
+        Will be removed in v0.2.
+        """
+        warnings.warn(
+            "create_stream is deprecated; use upsert_stream() (idempotent) or "
+            "bootstrap_streams() (atomic multi-stream setup). Two-phase setup "
+            "will be removed in posit-sdk v0.2.",
+            FutureWarning,
+            stacklevel=2,
+        )
         await self._validate_key_cols(key_cols)
         resp = await self._require_rest().create_stream(name, key_cols)
         self._ready_streams.add(name)
@@ -268,8 +420,95 @@ class PositClient:
         exponent: float = 1.0,
         block: BlockConfig | None = None,
     ) -> StreamResponse:
+        """**Deprecated** — use ``upsert_stream`` / ``bootstrap_streams`` instead.
+
+        Apply the raw→target transform ``target = (scale · raw + offset) ** exponent``
+        to a previously-``create_stream``'d stream. Target space is where the
+        pipeline math happens; the common pattern is ``exponent=2`` for
+        vol → variance.
+
+        Prefer the idempotent path: ``upsert_stream`` takes the same
+        ``scale/offset/exponent`` + optional ``block`` and handles create /
+        configure atomically with rollback on failure. Or use the named
+        factories ``configure_stream_for_variance`` /
+        ``configure_stream_for_linear`` for the two common transforms.
+
+        Will be removed in v0.2.
+        """
+        warnings.warn(
+            "configure_stream is deprecated; use upsert_stream() "
+            "(atomic + idempotent). Will be removed in posit-sdk v0.2.",
+            FutureWarning,
+            stacklevel=2,
+        )
         return await self._require_rest().configure_stream(
             stream_name, scale=scale, offset=offset, exponent=exponent, block=block,
+        )
+
+    async def configure_stream_for_variance(
+        self,
+        stream_name: str,
+        key_cols: list[str],
+        *,
+        scale: float = 1.0,
+        offset: float = 0.0,
+        block: BlockConfig | None = None,
+    ) -> StreamResponse:
+        """Idempotent setup for a stream whose raw values square into variance.
+
+        Sets ``exponent=2``; the pipeline receives ``(scale · raw + offset)²``.
+        Typical usage — annualized-vol feed, target space is annualized
+        variance::
+
+            await client.configure_stream_for_variance(
+                "rv_btc", key_cols=["symbol", "expiry"],
+            )
+
+        Wraps ``upsert_stream`` — safe to re-run on every process launch.
+        """
+        return await self.upsert_stream(
+            stream_name,
+            key_cols=key_cols,
+            scale=scale,
+            offset=offset,
+            exponent=2.0,
+            block=block,
+        )
+
+    async def configure_stream_for_linear(
+        self,
+        stream_name: str,
+        key_cols: list[str],
+        *,
+        scale: float = 1.0,
+        offset: float = 0.0,
+        block: BlockConfig | None = None,
+    ) -> StreamResponse:
+        """Idempotent setup for a stream with a linear raw→target transform.
+
+        Sets ``exponent=1``; the pipeline receives ``scale · raw + offset``.
+        Degenerates to a passthrough when ``scale=1`` and ``offset=0`` (the
+        defaults). Use for streams already in target units, or when a simple
+        affine re-scaling is all you need::
+
+            # Passthrough — target = raw.
+            await client.configure_stream_for_linear(
+                "target_var", key_cols=["symbol", "expiry"],
+            )
+            # Linear — target = 0.01 · raw (bps → decimal).
+            await client.configure_stream_for_linear(
+                "funding_bps", key_cols=["symbol", "expiry"], scale=0.01,
+            )
+
+        Wraps ``upsert_stream`` — safe to re-run on every process launch.
+        """
+        return await self.upsert_stream(
+            stream_name,
+            key_cols=key_cols,
+            scale=scale,
+            offset=offset,
+            exponent=1.0,
+            block=block,
         )
 
     async def delete_stream(self, stream_name: str) -> None:
@@ -303,11 +542,15 @@ class PositClient:
 
         if existing is not None and list(existing.key_cols) != list(key_cols):
             log.info(
-                "Stream %r key_cols changed %s -> %s; recreating.",
+                "Stream %r key_cols migration %s -> %s; server preserves rows "
+                "when the new set is a superset or subset of the old.",
                 stream_name, existing.key_cols, key_cols,
             )
-            await self._require_rest().delete_stream(stream_name)
-            existing = None
+            updated = await self._require_rest().update_stream(
+                stream_name, new_key_cols=key_cols,
+            )
+            # existing is still registered — reuse it for the configure step.
+            existing = updated
 
         created_fresh = existing is None
         if created_fresh:
@@ -410,13 +653,26 @@ class PositClient:
         return True
 
     async def ingest_snapshot(
-        self, stream_name: str, rows: list[SnapshotRow],
+        self,
+        stream_name: str,
+        rows: list[SnapshotRow],
+        *,
+        allow_zero_edge: bool = False,
     ) -> SnapshotResponse:
-        """Ingest snapshot rows via REST.  Use push_snapshot() for lower latency."""
+        """Ingest snapshot rows via REST.  Use push_snapshot() for lower latency.
+
+        Pass ``allow_zero_edge=True`` to acknowledge that the first push on a
+        freshly-configured stream may produce zero positions (no
+        ``market_value`` per-row or aggregate). Default False — the server
+        refuses with ``PositZeroEdgeBlocked`` rather than silently accepting
+        a push that will zero every position.
+        """
         self._assert_registered(stream_name)
         self._warn_if_missing_market_value(stream_name, rows)
         try:
-            return await self._require_rest().ingest_snapshot(stream_name, rows)
+            return await self._require_rest().ingest_snapshot(
+                stream_name, rows, allow_zero_edge=allow_zero_edge,
+            )
         except PositApiError as exc:
             if self._handle_not_registered(stream_name, exc):
                 raise PositStreamNotRegistered(stream_name) from exc
@@ -428,6 +684,15 @@ class PositClient:
         return await self._require_rest().get_bankroll()
 
     async def set_bankroll(self, bankroll: float) -> BankrollResponse:
+        """Overwrite the server's bankroll with ``bankroll``.
+
+        **Concurrency.** No CAS, no per-feed scoping — this is last-writer-wins
+        against whatever value the server holds. Two feeders setting bankroll
+        for the same account will clobber each other. If you need per-feed
+        attribution, scope bankroll outside the SDK until we add a
+        ``set_bankroll(new=..., if_previous=...)`` variant (tracked in
+        §8.3 of the integrator audit).
+        """
         return await self._require_rest().set_bankroll(bankroll)
 
     # ----- Blocks -----
@@ -497,7 +762,11 @@ class PositClient:
     # ----- Pushes (WS preferred, REST fallback) -----
 
     async def push_snapshot(
-        self, stream_name: str, rows: list[SnapshotRow],
+        self,
+        stream_name: str,
+        rows: list[SnapshotRow],
+        *,
+        allow_zero_edge: bool = False,
     ) -> WsAck:
         """Push snapshot rows.
 
@@ -508,14 +777,21 @@ class PositClient:
         Raises ``PositStreamNotRegistered`` synchronously if the target stream
         is not known to be registered on the server — ensuring no snapshot
         rows ever reach an unregistered stream.
+
+        Raises ``PositZeroEdgeBlocked`` when the server's first-push zero-edge
+        guard fires. Pass ``allow_zero_edge=True`` to opt out.
         """
         self._assert_registered(stream_name)
         self._warn_if_missing_market_value(stream_name, rows)
         if self._ws_state() == WsState.OPEN:
-            return await self._require_ws().push_snapshot(stream_name, rows)
+            return await self._require_ws().push_snapshot(
+                stream_name, rows, allow_zero_edge=allow_zero_edge,
+            )
         self._maybe_warn_ws_fallback()
         try:
-            resp = await self._require_rest().ingest_snapshot(stream_name, rows)
+            resp = await self._require_rest().ingest_snapshot(
+                stream_name, rows, allow_zero_edge=allow_zero_edge,
+            )
         except PositApiError as exc:
             if self._handle_not_registered(stream_name, exc):
                 raise PositStreamNotRegistered(stream_name) from exc
@@ -525,6 +801,62 @@ class PositClient:
             seq=-1,
             rows_accepted=resp.rows_accepted,
             pipeline_rerun=resp.pipeline_rerun,
+            server_seq=resp.server_seq,
+        )
+
+    async def push_fanned_snapshot(
+        self,
+        stream_name: str,
+        rows: list[SnapshotRow],
+        *,
+        universe: list[tuple[str, str]] | None = None,
+        allow_zero_edge: bool = False,
+    ) -> WsAck:
+        """Fan scalar-shaped rows across a ``(symbol, expiry)`` universe.
+
+        Every Posit stream must carry the server's risk dimensions — today
+        ``(symbol, expiry)``. But plenty of real feeds are scalar-shaped:
+        a global funding rate, an event announcement, a market-wide
+        indicator. This helper duplicates each input row once per pair in
+        ``universe``, attaching ``symbol`` and ``expiry`` to the row copy
+        so the server's key-cols invariant is satisfied without the caller
+        having to rewrite the fan-out themselves.
+
+        Input rows **must not** already carry ``symbol`` or ``expiry`` —
+        the helper inserts them, and a pre-existing value would be a bug
+        in the caller's mental model. If ``universe`` is None, the SDK
+        fetches it from ``GET /api/pipeline/dimensions``; pass a list to
+        scope the fan-out to a subset (e.g. only BTC expiries).
+
+        Returns the ``WsAck`` from the underlying push (a single batched
+        ingest under the hood, not one per pair).
+        """
+        if not rows:
+            raise PositValidationError("push_fanned_snapshot requires at least one row")
+        for i, row in enumerate(rows):
+            extras = row.model_dump()
+            if "symbol" in extras or "expiry" in extras:
+                raise PositValidationError(
+                    f"push_fanned_snapshot: row {i} already carries symbol/expiry — "
+                    f"use push_snapshot for pre-fanned rows"
+                )
+
+        if universe is None:
+            universe = await self._require_rest().get_dimension_universe()
+        if not universe:
+            raise PositValidationError(
+                "push_fanned_snapshot: universe is empty — pass an explicit list "
+                "or ensure the pipeline has registered (symbol, expiry) pairs"
+            )
+
+        fanned: list[SnapshotRow] = []
+        for row in rows:
+            base = row.model_dump()
+            for sym, exp in universe:
+                fanned.append(SnapshotRow(**{**base, "symbol": sym, "expiry": exp}))
+
+        return await self.push_snapshot(
+            stream_name, fanned, allow_zero_edge=allow_zero_edge,
         )
 
     async def push_market_values(
@@ -548,7 +880,75 @@ class PositClient:
         Useful from notebooks or any context that does not want to keep a
         WebSocket open. ``positions()`` polls this when the WS is down.
         """
-        return await self._require_rest().get_positions()
+        payload = await self._require_rest().get_positions()
+        payload.transport = "poll"
+        self._maybe_warn_zero_edge(payload)
+        return payload
+
+    async def row_class_for(self, stream_name: str) -> type[SnapshotRow]:
+        """Return a typed ``SnapshotRow`` subclass for a specific stream.
+
+        Queries the server for the stream's ``key_cols`` and dynamically
+        builds a Pydantic subclass with each of them declared as a required
+        ``str`` field. The class is cached per stream for the client
+        lifetime — ``describe_stream`` fires once per stream::
+
+            RvBtcRow = await client.row_class_for("rv_btc")
+            row = RvBtcRow(
+                timestamp="2026-01-01T00:00:00",
+                raw_value=0.65,
+                market_value=0.70,
+                symbol="BTC",
+                expiry="27MAR26",
+            )
+            # Missing `symbol` or `expiry` raises at construction time,
+            # not on the server 422.
+
+        Use raw ``SnapshotRow`` for untyped or dynamic-schema callers —
+        the typed class is the recommended path for long-lived feeders.
+        """
+        if stream_name in self._row_class_cache:
+            return self._row_class_cache[stream_name]
+        state = await self._require_rest().describe_stream(stream_name)
+        fields = {col: (str, ...) for col in state.key_cols}
+        model = create_model(
+            f"SnapshotRow_{stream_name}",
+            __base__=SnapshotRow,
+            **fields,
+        )
+        self._row_class_cache[stream_name] = model
+        return model
+
+    async def positions_since(self, seq: int) -> PositionsSinceResponse:
+        """Fetch every broadcast payload with ``seq > <seq>``.
+
+        Used by a reconnecting consumer to backfill anything missed during
+        a WS outage. ``gap_detected`` on the response fires if ``seq`` is
+        older than the server's bounded replay buffer — the payload list
+        is still populated (oldest-N) but the caller should treat state
+        as possibly stale.
+
+        Pair with ``PositionPayload.seq`` / ``prev_seq`` on live payloads
+        to drive gap detection.
+        """
+        return await self._require_rest().positions_since(seq)
+
+    async def diagnose_zero_positions(self) -> ZeroPositionDiagnosticsResponse:
+        """Explain every (symbol, expiry) whose ``desired_pos`` is ~zero.
+
+        Calls ``GET /api/diagnostics/zero-positions``. Returns one
+        ``ZeroPositionDiagnostic`` per near-zero pair, each carrying a
+        closed-enum ``reason`` (``no_market_value`` / ``zero_variance`` /
+        ``zero_bankroll`` / ``no_active_blocks`` / ``edge_coincidence`` /
+        ``unknown``) plus the scalars that produced it and a human-readable
+        ``hint``.
+
+        Intended for bring-up diagnosis — the integrator sees zero positions
+        somewhere, runs this, and the response tells them exactly which
+        lever to pull (set ``market_value``, flip a stream active, set
+        bankroll, etc.).
+        """
+        return await self._require_rest().diagnose_zero_positions()
 
     async def positions(
         self, *, poll_interval: float = 2.0,
@@ -561,10 +961,16 @@ class PositClient:
         and yields only when the payload changes. Emits exactly one ``WARNING``
         per degradation so the caller knows latency / freshness characteristics
         have changed.
+
+        Surfaces ``PositZeroEdgeWarning`` via ``warnings.warn`` on the first
+        payload after a push missing ``market_value`` — a typed signal that
+        the position numbers are about to be zero for a discoverable reason.
         """
         if self._ws is not None and self._ws.state == WsState.OPEN:
             ws = self._ws
             async for payload in ws.positions():
+                payload.transport = "ws"
+                self._maybe_warn_zero_edge(payload)
                 yield payload
             # ws.positions() returns only on close()/FAILED_AUTH. If the
             # client context is still open, degrade to polling.
@@ -574,13 +980,29 @@ class PositClient:
                 "Posit WS closed (state=%s); positions() degraded to REST polling.",
                 self._ws.state.value,
             )
+            self._emit_event(
+                "positions_degraded",
+                detail=(
+                    f"WS closed (state={self._ws.state.value}); positions() "
+                    f"degraded to REST polling"
+                ),
+            )
             async for payload in self._poll_positions(poll_interval):
                 yield payload
             return
 
+        ws_state_str = (
+            self._ws.state.value if self._ws is not None else "NONE"
+        )
         log.warning(
             "Posit WS not OPEN (state=%s); positions() degraded to REST polling.",
-            self._ws.state.value if self._ws is not None else "NONE",
+            ws_state_str,
+        )
+        self._emit_event(
+            "positions_degraded",
+            detail=(
+                f"WS not OPEN (state={ws_state_str}); positions() using REST polling"
+            ),
         )
         async for payload in self._poll_positions(poll_interval):
             yield payload
