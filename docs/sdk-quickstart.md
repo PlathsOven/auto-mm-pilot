@@ -200,6 +200,29 @@ Subsequent pushes are not gated — the first one establishes the pattern.
 
 ---
 
+## Typed rows per stream
+
+`SnapshotRow` accepts extra keys via `extra="allow"` — no IDE completion
+on your `key_cols`, no mypy coverage until the server 422s. For long-lived
+feeders, ask the SDK for a stream-specific subclass:
+
+```python
+RvBtcRow = await client.row_class_for("rv_btc")
+row = RvBtcRow(
+    timestamp="2026-01-01T00:00:00",
+    raw_value=0.65,
+    market_value=0.70,
+    symbol="BTC",   # required — declared on the class
+    expiry="27MAR26",  # required — declared on the class
+)
+```
+
+The class is built by fetching `describe_stream(...)` once, caching the
+result for the client lifetime. Missing `key_cols` raise at construction
+time instead of round-tripping to the server.
+
+---
+
 ## Fan-out for scalar-shaped feeds
 
 Some feeds are naturally scalar — a market-wide funding rate, an event

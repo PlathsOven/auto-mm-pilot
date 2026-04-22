@@ -7,6 +7,8 @@ import time
 import warnings
 from typing import AsyncGenerator
 
+from pydantic import create_model
+
 from posit_sdk.exceptions import (
     PositApiError,
     PositAuthError,
@@ -118,6 +120,10 @@ class PositClient:
         # WARNING, drained by events(). Unbounded by design — consumers
         # that don't drain should not subscribe.
         self._events_queue: asyncio.Queue[IntegratorEvent | None] | None = None
+        # Cache of per-stream typed SnapshotRow subclasses — each has the
+        # stream's key_cols declared as required str fields so callers get
+        # IDE completion + mypy coverage instead of extra="allow" sprawl.
+        self._row_class_cache: dict[str, type[SnapshotRow]] = {}
         # Known-registered streams on the server. Populated on __aenter__,
         # updated after every create/upsert/delete, and invalidated for a
         # single stream when the server returns STREAM_NOT_REGISTERED. Used
@@ -878,6 +884,40 @@ class PositClient:
         payload.transport = "poll"
         self._maybe_warn_zero_edge(payload)
         return payload
+
+    async def row_class_for(self, stream_name: str) -> type[SnapshotRow]:
+        """Return a typed ``SnapshotRow`` subclass for a specific stream.
+
+        Queries the server for the stream's ``key_cols`` and dynamically
+        builds a Pydantic subclass with each of them declared as a required
+        ``str`` field. The class is cached per stream for the client
+        lifetime — ``describe_stream`` fires once per stream::
+
+            RvBtcRow = await client.row_class_for("rv_btc")
+            row = RvBtcRow(
+                timestamp="2026-01-01T00:00:00",
+                raw_value=0.65,
+                market_value=0.70,
+                symbol="BTC",
+                expiry="27MAR26",
+            )
+            # Missing `symbol` or `expiry` raises at construction time,
+            # not on the server 422.
+
+        Use raw ``SnapshotRow`` for untyped or dynamic-schema callers —
+        the typed class is the recommended path for long-lived feeders.
+        """
+        if stream_name in self._row_class_cache:
+            return self._row_class_cache[stream_name]
+        state = await self._require_rest().describe_stream(stream_name)
+        fields = {col: (str, ...) for col in state.key_cols}
+        model = create_model(
+            f"SnapshotRow_{stream_name}",
+            __base__=SnapshotRow,
+            **fields,
+        )
+        self._row_class_cache[stream_name] = model
+        return model
 
     async def positions_since(self, seq: int) -> PositionsSinceResponse:
         """Fetch every broadcast payload with ``seq > <seq>``.

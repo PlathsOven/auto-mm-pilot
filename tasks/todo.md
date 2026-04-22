@@ -4,23 +4,15 @@ Active work tracker. Three sections: In Progress, Completed This Session, Blocke
 
 ## In Progress
 
-- [ ] **SDK integrator-audit follow-through (2026-04-22).** Audit source in `.context/attachments/pasted_text_2026-04-22_10-14-33.txt`; Tier 1 done in this branch.
-    - **Tier 2** (new first-class features, separate PRs):
-        - [ ] §2.1 server-side refuse-first-row-without-market-value — `allow_zero_edge` flag on ingest, Pydantic'd, SDK-plumbed. Touches `server/api/routers/snapshots.py` + `server/api/stream_registry.py` + SDK `ingest_snapshot` / `push_snapshot`.
-        - [ ] §4.1 `PositClient.push_fanned_snapshot(stream, rows, fan_over, universe)` — explodes a scalar-shaped source across a caller-supplied (symbol, expiry) universe.
-        - [ ] §7.1 `GET /api/diagnostics/zero-positions` server endpoint + SDK `client.diagnose_zero_positions()` — per (symbol, expiry) raw/market/edge/variance + closed-enum reason-for-zero.
-    - **Tier 3** (structural changes, individual specs each):
-        - [ ] §9.1 `PositionPayload.transport` (literal `ws|poll`) — server + SDK.
-        - [ ] §7.2 `client.events()` — async iterator of structured `IntegratorEvent` objects.
-        - [ ] §6.1 REST `ingest_snapshot` returns server-assigned monotonic `seq`; kill the `seq=-1` fabrication.
-        - [ ] §9.2 `PositionPayload.seq` + `GET /api/positions/since?seq=` replay endpoint.
-        - [ ] §3.2 Server-side `key_cols` superset/subset migration without wiping rows.
-        - [ ] §4.2 `client.row_class_for(stream_name)` — per-stream typed `SnapshotRow` codegen.
-    - **Tier 4** (out-of-codebase): §1.1 PyPI publish with SemVer + compat matrix.
+- [ ] **SDK integrator-audit Tier 4** (out-of-codebase): §1.1 PyPI publish with SemVer + compat matrix. Needs: decision on public vs. private index, versioning commitment (v0.1 → v0.2 removal of `create_stream`/`configure_stream`), compat-matrix format.
 
 ## Completed This Session
 
 - [x] 2026-04-22 — SDK integrator-audit Tier 1 (no-new-endpoint cleanup). Flipped `connect_ws` default to `False`; added `FutureWarning` on `create_stream`/`configure_stream`; added `configure_stream_for_variance` / `configure_stream_for_linear` factories; `BlockConfig.decay_end_size_mult` sentinel resolution; per-field docstrings on every `BlockConfig` field; `PositZeroEdgeWarning` typed-warning surfacing on `positions()`; fixed `:8000` → `:8001` docstrings; quickstart gains dual-auth, canonical-timestamp, canonical-market-value, deprecation note. See `docs/decisions.md` 2026-04-22 entry.
+
+- [x] 2026-04-22 — Tier 2: server-side zero-edge guard (§2.1), push_fanned_snapshot helper (§4.1), diagnose_zero_positions() endpoint + wrapper (§7.1). One commit each.
+
+- [x] 2026-04-22 — Tier 3: PositionPayload.transport freshness field (§9.1), client.events() structured stream (§7.2), server-assigned server_seq unifies REST + WS (§6.1), PositionPayload.seq + /api/positions/since replay (§9.2), superset/subset key_cols migration (§3.2), per-stream typed SnapshotRow via row_class_for (§4.2). One commit each.
 
 - [x] 2026-04-21 — Motion + branded splash pass. Added framer-motion (~55KB gz). New primitives: `PositLogo.tsx`, `PositSplash.tsx`, `useAppReady.ts`. Pre-hydration splash in `index.html` + React-owned splash gated on first WS tick (min 400ms display). Overlays animated: `BlockDrawer`, `CommandPalette`, `HotkeyCheatsheet`, `NotificationsCenter`, `ChatDock`, `OnboardingFlow`. Auth↔app fade + mode cross-fade in `App.tsx`. Login panel toggle (login/signup) now transitions between states; confirm-password row expands. LeftNav brand + label transitions, `whileTap` scale on NavButton, smoother sidebar width easing. `prefers-reduced-motion` honored via `index.css` + framer's reducer. See `docs/decisions.md` 2026-04-21 (Motion language + branded splash entry) and `UI_SPEC.md` §5.
 
