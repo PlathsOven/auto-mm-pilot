@@ -375,10 +375,21 @@ class UpdateCard(_WireModel):
     timestamp: int
 
 
+PositionTransport = Literal["ws", "poll"]
+
+
 class PositionPayload(_WireModel):
-    """Pipeline broadcast payload received over WebSocket."""
+    """Pipeline broadcast payload received over WebSocket or REST polling.
+
+    The SDK sets ``transport`` on every yielded payload so consumers can
+    render a freshness indicator: ``"ws"`` = streamed live from the socket,
+    ``"poll"`` = fetched via ``/api/positions`` polling (latency = poll
+    interval). Server payloads never include this field directly — the SDK
+    stamps it before handing the payload to the caller.
+    """
 
     streams: list[DataStream]
     context: GlobalContext
     positions: list[DesiredPosition]
     updates: list[UpdateCard]
+    transport: PositionTransport | None = None

@@ -783,6 +783,7 @@ class PositClient:
         WebSocket open. ``positions()`` polls this when the WS is down.
         """
         payload = await self._require_rest().get_positions()
+        payload.transport = "poll"
         self._maybe_warn_zero_edge(payload)
         return payload
 
@@ -822,6 +823,7 @@ class PositClient:
         if self._ws is not None and self._ws.state == WsState.OPEN:
             ws = self._ws
             async for payload in ws.positions():
+                payload.transport = "ws"
                 self._maybe_warn_zero_edge(payload)
                 yield payload
             # ws.positions() returns only on close()/FAILED_AUTH. If the

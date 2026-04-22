@@ -49,6 +49,7 @@ async def test_get_positions_returns_latest() -> None:
         payload = await client.get_positions()
         assert len(payload.positions) == 1
         assert payload.positions[0].desired_pos == 42.0
+        assert payload.transport == "poll"
 
 
 @pytest.mark.asyncio
@@ -68,10 +69,12 @@ async def test_positions_polls_when_ws_disabled() -> None:
     )
 
     received: list[float] = []
+    transports: list[str | None] = []
     async with PositClient(url=URL, api_key="ok", connect_ws=False) as client:
         it = client.positions(poll_interval=0.0)
-        received.append((await anext(it)).positions[0].desired_pos)
-        received.append((await anext(it)).positions[0].desired_pos)
+        p1 = await anext(it); received.append(p1.positions[0].desired_pos); transports.append(p1.transport)
+        p2 = await anext(it); received.append(p2.positions[0].desired_pos); transports.append(p2.transport)
         await it.aclose()
 
     assert received == [10.0, 20.0]
+    assert transports == ["poll", "poll"]
