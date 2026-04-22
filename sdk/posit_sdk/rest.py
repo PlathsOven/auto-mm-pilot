@@ -11,6 +11,7 @@ from posit_sdk.models import (
     HealthResponse,
     MarketValueEntry,
     PositionPayload,
+    PositionsSinceResponse,
     SnapshotResponse,
     SnapshotRow,
     StreamResponse,
@@ -130,6 +131,11 @@ class RestClient:
         resp = await self._client.get("/api/diagnostics/zero-positions")
         self._raise_for_status(resp)
         return ZeroPositionDiagnosticsResponse.model_validate(resp.json())
+
+    async def positions_since(self, seq: int) -> PositionsSinceResponse:
+        resp = await self._client.get(f"/api/positions/since/{seq}")
+        self._raise_for_status(resp)
+        return PositionsSinceResponse.model_validate(resp.json())
 
     # ----- Streams -----
 

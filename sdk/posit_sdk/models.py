@@ -422,6 +422,10 @@ class PositionPayload(_WireModel):
     ``"poll"`` = fetched via ``/api/positions`` polling (latency = poll
     interval). Server payloads never include this field directly — the SDK
     stamps it before handing the payload to the caller.
+
+    ``seq`` / ``prev_seq`` are per-user monotonic broadcast sequence numbers.
+    A consumer that sees a gap (``seq != last_seen + 1``) can fetch missed
+    payloads via ``positions_since(last_seen)``.
     """
 
     streams: list[DataStream]
@@ -429,3 +433,13 @@ class PositionPayload(_WireModel):
     positions: list[DesiredPosition]
     updates: list[UpdateCard]
     transport: PositionTransport | None = None
+    seq: int = 0
+    prev_seq: int = 0
+
+
+class PositionsSinceResponse(_WireModel):
+    """Response from ``PositClient.positions_since()``."""
+
+    payloads: list[PositionPayload]
+    gap_detected: bool = False
+    latest_seq: int

@@ -57,6 +57,7 @@ from posit_sdk.models import (
     MarketValueEntry,
     PositionPayload,
     PositionTransport,
+    PositionsSinceResponse,
     SnapshotResponse,
     SnapshotRow,
     StreamResponse,
@@ -100,6 +101,7 @@ __all__ = [
     # WebSocket models
     "PositionPayload",
     "PositionTransport",
+    "PositionsSinceResponse",
     "DesiredPosition",
     "DataStream",
     "GlobalContext",

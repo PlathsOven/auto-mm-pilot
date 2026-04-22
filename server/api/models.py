@@ -703,7 +703,12 @@ class ZeroPositionDiagnosticsResponse(_WireModel):
 
 
 class ServerPayload(_WireModel):
-    """Top-level payload broadcast on ``/ws`` each tick."""
+    """Top-level payload broadcast on ``/ws`` each tick.
+
+    ``seq`` / ``prev_seq`` are per-user monotonic broadcast sequence numbers;
+    together they let a reconnecting consumer detect gaps and fetch missed
+    payloads via ``GET /api/positions/since/{seq}``.
+    """
     streams: list[DataStream]
     context: GlobalContext
     positions: list[DesiredPosition]
@@ -711,6 +716,21 @@ class ServerPayload(_WireModel):
     unregistered_pushes: list[UnregisteredPushAttempt] = Field(default_factory=list)
     silent_streams: list[SilentStreamAlert] = Field(default_factory=list)
     market_value_mismatches: list[MarketValueMismatchAlert] = Field(default_factory=list)
+    seq: int = 0
+    prev_seq: int = 0
+
+
+class PositionsSinceResponse(_WireModel):
+    """Response for ``GET /api/positions/since/{seq}``.
+
+    ``payloads`` are full ServerPayloads with monotonically increasing
+    ``seq``. ``gap_detected`` is True if the caller asked for a seq older
+    than the server's replay buffer holds — in that case ``payloads`` is
+    the oldest N, and the caller should assume state is stale.
+    """
+    payloads: list[ServerPayload]
+    gap_detected: bool = False
+    latest_seq: int
 
 
 # ---------------------------------------------------------------------------

@@ -25,6 +25,7 @@ from posit_sdk.models import (
     IntegratorEventType,
     MarketValueEntry,
     PositionPayload,
+    PositionsSinceResponse,
     SnapshotResponse,
     SnapshotRow,
     StreamResponse,
@@ -873,6 +874,20 @@ class PositClient:
         payload.transport = "poll"
         self._maybe_warn_zero_edge(payload)
         return payload
+
+    async def positions_since(self, seq: int) -> PositionsSinceResponse:
+        """Fetch every broadcast payload with ``seq > <seq>``.
+
+        Used by a reconnecting consumer to backfill anything missed during
+        a WS outage. ``gap_detected`` on the response fires if ``seq`` is
+        older than the server's bounded replay buffer — the payload list
+        is still populated (oldest-N) but the caller should treat state
+        as possibly stale.
+
+        Pair with ``PositionPayload.seq`` / ``prev_seq`` on live payloads
+        to drive gap detection.
+        """
+        return await self._require_rest().positions_since(seq)
 
     async def diagnose_zero_positions(self) -> ZeroPositionDiagnosticsResponse:
         """Explain every (symbol, expiry) whose ``desired_pos`` is ~zero.
