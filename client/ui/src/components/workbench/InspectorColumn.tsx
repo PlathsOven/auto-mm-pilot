@@ -1,11 +1,31 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { InspectorRouter } from "./InspectorRouter";
 import { useFocus } from "../../providers/FocusProvider";
 import { useHotkeys } from "../../hooks/useHotkeys";
 import { safeGetItem, safeSetItem } from "../../utils";
-import { INSPECTOR_COLUMN_OPEN_KEY, INSPECTOR_COLUMN_WIDTH_PX } from "../../constants";
+import {
+  INSPECTOR_COLUMN_MAX_WIDTH_PX,
+  INSPECTOR_COLUMN_MIN_WIDTH_PX,
+  INSPECTOR_COLUMN_OPEN_KEY,
+  INSPECTOR_COLUMN_WIDTH_KEY,
+  INSPECTOR_COLUMN_WIDTH_PX,
+} from "../../constants";
 
 const HANDLE_WIDTH_PX = 18;
+
+function loadPersistedWidth(): number {
+  const raw = safeGetItem(INSPECTOR_COLUMN_WIDTH_KEY);
+  if (raw == null) return INSPECTOR_COLUMN_WIDTH_PX;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return INSPECTOR_COLUMN_WIDTH_PX;
+  return clampWidth(n);
+}
+
+function clampWidth(px: number): number {
+  if (px < INSPECTOR_COLUMN_MIN_WIDTH_PX) return INSPECTOR_COLUMN_MIN_WIDTH_PX;
+  if (px > INSPECTOR_COLUMN_MAX_WIDTH_PX) return INSPECTOR_COLUMN_MAX_WIDTH_PX;
+  return Math.round(px);
+}
 
 /**
  * Right-column Inspector for the Workbench.
@@ -25,6 +45,9 @@ export function InspectorColumn() {
   const [open, setOpen] = useState<boolean>(
     () => safeGetItem(INSPECTOR_COLUMN_OPEN_KEY) !== "false",
   );
+  const [width, setWidth] = useState<number>(loadPersistedWidth);
+  const [dragging, setDragging] = useState(false);
+  const dragState = useRef<{ startX: number; startWidth: number } | null>(null);
   const { focus } = useFocus();
 
   const persistOpen = useCallback((next: boolean) => {
@@ -36,7 +59,46 @@ export function InspectorColumn() {
 
   useHotkeys({ "[": toggleOpen, "]": toggleOpen });
 
-  const totalWidth = open ? INSPECTOR_COLUMN_WIDTH_PX : HANDLE_WIDTH_PX;
+  // Drag-to-resize. The handle sits on the column's left edge; pulling it
+  // left widens the rail, right narrows. Width persists to localStorage so
+  // the next session restores it. Mouse events attach to window for the
+  // duration of a drag so the cursor can leave the 4px strip mid-gesture
+  // without aborting.
+  const onHandleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!open) return;
+    e.preventDefault();
+    dragState.current = { startX: e.clientX, startWidth: width };
+    setDragging(true);
+  }, [open, width]);
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e: MouseEvent) => {
+      if (!dragState.current) return;
+      const dx = e.clientX - dragState.current.startX;
+      // Right rail: dragging LEFT (negative dx) widens; subtract.
+      setWidth(clampWidth(dragState.current.startWidth - dx));
+    };
+    const onUp = () => {
+      dragState.current = null;
+      setDragging(false);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [dragging]);
+
+  // Persist after the drag settles — writing on every move event would
+  // thrash localStorage for no visible benefit.
+  useEffect(() => {
+    if (dragging) return;
+    safeSetItem(INSPECTOR_COLUMN_WIDTH_KEY, String(width));
+  }, [dragging, width]);
+
+  const totalWidth = open ? width : HANDLE_WIDTH_PX;
   // When the inspector is collapsed but a focus is set, surface a soft
   // pulsing glow on the toggle handle so the user knows there is hidden
   // content to look at.
@@ -44,9 +106,20 @@ export function InspectorColumn() {
 
   return (
     <aside
-      className="glass-bar flex shrink-0 flex-row border-l"
-      style={{ width: totalWidth }}
+      className="glass-bar relative flex shrink-0 flex-row border-l"
+      style={{ width: totalWidth, userSelect: dragging ? "none" : undefined }}
     >
+      {open && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          onMouseDown={onHandleMouseDown}
+          className={`absolute left-0 top-0 z-10 h-full w-1 cursor-ew-resize transition-colors ${
+            dragging ? "bg-mm-accent/60" : "hover:bg-mm-accent/30"
+          }`}
+          title="Drag to resize inspector"
+        />
+      )}
       <button
         type="button"
         onClick={() => persistOpen(!open)}

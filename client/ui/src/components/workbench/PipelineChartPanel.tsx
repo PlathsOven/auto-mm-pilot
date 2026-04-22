@@ -21,6 +21,8 @@ import {
   DEFAULT_POSITION_LOOKBACK_LABEL,
   POSITION_LOOKBACK_KEY,
   PIPELINE_LINK_KEY,
+  PIPELINE_DECOMPOSE_KEY,
+  DECOMPOSABLE_METRICS,
   VIEW_MODE_META,
 } from "../../constants";
 
@@ -46,6 +48,9 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
 
   const [linked, setLinked] = useState<boolean>(
     () => safeGetItem(PIPELINE_LINK_KEY) !== "false",
+  );
+  const [decompose, setDecompose] = useState<boolean>(
+    () => safeGetItem(PIPELINE_DECOMPOSE_KEY) === "true",
   );
   const gridMetric = metricOf(gridViewMode).metric;
   const gridSmoothing = metricOf(gridViewMode).smoothing;
@@ -79,6 +84,11 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
     safeSetItem(PIPELINE_LINK_KEY, String(next));
   }, []);
 
+  const persistDecompose = useCallback((next: boolean) => {
+    setDecompose(next);
+    safeSetItem(PIPELINE_DECOMPOSE_KEY, String(next));
+  }, []);
+
   // Resolve a (symbol, expiry) to channel from the current focus. Block
   // focus carries its full composite key, so we can route the chart to
   // the block's dimension.
@@ -106,6 +116,18 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
     focusDimension,
     lookbackSeconds,
   );
+
+  // Decomposition only works when (a) the metric has a calc-space form,
+  // (b) the smoothing toggle is Instant (per-space smoothing isn't computed
+  // server-side), and (c) the payload carries perSpace data — the history
+  // path emits an empty dict since the ring buffer holds no per-space trace.
+  const decomposable = useMemo(() => {
+    if (!DECOMPOSABLE_METRICS.includes(effectiveMetric)) return false;
+    if (effectiveSmoothing !== "instant") return false;
+    if (!data || !data.aggregated.perSpace) return false;
+    return Object.keys(data.aggregated.perSpace).length > 0;
+  }, [effectiveMetric, effectiveSmoothing, data]);
+  const effectiveDecompose = decompose && decomposable;
 
   // Keep local state in sync while linked so unlinking doesn't jump.
   useEffect(() => {
@@ -192,6 +214,33 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
             onChange={setSmoothing}
             disabled={!smoothable}
           />
+          <label
+            className={`flex items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] transition-colors ${
+              !decomposable
+                ? "cursor-not-allowed border-black/[0.06] text-mm-text-subtle opacity-60"
+                : effectiveDecompose
+                  ? "border-mm-accent/30 bg-mm-accent-soft text-mm-accent"
+                  : "border-black/[0.08] text-mm-text-dim hover:bg-black/[0.04]"
+            }`}
+            title={
+              !DECOMPOSABLE_METRICS.includes(effectiveMetric)
+                ? "Decompose is available for Fair / Variance / Market (Calc) only"
+                : effectiveSmoothing !== "instant"
+                  ? "Decompose requires Instant smoothing (per-space smoothing isn't computed)"
+                  : !decomposable
+                    ? "Per-space decomposition not available for this window"
+                    : "Stack per-risk-space calc-space contributions"
+            }
+          >
+            <input
+              type="checkbox"
+              checked={effectiveDecompose}
+              disabled={!decomposable}
+              onChange={(e) => persistDecompose(e.target.checked)}
+              className="accent-mm-accent"
+            />
+            <span>Decompose</span>
+          </label>
         </div>
       </div>
 
@@ -202,6 +251,7 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
           error={error}
           metric={effectiveMetric}
           smoothing={effectiveSmoothing}
+          decompose={effectiveDecompose}
         />
       </div>
     </div>

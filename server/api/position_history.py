@@ -45,6 +45,13 @@ class PositionHistoryPoint:
     ``marketVol`` field the WS ticker emits and the grid's Market tab
     renders. The pipeline itself doesn't read this — it's captured here so
     the Pipeline chart's Market view has a historical line.
+
+    ``per_space`` maps ``space_id`` → ``(fair, var, market_fair)`` in calc
+    space (variance-linear) at the rerun moment. Spaces combine by pure
+    sum in Stage D.2, so these tuples stack additively — the Pipeline
+    chart's decomposition view uses them for a per-risk-space stacked
+    line. Empty dict when the pipeline emitted no per-space data for this
+    dim (e.g. ``space_series_df`` is empty).
     """
 
     timestamp: datetime
@@ -59,6 +66,7 @@ class PositionHistoryPoint:
     total_market_fair: float
     smoothed_total_market_fair: float
     market_vol: float
+    per_space: dict[str, tuple[float, float, float]]
 
 
 class PositionHistoryBuffer:
@@ -79,6 +87,7 @@ class PositionHistoryBuffer:
         rows: Iterable[dict],
         timestamp: datetime,
         market_values: dict[tuple[str, str], float] | None = None,
+        per_space_by_dim: dict[tuple[str, str], dict[str, tuple[float, float, float]]] | None = None,
     ) -> None:
         """Append one point per row to its (symbol, expiry) deque.
 
@@ -89,8 +98,14 @@ class PositionHistoryBuffer:
         decimal aggregate vol (the per-user store's native units). Each
         looked-up value is scaled ×100 at store time so the history reads
         back in vol points.
+
+        `per_space_by_dim` maps ``(symbol, canonical_expiry_key)`` →
+        ``{space_id: (fair, var, market_fair)}`` in calc space at the rerun
+        moment. Stored on each point so the Pipeline chart's decomposition
+        view can reconstruct per-space lines across the historical window.
         """
         mv = market_values or {}
+        ps = per_space_by_dim or {}
         with self._lock:
             for r in rows:
                 key = (str(r["symbol"]), _expiry_key(r["expiry"]))
@@ -111,6 +126,7 @@ class PositionHistoryBuffer:
                     total_market_fair=_f(r.get("total_market_fair")),
                     smoothed_total_market_fair=_f(r.get("smoothed_total_market_fair")),
                     market_vol=_f(mv.get(key, 0.0)) * VOL_POINTS_SCALE,
+                    per_space=dict(ps.get(key, {})),
                 ))
 
     def get_range(
@@ -173,3 +189,37 @@ def build_from_desired_pos_df(df: pl.DataFrame, current_ts: datetime) -> list[di
         )
     )
     return latest.to_dicts()
+
+
+def build_per_space_at_tick(
+    space_series_df: pl.DataFrame,
+    current_ts: datetime,
+) -> dict[tuple[str, str], dict[str, tuple[float, float, float]]]:
+    """Pick each ``(symbol, expiry, space_id)``'s row nearest ``current_ts``.
+
+    ``space_series_df`` is the same forward grid as ``desired_pos_df`` but
+    disaggregated by ``space_id``. Returns a dict keyed by
+    ``(symbol, canonical_expiry_key)`` → ``{space_id: (fair, var,
+    market_fair)}`` in calc space. Empty when the pipeline emitted no
+    per-space rows (e.g. zero-block pipeline).
+    """
+    if space_series_df.is_empty():
+        return {}
+    sliced = space_series_df.filter(pl.col("timestamp") <= current_ts)
+    if sliced.is_empty():
+        sliced = space_series_df
+    latest = (
+        sliced
+        .sort("timestamp")
+        .group_by(["symbol", "expiry", "space_id"], maintain_order=True)
+        .tail(1)
+    )
+    out: dict[tuple[str, str], dict[str, tuple[float, float, float]]] = {}
+    for r in latest.to_dicts():
+        key = (str(r["symbol"]), _expiry_key(r["expiry"]))
+        out.setdefault(key, {})[str(r["space_id"])] = (
+            _f(r.get("space_fair")),
+            _f(r.get("space_var")),
+            _f(r.get("space_market_fair")),
+        )
+    return out

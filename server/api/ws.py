@@ -234,8 +234,16 @@ def _build_user_payload_sync(user_id: str, real_now: datetime) -> str:
             state.prev_positions[key] = pos["desiredPos"]
         state.last_ts_idx = ts_idx
 
-    registry = get_stream_registry(user_id)
-    streams = streams_from_registry(registry.list_streams(), real_now)
+    registered = get_stream_registry(user_id).list_streams()
+    streams = streams_from_registry(registered, real_now)
+
+    # Heartbeat each active stream's history with ``(real_now, latest
+    # raw_value per key)`` so the Inspector chart grows as wall-clock
+    # advances — without this, a producer that pushed once at activation
+    # time would forever show a single static point.
+    for reg in registered:
+        if reg.active and reg.snapshot_rows:
+            reg.history.record_heartbeat(reg.key_cols, reg.snapshot_rows, real_now)
 
     state.tick_count += 1
     return _build_payload(

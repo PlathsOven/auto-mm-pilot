@@ -3,7 +3,10 @@ import type { EChartsType } from "echarts/types/dist/echarts";
 import ReactECharts from "echarts-for-react";
 import type { PipelineTimeSeriesResponse } from "../types";
 import type { Metric, Smoothing } from "../utils";
-import { buildPipelineSingleMetricOptions } from "./PipelineChart/chartOptions";
+import {
+  buildPipelineDecomposedOptions,
+  buildPipelineSingleMetricOptions,
+} from "./PipelineChart/chartOptions";
 
 interface PipelineChartProps {
   data: PipelineTimeSeriesResponse | null;
@@ -11,6 +14,10 @@ interface PipelineChartProps {
   error: string | null;
   metric: Metric;
   smoothing: Smoothing;
+  /** When true (and ``metric`` has a calc-space decomposition available),
+   *  render a stacked per-risk-space view instead of the single aggregated
+   *  line. The parent panel gates this — the chart just dispatches. */
+  decompose: boolean;
 }
 
 /**
@@ -28,14 +35,15 @@ interface PipelineChartProps {
  * it had at first paint and lets the panel's right half go blank after
  * any layout shift.
  */
-export function PipelineChart({ data, loading, error, metric, smoothing }: PipelineChartProps) {
+export function PipelineChart({ data, loading, error, metric, smoothing, decompose }: PipelineChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<EChartsType | null>(null);
 
   const chartOption = useMemo(() => {
     if (!data) return null;
+    if (decompose) return buildPipelineDecomposedOptions(data, metric);
     return buildPipelineSingleMetricOptions(data, metric, smoothing);
-  }, [data, metric, smoothing]);
+  }, [data, metric, smoothing, decompose]);
 
   useEffect(() => {
     const el = containerRef.current;
