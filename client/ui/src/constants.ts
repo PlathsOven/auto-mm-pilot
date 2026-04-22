@@ -88,15 +88,39 @@ export const POSITION_LOOKBACK_KEY = "posit-position-lookback";
 // position grid's active view mode.
 export const PIPELINE_LINK_KEY = "posit-pipeline-linked";
 
-// Pipeline chart "Decompose" toggle — when on (and metric ∈ {fair, variance,
-// marketCalc} and smoothing = instant), the chart renders per-risk-space
-// stacked contributions in calc space (variance-linear) rather than the
-// single aggregated line in vol-points.
-export const PIPELINE_DECOMPOSE_KEY = "posit-pipeline-decompose";
+// Pipeline panel active-tab persistence — "metric" is the single-metric
+// time-series tab (mirrors the Overview grid cell); "contributions" is
+// the per-space stacked calc-space decomposition over now − lookback →
+// expiry (with its own Fair/Variance/Market dropdown).
+export const PIPELINE_TAB_KEY = "posit-pipeline-tab";
+export type PipelineTab = "metric" | "contributions";
 
-// Metrics whose calc-space per-space decomposition is emitted in the
-// timeseries payload. Used to gate the Decompose toggle in the panel.
-export const DECOMPOSABLE_METRICS: readonly Metric[] = ["fair", "variance", "marketCalc"];
+/** Calc-space metric selection inside the Contributions tab. One of
+ *  ``fair`` / ``var`` / ``market``; persisted in localStorage so the
+ *  trader's last pick survives reloads. */
+export type ContributionMetric = "fair" | "var" | "market";
+export const CONTRIBUTION_METRIC_KEY = "posit-contribution-metric";
+
+/** Contribution-metric label + calc-space field resolution. Values map
+ *  to the TS ``SpaceSeries`` field names (camelCase at the API
+ *  boundary). Shared by the chart builder and the dropdown so the label
+ *  the user picks matches the y-axis title exactly. */
+export const CONTRIBUTION_METRIC_META: Record<
+  ContributionMetric,
+  { label: string; field: "fair" | "var" | "marketFair" }
+> = {
+  fair: { label: "Fair (calc)", field: "fair" },
+  var: { label: "Variance (calc)", field: "var" },
+  market: { label: "Market (calc)", field: "marketFair" },
+};
+
+/** Dropdown options in display order — kept here so both the dropdown
+ *  component and the default-selection logic share one source of truth. */
+export const CONTRIBUTION_METRICS: readonly ContributionMetric[] = [
+  "fair",
+  "var",
+  "market",
+];
 
 // Block inspector "Follow focus" toggle — auto-filters the table to the
 // workbench focus dimension when on.

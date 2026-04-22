@@ -782,6 +782,32 @@ class PipelineTimeSeriesResponse(_WireModel):
     current_decomposition: CurrentDecomposition
 
 
+class PipelineContributionsResponse(_WireModel):
+    """Response for ``GET /api/pipeline/contributions``.
+
+    Purpose: let the Pipeline panel's Contributions tab render per-space
+    fair / variance / market as stacked areas on a single timestamp axis
+    spanning **now − lookback → expiry**. The axis concatenates two
+    sources that share the calc-space units (variance-linear):
+
+      * historical segment — ring-buffer points captured at each rerun,
+        one per ``(symbol, expiry)`` per rerun. See
+        ``position_history.PositionHistoryPoint.per_space``.
+      * forward segment — ``space_series_df`` rows on the current rerun's
+        forward grid (``current_ts → expiry``).
+
+    ``current_ts`` marks the seam and is rendered as a vertical line on the
+    chart so the trader can see past vs projected decay at a glance. The
+    two segments share the same units, so the same per-space arrays stack
+    cleanly across the seam.
+    """
+    symbol: str
+    expiry: str
+    current_ts: str | None
+    timestamps: list[str]
+    per_space: dict[str, SpaceSeries] = Field(default_factory=dict)
+
+
 # ---------------------------------------------------------------------------
 # Multi-user auth + account + admin
 # ---------------------------------------------------------------------------
