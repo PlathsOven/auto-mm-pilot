@@ -22,6 +22,7 @@ from server.api.engine_state import (
 from server.api.expiry import canonical_expiry_key
 from server.api.market_value_store import to_dict as mv_to_dict
 from server.api.models import (
+    PipelineContributionsResponse,
     PipelineDimensionsResponse,
     PipelineTimeSeriesResponse,
     ServerPayload,
@@ -457,3 +458,181 @@ async def pipeline_timeseries(
         raise HTTPException(status_code=404, detail=f"No data for {symbol}/{expiry}")
     payload["expiry"] = expiry
     return PipelineTimeSeriesResponse(**payload)
+
+
+def _pipeline_contributions_sync(
+    user_id: str,
+    symbol: str,
+    expiry_dt: _dt,
+    lookback_seconds: int,
+) -> dict | None:
+    """Build the per-space contributions payload.
+
+    Historical segment: ring-buffer points with ``timestamp >= slice_ts −
+    lookback``. Forward segment: ``space_series_df`` rows with
+    ``timestamp >= slice_ts`` on the current rerun's forward grid. The two
+    segments share calc-space units (variance-linear) and stack additively
+    across ``space_id`` — see ``docs/product.md`` §"How Blocks Aggregate"
+    and ``server/core/pipeline.py`` Stage D.2.
+    """
+    results = get_pipeline_results(user_id)
+    if results is None:
+        return None
+
+    current_ts = get_current_tick_ts(user_id)
+    slice_ts = current_ts if current_ts is not None else _dt.now(timezone.utc).replace(tzinfo=None)
+
+    history = get_position_history(user_id).get_range(
+        symbol=symbol,
+        expiry=expiry_dt.isoformat(),
+        since=slice_ts - timedelta(seconds=lookback_seconds),
+    )
+
+    space_series_df = results["space_series_df"]
+    forward_df = (
+        space_series_df.filter(
+            (pl.col("symbol") == symbol)
+            & (pl.col("expiry").cast(pl.Date) == expiry_dt.date())
+            & (pl.col("timestamp") >= slice_ts)
+        )
+        if not space_series_df.is_empty()
+        else space_series_df
+    )
+
+    # Collect every space_id that appears in either segment — spaces that
+    # only exist in history (e.g. a stream was dropped) or only in the
+    # forward projection (e.g. a stream was just added) still get a row,
+    # filled with 0 on the side where they're absent.
+    space_ids: set[str] = set()
+    for p in history:
+        space_ids.update(p.per_space.keys())
+    if not forward_df.is_empty():
+        space_ids.update(forward_df["space_id"].unique().to_list())
+
+    if not history and forward_df.is_empty():
+        return None
+
+    # ----- historical segment (one entry per rerun) -----
+    hist_timestamps: list[_dt] = [p.timestamp for p in history]
+    hist_per_space: dict[str, dict[str, list[float]]] = {
+        sid: {"fair": [], "var": [], "market_fair": []} for sid in space_ids
+    }
+    # A ring-buffer point can store an empty ``per_space`` dict for a dim
+    # whose ``desired_pos_df`` row was retained (so ``total_fair`` was
+    # captured fine) but whose ``space_series_df`` slice at the rerun
+    # moment didn't yield a row for this dim — see
+    # ``build_per_space_at_tick`` in ``position_history.py``. The old
+    # zero-default here produced V-shape blips to 0 in the Contributions
+    # chart while the Metric tab's aggregate ``Fair`` stayed smooth.
+    # Forward-fill from the last non-empty entry so the stacked-area view
+    # stays continuous without fabricating contributions. Seed with the
+    # first non-empty entry so leading empty points don't read as 0.
+    last_per_space: dict[str, tuple[float, float, float]] = {}
+    for p in history:
+        if p.per_space:
+            last_per_space = dict(p.per_space)
+            break
+    for p in history:
+        src = p.per_space if p.per_space else last_per_space
+        for sid in space_ids:
+            entry = src.get(sid)
+            if entry is None:
+                hist_per_space[sid]["fair"].append(0.0)
+                hist_per_space[sid]["var"].append(0.0)
+                hist_per_space[sid]["market_fair"].append(0.0)
+            else:
+                hist_per_space[sid]["fair"].append(float(entry[0]))
+                hist_per_space[sid]["var"].append(float(entry[1]))
+                hist_per_space[sid]["market_fair"].append(float(entry[2]))
+        if p.per_space:
+            # Replace (don't merge) so a space that has disappeared from
+            # the rerun's per_space stops being carried forward.
+            last_per_space = dict(p.per_space)
+
+    # ----- forward segment (forward grid, dense in space_ids that have rows) -----
+    if forward_df.is_empty():
+        fwd_timestamps: list[_dt] = []
+        fwd_per_space: dict[str, dict[str, list[float]]] = {
+            sid: {"fair": [], "var": [], "market_fair": []} for sid in space_ids
+        }
+    else:
+        fwd_timestamps = (
+            forward_df.select("timestamp").unique().sort("timestamp")["timestamp"].to_list()
+        )
+        ts_index = {t: i for i, t in enumerate(fwd_timestamps)}
+        fwd_per_space = {
+            sid: {
+                "fair": [0.0] * len(fwd_timestamps),
+                "var": [0.0] * len(fwd_timestamps),
+                "market_fair": [0.0] * len(fwd_timestamps),
+            }
+            for sid in space_ids
+        }
+        for ts, sid, fair, var, mkt in forward_df.select(
+            "timestamp", "space_id", "space_fair", "space_var", "space_market_fair",
+        ).rows():
+            idx = ts_index.get(ts)
+            if idx is None or sid not in fwd_per_space:
+                continue
+            fwd_per_space[sid]["fair"][idx] = float(fair) if fair is not None else 0.0
+            fwd_per_space[sid]["var"][idx] = float(var) if var is not None else 0.0
+            fwd_per_space[sid]["market_fair"][idx] = float(mkt) if mkt is not None else 0.0
+
+    combined_timestamps = [t.isoformat() for t in (hist_timestamps + fwd_timestamps)]
+    per_space_out: dict[str, dict[str, list[float]]] = {}
+    for sid in sorted(space_ids):
+        per_space_out[sid] = {
+            "fair": hist_per_space[sid]["fair"] + fwd_per_space[sid]["fair"],
+            "var": hist_per_space[sid]["var"] + fwd_per_space[sid]["var"],
+            "market_fair": hist_per_space[sid]["market_fair"] + fwd_per_space[sid]["market_fair"],
+        }
+
+    return {
+        "symbol": symbol,
+        "current_ts": slice_ts.isoformat() if slice_ts is not None else None,
+        "timestamps": combined_timestamps,
+        "per_space": per_space_out,
+    }
+
+
+# Default lookback when the client omits ``lookback_seconds`` — one hour is
+# long enough to see a few reruns on typical cadence without pulling huge
+# windows on fresh accounts.
+_DEFAULT_CONTRIBUTIONS_LOOKBACK_SECONDS: int = 60 * 60
+
+
+@router.get("/api/pipeline/contributions", response_model=PipelineContributionsResponse)
+async def pipeline_contributions(
+    symbol: str,
+    expiry: str,
+    lookback_seconds: int | None = None,
+    user: User = Depends(current_user),
+) -> PipelineContributionsResponse:
+    """Per-space calc-space contributions over ``now − lookback → expiry``.
+
+    Concatenates the ring-buffer history with the current rerun's forward
+    projection and emits a single unified timestamp axis plus a
+    ``current_ts`` seam marker. See ``_pipeline_contributions_sync`` for
+    the data sources.
+    """
+    try:
+        expiry_dt = parse_datetime_tolerant(expiry)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid expiry format: {exc}") from exc
+
+    effective_lookback = (
+        lookback_seconds
+        if lookback_seconds is not None and lookback_seconds > 0
+        else _DEFAULT_CONTRIBUTIONS_LOOKBACK_SECONDS
+    )
+
+    payload = await asyncio.to_thread(
+        _pipeline_contributions_sync, user.id, symbol, expiry_dt, effective_lookback,
+    )
+    if payload is None:
+        results = get_pipeline_results(user.id)
+        if results is None:
+            raise HTTPException(status_code=404, detail="No pipeline results available")
+        raise HTTPException(status_code=404, detail=f"No data for {symbol}/{expiry}")
+    payload["expiry"] = expiry
+    return PipelineContributionsResponse(**payload)
