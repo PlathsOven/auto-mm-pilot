@@ -129,12 +129,13 @@ async def _detect_and_store_inner(
         temperature=temperature,
         max_tokens=max_tokens,
     ) as handle:
-        resp = await client.complete_with_fallback(
+        resp, model_used = await client.complete_with_fallback(
             models=detector_models,
             messages=messages,
             max_tokens=max_tokens,
             temperature=temperature,
         )
+        handle.record_model_used(model_used)
         handle.capture_openrouter_response(resp)
 
     raw = (

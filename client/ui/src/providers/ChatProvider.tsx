@@ -1,8 +1,24 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { ChatMessage, ChatMode, InvestigationContext, PendingBlockCommand } from "../types";
+import type {
+  ChatMessage,
+  ChatMode,
+  EngineCommand,
+  InvestigationContext,
+  PendingBlockCommand,
+  ProposedBlockPayload,
+} from "../types";
 import { streamFetchSSE } from "../services/api";
+import { streamBuildConverse } from "../services/buildApi";
 import { parseAndStripCommands, executeNonInteractiveCommands } from "../services/engineCommands";
+
+/** Convert a server-emitted ProposedBlockPayload into the legacy
+ *  `{action, params}` engine-command shape so the existing
+ *  BlockDrawer + auto-executor paths stay untouched. */
+function payloadToEngineCommand(payload: ProposedBlockPayload): EngineCommand {
+  const { action, ...rest } = payload;
+  return { action, params: rest as unknown as Record<string, unknown> };
+}
 
 interface ChatState {
   messages: ChatMessage[];
@@ -93,6 +109,60 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const assistantId = pushMessage("assistant", "");
       setIsStreaming(true);
       let accumulated = "";
+
+      // Build mode runs through the new five-stage orchestrator endpoint.
+      // Investigate + General keep the legacy fence-parsing path.
+      if (chatMode === "build") {
+        const controller = streamBuildConverse(
+          { conversation },
+          {
+            onDelta: (text) => {
+              accumulated += text;
+              updateMessage(assistantId, accumulated);
+            },
+            onProposal: (payload) => {
+              // Short human-readable confirmation; the BlockDrawer
+              // (or auto-executor) is the real UX.
+              const tail =
+                payload.action === "create_manual_block"
+                  ? "Preparing your block — review the pre-filled form and submit when ready."
+                  : `Creating stream ${payload.stream_name}.`;
+              accumulated = accumulated
+                ? `${accumulated}\n\n${tail}`
+                : tail;
+              updateMessage(assistantId, accumulated);
+
+              const cmd = payloadToEngineCommand(payload);
+              if (cmd.action === "create_manual_block") {
+                setPendingBlockCommand({ params: cmd.params });
+              } else {
+                executeNonInteractiveCommands([cmd]).then((results) => {
+                  for (const msg of results) pushMessage("system", msg);
+                });
+              }
+            },
+            onDone: () => {
+              setIsStreaming(false);
+              abortRef.current = null;
+              if (!accumulated) {
+                updateMessage(assistantId, "No response received from the engine.");
+              }
+            },
+            onError: (error) => {
+              setIsStreaming(false);
+              abortRef.current = null;
+              updateMessage(
+                assistantId,
+                accumulated
+                  ? `${accumulated}\n\n⚠ ${error}`
+                  : `⚠ ${error}`,
+              );
+            },
+          },
+        );
+        abortRef.current = controller;
+        return;
+      }
 
       const controller = streamFetchSSE(
         "/api/investigate",

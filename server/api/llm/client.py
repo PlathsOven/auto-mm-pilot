@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Callable
 
 import httpx
 
@@ -84,11 +84,21 @@ class OpenRouterClient:
         self,
         *,
         model: str,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         max_tokens: int = 1024,
         temperature: float = 0.4,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        response_format: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Send a non-streaming chat-completion request. Returns the full response JSON."""
+        """Send a non-streaming chat-completion request. Returns the full response JSON.
+
+        ``tools`` + ``tool_choice`` enable OpenRouter function-calling for
+        callers that need a structured tool invocation (e.g. the Stage 3
+        synthesiser with its ``select_preset`` / ``derive_custom_block``
+        contract). ``response_format`` forces a JSON-shaped reply on
+        providers that honour it (Stage 1 router / Stage 2 extractor).
+        """
         payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
@@ -96,6 +106,12 @@ class OpenRouterClient:
             "temperature": temperature,
             "stream": False,
         }
+        if tools is not None:
+            payload["tools"] = tools
+        if tool_choice is not None:
+            payload["tool_choice"] = tool_choice
+        if response_format is not None:
+            payload["response_format"] = response_format
         async with httpx.AsyncClient(timeout=OPENROUTER_TIMEOUT_SECS) as client:
             resp = await client.post(
                 self._endpoint,
@@ -170,20 +186,34 @@ class OpenRouterClient:
         self,
         *,
         models: tuple[str, ...],
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         max_tokens: int = 1024,
         temperature: float = 0.4,
-    ) -> dict[str, Any]:
-        """Try each model in *models* until one succeeds. Raises the last error if all fail."""
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        response_format: dict[str, Any] | None = None,
+    ) -> tuple[dict[str, Any], str]:
+        """Try each model in *models* until one succeeds.
+
+        Returns ``(response_json, model_used)`` so the caller can record
+        which model actually produced the response — callers that don't
+        care about the model can ignore the second value.
+
+        Raises the last error if every model fails.
+        """
         last_exc: Exception | None = None
         for model in models:
             try:
-                return await self.complete(
+                resp = await self.complete(
                     model=model,
                     messages=messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    response_format=response_format,
                 )
+                return resp, model
             except (httpx.HTTPStatusError, httpx.RequestError) as exc:
                 log.warning("Model %s failed: %s — falling back", model, exc)
                 last_exc = exc
@@ -195,20 +225,31 @@ class OpenRouterClient:
         self,
         *,
         models: tuple[str, ...],
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         max_tokens: int = 1024,
         temperature: float = 0.4,
+        on_model_selected: Callable[[str], None] | None = None,
     ) -> AsyncIterator[str]:
-        """Try each model in *models* for streaming until one succeeds."""
+        """Try each model in *models* for streaming until one succeeds.
+
+        ``on_model_selected`` is invoked exactly once with the model name
+        as soon as a model produces its first delta — callers use it to
+        record the actually-served model in their audit row.
+        """
         last_exc: Exception | None = None
         for model in models:
             try:
+                notified = False
                 async for delta in self.stream(
                     model=model,
                     messages=messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
                 ):
+                    if not notified:
+                        if on_model_selected is not None:
+                            on_model_selected(model)
+                        notified = True
                     yield delta
                 return  # stream completed successfully
             except (httpx.HTTPStatusError, httpx.RequestError) as exc:

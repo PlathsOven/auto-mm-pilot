@@ -88,10 +88,6 @@ class LlmService:
             conversation_turn_id=conversation_turn_id,
             stage=_CHAT_MODE_STAGE[mode],
             mode=mode,
-            # ``stream_with_fallback`` tries each model in the tuple; the
-            # primary is what the request was targeted at. Refining the
-            # recorded model to the model that actually responded would
-            # require a callback into the client — deferred.
             model=self._config.investigation_models[0],
             messages=messages,
             temperature=self._config.temperature_investigation,
@@ -102,6 +98,7 @@ class LlmService:
                 messages=messages,
                 max_tokens=self._config.max_tokens_investigation,
                 temperature=self._config.temperature_investigation,
+                on_model_selected=handle.record_model_used,
             ):
                 handle.accumulate_delta(delta)
                 yield delta

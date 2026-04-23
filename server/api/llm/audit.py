@@ -59,6 +59,7 @@ class LlmCallHandle:
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     error: str | None = None
+    model_used: str | None = None
     _stream_buffer: list[str] = field(default_factory=list)
 
     def accumulate_delta(self, delta: str) -> None:
@@ -70,6 +71,16 @@ class LlmCallHandle:
         on the final response dict).
         """
         self._stream_buffer.append(delta)
+
+    def record_model_used(self, model: str) -> None:
+        """Record which model actually served the request.
+
+        ``*_with_fallback`` methods on ``OpenRouterClient`` walk the model
+        tuple until one succeeds. Callers pass the selected model through
+        here so the audit row reflects reality rather than the primary
+        (first) model in the chain.
+        """
+        self.model_used = model
 
     def capture_openrouter_response(self, resp: dict[str, Any]) -> None:
         """Pull content, tool_calls, finish_reason, and usage out of an OpenRouter JSON response."""
@@ -127,7 +138,10 @@ async def record_call(
                 conversation_turn_id=conversation_turn_id,
                 stage=stage,
                 mode=mode,
-                model=model,
+                # ``model_used`` is the model a ``*_with_fallback`` method
+                # actually served from (populated via ``record_model_used``);
+                # falls back to the primary model the caller supplied.
+                model=handle.model_used or model,
                 messages=messages,
                 tools=tools,
                 temperature=temperature,

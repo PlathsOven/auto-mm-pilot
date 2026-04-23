@@ -16,12 +16,43 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
+from server.api.config import parse_str_list
+
+
+# Default model fallback chains per stage. Stages 1 + 2 favour Haiku-class
+# fast models — the router only needs to classify, and the intent extractor
+# emits structured JSON. Stages 3 + 3.5 step up to Sonnet/GPT-4/Gemini Pro
+# because tool-call synthesis and framework critique need stronger reasoning.
+# Override every chain via the env var named in the corresponding field.
+_DEFAULT_ROUTER_MODELS: tuple[str, ...] = (
+    "anthropic/claude-3.5-haiku",
+    "google/gemini-2.0-flash-001",
+)
+_DEFAULT_INTENT_MODELS: tuple[str, ...] = (
+    "anthropic/claude-3.5-haiku",
+    "google/gemini-2.0-flash-001",
+)
+_DEFAULT_SYNTHESIS_MODELS: tuple[str, ...] = (
+    "anthropic/claude-sonnet-4",
+    "openai/gpt-4.1",
+    "google/gemini-2.5-pro-preview-06-05",
+)
+_DEFAULT_CRITIQUE_MODELS: tuple[str, ...] = (
+    "anthropic/claude-3.5-haiku",
+    "google/gemini-2.0-flash-001",
+)
+
 
 @dataclass(frozen=True)
 class LlmOrchestrationConfig:
     """All tunable knobs for the LLM orchestration layer."""
 
     # ── Stage 1: Router ─────────────────────────────────────────────────
+    router_models: tuple[str, ...] = field(
+        default_factory=lambda: parse_str_list(
+            "LLM_ROUTER_MODELS", _DEFAULT_ROUTER_MODELS,
+        )
+    )
     router_max_tokens: int = field(
         default_factory=lambda: int(os.getenv("LLM_ROUTER_MAX_TOKENS", "200"))
     )
@@ -30,6 +61,11 @@ class LlmOrchestrationConfig:
     )
 
     # ── Stage 2: Intent extractor ───────────────────────────────────────
+    intent_models: tuple[str, ...] = field(
+        default_factory=lambda: parse_str_list(
+            "LLM_INTENT_MODELS", _DEFAULT_INTENT_MODELS,
+        )
+    )
     intent_max_tokens: int = field(
         default_factory=lambda: int(os.getenv("LLM_INTENT_MAX_TOKENS", "1500"))
     )
@@ -38,6 +74,11 @@ class LlmOrchestrationConfig:
     )
 
     # ── Stage 3: Synthesiser ────────────────────────────────────────────
+    synthesis_models: tuple[str, ...] = field(
+        default_factory=lambda: parse_str_list(
+            "LLM_SYNTHESIS_MODELS", _DEFAULT_SYNTHESIS_MODELS,
+        )
+    )
     synthesis_max_tokens: int = field(
         default_factory=lambda: int(os.getenv("LLM_SYNTHESIS_MAX_TOKENS", "2000"))
     )
@@ -46,6 +87,11 @@ class LlmOrchestrationConfig:
     )
 
     # ── Stage 3.5: Critique ─────────────────────────────────────────────
+    critique_models: tuple[str, ...] = field(
+        default_factory=lambda: parse_str_list(
+            "LLM_CRITIQUE_MODELS", _DEFAULT_CRITIQUE_MODELS,
+        )
+    )
     critique_max_tokens: int = field(
         default_factory=lambda: int(os.getenv("LLM_CRITIQUE_MAX_TOKENS", "800"))
     )

@@ -92,6 +92,14 @@ class InvestigateRequest(BaseModel):
     )
 
 
+class BuildConverseRequest(BaseModel):
+    """Request body for ``POST /api/build/converse`` — the five-stage pipeline entry point."""
+    conversation: list[dict[str, str]] = Field(
+        ...,
+        description="OpenAI-style message array: [{role, content}, ...]",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Stream management
 # ---------------------------------------------------------------------------
