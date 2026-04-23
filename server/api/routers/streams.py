@@ -10,6 +10,7 @@ from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
 from server.api.connector_state import get_connector_state_store
 from server.api.engine_state import get_engine, rerun_and_broadcast
+from server.api.llm.block_intents import log_post_commit_edit_if_recent
 from server.api.models import (
     AdminConfigureStreamRequest,
     BlockConfigPayload,
@@ -348,34 +349,12 @@ async def delete_stream(
     stream_name: str,
     user: User = Depends(current_user),
 ) -> None:
-    import asyncio as _asyncio
-    from server.api.llm.block_intents import recent_intent_id
-    from server.api.llm.failures import log_failure
-    from server.api.llm.orchestration_config import get_llm_orchestration_config
+    # Before deleting, check whether this stream was recently committed via
+    # the Build orchestrator — a rapid delete is a signal the proposal
+    # missed. Fire-and-forget; same helper used by blocks.update_block.
+    log_post_commit_edit_if_recent(user.id, stream_name, mutation="delete")
 
     registry = get_stream_registry(user.id)
-    # Before deleting, check whether this stream was recently committed
-    # via the Build orchestrator — a rapid delete is a signal the
-    # proposal missed. Fire-and-forget. Matches the _maybe_log_post_commit_edit
-    # pattern in routers/blocks.py (duplicated inline here because the
-    # endpoint lives in a different router module).
-    cfg = get_llm_orchestration_config()
-    intent_id = recent_intent_id(
-        user.id, stream_name, cfg.post_commit_edit_threshold_secs,
-    )
-    if intent_id is not None:
-        _asyncio.create_task(_asyncio.to_thread(
-            log_failure,
-            user_id=user.id,
-            signal_type="post_commit_edit",
-            trigger="commit_followup",
-            metadata={
-                "block_intent_id": intent_id,
-                "stream_name": stream_name,
-                "mutation": "delete",
-            },
-        ))
-
     try:
         registry.delete(stream_name, get_connector_state_store(user.id))
     except KeyError as exc:

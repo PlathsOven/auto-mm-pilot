@@ -9,13 +9,16 @@ block exist?" in the trader's own words.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
 from server.api.db import SessionLocal
+from server.api.llm.failures import log_failure
 from server.api.llm.models import BlockIntent
+from server.api.llm.orchestration_config import get_llm_orchestration_config
 from server.api.models import StoredBlockIntent
 
 log = logging.getLogger(__name__)
@@ -116,4 +119,40 @@ def _row_to_model(row: BlockIntent) -> StoredBlockIntent:
     )
 
 
-__all__ = ["save_block_intent", "get_for_stream", "recent_intent_id"]
+def log_post_commit_edit_if_recent(
+    user_id: str,
+    stream_name: str,
+    mutation: str,
+) -> None:
+    """Fire a ``post_commit_edit`` failure row if this stream was just created.
+
+    "Just created" = within ``post_commit_edit_threshold_secs`` (600s
+    default, overridable via LLM_POST_COMMIT_EDIT_THRESHOLD_SECS). The
+    intent lookup is synchronous (one SQLite read); the failure write is
+    offloaded to a thread via ``asyncio.to_thread`` and fire-and-forget.
+    Streams created outside the Build orchestrator never match — only
+    Build-orchestrator commits populate ``block_intents``.
+    """
+    cfg = get_llm_orchestration_config()
+    intent_id = recent_intent_id(user_id, stream_name, cfg.post_commit_edit_threshold_secs)
+    if intent_id is None:
+        return
+    asyncio.create_task(asyncio.to_thread(
+        log_failure,
+        user_id=user_id,
+        signal_type="post_commit_edit",
+        trigger="commit_followup",
+        metadata={
+            "block_intent_id": intent_id,
+            "stream_name": stream_name,
+            "mutation": mutation,
+        },
+    ))
+
+
+__all__ = [
+    "save_block_intent",
+    "get_for_stream",
+    "recent_intent_id",
+    "log_post_commit_edit_if_recent",
+]
