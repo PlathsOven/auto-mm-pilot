@@ -25,7 +25,6 @@ from typing import Any, AsyncIterator
 
 from pydantic import ValidationError
 
-from server.api.llm.audit import record_call
 from server.api.llm.client import OpenRouterClient
 from server.api.llm.orchestration_config import LlmOrchestrationConfig
 from server.api.llm.parameter_presets import find_preset
@@ -39,6 +38,7 @@ from server.api.llm.prompts.synthesiser import (
     SYNTHESISER_TOOLS,
     build_synthesiser_prompt,
 )
+from server.api.llm.stages import run_json_stage, run_tool_stage
 from server.api.llm.user_context import serialize_for_prompt as serialize_user_context
 from server.api.models import (
     BlockConfigDict,
@@ -187,29 +187,18 @@ async def _run_router(
         {"role": "system", "content": ROUTER_SYSTEM_PROMPT},
         *conversation,
     ]
-    async with record_call(
-        user_id=user_id,
-        conversation_turn_id=conversation_turn_id,
-        stage="router",
-        mode="build",
-        model=orch_config.router_models[0],
-        messages=messages,
-        temperature=orch_config.router_temperature,
-        max_tokens=orch_config.router_max_tokens,
-    ) as handle:
-        resp, model_used = await client.complete_with_fallback(
-            models=orch_config.router_models,
-            messages=messages,
-            max_tokens=orch_config.router_max_tokens,
-            temperature=orch_config.router_temperature,
-            response_format={"type": "json_object"},
-        )
-        handle.record_model_used(model_used)
-        handle.capture_openrouter_response(resp)
-
-    raw = _extract_message_content(resp)
     try:
-        data = json.loads(_strip_markdown_fences(raw))
+        data = await run_json_stage(
+            client=client,
+            user_id=user_id,
+            conversation_turn_id=conversation_turn_id,
+            stage="router",
+            mode="build",
+            messages=messages,
+            models=orch_config.router_models,
+            temperature=orch_config.router_temperature,
+            max_tokens=orch_config.router_max_tokens,
+        )
         return IntakeClassification(**data)
     except (json.JSONDecodeError, ValidationError) as exc:
         raise _StageError(f"router output parse failed: {exc}") from exc
@@ -241,29 +230,18 @@ async def _run_intent_extractor(
         {"role": "system", "content": system_prompt},
         *conversation,
     ]
-    async with record_call(
-        user_id=user_id,
-        conversation_turn_id=conversation_turn_id,
-        stage="intent",
-        mode="build",
-        model=orch_config.intent_models[0],
-        messages=messages,
-        temperature=orch_config.intent_temperature,
-        max_tokens=orch_config.intent_max_tokens,
-    ) as handle:
-        resp, model_used = await client.complete_with_fallback(
-            models=orch_config.intent_models,
-            messages=messages,
-            max_tokens=orch_config.intent_max_tokens,
-            temperature=orch_config.intent_temperature,
-            response_format={"type": "json_object"},
-        )
-        handle.record_model_used(model_used)
-        handle.capture_openrouter_response(resp)
-
-    raw = _extract_message_content(resp)
     try:
-        data = json.loads(_strip_markdown_fences(raw))
+        data = await run_json_stage(
+            client=client,
+            user_id=user_id,
+            conversation_turn_id=conversation_turn_id,
+            stage="intent",
+            mode="build",
+            messages=messages,
+            models=orch_config.intent_models,
+            temperature=orch_config.intent_temperature,
+            max_tokens=orch_config.intent_max_tokens,
+        )
         return IntentOutput(**data)
     except (json.JSONDecodeError, ValidationError, ValueError) as exc:
         raise _StageError(f"intent output parse failed: {exc}") from exc
@@ -297,29 +275,21 @@ async def _run_synthesiser(
             ),
         },
     ]
-    async with record_call(
-        user_id=user_id,
-        conversation_turn_id=conversation_turn_id,
-        stage="synthesis",
-        mode="build",
-        model=orch_config.synthesis_models[0],
-        messages=messages,
-        tools=SYNTHESISER_TOOLS,
-        temperature=orch_config.synthesis_temperature,
-        max_tokens=orch_config.synthesis_max_tokens,
-    ) as handle:
-        resp, model_used = await client.complete_with_fallback(
-            models=orch_config.synthesis_models,
+    try:
+        tool_name, tool_args = await run_tool_stage(
+            client=client,
+            user_id=user_id,
+            conversation_turn_id=conversation_turn_id,
+            stage="synthesis",
+            mode="build",
             messages=messages,
-            max_tokens=orch_config.synthesis_max_tokens,
-            temperature=orch_config.synthesis_temperature,
+            models=orch_config.synthesis_models,
             tools=SYNTHESISER_TOOLS,
-            tool_choice="required",
+            temperature=orch_config.synthesis_temperature,
+            max_tokens=orch_config.synthesis_max_tokens,
         )
-        handle.record_model_used(model_used)
-        handle.capture_openrouter_response(resp)
-
-    tool_name, tool_args = _extract_tool_call(resp)
+    except ValueError as exc:
+        raise _StageError(f"synthesiser tool call failed: {exc}") from exc
     if tool_name == "select_preset":
         return _build_preset_synthesis(intent, tool_args)
     if tool_name == "derive_custom_block":
@@ -351,29 +321,18 @@ async def _run_critique(
             ),
         },
     ]
-    async with record_call(
-        user_id=user_id,
-        conversation_turn_id=conversation_turn_id,
-        stage="critique",
-        mode="build",
-        model=orch_config.critique_models[0],
-        messages=messages,
-        temperature=orch_config.critique_temperature,
-        max_tokens=orch_config.critique_max_tokens,
-    ) as handle:
-        resp, model_used = await client.complete_with_fallback(
-            models=orch_config.critique_models,
-            messages=messages,
-            max_tokens=orch_config.critique_max_tokens,
-            temperature=orch_config.critique_temperature,
-            response_format={"type": "json_object"},
-        )
-        handle.record_model_used(model_used)
-        handle.capture_openrouter_response(resp)
-
-    raw = _extract_message_content(resp)
     try:
-        data = json.loads(_strip_markdown_fences(raw))
+        data = await run_json_stage(
+            client=client,
+            user_id=user_id,
+            conversation_turn_id=conversation_turn_id,
+            stage="critique",
+            mode="build",
+            messages=messages,
+            models=orch_config.critique_models,
+            temperature=orch_config.critique_temperature,
+            max_tokens=orch_config.critique_max_tokens,
+        )
         return CustomDerivationCritique(**data)
     except (json.JSONDecodeError, ValidationError) as exc:
         raise _StageError(f"critique output parse failed: {exc}") from exc
@@ -509,44 +468,6 @@ def _assemble_payload(
 
 class _StageError(Exception):
     """Recoverable per-stage failure — surfaced to the client as an error event."""
-
-
-def _extract_message_content(resp: dict[str, Any]) -> str:
-    """Pull ``choices[0].message.content`` out of an OpenRouter response."""
-    choice = (resp.get("choices") or [{}])[0]
-    return (choice.get("message") or {}).get("content") or ""
-
-
-def _extract_tool_call(resp: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-    """Pull the first tool call out of an OpenRouter function-call response."""
-    choice = (resp.get("choices") or [{}])[0]
-    calls = (choice.get("message") or {}).get("tool_calls") or []
-    if not calls:
-        raise _StageError("synthesiser returned no tool_calls")
-    fn = calls[0].get("function") or {}
-    name = fn.get("name") or ""
-    args_raw = fn.get("arguments") or "{}"
-    if isinstance(args_raw, str):
-        try:
-            args = json.loads(args_raw)
-        except json.JSONDecodeError as exc:
-            raise _StageError(f"tool call arguments parse failed: {exc}") from exc
-    elif isinstance(args_raw, dict):
-        args = args_raw
-    else:
-        raise _StageError(f"unexpected tool_calls arguments type: {type(args_raw)!r}")
-    return name, args
-
-
-_FENCE_RE = re.compile(r"^```[a-zA-Z0-9_]*\s*\n?(.*?)\n?```\s*$", re.DOTALL)
-
-
-def _strip_markdown_fences(text: str) -> str:
-    """Remove leading/trailing markdown code fences if the model wrapped the JSON."""
-    match = _FENCE_RE.match(text.strip())
-    if match:
-        return match.group(1).strip()
-    return text.strip()
 
 
 def _require_str_list(args: dict[str, Any], key: str) -> list[str]:

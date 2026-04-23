@@ -16,13 +16,13 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-import polars as pl
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
 from server.api.engine_state import (
+    current_positions_per_dim,
     get_engine,
     get_engine_state,
     rerun_and_broadcast,
@@ -325,9 +325,7 @@ def _extract_new_desired_positions(
 ) -> dict[str, dict[str, float]]:
     """Build the ``{symbol: {expiry: position}}`` map from the fresh pipeline run.
 
-    Takes the current-tick row per (symbol, expiry) — same slice logic
-    as the preview endpoint. Returns empty when the pipeline hasn't run
-    (no streams registered yet).
+    Returns empty when the pipeline hasn't run (no streams registered yet).
     """
     engine = get_engine(user_id)
     if engine.pipeline_results is None:
@@ -335,14 +333,10 @@ def _extract_new_desired_positions(
     df = engine.pipeline_results.get("desired_pos_df")
     if df is None or df.is_empty():
         return {}
-    current = (
-        df.sort(["symbol", "expiry", "timestamp"])
-        .group_by(["symbol", "expiry"], maintain_order=True)
-        .agg(pl.col("smoothed_desired_position").first().alias("pos"))
-    )
+    current = current_positions_per_dim(df)
     out: dict[str, dict[str, float]] = {}
-    for row in current.iter_rows(named=True):
+    for row in current.to_dicts():
         sym = row["symbol"]
         exp = str(row["expiry"])
-        out.setdefault(sym, {})[exp] = float(row["pos"])
+        out.setdefault(sym, {})[exp] = float(row["smoothed_desired_position"])
     return out

@@ -23,6 +23,7 @@ from server.api.llm.audit import record_call
 from server.api.llm.client import OpenRouterClient
 from server.api.llm.domain_kb import save_entry as save_domain_kb_entry
 from server.api.llm.failures import log_failure
+from server.api.llm.openrouter_parse import get_content, strip_markdown_fences
 from server.api.llm.user_context import CONTROLLED_KEYS, upsert_entry
 
 log = logging.getLogger(__name__)
@@ -198,10 +199,7 @@ async def _detect_and_store_inner(
         handle.record_model_used(model_used)
         handle.capture_openrouter_response(resp)
 
-    raw = (resp.get("choices", [{}])[0].get("message", {}).get("content") or "").strip()
-    if raw.startswith("```"):
-        raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-
+    raw = strip_markdown_fences(get_content(resp))
     try:
         result = json.loads(raw)
     except json.JSONDecodeError:

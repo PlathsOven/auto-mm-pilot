@@ -23,6 +23,7 @@ from server.api.engine_state import (
     RISK_DIMENSION_COLS,
     SMOOTHING_HL_SECS,
     TIME_GRID_INTERVAL,
+    current_positions_per_dim,
     get_engine,
 )
 from server.api.market_value_store import to_dict as market_values_to_dict
@@ -249,9 +250,9 @@ def _compute_deltas(
     appears in the after-frame. Non-positive percent-change is None
     when ``before == 0`` (undefined).
     """
-    after_current = _current_row_per_dim(after_df)
+    after_current = current_positions_per_dim(after_df)
     before_current = (
-        _current_row_per_dim(before_df) if before_df is not None
+        current_positions_per_dim(before_df) if before_df is not None
         else None
     )
 
@@ -284,25 +285,9 @@ def _compute_deltas(
     return deltas
 
 
-def _current_row_per_dim(df: pl.DataFrame) -> pl.DataFrame:
-    """Pick the row at the earliest timestamp per (symbol, expiry).
-
-    ``desired_pos_df`` is a forward projection from ``now``; the first
-    row after sort-by-timestamp is the "current" value. ``maintain_order``
-    guards against hash-order non-determinism (see tasks/lessons.md).
-    """
-    if df.is_empty():
-        return df
-    return (
-        df.sort(["symbol", "expiry", "timestamp"])
-        .group_by(["symbol", "expiry"], maintain_order=True)
-        .agg(pl.col(_POSITION_COL).first())
-    )
-
-
 def _sum_abs_positions(df: pl.DataFrame | None) -> float:
     """Sum ``|smoothed_desired_position|`` across current-tick rows per dim."""
     if df is None or df.is_empty():
         return 0.0
-    current = _current_row_per_dim(df)
+    current = current_positions_per_dim(df)
     return float(current[_POSITION_COL].abs().sum())
