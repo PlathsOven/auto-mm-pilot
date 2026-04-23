@@ -10,8 +10,14 @@
  * This helper routes each event to the right callback so the caller
  * doesn't need to understand the wire shape.
  */
-import type { ProposedBlockPayload } from "../types";
-import { streamFetchSSE } from "./api";
+import type {
+  BlockCommitRequest,
+  BlockCommitResponse,
+  BlockPreviewRequest,
+  PreviewResponse,
+  ProposedBlockPayload,
+} from "../types";
+import { apiFetch, streamFetchSSE } from "./api";
 
 export type BuildStageName = "router" | "intent" | "synthesis" | "critique";
 
@@ -48,6 +54,26 @@ function isStageEvent(
       ev.stage === "critique") &&
     "output" in ev
   );
+}
+
+/** POST /api/blocks/preview — Stage-4 desired-position diff. */
+export async function previewBlock(
+  payload: ProposedBlockPayload,
+): Promise<PreviewResponse> {
+  return apiFetch<PreviewResponse>("/api/blocks/preview", {
+    method: "POST",
+    body: JSON.stringify({ payload } satisfies BlockPreviewRequest),
+  });
+}
+
+/** POST /api/blocks/commit — Stage-5 finalise the proposal + persist the intent triplet. */
+export async function commitBlock(
+  req: BlockCommitRequest,
+): Promise<BlockCommitResponse> {
+  return apiFetch<BlockCommitResponse>("/api/blocks/commit", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
 }
 
 /** Fire a Build-mode conversation at /api/build/converse and dispatch stage events. */

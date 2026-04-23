@@ -1366,3 +1366,44 @@ class StoredBlockIntent(BaseModel):
     synthesis: SynthesisOutput
     preview: PreviewResponse
     created_at: datetime
+
+
+class BlockPreviewRequest(BaseModel):
+    """POST /api/blocks/preview — runs the pipeline on a cloned stream
+    list plus the proposed payload; returns the desired-position diff."""
+    payload: ProposedBlockPayload
+
+
+class BlockCommitRequest(BaseModel):
+    """POST /api/blocks/commit — finalises the proposal.
+
+    Carries the full Stage 1–4 trace so the persisted ``block_intents``
+    row reflects exactly what the trader confirmed.
+    """
+    payload: ProposedBlockPayload
+    intent: IntentOutput
+    synthesis: SynthesisOutput
+    preview: PreviewResponse
+
+
+class BlockCommitResponse(BaseModel):
+    """Reply to a successful ``/api/blocks/commit``.
+
+    ``new_desired_positions`` is the fresh desired-position map by
+    (symbol, expiry) so the client can sanity-check the commit landed
+    without waiting for the next WS broadcast.
+    """
+    stored_intent_id: str
+    stream_name: str
+    new_desired_positions: dict[str, dict[str, float]]
+
+
+class StreamIntentResponse(BaseModel):
+    """``GET /api/streams/{name}/intent`` — "why does this block exist?".
+
+    Returns the persisted ``StoredBlockIntent`` when the stream was
+    created via the Build orchestrator. Streams that predate M3 (or
+    that were created via the manual ``+ Manual block`` path) return
+    404 — the Inspector surfaces a "no intent recorded" placeholder.
+    """
+    intent: StoredBlockIntent

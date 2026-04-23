@@ -13,19 +13,36 @@ import asyncio
 import json
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
+import polars as pl
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
-from server.api.engine_state import get_engine_state
+from server.api.engine_state import (
+    get_engine,
+    get_engine_state,
+    rerun_and_broadcast,
+)
+from server.api.llm.block_intents import save_block_intent
 from server.api.llm.build_orchestrator import run_build_pipeline
 from server.api.llm.correction_detector import detect_and_store
 from server.api.llm.orchestration_config import get_llm_orchestration_config
+from server.api.llm.preview import build_preview
 from server.api.llm.service import LlmService
-from server.api.models import BuildConverseRequest
+from server.api.models import (
+    BlockCommitRequest,
+    BlockCommitResponse,
+    BlockPreviewRequest,
+    BuildConverseRequest,
+    PreviewResponse,
+    StoredBlockIntent,
+)
+from server.api.stream_registry import get_stream_registry
+from server.core.config import BlockConfig
 
 log = logging.getLogger(__name__)
 
@@ -107,3 +124,182 @@ async def build_converse(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Stage 4 — Impact preview
+# ---------------------------------------------------------------------------
+
+@router.post("/api/blocks/preview", response_model=PreviewResponse)
+async def blocks_preview(
+    req: BlockPreviewRequest,
+    user: User = Depends(current_user),
+) -> PreviewResponse:
+    """Return the desired-position diff that would result from applying
+    the proposal — without mutating live state."""
+    try:
+        return await asyncio.to_thread(build_preview, user.id, req.payload)
+    except Exception as exc:
+        log.exception("preview failed for user=%s", user.id)
+        raise HTTPException(
+            status_code=500, detail=f"Preview failed: {exc}",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# Stage 5 — Commit
+# ---------------------------------------------------------------------------
+
+@router.post("/api/blocks/commit", response_model=BlockCommitResponse)
+async def blocks_commit(
+    req: BlockCommitRequest,
+    user: User = Depends(current_user),
+) -> BlockCommitResponse:
+    """Execute the proposal: register the stream, ingest any snapshot,
+    rerun the pipeline + broadcast, and persist the intent triplet."""
+    registry = get_stream_registry(user.id)
+    payload = req.payload
+
+    # Build the runtime BlockConfig — re-validates framework invariants
+    # (decay_end_size_mult != 0 requires annualized == True) even though
+    # the Pydantic layer already checked them.
+    try:
+        block = BlockConfig(
+            annualized=payload.block.annualized,
+            temporal_position=payload.block.temporal_position,
+            decay_end_size_mult=payload.block.decay_end_size_mult,
+            decay_rate_prop_per_min=payload.block.decay_rate_prop_per_min,
+            var_fair_ratio=payload.block.var_fair_ratio,
+        )
+    except (AssertionError, ValueError) as exc:
+        raise HTTPException(
+            status_code=422, detail=f"Invalid BlockConfig: {exc}",
+        ) from exc
+
+    # Apply via registry helpers — matches the existing manual-block
+    # flow in routers/blocks.py so registry invariants are enforced
+    # consistently across both paths.
+    try:
+        registry.create(payload.stream_name, list(payload.key_cols))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    try:
+        registry.configure(
+            payload.stream_name,
+            scale=payload.scale,
+            offset=payload.offset,
+            exponent=payload.exponent,
+            block=block,
+            applies_to=None,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    if payload.action == "create_manual_block" and payload.snapshot_rows:
+        try:
+            registry.ingest_snapshot(
+                payload.stream_name,
+                [r.model_dump(mode="json") for r in payload.snapshot_rows],
+            )
+        except (KeyError, ValueError) as exc:
+            registry.delete(payload.stream_name)
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        registry.manual_blocks.mark(
+            payload.stream_name,
+            datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
+        )
+
+    stream_configs = registry.build_stream_configs()
+    if stream_configs:
+        try:
+            await rerun_and_broadcast(user.id, stream_configs)
+        except Exception as exc:
+            log.exception("Pipeline re-run failed after commit")
+            try:
+                registry.delete(payload.stream_name)
+            except KeyError:
+                pass
+            raise HTTPException(
+                status_code=500,
+                detail=f"Block registered but pipeline re-run failed: {exc}",
+            ) from exc
+
+    # Persist the intent triplet. Failure here is a hard error — the
+    # stream is already live but its provenance isn't captured.
+    original_phrasing = _extract_original_phrasing(req.intent)
+    intent_id = str(uuid.uuid4())
+    stored = StoredBlockIntent(
+        id=intent_id,
+        user_id=user.id,
+        stream_name=payload.stream_name,
+        action=payload.action,
+        original_phrasing=original_phrasing,
+        intent=req.intent,
+        synthesis=req.synthesis,
+        preview=req.preview,
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    try:
+        await asyncio.to_thread(save_block_intent, stored)
+    except Exception as exc:
+        log.exception("block_intents persist failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Block committed but intent persistence failed: {exc}",
+        ) from exc
+
+    new_positions = _extract_new_desired_positions(user.id)
+    return BlockCommitResponse(
+        stored_intent_id=intent_id,
+        stream_name=payload.stream_name,
+        new_desired_positions=new_positions,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _extract_original_phrasing(intent_output: Any) -> str:
+    """Pull the trader's verbatim words out of an ``IntentOutput``.
+
+    Every structured/raw intent variant carries ``original_phrasing`` as
+    its first field; ``clarifying_question`` never reaches the commit
+    path (that branch halts the orchestrator before Stage 3).
+    """
+    s = intent_output.structured
+    if s is not None:
+        return getattr(s, "original_phrasing", "")
+    r = intent_output.raw
+    if r is not None:
+        return r.original_phrasing
+    return ""
+
+
+def _extract_new_desired_positions(
+    user_id: str,
+) -> dict[str, dict[str, float]]:
+    """Build the ``{symbol: {expiry: position}}`` map from the fresh pipeline run.
+
+    Takes the current-tick row per (symbol, expiry) — same slice logic
+    as the preview endpoint. Returns empty when the pipeline hasn't run
+    (no streams registered yet).
+    """
+    engine = get_engine(user_id)
+    if engine.pipeline_results is None:
+        return {}
+    df = engine.pipeline_results.get("desired_pos_df")
+    if df is None or df.is_empty():
+        return {}
+    current = (
+        df.sort(["symbol", "expiry", "timestamp"])
+        .group_by(["symbol", "expiry"], maintain_order=True)
+        .agg(pl.col("smoothed_desired_position").first().alias("pos"))
+    )
+    out: dict[str, dict[str, float]] = {}
+    for row in current.iter_rows(named=True):
+        sym = row["symbol"]
+        exp = str(row["expiry"])
+        out.setdefault(sym, {})[exp] = float(row["pos"])
+    return out

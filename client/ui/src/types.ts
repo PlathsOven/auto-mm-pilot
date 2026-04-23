@@ -809,3 +809,24 @@ export interface StoredBlockIntent {
   preview: PreviewResponse;
   created_at: string;
 }
+
+export interface BlockPreviewRequest {
+  payload: ProposedBlockPayload;
+}
+
+export interface BlockCommitRequest {
+  payload: ProposedBlockPayload;
+  intent: IntentOutput;
+  synthesis: SynthesisOutput;
+  preview: PreviewResponse;
+}
+
+export interface BlockCommitResponse {
+  stored_intent_id: string;
+  stream_name: string;
+  new_desired_positions: Record<string, Record<string, number>>;
+}
+
+export interface StreamIntentResponse {
+  intent: StoredBlockIntent;
+}

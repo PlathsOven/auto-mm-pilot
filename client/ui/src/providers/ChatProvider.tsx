@@ -3,21 +3,25 @@ import type { ReactNode } from "react";
 import type {
   ChatMessage,
   ChatMode,
-  EngineCommand,
+  IntentOutput,
   InvestigationContext,
   PendingBlockCommand,
+  PreviewResponse,
   ProposedBlockPayload,
+  SynthesisOutput,
 } from "../types";
 import { streamFetchSSE } from "../services/api";
-import { streamBuildConverse } from "../services/buildApi";
+import { commitBlock, previewBlock, streamBuildConverse } from "../services/buildApi";
 import { parseAndStripCommands, executeNonInteractiveCommands } from "../services/engineCommands";
 
-/** Convert a server-emitted ProposedBlockPayload into the legacy
- *  `{action, params}` engine-command shape so the existing
- *  BlockDrawer + auto-executor paths stay untouched. */
-function payloadToEngineCommand(payload: ProposedBlockPayload): EngineCommand {
-  const { action, ...rest } = payload;
-  return { action, params: rest as unknown as Record<string, unknown> };
+/** Bundle of everything the ProposalPreviewDrawer needs to render +
+ *  commit: the payload (what to create), the intent (why), the synthesis
+ *  (preset vs. custom derivation), and the preview diff. */
+export interface PendingProposal {
+  payload: ProposedBlockPayload;
+  intent: IntentOutput;
+  synthesis: SynthesisOutput;
+  preview: PreviewResponse;
 }
 
 interface ChatState {
@@ -27,8 +31,14 @@ interface ChatState {
   /** Whether the WorkbenchRail's Chat tab is currently surfaced. */
   drawerOpen: boolean;
   chatMode: ChatMode;
-  /** Pending manual-block command awaiting review in BlockDrawer. */
+  /** Pending manual-block command awaiting review in BlockDrawer.
+   *  Populated by the legacy engineCommands fence parser (Investigate
+   *  mode only; Build mode now goes through pendingProposal). */
   pendingBlockCommand: PendingBlockCommand | null;
+  /** Build-mode proposal awaiting Confirm / Cancel in the
+   *  ProposalPreviewDrawer. Carries the full Stage 1–4 trace so the
+   *  commit endpoint persists the intent triplet on approval. */
+  pendingProposal: PendingProposal | null;
   setChatMode: (mode: ChatMode) => void;
   sendMessage: (content: string) => void;
   pushSystemMessage: (content: string) => void;
@@ -40,6 +50,10 @@ interface ChatState {
   closeDrawer: () => void;
   toggleDrawer: () => void;
   clearPendingBlockCommand: () => void;
+  /** User confirmed in the preview drawer — commit the block. */
+  confirmProposal: () => Promise<void>;
+  /** User cancelled — clear the pending proposal (no server call in M3). */
+  cancelProposal: () => void;
 }
 
 const ChatContext = createContext<ChatState | null>(null);
@@ -62,6 +76,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [chatMode, setChatMode] = useState<ChatMode>("investigate");
   const [pendingBlockCommand, setPendingBlockCommand] =
     useState<PendingBlockCommand | null>(null);
+  const [pendingProposal, setPendingProposal] =
+    useState<PendingProposal | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatMessage[]>(messages);
   messagesRef.current = messages;
@@ -110,9 +126,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setIsStreaming(true);
       let accumulated = "";
 
-      // Build mode runs through the new five-stage orchestrator endpoint.
+      // Build mode runs through the five-stage orchestrator endpoint.
       // Investigate + General keep the legacy fence-parsing path.
       if (chatMode === "build") {
+        // Stage 2 and Stage 3 outputs arrive as separate SSE events
+        // before the final proposal. Accumulate them so the commit
+        // endpoint gets the full Stage 1–4 trace when the trader
+        // confirms in the preview drawer.
+        let latestIntent: IntentOutput | null = null;
+        let latestSynthesis: SynthesisOutput | null = null;
+
         const controller = streamBuildConverse(
           { conversation },
           {
@@ -120,26 +143,40 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               accumulated += text;
               updateMessage(assistantId, accumulated);
             },
+            onStageOutput: (stage, output) => {
+              if (stage === "intent") {
+                latestIntent = output as IntentOutput;
+              } else if (stage === "synthesis") {
+                latestSynthesis = output as SynthesisOutput;
+              }
+            },
             onProposal: (payload) => {
-              // Short human-readable confirmation; the BlockDrawer
-              // (or auto-executor) is the real UX.
+              const intent = latestIntent;
+              const synthesis = latestSynthesis;
+              if (!intent || !synthesis) {
+                pushMessage(
+                  "system",
+                  "Internal error: proposal arrived before intent/synthesis.",
+                );
+                return;
+              }
               const tail =
                 payload.action === "create_manual_block"
-                  ? "Preparing your block — review the pre-filled form and submit when ready."
-                  : `Creating stream ${payload.stream_name}.`;
+                  ? "Preparing preview — review the impact and confirm to create the block."
+                  : `Preparing to register ${payload.stream_name} — review and confirm.`;
               accumulated = accumulated
                 ? `${accumulated}\n\n${tail}`
                 : tail;
               updateMessage(assistantId, accumulated);
 
-              const cmd = payloadToEngineCommand(payload);
-              if (cmd.action === "create_manual_block") {
-                setPendingBlockCommand({ params: cmd.params });
-              } else {
-                executeNonInteractiveCommands([cmd]).then((results) => {
-                  for (const msg of results) pushMessage("system", msg);
+              previewBlock(payload)
+                .then((preview) => {
+                  setPendingProposal({ payload, intent, synthesis, preview });
+                })
+                .catch((err) => {
+                  const detail = err instanceof Error ? err.message : String(err);
+                  pushMessage("system", `Preview failed: ${detail}`);
                 });
-              }
             },
             onDone: () => {
               setIsStreaming(false);
@@ -255,6 +292,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setInvestigation(null);
   }, []);
 
+  const cancelProposal = useCallback(() => {
+    setPendingProposal(null);
+  }, []);
+
+  const confirmProposal = useCallback(async () => {
+    const proposal = pendingProposal;
+    if (!proposal) return;
+    try {
+      const resp = await commitBlock({
+        payload: proposal.payload,
+        intent: proposal.intent,
+        synthesis: proposal.synthesis,
+        preview: proposal.preview,
+      });
+      pushMessage(
+        "system",
+        `\u2713 Stream '${resp.stream_name}' committed (intent id ${resp.stored_intent_id.slice(0, 8)}).`,
+      );
+      setPendingProposal(null);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      pushMessage("system", `\u2717 Commit failed: ${detail}`);
+      // Keep the drawer open so the trader can retry.
+      throw err;
+    }
+  }, [pendingProposal, pushMessage]);
+
   const value = useMemo<ChatState>(
     () => ({
       messages,
@@ -263,6 +327,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       drawerOpen,
       chatMode,
       pendingBlockCommand,
+      pendingProposal,
       setChatMode,
       sendMessage,
       pushSystemMessage,
@@ -274,6 +339,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       closeDrawer,
       toggleDrawer,
       clearPendingBlockCommand,
+      confirmProposal,
+      cancelProposal,
     }),
     [
       messages,
@@ -282,6 +349,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       drawerOpen,
       chatMode,
       pendingBlockCommand,
+      pendingProposal,
       sendMessage,
       pushSystemMessage,
       clearMessages,
@@ -292,6 +360,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       closeDrawer,
       toggleDrawer,
       clearPendingBlockCommand,
+      confirmProposal,
+      cancelProposal,
     ],
   );
 

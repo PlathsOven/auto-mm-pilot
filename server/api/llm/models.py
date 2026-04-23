@@ -67,3 +67,39 @@ class LlmCall(Base):
 
 Index("ix_llm_calls_user_stage", LlmCall.user_id, LlmCall.stage)
 Index("ix_llm_calls_turn", LlmCall.conversation_turn_id)
+
+
+class BlockIntent(Base):
+    """One row per successful Stage-5 commit.
+
+    Binds a created stream back to the natural-language intent that
+    spawned it. The Inspector queries this via ``GET /api/streams/{name}
+    /intent`` to answer "why does this block exist?" in the trader's
+    own words.
+
+    The three JSON columns carry the full Stage-1→4 trace — intent
+    (structured or raw), synthesis (preset selection or custom
+    derivation + critique), and the preview diff the trader confirmed.
+    Later sessions can audit not just what the block is but why the
+    pipeline thought that was the right shape.
+    """
+
+    __tablename__ = "block_intents"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False,
+    )
+    stream_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    original_phrasing: Mapped[str] = mapped_column(Text, nullable=False)
+    intent_output: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    synthesis_output: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    preview_response: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    # Denormalised for analytics — which presets does the desk reach for?
+    preset_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    custom_derivation_reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+Index("ix_block_intents_user_stream", BlockIntent.user_id, BlockIntent.stream_name)

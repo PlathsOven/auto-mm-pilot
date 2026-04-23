@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CommandPalette } from "./components/shared/CommandPalette";
 import { BlockDrawer } from "./components/studio/brain/BlockDrawer";
+import { ProposalPreviewDrawer } from "./components/proposal/ProposalPreviewDrawer";
 import { HotkeyCheatsheet } from "./components/workbench/HotkeyCheatsheet";
 import { AppShell } from "./components/shell/AppShell";
 import { PositSplash } from "./components/shell/PositSplash";
@@ -35,7 +36,10 @@ const MODE_FADE_S = 0.22;
 export function App() {
   const { user } = useAuth();
   const { mode } = useMode();
-  const { pendingBlockCommand, clearPendingBlockCommand, toggleDrawer } = useChat();
+  const {
+    pendingBlockCommand, clearPendingBlockCommand, toggleDrawer,
+    pendingProposal, confirmProposal, cancelProposal,
+  } = useChat();
   const { clearFocus } = useFocus();
   const { togglePalette } = useCommandPalette();
   const [cheatsheetOpen, setCheatsheetOpen] = useState(false);
@@ -131,6 +135,11 @@ export function App() {
         initialParams={pendingBlockCommand?.params ?? null}
         onClose={handleBlockDrawerClose}
         onSaved={handleBlockDrawerSaved}
+      />
+      <ProposalPreviewDrawer
+        proposal={pendingProposal}
+        onConfirm={confirmProposal}
+        onCancel={cancelProposal}
       />
     </>
   );
