@@ -3,11 +3,16 @@ from __future__ import annotations
 
 import httpx
 
+from typing import Any
+
 from posit_sdk.exceptions import PositApiError, PositAuthError, PositZeroEdgeBlocked
 from posit_sdk.models import (
     BankrollResponse,
     BlockConfig,
     BlockRowResponse,
+    ConnectorCatalogResponse,
+    ConnectorInputResponse,
+    ConnectorInputRow,
     HealthResponse,
     MarketValueEntry,
     PositionPayload,
@@ -176,10 +181,16 @@ class RestClient:
         offset: float = 0.0,
         exponent: float = 1.0,
         block: BlockConfig | None = None,
+        connector_name: str | None = None,
+        connector_params: dict[str, Any] | None = None,
     ) -> StreamResponse:
         payload: dict = {"scale": scale, "offset": offset, "exponent": exponent}
         if block is not None:
             payload["block"] = block.model_dump()
+        if connector_name is not None:
+            payload["connector_name"] = connector_name
+        if connector_params is not None:
+            payload["connector_params"] = connector_params
         resp = await self._client.post(
             f"/api/streams/{stream_name}/configure", json=payload,
         )
@@ -189,6 +200,28 @@ class RestClient:
     async def delete_stream(self, stream_name: str) -> None:
         resp = await self._client.delete(f"/api/streams/{stream_name}")
         self._raise_for_status(resp)
+
+    # ----- Connectors -----
+
+    async def list_connectors(self) -> ConnectorCatalogResponse:
+        resp = await self._client.get("/api/connectors")
+        self._raise_for_status(resp)
+        return ConnectorCatalogResponse.model_validate(resp.json())
+
+    async def push_connector_input(
+        self,
+        stream_name: str,
+        rows: list[ConnectorInputRow],
+    ) -> ConnectorInputResponse:
+        body = {
+            "stream_name": stream_name,
+            "rows": [r.model_dump() for r in rows],
+        }
+        resp = await self._client.post(
+            f"/api/streams/{stream_name}/connector-input", json=body,
+        )
+        self._raise_for_status(resp)
+        return ConnectorInputResponse(**resp.json())
 
     # ----- Snapshots -----
 
