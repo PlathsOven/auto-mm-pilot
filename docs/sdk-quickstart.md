@@ -19,10 +19,11 @@ client you use to push those feeds and read the positions back.
     2. [Missing `market_value` → zero positions](#2-missing-market_value--zero-positions)
     3. [Units: raw → target](#3-units-raw--target)
 5. [Going to production](#going-to-production)
-6. [Long-running feeders](#long-running-feeders)
-7. [Debugging when positions look wrong](#debugging-when-positions-look-wrong)
-8. [Error cheatsheet](#error-cheatsheet)
-9. [Long-lived feeder checklist](#long-lived-feeder-checklist)
+6. [Connector-fed streams](#connector-fed-streams)
+7. [Long-running feeders](#long-running-feeders)
+8. [Debugging when positions look wrong](#debugging-when-positions-look-wrong)
+9. [Error cheatsheet](#error-cheatsheet)
+10. [Long-lived feeder checklist](#long-lived-feeder-checklist)
 
 ---
 
@@ -485,6 +486,75 @@ async for evt in client.events():
 ```
 
 The queue is unbounded — drain it, or don't subscribe.
+
+---
+
+## Connector-fed streams
+
+A **connector** is a server-side pre-built input transform — instead of
+computing `raw_value` yourself and pushing it via `push_snapshot`, you
+push raw inputs (e.g. spot ticks) to a connector that computes the
+`raw_value` for you (e.g. realised vol). The connector implementation
+lives behind the IP barrier; you only see catalog metadata.
+
+The first connector is `realized_vol` — it consumes spot-price ticks per
+symbol and emits an annualised realised-vol estimate using a
+multi-horizon time-decayed EWMA. The connector ships with sensible
+defaults; everything below is the recommended path.
+
+```python
+from posit_sdk import ConnectorInputRow, PositClient
+
+async with PositClient.from_env() as client:
+    # 1. Inspect the catalog (auth-required, metadata only).
+    catalog = await client.list_connectors()
+    for c in catalog.connectors:
+        print(c.name, c.display_name, c.output_unit_label)
+        # → realized_vol  Realized Volatility  annualized vol (fractional)
+
+    # 2. Idempotent setup — applies the connector's recommended defaults
+    #    (scale / offset / exponent / block) and accepts user param
+    #    overrides. Re-runs are no-ops on matching state.
+    await client.upsert_connector_stream(
+        "rv_btc",
+        connector_name="realized_vol",
+        key_cols=["symbol", "expiry"],
+        params={"halflife_minutes": 60},  # default is 1440 (1 day)
+    )
+
+    # 3. Push spot ticks. The server runs the EWMA, fans the per-symbol
+    #    output across the dim universe, and emits a SnapshotRow when
+    #    avg_rv changes.
+    await client.push_connector_input("rv_btc", [
+        ConnectorInputRow(timestamp="2026-01-01T00:00:00", symbol="BTC", price=68500.0),
+        ConnectorInputRow(timestamp="2026-01-01T00:00:01", symbol="BTC", price=68512.5),
+    ])
+
+    # 4. Inspect warmup progress.
+    state = await client.describe_stream("rv_btc")
+    print(state.connector_state_summary)
+    # → ConnectorStateSummary(min_n_eff=..., warmup_threshold=1.0, symbols_tracked=1)
+```
+
+**Routing rules.** Connector-fed streams reject `push_snapshot`
+(`STREAM_IS_CONNECTOR_FED` 409, surfaced as `PositValidationError`).
+User-fed streams reject `push_connector_input`
+(`STREAM_IS_NOT_CONNECTOR_FED` 409, same exception). Pick a path per
+stream and stick with it.
+
+**Bootstrapping limitation (v1).** The connector emits per-symbol values
+that are fanned across `(symbol, expiry)` pairs in the **current** dim
+universe before they reach the pipeline. If your only configured stream
+is connector-fed, the universe is empty and emissions become zero rows
+— the pipeline never sees the connector's output. Configure at least one
+user-fed or manual-block stream first to seed the universe (a
+`MarketValueEntry` per `(symbol, expiry)` does not count — the universe
+is computed from registered streams' snapshot rows).
+
+**Live setup.** WebSocket pushes (`push_connector_input` falls through
+to `push_connector_input_ws` when `connect_ws=True`) cut latency to ACK
+to one round-trip — preferred for high-rate spot feeds. REST is the
+fallback when the WS is down.
 
 ---
 

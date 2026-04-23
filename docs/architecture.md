@@ -83,6 +83,9 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `client/ui/src/components/studio/anatomy/AnatomyCanvas.tsx` | Anatomy — React Flow DAG. Stream nodes (click to edit, hover for mapping/block details/active toggle/delete), `+ New stream` tile under the stream column, transform nodes, output node. |
 | `client/ui/src/components/studio/anatomy/nodes/StreamNode.tsx` | Stream node card + hover popover (portal-rendered). |
 | `client/ui/src/components/studio/anatomy/nodes/AddStreamNode.tsx` | `+ New stream` tile — click opens a blank StreamCanvas in the detail panel. |
+| `client/ui/src/components/studio/anatomy/nodes/ConnectorNode.tsx` | Anatomy node rendered upstream of every connector-fed stream — labelled with the connector's display name + output unit so the trader can read provenance (input → connector → stream → pipeline) at a glance. |
+| `client/ui/src/services/connectorApi.ts` | Thin wrapper over `GET /api/connectors`; metadata only — connector implementations stay server-side. |
+| `client/ui/src/hooks/useConnectorCatalog.ts` | Module-cached connector catalog hook — one fetch per page load, shared across the canvas + Anatomy DAG. |
 | `client/ui/src/components/studio/anatomy/NodeDetailPanel.tsx` | Right-side inspector hosted by AnatomyCanvas — renders StreamCanvas for stream nodes, TransformDetail for transforms. |
 | `client/ui/src/components/studio/StreamCanvas.tsx` | 7-section stream create/edit form — hosted inside NodeDetailPanel. |
 | `client/ui/src/services/api.ts` | `apiFetch` JSON wrapper + `streamFetchSSE` SSE helper — canonical HTTP/SSE path for every other service module |
