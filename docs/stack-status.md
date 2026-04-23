@@ -40,7 +40,7 @@
 | **Core Pipeline** | `server/core/` (`config.py`, `helpers.py`, `transforms/`, `pipeline.py`, `serializers.py`, `mock_scenario.py`) | `PROD` | Polars | Steps 4–6: config, helpers, per-step transform modules in `transforms/`, orchestration pipeline, serializers. Running on mock scenario data. |
 | **Connector Registry** | `server/core/connectors/` (`__init__.py`, `base.py`, `registry.py`, `realized_vol.py`) | `PROD` | `server/core/config.py` | Pre-built input transforms. One registered connector today: `realized_vol` (multi-horizon EWMA over spot ticks → annualized RV). Adding a connector = one new module + registry entry. |
 | **Connector Catalog Endpoint** | `server/api/routers/connectors.py` | `PROD` | Connector Registry | `GET /api/connectors` returns wire-shape catalog (name, input schema, params, recommended block). Auth-required, process-global. |
-| **Connector State Store** | `server/api/connector_state.py` | `PROD` | Connector Registry, Stream Registry | Per-user, per-stream opaque state object. Integrated with WS client ingest (`connector_input` frame type) and `POST /api/streams/{name}/connector-input`. Wiring on `stream_registry.py` uncommitted as of session start. |
+| **Connector State Store** | `server/api/connector_state.py` | `PROD` | Connector Registry, Stream Registry | Per-user, per-stream opaque state object. Integrated with WS client ingest (`connector_input` frame type) and `POST /api/streams/{name}/connector-input`; stream registry routes pushes to snapshots vs. connector-input and raises `STREAM_IS_CONNECTOR_FED` / `STREAM_IS_NOT_CONNECTOR_FED` on mis-routed ingest. |
 
 ## SDK (`sdk/`)
 
