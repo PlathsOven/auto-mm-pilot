@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { Tooltip } from "../ui/Tooltip";
 
 interface HotkeyCheatsheetProps {
   open: boolean;
@@ -58,14 +59,16 @@ export function HotkeyCheatsheet({ open, onClose }: HotkeyCheatsheetProps) {
           >
             <div className="flex items-center justify-between border-b border-black/[0.06] px-4 py-2">
               <span className="zone-header">Keyboard shortcuts</span>
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-md p-1 text-[11px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
-                title="Close (Esc)"
-              >
-                ✕
-              </button>
+              <Tooltip label="Close cheatsheet (Esc)" side="left">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close keyboard shortcuts"
+                  className="rounded-md p-1 text-[11px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
+                >
+                  ✕
+                </button>
+              </Tooltip>
             </div>
             <div className="max-h-[60vh] overflow-y-auto px-4 py-3">
               {ROWS.map((group) => (

@@ -22,6 +22,7 @@ import { usePositionEdit } from "../hooks/usePositionEdit";
 import { usePositionHover } from "../hooks/usePositionHover";
 import { StreamAttributionHoverCard } from "./floor/StreamAttributionHoverCard";
 import { MetricDropdown, SmoothingToggle } from "./ui/MetricControls";
+import { Tooltip } from "./ui/Tooltip";
 import {
   computeRowTotal,
   computeColTotal,
@@ -163,15 +164,24 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
               <tr className="border-b border-black/[0.06] text-[10px] text-mm-text-subtle">
                 <th className="px-2 py-1.5 text-left font-medium" />
                 {expiries.map((exp) => (
-                  <th
-                    key={exp}
-                    onClick={() => setExpiryFocus(exp)}
-                    className={`cursor-pointer px-2 py-1.5 text-center font-medium transition-colors hover:text-mm-accent ${
-                      isFocused({ kind: "expiry", expiry: exp }) ? "text-mm-accent" : ""
-                    }`}
-                  >
-                    {exp}
-                  </th>
+                  <Tooltip key={exp} label={`Focus ${exp} — filter the workspace to this expiry`} side="bottom">
+                    <th
+                      tabIndex={0}
+                      aria-label={`Focus expiry ${exp}`}
+                      onClick={() => setExpiryFocus(exp)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setExpiryFocus(exp);
+                        }
+                      }}
+                      className={`cursor-pointer px-2 py-1.5 text-center font-medium transition-colors hover:text-mm-accent ${
+                        isFocused({ kind: "expiry", expiry: exp }) ? "text-mm-accent" : ""
+                      }`}
+                    >
+                      {exp}
+                    </th>
+                  </Tooltip>
                 ))}
                 <th className="px-2 py-1.5 text-center font-medium">Total</th>
               </tr>
@@ -182,14 +192,24 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
                   key={symbol}
                   className="border-b border-black/[0.04]"
                 >
-                  <td
-                    onClick={() => setSymbolFocus(symbol)}
-                    className={`cursor-pointer px-2 py-1.5 text-[12px] font-medium transition-colors hover:text-mm-accent ${
-                      isFocused({ kind: "symbol", symbol }) ? "text-mm-accent" : "text-mm-text"
-                    }`}
-                  >
-                    {symbol}
-                  </td>
+                  <Tooltip label={`Focus ${symbol} — filter the workspace to this symbol`} side="right">
+                    <td
+                      tabIndex={0}
+                      aria-label={`Focus symbol ${symbol}`}
+                      onClick={() => setSymbolFocus(symbol)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSymbolFocus(symbol);
+                        }
+                      }}
+                      className={`cursor-pointer px-2 py-1.5 text-[12px] font-medium transition-colors hover:text-mm-accent ${
+                        isFocused({ kind: "symbol", symbol }) ? "text-mm-accent" : "text-mm-text"
+                      }`}
+                    >
+                      {symbol}
+                    </td>
+                  </Tooltip>
                   {expiries.map((exp) => {
                     const key = `${symbol}-${exp}`;
                     const pos = grid.get(key);

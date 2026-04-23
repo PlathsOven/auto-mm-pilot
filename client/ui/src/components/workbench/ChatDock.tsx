@@ -4,6 +4,7 @@ import { LlmChat } from "../LlmChat";
 import { useChat } from "../../providers/ChatProvider";
 import { safeSetItem } from "../../utils";
 import { CHAT_DOCK_HEIGHT_PX, CHAT_DOCK_OPEN_KEY } from "../../constants";
+import { Tooltip } from "../ui/Tooltip";
 
 /**
  * Bottom chat dock — terminal-style.
@@ -87,11 +88,16 @@ export function ChatDock() {
         >
           {/* Resize handle */}
           {!maximized && (
-            <div
-              onMouseDown={onMouseDown}
-              className="absolute inset-x-0 top-0 z-10 h-1 cursor-row-resize bg-black/[0.04] transition-colors hover:bg-mm-accent/30"
-              title="Drag to resize"
-            />
+            <Tooltip label="Drag to resize chat dock" side="bottom">
+              <div
+                onMouseDown={onMouseDown}
+                role="separator"
+                aria-orientation="horizontal"
+                aria-label="Resize chat dock"
+                tabIndex={-1}
+                className="absolute inset-x-0 top-0 z-10 h-1 cursor-row-resize bg-black/[0.04] transition-colors hover:bg-mm-accent/30"
+              />
+            </Tooltip>
           )}
 
           <div className="flex h-full flex-col">
@@ -99,22 +105,26 @@ export function ChatDock() {
               <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">Posit Chat</span>
               <span className="text-[9px] text-mm-text-subtle">⌘/ to toggle · /help for commands</span>
               <div className="ml-auto flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setMaximized((v) => !v)}
-                  className="rounded p-1 text-[10px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
-                  title={maximized ? "Restore" : "Maximize"}
-                >
-                  {maximized ? "⤢" : "⤡"}
-                </button>
-                <button
-                  type="button"
-                  onClick={closeDrawer}
-                  className="rounded p-1 text-[11px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
-                  title="Close (⌘/)"
-                >
-                  ✕
-                </button>
+                <Tooltip label={maximized ? "Restore chat to previous size" : "Maximize chat to fill the workspace"} side="bottom">
+                  <button
+                    type="button"
+                    onClick={() => setMaximized((v) => !v)}
+                    aria-label={maximized ? "Restore chat" : "Maximize chat"}
+                    className="rounded p-1 text-[10px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
+                  >
+                    {maximized ? "⤢" : "⤡"}
+                  </button>
+                </Tooltip>
+                <Tooltip label="Close chat (⌘/)" side="bottom">
+                  <button
+                    type="button"
+                    onClick={closeDrawer}
+                    aria-label="Close chat"
+                    className="rounded p-1 text-[11px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
+                  >
+                    ✕
+                  </button>
+                </Tooltip>
               </div>
             </header>
             <div className="min-h-0 flex-1 overflow-hidden">
