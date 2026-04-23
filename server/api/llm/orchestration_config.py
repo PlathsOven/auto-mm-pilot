@@ -135,6 +135,16 @@ class LlmOrchestrationConfig:
         default_factory=lambda: int(os.getenv("LLM_DETECTOR_CONTEXT_WINDOW", "6"))
     )
 
+    # Stage 4 preview — if the live desired-position snapshot was captured
+    # more than this many seconds ago, the preview response notes that the
+    # "before" side reflects a stale snapshot so the trader can interpret
+    # the delta appropriately.
+    preview_stale_threshold_secs: float = field(
+        default_factory=lambda: float(os.getenv(
+            "LLM_PREVIEW_STALE_THRESHOLD_SECS", "30.0",
+        ))
+    )
+
     # ── Target budgets (design targets, not enforced at runtime) ─────────
     # End-to-end latency budget from trader submit to proposal visible.
     # Breaching this triggers the Milestone 2 follow-up: merge Stages 1 + 2

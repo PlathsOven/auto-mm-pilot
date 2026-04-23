@@ -26,6 +26,7 @@ from server.api.engine_state import (
     current_positions_per_dim,
     get_engine,
 )
+from server.api.llm.orchestration_config import get_llm_orchestration_config
 from server.api.market_value_store import to_dict as market_values_to_dict
 from server.api.models import (
     PositionDelta,
@@ -44,11 +45,6 @@ log = logging.getLogger(__name__)
 
 # Column names from the pipeline output used by the diff.
 _POSITION_COL = "smoothed_desired_position"
-
-# If the live ``desired_pos_df`` was computed more than this many seconds
-# ago, the preview response notes that the "before" side reflects a stale
-# snapshot so the trader can interpret the delta appropriately.
-_LIVE_STATE_STALE_SECS: float = 30.0
 
 
 def build_preview(
@@ -142,7 +138,7 @@ def build_preview(
                 if live_ts.tzinfo is not None:
                     live_ts = live_ts.astimezone(timezone.utc).replace(tzinfo=None)
                 age = (now - live_ts).total_seconds()
-                if age > _LIVE_STATE_STALE_SECS:
+                if age > get_llm_orchestration_config().preview_stale_threshold_secs:
                     notes.append(
                         f"Before state captured {age:.0f}s ago; live tick "
                         "will refresh after commit.",

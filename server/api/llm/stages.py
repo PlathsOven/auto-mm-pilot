@@ -21,6 +21,10 @@ from server.api.llm.client import OpenRouterClient
 from server.api.llm.openrouter_parse import get_tool_call, parse_json_content
 
 
+class StageError(Exception):
+    """Recoverable per-stage failure — surfaced to the client as an error event."""
+
+
 async def run_json_stage(
     *,
     client: OpenRouterClient,
