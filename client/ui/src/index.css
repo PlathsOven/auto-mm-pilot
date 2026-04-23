@@ -35,15 +35,12 @@
   /* ── Interactive cursor baseline ──
      Every affordance must be honest: anything clickable shows the click
      cursor, anything typable shows the text cursor, anything disabled
-     shows not-allowed. Tailwind's preflight sets `cursor: pointer` on
-     `<button>` and `[role="button"]` but also sets `cursor: default` on
-     `:disabled` — these rules close the gaps for role=tab, role=switch,
-     custom onClick divs (via tabindex), and keep `cursor: not-allowed`
-     on disabled controls where the Tailwind preflight default leaks
-     through. Direct selectors (no `:where`) so specificity matches
-     Tailwind's preflight and component-level Tailwind utilities still
-     win on explicit override via `.cursor-*` classes (those live in
-     `@layer utilities`, which cascades after `@layer base`). */
+     shows not-allowed. `!important` is used here because in this
+     codebase a handful of third-party stylesheets (react-flow, echarts
+     overlay layers, electron chrome) occasionally leak `cursor: default`
+     onto wrapping elements, and the cost of a stray wrong cursor in a
+     trading UI outweighs the usual "avoid !important" rule. These are
+     affordance signals, not decoration — they must always win. */
   button:not(:disabled),
   a[href],
   [role="button"]:not([aria-disabled="true"]),
@@ -53,13 +50,13 @@
   [role="option"]:not([aria-disabled="true"]),
   summary,
   label[for] {
-    cursor: pointer;
+    cursor: pointer !important;
   }
 
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([disabled]),
   textarea:not([disabled]),
   [contenteditable]:not([contenteditable="false"]) {
-    cursor: text;
+    cursor: text !important;
   }
 
   button:disabled,
@@ -67,7 +64,7 @@
   input:disabled,
   textarea:disabled,
   select:disabled {
-    cursor: not-allowed;
+    cursor: not-allowed !important;
   }
 
   /* Keyboard-focus ring on interactive elements. `:focus-visible` keeps
