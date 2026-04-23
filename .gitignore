@@ -36,6 +36,7 @@ Thumbs.db
 
 # Electron
 *.asar
+client/ui/dist-electron/
 
 # Generated test data (produced by notebook export cell)
 server/api/llm/test_data/
