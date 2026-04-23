@@ -14,20 +14,8 @@
  */
 import { useCallback, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type {
-  IntentOutput,
-  PositionDelta,
-  PreviewResponse,
-  ProposedBlockPayload,
-  SynthesisOutput,
-} from "../../types";
-
-export interface PendingProposal {
-  payload: ProposedBlockPayload;
-  intent: IntentOutput;
-  synthesis: SynthesisOutput;
-  preview: PreviewResponse;
-}
+import type { IntentOutput, PositionDelta, SynthesisOutput } from "../../types";
+import type { PendingProposal } from "../../providers/ChatProvider";
 
 interface Props {
   proposal: PendingProposal | null;
