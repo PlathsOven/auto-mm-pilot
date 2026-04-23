@@ -26,6 +26,11 @@ from server.api.models import (
 
 router = APIRouter()
 
+# v1 approximation: each `app_focus` event represents ~1 minute of dwell.
+# Replace with a paired focus/blur sum once analytics volume justifies the
+# query cost. See `_summarise_sync` below.
+_FOCUS_EVENT_APPROX_SECS = 60
+
 
 def _summarise_sync() -> list[AdminUserSummary]:
     """Build one AdminUserSummary per user via three aggregated queries."""
@@ -47,8 +52,8 @@ def _summarise_sync() -> list[AdminUserSummary]:
         )
 
         # time-on-app = sum of (app_blur.created_at - matching app_focus.created_at).
-        # v1 approximation: count of focus events × 60s — swap for a real
-        # paired-event sum when analytics volume makes it worth the query.
+        # v1 approximates with a per-focus-event constant — see
+        # `_FOCUS_EVENT_APPROX_SECS` at the top of this module.
         focus_counts = dict(
             db.execute(
                 select(UsageEvent.user_id, func.count())
@@ -64,7 +69,7 @@ def _summarise_sync() -> list[AdminUserSummary]:
 
         out: list[AdminUserSummary] = []
         for u in users:
-            focus_seconds = focus_counts.get(u.id, 0) * 60
+            focus_seconds = focus_counts.get(u.id, 0) * _FOCUS_EVENT_APPROX_SECS
             out.append(AdminUserSummary(
                 id=u.id,
                 username=u.username_display,
