@@ -18,7 +18,6 @@ shared ``conversation_turn_id`` so the full turn is grouped in the audit.
 from __future__ import annotations
 
 import json
-import logging
 from typing import Any, AsyncIterator
 
 from pydantic import ValidationError
@@ -48,8 +47,6 @@ from server.api.models import (
     IntentOutput,
     SynthesisOutput,
 )
-
-log = logging.getLogger(__name__)
 
 # Canned reply when the router classifies the input as conversational or
 # a factual question — Build mode is the wrong mode for those.
