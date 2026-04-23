@@ -1,9 +1,8 @@
 """
 Build orchestrator — glues Stages 1 → 2 → 3 (+3.5 on Mode B).
 
-Replaces the monolithic Build mode from ``prompts/build.py``. Each
-stage is a small async function; the orchestrator yields typed events
-that the router serialises to SSE frames.
+Each stage is a small async function; the orchestrator yields typed
+events that the router serialises to SSE frames.
 
 Event shapes (dict payloads so SSE serialisation is trivial):
 - ``{"delta": "<text>"}`` — natural-language assistant message

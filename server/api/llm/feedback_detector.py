@@ -8,9 +8,8 @@ a single JSON object; the caller fans the output to three destinations:
 - ``discontent_signals[]`` → ``llm_failures`` (``signal_type="discontent"``)
 - ``preference_signals[]`` → ``user_context_entries`` (upsert by key)
 
-Replaces the narrow ``correction_detector`` from M1. Designed to fire
-via ``asyncio.create_task`` — never adds latency to the main response,
-never raises: all errors are logged and swallowed.
+Designed to fire via ``asyncio.create_task`` — never adds latency to
+the main response, never raises: all errors are logged and swallowed.
 """
 
 from __future__ import annotations

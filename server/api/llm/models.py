@@ -36,7 +36,7 @@ class LlmCall(Base):
 
     Rows are grouped by ``conversation_turn_id`` — every LLM call spawned
     by a single user turn (router + intent + synthesis + critique, or
-    investigation + correction-detector) shares the same id.
+    investigation + feedback_detector) shares the same id.
     """
 
     __tablename__ = "llm_calls"
@@ -47,7 +47,7 @@ class LlmCall(Base):
     )
     conversation_turn_id: Mapped[str] = mapped_column(String(36), nullable=False)
     # Stage values (spec §9.1): "router", "intent", "synthesis", "critique",
-    # "investigation", "general", "correction_detector", "feedback_detector".
+    # "investigation", "general", "feedback_detector".
     stage: Mapped[str] = mapped_column(String(32), nullable=False)
     mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
     model: Mapped[str] = mapped_column(String(128), nullable=False)
