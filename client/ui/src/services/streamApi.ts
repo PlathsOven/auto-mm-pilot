@@ -87,6 +87,10 @@ export interface ConfigureStreamRequest {
   value_column?: string | null;
   /** (symbol, expiry) pairs this stream's blocks fan out to. null = every pair. */
   applies_to?: [string, string][] | null;
+  /** Mark the stream connector-fed; pushes go via /connector-input instead
+   *  of /api/snapshots. Null = user-fed (default). */
+  connector_name?: string | null;
+  connector_params?: Record<string, unknown> | null;
 }
 
 /**

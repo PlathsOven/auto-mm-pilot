@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRegisteredStreams } from "../../hooks/useRegisteredStreams";
+import { useConnectorCatalog, findConnector } from "../../hooks/useConnectorCatalog";
 import { IdentitySection } from "./sections/IdentitySection";
 import { DataShapeSection } from "./sections/DataShapeSection";
 import { TargetMappingSection } from "./sections/TargetMappingSection";
@@ -15,18 +16,15 @@ import {
   type StreamDraft,
   type StreamDraftPrefill,
 } from "./canvasState";
-import { STREAM_TEMPLATES } from "./streamTemplates";
 import { configureStream, createStream, ingestSnapshot } from "../../services/streamApi";
-import type { RegisteredStream } from "../../types";
+import type { ConnectorSchema, RegisteredStream } from "../../types";
 
 interface Props {
   /** Stream name from the URL (#anatomy?stream={name}) — empty for a new draft. */
   streamName: string | null;
-  /** Optional template id from URL query, e.g. #anatomy?stream=new&template=fomc_event */
-  templateId: string | null;
   /** Optional pre-filled draft values — used when deep-linking from the
    *  Notifications center with a captured unregistered push. Only applied
-   *  when `streamName === "new"` (templateId wins if also set). */
+   *  when `streamName === "new"`. */
   prefill?: StreamDraftPrefill | null;
   /** Fired after a successful Activate. Parent (AnatomyCanvas) is expected
    *  to close the form, surface the Streams list, and pan the DAG to the
@@ -39,18 +37,21 @@ interface Props {
 const NEW_STREAM_SENTINEL = "new";
 
 /**
- * The Studio Stream Canvas. Hosts all 7 sections plus the sticky Activate
+ * The Studio Stream Canvas. Hosts all 6 sections plus the sticky Activate
  * footer.
  *
  * State model: a single `StreamDraft` lives in this component. Each section
- * receives its slice + an updater. Activation state (in-flight flag,
- * result) is owned here so the footer can stay pinned and independent of
- * the scrolling sections.
+ * receives its slice + an updater. Picking a connector in the Identity
+ * section cascades through the whole draft — sections 3-6 reset to the
+ * connector's recommended defaults and lock; the Data Shape panel switches
+ * to a read-only schema; the Preview tab swaps the draft summary for an
+ * SDK integration snippet.
  */
-export function StreamCanvas({ streamName, templateId, prefill, onActivated }: Props) {
+export function StreamCanvas({ streamName, prefill, onActivated }: Props) {
   const { streams: registry, refresh: refreshRegistry, addStream } = useRegisteredStreams();
+  const { connectors: connectorCatalog } = useConnectorCatalog();
   const [draft, setDraft] = useState<StreamDraft>(() =>
-    initialDraft(streamName, templateId, prefill ?? null),
+    initialDraft(streamName, prefill ?? null),
   );
   // `streamName === "new"` is a URL sentinel, not a registered stream — the
   // pending name stays null until Activate creates the real one.
@@ -74,12 +75,20 @@ export function StreamCanvas({ streamName, templateId, prefill, onActivated }: P
     setDraft((prev) => hydrateDraftFromRegistry(prev, existing));
   }, [streamName, registry]);
 
+  const isConnectorFed = draft.connector_name !== null;
   const states = useMemo(() => validateAll(draft), [draft]);
   const allValid = useMemo(() => isAllValid(states), [states]);
 
   const updateSlice = useCallback(<K extends keyof StreamDraft>(key: K, value: StreamDraft[K]) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
   }, []);
+
+  const handleConnectorChange = useCallback(
+    (next: string | null) => {
+      setDraft((prev) => applyConnectorSelection(prev, next, connectorCatalog));
+    },
+    [connectorCatalog],
+  );
 
   const handleStreamCreated = useCallback(
     (created: RegisteredStream) => {
@@ -93,9 +102,12 @@ export function StreamCanvas({ streamName, templateId, prefill, onActivated }: P
    * Activate lifecycle:
    *   1. Create the stream on the fly if we're in create-mode (no
    *      pendingStreamName), updating the local registry cache.
-   *   2. POST /api/streams/{name}/configure with target_mapping + block_shape.
-   *   3. If the sample CSV is non-empty, ingest those rows via POST
-   *      /api/snapshots.
+   *   2. POST /api/streams/{name}/configure with the resolved parameters
+   *      — connector_name + connector_params if connector-fed, or
+   *      target_mapping + block_shape if user-fed.
+   *   3. For user-fed streams with a non-empty sample CSV, ingest those
+   *      rows via POST /api/snapshots. Connector-fed streams skip this
+   *      step — pushes happen via the SDK after activation.
    *
    * We deliberately do NOT update the URL after step 1 — a hash change at
    * that point would remount <StreamCanvas/> mid-activation and wipe the
@@ -134,19 +146,23 @@ export function StreamCanvas({ streamName, templateId, prefill, onActivated }: P
           var_fair_ratio: draft.confidence.var_fair_ratio,
         },
         description: draft.identity.description || null,
-        sample_csv: draft.data_shape.sample_csv || null,
-        value_column: draft.data_shape.value_column || null,
+        sample_csv: isConnectorFed ? null : draft.data_shape.sample_csv || null,
+        value_column: isConnectorFed ? null : draft.data_shape.value_column || null,
+        connector_name: draft.connector_name,
+        connector_params: isConnectorFed ? draft.connector_params : null,
       });
 
-      const csvRows = parseCsvToRows(draft.data_shape.sample_csv);
-      if (csvRows.length > 0) {
-        await ingestSnapshot(targetName, csvRows);
+      if (!isConnectorFed) {
+        const csvRows = parseCsvToRows(draft.data_shape.sample_csv);
+        if (csvRows.length > 0) {
+          await ingestSnapshot(targetName, csvRows);
+        }
       }
 
-      setActivationResult({
-        type: "success",
-        message: `Activated ${targetName}. Floor positions will update on the next pipeline tick.`,
-      });
+      const message = isConnectorFed
+        ? `Activated ${targetName}. Push connector inputs via the SDK to start producing positions.`
+        : `Activated ${targetName}. Floor positions will update on the next pipeline tick.`;
+      setActivationResult({ type: "success", message });
       refreshRegistry();
       onActivated?.(targetName);
     } catch (err) {
@@ -161,6 +177,7 @@ export function StreamCanvas({ streamName, templateId, prefill, onActivated }: P
     allValid,
     draft,
     handleStreamCreated,
+    isConnectorFed,
     onActivated,
     pendingStreamName,
     refreshRegistry,
@@ -168,10 +185,6 @@ export function StreamCanvas({ streamName, templateId, prefill, onActivated }: P
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
-      {/* Main canvas — left 2/3. The column is itself a flex column:
-          sections scroll inside, footer stays pinned. Without the explicit
-          flex-col + min-h-0 split the footer would push the scroll area
-          off-screen instead of staying visible at the bottom. */}
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4">
           <div className="mb-4">
@@ -186,26 +199,32 @@ export function StreamCanvas({ streamName, templateId, prefill, onActivated }: P
               value={draft.identity}
               onChange={(v) => updateSlice("identity", v)}
               state={states.identity}
+              connectorName={draft.connector_name}
+              onConnectorChange={handleConnectorChange}
             />
             <DataShapeSection
               value={draft.data_shape}
               onChange={(v) => updateSlice("data_shape", v)}
               state={states.data_shape}
+              connectorName={draft.connector_name}
             />
             <TargetMappingSection
               value={draft.target_mapping}
               onChange={(v) => updateSlice("target_mapping", v)}
               state={states.target_mapping}
+              readOnly={isConnectorFed}
             />
             <BlockShapeSection
               value={draft.block_shape}
               onChange={(v) => updateSlice("block_shape", v)}
               state={states.block_shape}
+              readOnly={isConnectorFed}
             />
             <ConfidenceSection
               value={draft.confidence}
               onChange={(v) => updateSlice("confidence", v)}
               state={states.confidence}
+              readOnly={isConnectorFed}
             />
             <PreviewSection
               draft={draft}
@@ -225,11 +244,45 @@ export function StreamCanvas({ streamName, templateId, prefill, onActivated }: P
   );
 }
 
+/** Cascade a connector pick through the whole draft. Sections 3-6 inherit
+ *  the connector's recommended defaults; clearing the picker leaves the
+ *  current values in place (the user is now editing manually).
+ */
+function applyConnectorSelection(
+  prev: StreamDraft,
+  next: string | null,
+  catalog: ConnectorSchema[],
+): StreamDraft {
+  if (next === null) {
+    return { ...prev, connector_name: null, connector_params: {} };
+  }
+  const schema = findConnector(catalog, next);
+  if (!schema) return prev;
+  return {
+    ...prev,
+    connector_name: next,
+    connector_params: Object.fromEntries(
+      schema.params.map((p) => [p.name, p.default]),
+    ),
+    target_mapping: {
+      scale: schema.recommended_scale,
+      offset: schema.recommended_offset,
+      exponent: schema.recommended_exponent,
+    },
+    block_shape: {
+      annualized: schema.recommended_block.annualized,
+      temporal_position: schema.recommended_block.temporal_position,
+      decay_end_size_mult: schema.recommended_block.decay_end_size_mult,
+      decay_rate_prop_per_min: schema.recommended_block.decay_rate_prop_per_min,
+    },
+    confidence: { var_fair_ratio: schema.recommended_block.var_fair_ratio },
+  };
+}
+
 /**
  * Merge a `RegisteredStream` from the server back into the draft shape so
  * the form re-opens with the exact values last activated. `prev` wins for
- * any field the registry doesn't persist (nothing today, but keeps the
- * merge safe against future section additions).
+ * any field the registry doesn't persist.
  */
 function hydrateDraftFromRegistry(prev: StreamDraft, s: RegisteredStream): StreamDraft {
   return {
@@ -261,18 +314,15 @@ function hydrateDraftFromRegistry(prev: StreamDraft, s: RegisteredStream): Strea
     confidence: s.block
       ? { var_fair_ratio: s.block.var_fair_ratio }
       : prev.confidence,
+    connector_name: s.connector_name ?? null,
+    connector_params: s.connector_params ?? {},
   };
 }
 
 function initialDraft(
   streamName: string | null,
-  templateId: string | null,
   prefill: StreamDraftPrefill | null,
 ): StreamDraft {
-  if (templateId) {
-    const tpl = STREAM_TEMPLATES.find((t) => t.id === templateId);
-    if (tpl) return tpl.draft;
-  }
   // Prefill takes precedence over the bare streamName path because it
   // carries more information (example row → sample CSV, inferred key_cols).
   // It only applies to a brand-new draft — we never stomp a stream the
@@ -287,7 +337,8 @@ function initialDraft(
     return {
       ...EMPTY_DRAFT,
       identity: { ...EMPTY_DRAFT.identity, stream_name: streamName },
+      connector_params: { ...EMPTY_DRAFT.connector_params },
     };
   }
-  return EMPTY_DRAFT;
+  return { ...EMPTY_DRAFT, connector_params: { ...EMPTY_DRAFT.connector_params } };
 }

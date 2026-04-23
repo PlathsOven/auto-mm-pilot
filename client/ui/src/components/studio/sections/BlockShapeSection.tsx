@@ -3,11 +3,13 @@ import type { BlockShapeDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
 import { Field } from "./Field";
 import { formatNumber } from "../../../utils";
+import { ConnectorLockedHint } from "./TargetMappingSection";
 
 interface Props {
   value: BlockShapeDraft;
   onChange: (next: BlockShapeDraft) => void;
   state: SectionState;
+  readOnly?: boolean;
 }
 
 const SAMPLE_MINUTES = 60;
@@ -63,7 +65,7 @@ const SVG = {
   padBottom: 22,
 } as const;
 
-export function BlockShapeSection({ value, onChange, state }: Props) {
+export function BlockShapeSection({ value, onChange, state, readOnly = false }: Props) {
   const { steps } = useTransforms();
   const decayProfile = steps?.decay_profile?.selected ?? "linear";
   const series = decaySeries(decayProfile, value.decay_end_size_mult, value.decay_rate_prop_per_min);
@@ -84,10 +86,12 @@ export function BlockShapeSection({ value, onChange, state }: Props) {
           {decayProfile}
         </code>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      {readOnly && <ConnectorLockedHint />}
+      <div className="mt-2 grid grid-cols-2 gap-3">
         <Field
           type="toggle"
           label="Annualized"
+          disabled={readOnly}
           value={value.annualized}
           onChange={(v) => patch("annualized", v)}
         />
@@ -95,6 +99,7 @@ export function BlockShapeSection({ value, onChange, state }: Props) {
           type="select"
           label="Temporal position"
           required
+          disabled={readOnly}
           value={value.temporal_position}
           options={["static", "shifting"]}
           onChange={(v) => patch("temporal_position", v as "static" | "shifting")}
@@ -104,6 +109,7 @@ export function BlockShapeSection({ value, onChange, state }: Props) {
           label="decay_end_size_mult"
           required
           committable
+          disabled={readOnly}
           value={value.decay_end_size_mult}
           onChange={(v) => patch("decay_end_size_mult", v)}
         />
@@ -112,6 +118,7 @@ export function BlockShapeSection({ value, onChange, state }: Props) {
           label="decay_rate_prop_per_min"
           required
           committable
+          disabled={readOnly}
           value={value.decay_rate_prop_per_min}
           onChange={(v) => patch("decay_rate_prop_per_min", v)}
         />

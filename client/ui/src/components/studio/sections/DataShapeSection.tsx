@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { findConnector, useConnectorCatalog } from "../../../hooks/useConnectorCatalog";
 import type { DataShapeDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
 import { Field } from "./Field";
@@ -7,6 +8,9 @@ interface Props {
   value: DataShapeDraft;
   onChange: (next: DataShapeDraft) => void;
   state: SectionState;
+  /** Non-null when the stream is connector-fed — replaces the sample CSV
+   *  panel with a read-only schema describing the connector's input shape. */
+  connectorName?: string | null;
 }
 
 interface ParsedSchema {
@@ -30,11 +34,47 @@ function parseCsv(raw: string): ParsedSchema | null {
   return { headers, rowCount: rows.length, numericColumns };
 }
 
-export function DataShapeSection({ value, onChange, state }: Props) {
-  const schema = useMemo(() => parseCsv(value.sample_csv), [value.sample_csv]);
+export function DataShapeSection({ value, onChange, state, connectorName }: Props) {
+  const { connectors } = useConnectorCatalog();
+  const connector = findConnector(connectors, connectorName ?? null);
+  const schema = useMemo(
+    () => (connector ? null : parseCsv(value.sample_csv)),
+    [connector, value.sample_csv],
+  );
 
   const patch = <K extends keyof DataShapeDraft>(k: K, v: DataShapeDraft[K]) =>
     onChange({ ...value, [k]: v });
+
+  if (connector) {
+    return (
+      <SectionCard
+        title="Data Shape"
+        number={2}
+        status="valid"
+      >
+        <div className="grid gap-2 rounded-md border border-mm-accent/30 bg-mm-accent/[0.05] p-3 text-[10px]">
+          <div className="flex items-baseline justify-between">
+            <span className="text-mm-text-dim uppercase tracking-wider">Connector input schema</span>
+            <span className="font-mono text-mm-accent">{connector.name}</span>
+          </div>
+          <p className="text-mm-text-dim">
+            Push rows via <code className="font-mono">client.push_connector_input(...)</code>;
+            the connector consumes them and emits <code className="font-mono">raw_value</code> server-side.
+          </p>
+          <dl className="mt-1 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1">
+            <dt className="font-mono text-mm-text-dim">timestamp</dt>
+            <dd className="text-mm-text">ISO 8601 UTC</dd>
+            {connector.input_key_cols.map((k) => (
+              <FieldRow key={k} name={k} type="str" description="key column" />
+            ))}
+            {connector.input_value_fields.map((f) => (
+              <FieldRow key={f.name} name={f.name} type={f.type} description={f.description} />
+            ))}
+          </dl>
+        </div>
+      </SectionCard>
+    );
+  }
 
   return (
     <SectionCard
@@ -91,5 +131,16 @@ export function DataShapeSection({ value, onChange, state }: Props) {
         )}
       </div>
     </SectionCard>
+  );
+}
+
+function FieldRow({ name, type, description }: { name: string; type: string; description: string }) {
+  return (
+    <>
+      <dt className="font-mono text-mm-text-dim">
+        {name} <span className="text-[8px] text-mm-text-dim/70">({type})</span>
+      </dt>
+      <dd className="text-mm-text">{description}</dd>
+    </>
   );
 }
