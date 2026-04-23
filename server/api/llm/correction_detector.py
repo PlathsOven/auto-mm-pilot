@@ -15,6 +15,7 @@ import json
 import logging
 from typing import Any
 
+from server.api.llm.audit import record_call
 from server.api.llm.client import OpenRouterClient
 from server.api.llm.domain_kb import save_entry
 
@@ -66,6 +67,8 @@ async def detect_and_store(
     temperature: float,
     conversation: list[dict[str, str]],
     assistant_response: str,
+    user_id: str,
+    conversation_turn_id: str,
 ) -> None:
     """Check the latest exchange for corrections and persist any found.
 
@@ -76,6 +79,8 @@ async def detect_and_store(
         await _detect_and_store_inner(
             client, detector_models, max_tokens, temperature,
             conversation, assistant_response,
+            user_id=user_id,
+            conversation_turn_id=conversation_turn_id,
         )
     except Exception:
         log.warning("Correction detector failed", exc_info=True)
@@ -88,6 +93,9 @@ async def _detect_and_store_inner(
     temperature: float,
     conversation: list[dict[str, str]],
     assistant_response: str,
+    *,
+    user_id: str,
+    conversation_turn_id: str,
 ) -> None:
     """Inner implementation — may raise."""
     # Need at least one prior assistant message to have something to correct
@@ -111,12 +119,23 @@ async def _detect_and_store_inner(
         },
     ]
 
-    resp = await client.complete_with_fallback(
-        models=detector_models,
+    async with record_call(
+        user_id=user_id,
+        conversation_turn_id=conversation_turn_id,
+        stage="correction_detector",
+        mode=None,
+        model=detector_models[0],
         messages=messages,
-        max_tokens=max_tokens,
         temperature=temperature,
-    )
+        max_tokens=max_tokens,
+    ) as handle:
+        resp = await client.complete_with_fallback(
+            models=detector_models,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        handle.capture_openrouter_response(resp)
 
     raw = (
         resp.get("choices", [{}])[0]

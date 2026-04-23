@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -51,11 +52,16 @@ async def investigate(
     pipeline_snapshot = get_pipeline_snapshot(user.id)
     snapshot_buffer = get_snapshot_buffer(user.id)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+    # One turn_id groups every LLM call spawned by this user turn:
+    # the main investigation stream + the async correction-detector follow-up.
+    conversation_turn_id = str(uuid.uuid4())
 
     async def event_generator():
         full_response: list[str] = []
         try:
             async for delta in service.investigate_stream(
+                user_id=user.id,
+                conversation_turn_id=conversation_turn_id,
                 conversation=req.conversation,
                 engine_state=engine_state,
                 pipeline_snapshot=pipeline_snapshot,
@@ -74,6 +80,8 @@ async def investigate(
                 temperature=cfg.temperature_detector,
                 conversation=req.conversation,
                 assistant_response="".join(full_response),
+                user_id=user.id,
+                conversation_turn_id=conversation_turn_id,
             ))
 
             yield "data: [DONE]\n\n"

@@ -626,3 +626,186 @@ export interface AdminUserSummary {
 export interface AdminUserListResponse {
   users: AdminUserSummary[];
 }
+
+// ---------------------------------------------------------------------------
+// LLM orchestration — five-stage Build pipeline (mirror of
+// server/api/models.py §6; spec: tasks/spec-llm-orchestration.md).
+// ---------------------------------------------------------------------------
+
+export type IntentCategory = "stream" | "view" | "headline" | "question" | "none";
+
+export type ConfidenceLevel =
+  | "very_low"
+  | "low"
+  | "medium"
+  | "high"
+  | "very_high";
+
+/** Stage 1 router output — single classification + reasoning. */
+export interface IntakeClassification {
+  category: IntentCategory;
+  confidence: number;
+  reason: string;
+}
+
+/** Stage 2 structured-intent variant: trader's own discretionary view. */
+export interface DiscretionaryViewIntent {
+  kind: "view";
+  original_phrasing: string;
+  target_variable: string;
+  magnitude: number;
+  magnitude_unit: string;
+  time_horizon: "ongoing" | "event_window";
+  event_or_ongoing: "event" | "ongoing";
+  event_type: string | null;
+  start_timestamp: string | null;
+  symbols: string[];
+  expiries: string[];
+  confidence_relative: ConfidenceLevel;
+}
+
+/** Stage 2 structured-intent variant: a live feed the trader wants to connect. */
+export interface DataStreamIntent {
+  kind: "stream";
+  original_phrasing: string;
+  semantic_type: string;
+  units_in: string;
+  temporal_character: "ongoing" | "event_window";
+  key_cols: string[];
+  update_cadence: string;
+  confidence_relative: ConfidenceLevel;
+}
+
+/** Stage 2 structured-intent variant: a raw headline (full flow deferred). */
+export interface HeadlineIntent {
+  kind: "headline";
+  original_phrasing: string;
+  event_type: string;
+  market_variable_affected: string;
+  direction: "bullish_vol" | "bearish_vol" | "ambiguous";
+  magnitude_language: string;
+  probable_timeframe: string;
+}
+
+export type StructuredIntent =
+  | DiscretionaryViewIntent
+  | DataStreamIntent
+  | HeadlineIntent;
+
+/** Stage 2 fallback — input is framework-relevant but doesn't fit a schema. */
+export interface RawIntent {
+  kind: "raw";
+  original_phrasing: string;
+  llm_interpretation: string;
+  relevant_framework_concepts: string[];
+  unresolved_fields: string[];
+}
+
+/** Stage 2 top-level output — exactly one of the three nullable fields is set. */
+export interface IntentOutput {
+  classification: IntakeClassification;
+  structured: StructuredIntent | null;
+  raw: RawIntent | null;
+  clarifying_question: string | null;
+}
+
+/** Wire shape mirroring server/core/config.BlockConfig. */
+export interface BlockConfigDict {
+  annualized: boolean;
+  temporal_position: "static" | "shifting";
+  decay_end_size_mult: number;
+  decay_rate_prop_per_min: number;
+  var_fair_ratio: number;
+}
+
+/** Wire shape mirroring server/api/llm/parameter_presets.UnitConversion. */
+export interface UnitConversionDict {
+  scale: number;
+  offset: number;
+  exponent: number;
+  annualized: boolean;
+}
+
+/** Stage 3.5 output — LLM critique of a Mode B derivation. */
+export interface CustomDerivationCritique {
+  passes: boolean;
+  concerns: string[];
+  suggested_alternative_preset_id: string | null;
+}
+
+/** Stage 3 Mode A output — preset id + overrides. */
+export interface PresetSelection {
+  mode: "preset";
+  preset_id: string;
+  var_fair_ratio_override: number | null;
+  reasoning: string;
+}
+
+/** Stage 3 Mode B output — LLM-authored block + conversion + derivation. */
+export interface CustomDerivation {
+  mode: "custom";
+  block: BlockConfigDict;
+  unit_conversion: UnitConversionDict;
+  reasoning: string;
+  critique: CustomDerivationCritique | null;
+}
+
+export type SynthesisChoice = PresetSelection | CustomDerivation;
+
+/** Snapshot row shape for Stage 3 proposal payloads (distinct from ingest-side). */
+export interface ProposalSnapshotRow {
+  timestamp: string;
+  symbol: string;
+  expiry: string;
+  raw_value: number;
+  start_timestamp: string | null;
+}
+
+/** Fully parameterised block proposal, pre-preview. */
+export interface ProposedBlockPayload {
+  action: "create_stream" | "create_manual_block";
+  stream_name: string;
+  key_cols: string[];
+  scale: number;
+  offset: number;
+  exponent: number;
+  block: BlockConfigDict;
+  snapshot_rows: ProposalSnapshotRow[];
+}
+
+/** Stage 3 top-level — exactly one of preset/custom is set on choice. */
+export interface SynthesisOutput {
+  choice: SynthesisChoice;
+  proposed_payload: ProposedBlockPayload;
+}
+
+/** One (symbol, expiry) row of a preview diff. */
+export interface PositionDelta {
+  symbol: string;
+  expiry: string;
+  before: number;
+  after: number;
+  absolute_change: number;
+  percent_change: number | null;
+}
+
+/** Stage 4 output — position impact of applying the proposed block. */
+export interface PreviewResponse {
+  deltas: PositionDelta[];
+  total_bankroll_usage_before: number;
+  total_bankroll_usage_after: number;
+  notes: string[];
+}
+
+/** Persisted intent / params / preview triplet — one row of block_intents. */
+export interface StoredBlockIntent {
+  id: string;
+  user_id: string;
+  stream_name: string;
+  action: "create_stream" | "create_manual_block";
+  original_phrasing: string;
+  intent: IntentOutput;
+  synthesis: SynthesisOutput;
+  preview: PreviewResponse;
+  created_at: string;
+}
