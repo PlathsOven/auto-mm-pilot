@@ -243,46 +243,61 @@ def _compute_deltas(
     before_df: pl.DataFrame | None,
     after_df: pl.DataFrame,
 ) -> list[PositionDelta]:
-    """Build the list of (symbol, expiry) position deltas.
+    """Build the list of ``(symbol, expiry)`` position deltas.
 
-    Joins the "current row" per dim from each DataFrame on
-    (symbol, expiry) and emits one ``PositionDelta`` per dim that
-    appears in the after-frame. Non-positive percent-change is None
-    when ``before == 0`` (undefined).
+    Left-joins the "current row" per dim from each frame on
+    ``(symbol, expiry)`` and emits one ``PositionDelta`` per dim that
+    appears in the after-frame. ``percent_change`` is ``None`` when
+    ``before == 0`` (undefined).
     """
     after_current = current_positions_per_dim(after_df)
+    if after_current.is_empty():
+        return []
+
     before_current = (
-        current_positions_per_dim(before_df) if before_df is not None
-        else None
+        current_positions_per_dim(before_df) if before_df is not None else None
     )
-
-    if before_current is None:
-        before_lookup: dict[tuple[str, str], float] = {}
-    else:
-        before_lookup = {
-            (row["symbol"], row["expiry"]): float(row[_POSITION_COL])
-            for row in before_current.iter_rows(named=True)
-        }
-
-    deltas: list[PositionDelta] = []
-    for row in after_current.iter_rows(named=True):
-        sym = row["symbol"]
-        exp = row["expiry"]
-        after_val = float(row[_POSITION_COL])
-        before_val = before_lookup.get((sym, exp), 0.0)
-        change = after_val - before_val
-        pct: float | None = (
-            (change / before_val) * 100.0 if before_val != 0.0 else None
+    if before_current is None or before_current.is_empty():
+        rows = after_current.with_columns(
+            pl.lit(0.0).alias("before"),
+            pl.col(_POSITION_COL).alias("after"),
+            pl.col(_POSITION_COL).alias("absolute_change"),
+            pl.lit(None, dtype=pl.Float64).alias("percent_change"),
+            pl.col("expiry").cast(pl.Utf8).alias("expiry_str"),
         )
-        deltas.append(PositionDelta(
-            symbol=sym,
-            expiry=str(exp),
-            before=before_val,
-            after=after_val,
-            absolute_change=change,
-            percent_change=pct,
-        ))
-    return deltas
+    else:
+        rows = (
+            after_current.rename({_POSITION_COL: "after"})
+            .join(
+                before_current.rename({_POSITION_COL: "before"}),
+                on=["symbol", "expiry"],
+                how="left",
+            )
+            .with_columns(pl.col("before").fill_null(0.0))
+            .with_columns(
+                (pl.col("after") - pl.col("before")).alias("absolute_change"),
+                pl.when(pl.col("before") != 0.0)
+                .then((pl.col("after") - pl.col("before")) / pl.col("before") * 100.0)
+                .otherwise(None)
+                .alias("percent_change"),
+                pl.col("expiry").cast(pl.Utf8).alias("expiry_str"),
+            )
+        )
+
+    return [
+        PositionDelta(
+            symbol=r["symbol"],
+            expiry=r["expiry_str"],
+            before=float(r["before"]),
+            after=float(r["after"]),
+            absolute_change=float(r["absolute_change"]),
+            percent_change=(
+                float(r["percent_change"])
+                if r["percent_change"] is not None else None
+            ),
+        )
+        for r in rows.to_dicts()
+    ]
 
 
 def _sum_abs_positions(df: pl.DataFrame | None) -> float:
