@@ -42,8 +42,11 @@
      trading UI outweighs the usual "avoid !important" rule. These are
      affordance signals, not decoration — they must always win. */
   button:not(:disabled),
+  button:not(:disabled) *,
   a[href],
+  a[href] *,
   [role="button"]:not([aria-disabled="true"]),
+  [role="button"]:not([aria-disabled="true"]) *,
   [role="tab"]:not([aria-disabled="true"]),
   [role="switch"]:not([aria-disabled="true"]),
   [role="menuitem"]:not([aria-disabled="true"]),
