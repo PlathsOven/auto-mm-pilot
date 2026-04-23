@@ -10,6 +10,7 @@ block exist?" in the trader's own words.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
@@ -74,6 +75,30 @@ def get_for_stream(user_id: str, stream_name: str) -> StoredBlockIntent | None:
     return _row_to_model(row)
 
 
+def recent_intent_id(
+    user_id: str,
+    stream_name: str,
+    threshold_secs: int,
+) -> str | None:
+    """Return the BlockIntent id if the stream was created within ``threshold_secs``.
+
+    Powers post-commit-edit detection: PATCH/DELETE on a block created
+    very recently is most likely a correction of the original proposal
+    rather than a response to new information. The caller turns a
+    non-null return into a ``post_commit_edit`` failure row.
+    """
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=threshold_secs)
+    with SessionLocal() as sess:
+        row = sess.execute(
+            select(BlockIntent).where(
+                BlockIntent.user_id == user_id,
+                BlockIntent.stream_name == stream_name,
+                BlockIntent.created_at >= cutoff,
+            )
+        ).scalar_one_or_none()
+    return row.id if row is not None else None
+
+
 def _row_to_model(row: BlockIntent) -> StoredBlockIntent:
     """Rehydrate the Pydantic ``StoredBlockIntent`` from an ORM row."""
     from server.api.models import IntentOutput, PreviewResponse, SynthesisOutput
@@ -90,4 +115,4 @@ def _row_to_model(row: BlockIntent) -> StoredBlockIntent:
     )
 
 
-__all__ = ["save_block_intent", "get_for_stream"]
+__all__ = ["save_block_intent", "get_for_stream", "recent_intent_id"]

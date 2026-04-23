@@ -103,3 +103,76 @@ class BlockIntent(Base):
 
 
 Index("ix_block_intents_user_stream", BlockIntent.user_id, BlockIntent.stream_name)
+
+
+class LlmFailure(Base):
+    """One row per detected signal that the LLM got it wrong.
+
+    Sources: the feedback detector (chat-message discontent or factual
+    correction), explicit UI events (preview_rejection), and downstream
+    block mutations that suggest the original proposal missed
+    (post_commit_edit). Studied offline to drive prompt / preset
+    changes — no runtime read path in M4.
+    """
+
+    __tablename__ = "llm_failures"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False,
+    )
+    conversation_turn_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    # FK stays nullable — the detector's own LlmCall id isn't always
+    # available when we write the failure row.
+    llm_call_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("llm_calls.id", ondelete="SET NULL"), nullable=True,
+    )
+    # Spec §9.2 signal_type values: factual_correction / discontent /
+    # preview_rejection / silent_rejection / post_commit_edit.
+    signal_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Spec §9.2 trigger values: chat_message / preview_ui /
+    # commit_followup / idle_timeout.
+    trigger: Mapped[str] = mapped_column(String(32), nullable=False)
+    llm_output_snippet: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trader_response_snippet: Mapped[str | None] = mapped_column(Text, nullable=True)
+    detector_reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+Index("ix_llm_failures_user_signal", LlmFailure.user_id, LlmFailure.signal_type)
+
+
+class UserContextEntry(Base):
+    """Sparse per-user key-value store — the LLM's evolving profile of
+    the trader. Injected into every mode's prompt to personalise.
+
+    Keys are a controlled vocabulary (spec §9.3.1). Values are freeform
+    JSON so each key stores whatever shape fits. The unique
+    ``(user_id, key)`` index lets the detector upsert idempotently on
+    repeat observations — value is refined, observation_count
+    increments, updated_at advances.
+    """
+
+    __tablename__ = "user_context_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False,
+    )
+    key: Mapped[str] = mapped_column(String(64), nullable=False)
+    value: Mapped[Any] = mapped_column(JSON, nullable=False)
+    # Why the detector wrote this — useful context when a human reviews
+    # why their prompts are being personalised a certain way.
+    reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    first_observed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    observation_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+
+Index(
+    "ix_user_context_user_key",
+    UserContextEntry.user_id,
+    UserContextEntry.key,
+    unique=True,
+)

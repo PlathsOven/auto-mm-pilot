@@ -18,6 +18,7 @@ from server.api.llm.client import OpenRouterClient
 from server.api.llm.context_db import serialize_stream_contexts
 from server.api.llm.prompts import ChatMode, build_system_prompt
 from server.api.llm.snapshot_buffer import SnapshotRingBuffer
+from server.api.llm.user_context import serialize_for_prompt as serialize_user_context
 
 
 # Map ``ChatMode`` → audit ``stage`` per spec §9.1. ``ChatMode`` literals
@@ -75,12 +76,14 @@ class LlmService:
         """
         stream_contexts = serialize_stream_contexts()
         history_context = self._extract_history(snapshot_buffer, now)
+        user_context_section = serialize_user_context(user_id)
         system_prompt = build_system_prompt(
             mode,
             engine_state=engine_state,
             stream_contexts_json=stream_contexts,
             pipeline_snapshot=pipeline_snapshot,
             history_context=history_context,
+            user_context_section=user_context_section,
         )
         messages = [{"role": "system", "content": system_prompt}, *conversation]
         async with record_call(

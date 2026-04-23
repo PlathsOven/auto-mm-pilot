@@ -153,13 +153,15 @@ def build_intent_prompt(
     engine_state: dict[str, Any],
     router_category: str,
     router_reason: str,
+    user_context_section: str = "",
 ) -> str:
     """Assemble the Stage 2 system prompt.
 
     Includes shared core, framework helpers (unit conversion, base-vs-event
     rules), engine-state dims (so the LLM knows available symbols /
-    expiries for ``DiscretionaryViewIntent.symbols``), and the router's
-    hint so Stage 2 can bias toward the hinted schema.
+    expiries for ``DiscretionaryViewIntent.symbols``), the router's
+    hint, and the per-user context section (vocabulary / preferences
+    learned across prior sessions).
     """
     symbols, expiries = extract_risk_dims(engine_state)
     streams = engine_state.get("streams", [])
@@ -179,6 +181,7 @@ def build_intent_prompt(
 
     return (
         f"{SHARED_CORE}\n"
+        f"{user_context_section}\n"
         f"{UNIT_CONVERSION_REFERENCE}\n"
         f"{BASE_VS_EVENT_RULES}\n"
         f"{_INTENT_EXTRACTOR_EXT}\n\n"

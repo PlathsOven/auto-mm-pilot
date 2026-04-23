@@ -12,6 +12,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
 from server.api.engine_state import get_pipeline_results, rerun_and_broadcast
+from server.api.llm.block_intents import recent_intent_id
+from server.api.llm.failures import log_failure
+from server.api.llm.orchestration_config import get_llm_orchestration_config
 from server.api.models import (
     BlockListResponse,
     BlockRowResponse,
@@ -27,6 +30,37 @@ from server.core.config import BlockConfig
 log = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _maybe_log_post_commit_edit(
+    user_id: str,
+    stream_name: str,
+    action: str,
+) -> None:
+    """Fire a ``post_commit_edit`` failure row if this stream was just created.
+
+    "Just created" = within ``post_commit_edit_threshold_secs`` (600s
+    default, overridable via LLM_POST_COMMIT_EDIT_THRESHOLD_SECS). The
+    check is synchronous (one SQLite read); the failure write is offloaded
+    to a thread via ``asyncio.to_thread`` and fire-and-forget. Non-Build
+    streams never match — only Build-orchestrator commits populate
+    ``block_intents``.
+    """
+    cfg = get_llm_orchestration_config()
+    intent_id = recent_intent_id(user_id, stream_name, cfg.post_commit_edit_threshold_secs)
+    if intent_id is None:
+        return
+    asyncio.create_task(asyncio.to_thread(
+        log_failure,
+        user_id=user_id,
+        signal_type="post_commit_edit",
+        trigger="commit_followup",
+        metadata={
+            "block_intent_id": intent_id,
+            "stream_name": stream_name,
+            "mutation": action,
+        },
+    ))
 
 
 def _blocks_from_pipeline(user_id: str) -> list[BlockRowResponse]:
@@ -294,6 +328,10 @@ async def update_block(
         [tuple(p) for p in req.applies_to] if req.applies_to is not None
         else existing_applies_to
     )
+    # Check for a recent Build-orchestrator commit — a quick edit here
+    # likely means the original proposal missed. Fire-and-forget.
+    _maybe_log_post_commit_edit(user.id, stream_name, action="update")
+
     registry.configure(
         stream_name, scale=scale, offset=offset, exponent=exponent, block=block,
         applies_to=applies_to,

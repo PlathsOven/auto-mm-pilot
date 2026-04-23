@@ -1100,6 +1100,25 @@ class AdminUserListResponse(BaseModel):
     users: list[AdminUserSummary]
 
 
+class AdminLlmFailureRow(BaseModel):
+    """One row of the admin llm_failures read path."""
+    id: int
+    user_id: str
+    conversation_turn_id: str | None
+    llm_call_id: int | None
+    signal_type: str
+    trigger: str
+    llm_output_snippet: str | None
+    trader_response_snippet: str | None
+    detector_reasoning: str | None
+    metadata_json: dict[str, Any]
+    created_at: datetime
+
+
+class AdminLlmFailureListResponse(BaseModel):
+    rows: list[AdminLlmFailureRow]
+
+
 # ---------------------------------------------------------------------------
 # LLM orchestration — five-stage Build pipeline (spec-llm-orchestration.md §6)
 #
@@ -1396,6 +1415,29 @@ class BlockCommitResponse(BaseModel):
     stored_intent_id: str
     stream_name: str
     new_desired_positions: dict[str, dict[str, float]]
+
+
+LlmFailureSignalType = Literal[
+    "factual_correction",
+    "discontent",
+    "preview_rejection",
+    "silent_rejection",
+    "post_commit_edit",
+]
+
+
+class LlmFailureLogRequest(BaseModel):
+    """Body for ``POST /api/llm/failures`` — client-emitted failure signal.
+
+    In M4 only ``preview_rejection`` is emitted by the client (when the
+    trader cancels the ProposalPreviewDrawer). Other signal types are
+    reserved for future client-side emitters; the field enum stays
+    aligned with ``llm_failures.signal_type`` values.
+    """
+    signal_type: LlmFailureSignalType
+    conversation_turn_id: str | None = None
+    llm_call_id: int | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class StreamIntentResponse(BaseModel):

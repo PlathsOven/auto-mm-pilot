@@ -89,12 +89,14 @@ def build_investigation_prompt(
     stream_contexts_json: str,
     pipeline_snapshot: dict[str, Any] | None = None,
     history_context: str | None = None,
+    user_context_section: str = "",
 ) -> str:
     """
     Build the full investigation system prompt.
 
-    Combines SHARED_CORE + FRAMEWORK_DETAIL + PARAMETER_MAPPING +
-    EPISTEMIC_HONESTY + INVESTIGATION_EXT + dynamic data sections.
+    Combines SHARED_CORE + USER CONTEXT + FRAMEWORK_DETAIL +
+    PARAMETER_MAPPING + EPISTEMIC_HONESTY + INVESTIGATION_EXT +
+    dynamic data sections.
     """
     state_json = json.dumps(engine_state, indent=2, default=str)
 
@@ -147,6 +149,7 @@ timestamp — not "started at".
 
     return f"""\
 {SHARED_CORE}
+{user_context_section}
 {MODE_DIRECTORY}
 {FRAMEWORK_DETAIL}
 {PARAMETER_MAPPING}

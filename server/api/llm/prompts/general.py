@@ -33,6 +33,7 @@ briefly.\
 
 def build_general_prompt(
     engine_state: dict[str, Any],
+    user_context_section: str = "",
 ) -> str:
     """Build the general mode system prompt with minimal engine summary."""
     # Inject only positions — no pipeline detail, no stream contexts
@@ -41,6 +42,7 @@ def build_general_prompt(
 
     return f"""\
 {SHARED_CORE}
+{user_context_section}
 {MODE_DIRECTORY}
 {GENERAL_EXT}
 

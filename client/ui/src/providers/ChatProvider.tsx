@@ -11,17 +11,27 @@ import type {
   SynthesisOutput,
 } from "../types";
 import { streamFetchSSE } from "../services/api";
-import { commitBlock, previewBlock, streamBuildConverse } from "../services/buildApi";
+import {
+  commitBlock,
+  logFailure,
+  previewBlock,
+  streamBuildConverse,
+} from "../services/buildApi";
 import { parseAndStripCommands, executeNonInteractiveCommands } from "../services/engineCommands";
 
 /** Bundle of everything the ProposalPreviewDrawer needs to render +
  *  commit: the payload (what to create), the intent (why), the synthesis
- *  (preset vs. custom derivation), and the preview diff. */
+ *  (preset vs. custom derivation), and the preview diff.
+ *
+ *  ``conversation_turn_id`` is the orchestrator's audit identifier for
+ *  the turn that produced this proposal — attached to any failure
+ *  signals (preview_rejection) the client emits. */
 export interface PendingProposal {
   payload: ProposedBlockPayload;
   intent: IntentOutput;
   synthesis: SynthesisOutput;
   preview: PreviewResponse;
+  conversation_turn_id: string | null;
 }
 
 interface ChatState {
@@ -135,6 +145,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // confirms in the preview drawer.
         let latestIntent: IntentOutput | null = null;
         let latestSynthesis: SynthesisOutput | null = null;
+        // Orchestrator's conversation_turn_id — captured from the Stage 1
+        // event and threaded through into preview_rejection signals.
+        let turnId: string | null = null;
 
         const controller = streamBuildConverse(
           { conversation },
@@ -142,6 +155,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             onDelta: (text) => {
               accumulated += text;
               updateMessage(assistantId, accumulated);
+            },
+            onTurnId: (id) => {
+              turnId = id;
             },
             onStageOutput: (stage, output) => {
               if (stage === "intent") {
@@ -169,9 +185,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 : tail;
               updateMessage(assistantId, accumulated);
 
+              const capturedTurnId = turnId;
               previewBlock(payload)
                 .then((preview) => {
-                  setPendingProposal({ payload, intent, synthesis, preview });
+                  setPendingProposal({
+                    payload, intent, synthesis, preview,
+                    conversation_turn_id: capturedTurnId,
+                  });
                 })
                 .catch((err) => {
                   const detail = err instanceof Error ? err.message : String(err);
@@ -293,8 +313,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const cancelProposal = useCallback(() => {
+    const proposal = pendingProposal;
     setPendingProposal(null);
-  }, []);
+    if (!proposal) return;
+    // Fire-and-forget: the signal is analytics-only; if it fails the
+    // trader has already moved on and shouldn't be bothered.
+    logFailure({
+      signal_type: "preview_rejection",
+      conversation_turn_id: proposal.conversation_turn_id,
+      metadata: {
+        action: proposal.payload.action,
+        stream_name: proposal.payload.stream_name,
+      },
+    }).catch(() => {});
+  }, [pendingProposal]);
 
   const confirmProposal = useCallback(async () => {
     const proposal = pendingProposal;

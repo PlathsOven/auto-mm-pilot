@@ -217,17 +217,23 @@ Violating this raises a validation error.\
 """
 
 
-def build_synthesiser_prompt(intent_output: dict[str, Any]) -> str:
+def build_synthesiser_prompt(
+    intent_output: dict[str, Any],
+    user_context_section: str = "",
+) -> str:
     """Assemble the Stage 3 synthesiser system prompt.
 
     ``intent_output`` is the Stage 2 ``IntentOutput`` serialised to dict.
     The prompt includes shared framework sections plus every preset's
     ``when_to_use`` and ``framework_reasoning`` so the LLM can match on
     the trader's situation without round-tripping to the registry.
+    ``user_context_section`` carries the per-user vocabulary /
+    preference block — empty string when the user has no entries.
     """
     intent_json = json.dumps(intent_output, indent=2, default=str)
     return (
         f"{SHARED_CORE}\n"
+        f"{user_context_section}\n"
         f"{FRAMEWORK_DETAIL}\n"
         f"{PARAMETER_MAPPING}\n"
         f"{BLOCK_DECISION_FLOW}\n"

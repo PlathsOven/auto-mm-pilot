@@ -14,6 +14,7 @@ import type {
   BlockCommitRequest,
   BlockCommitResponse,
   BlockPreviewRequest,
+  LlmFailureLogRequest,
   PreviewResponse,
   ProposedBlockPayload,
 } from "../types";
@@ -28,6 +29,11 @@ export interface BuildConverseCallbacks {
   onStageOutput?: (stage: BuildStageName, output: unknown) => void;
   /** Called when Stage 3 produces a fully parameterised block proposal. */
   onProposal: (payload: ProposedBlockPayload) => void;
+  /** Called with the conversation_turn_id as soon as it's known —
+   *  currently emitted alongside the Stage 1 (router) event so the
+   *  client can reference it in later failure signals
+   *  (preview_rejection, silent_rejection). */
+  onTurnId?: (turnId: string) => void;
   /** Called on `[DONE]`. */
   onDone: () => void;
   /** Called on any server-side stage failure or transport error. */
@@ -76,6 +82,14 @@ export async function commitBlock(
   });
 }
 
+/** POST /api/llm/failures — record a UI-driven failure signal. Fire-and-forget. */
+export async function logFailure(req: LlmFailureLogRequest): Promise<void> {
+  await apiFetch<void>("/api/llm/failures", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
 /** Fire a Build-mode conversation at /api/build/converse and dispatch stage events. */
 export function streamBuildConverse(
   req: BuildConverseRequest,
@@ -88,6 +102,12 @@ export function streamBuildConverse(
     onDelta: (payload: unknown) => {
       if (typeof payload !== "object" || payload === null) return;
       const ev = payload as Record<string, unknown>;
+      // The orchestrator attaches conversation_turn_id to the Stage 1
+      // event so the client can reference it later. Relay on any event
+      // that carries it — first-wins at the caller's end.
+      if (typeof ev.conversation_turn_id === "string") {
+        callbacks.onTurnId?.(ev.conversation_turn_id);
+      }
       if (typeof ev.delta === "string") {
         callbacks.onDelta(ev.delta);
         return;

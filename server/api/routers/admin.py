@@ -16,7 +16,13 @@ from sqlalchemy import func, select
 from server.api.auth.dependencies import current_admin
 from server.api.auth.models import Session as SessionRow, UsageEvent, User
 from server.api.db import SessionLocal
-from server.api.models import AdminUserListResponse, AdminUserSummary
+from server.api.llm.models import LlmFailure
+from server.api.models import (
+    AdminLlmFailureListResponse,
+    AdminLlmFailureRow,
+    AdminUserListResponse,
+    AdminUserSummary,
+)
 
 router = APIRouter()
 
@@ -76,3 +82,61 @@ def _summarise_sync() -> list[AdminUserSummary]:
 async def list_users(_admin: User = Depends(current_admin)) -> AdminUserListResponse:
     rows = await asyncio.to_thread(_summarise_sync)
     return AdminUserListResponse(users=rows)
+
+
+_FAILURE_PAGE_MAX = 200
+
+
+def _fetch_failures_sync(
+    user_id: str | None,
+    signal_type: str | None,
+    since: datetime | None,
+    limit: int,
+) -> list[AdminLlmFailureRow]:
+    """Query llm_failures with optional filters, ordered newest-first."""
+    with SessionLocal() as db:
+        stmt = select(LlmFailure).order_by(LlmFailure.id.desc()).limit(limit)
+        if user_id:
+            stmt = stmt.where(LlmFailure.user_id == user_id)
+        if signal_type:
+            stmt = stmt.where(LlmFailure.signal_type == signal_type)
+        if since is not None:
+            stmt = stmt.where(LlmFailure.created_at >= since)
+        rows = db.execute(stmt).scalars().all()
+        return [
+            AdminLlmFailureRow(
+                id=r.id,
+                user_id=r.user_id,
+                conversation_turn_id=r.conversation_turn_id,
+                llm_call_id=r.llm_call_id,
+                signal_type=r.signal_type,
+                trigger=r.trigger,
+                llm_output_snippet=r.llm_output_snippet,
+                trader_response_snippet=r.trader_response_snippet,
+                detector_reasoning=r.detector_reasoning,
+                metadata_json=r.metadata_json,
+                created_at=r.created_at,
+            )
+            for r in rows
+        ]
+
+
+@router.get("/api/admin/llm-failures", response_model=AdminLlmFailureListResponse)
+async def list_llm_failures(
+    user_id: str | None = None,
+    signal_type: str | None = None,
+    since: datetime | None = None,
+    limit: int = 50,
+    _admin: User = Depends(current_admin),
+) -> AdminLlmFailureListResponse:
+    """List recent ``llm_failures`` rows, optionally filtered.
+
+    Developer-only read path — no UI in v1 (spec §16.8). Use it for
+    offline analysis of which proposals / modes / users generate the
+    most failure signals.
+    """
+    bounded = max(1, min(limit, _FAILURE_PAGE_MAX))
+    rows = await asyncio.to_thread(
+        _fetch_failures_sync, user_id, signal_type, since, bounded,
+    )
+    return AdminLlmFailureListResponse(rows=rows)

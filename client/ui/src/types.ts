@@ -830,3 +830,17 @@ export interface BlockCommitResponse {
 export interface StreamIntentResponse {
   intent: StoredBlockIntent;
 }
+
+export type LlmFailureSignalType =
+  | "factual_correction"
+  | "discontent"
+  | "preview_rejection"
+  | "silent_rejection"
+  | "post_commit_edit";
+
+export interface LlmFailureLogRequest {
+  signal_type: LlmFailureSignalType;
+  conversation_turn_id?: string | null;
+  llm_call_id?: number | null;
+  metadata?: Record<string, unknown>;
+}

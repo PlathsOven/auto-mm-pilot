@@ -39,6 +39,7 @@ from server.api.llm.prompts.synthesiser import (
     SYNTHESISER_TOOLS,
     build_synthesiser_prompt,
 )
+from server.api.llm.user_context import serialize_for_prompt as serialize_user_context
 from server.api.models import (
     BlockConfigDict,
     CustomDerivation,
@@ -84,7 +85,14 @@ async def run_build_pipeline(
     they become ``{"error": ...}`` events. Host exceptions (DB down,
     network down) still propagate so the router can 500.
     """
-    # Stage 1: Router
+    # Fetch the user's learned vocabulary / preferences once and thread
+    # it through the prompt-building stages. Empty string when the user
+    # has no entries — callers pass it through unconditionally.
+    user_context_section = serialize_user_context(user_id)
+
+    # Stage 1: Router — also the first place the client learns the
+    # conversation_turn_id so it can reference it in later failure
+    # signals (e.g. preview_rejection).
     try:
         classification = await _run_router(
             client=client, orch_config=orch_config,
@@ -94,7 +102,11 @@ async def run_build_pipeline(
     except _StageError as exc:
         yield {"error": f"router stage failed: {exc}"}
         return
-    yield {"stage": "router", "output": classification.model_dump()}
+    yield {
+        "stage": "router",
+        "output": classification.model_dump(),
+        "conversation_turn_id": conversation_turn_id,
+    }
 
     if classification.category in ("question", "none"):
         yield {"delta": _BUILD_FALLTHROUGH_MESSAGE}
@@ -108,6 +120,7 @@ async def run_build_pipeline(
             conversation=conversation, engine_state=engine_state,
             router_category=classification.category,
             router_reason=classification.reason,
+            user_context_section=user_context_section,
         )
     except _StageError as exc:
         yield {"error": f"intent stage failed: {exc}"}
@@ -124,6 +137,7 @@ async def run_build_pipeline(
             client=client, orch_config=orch_config,
             user_id=user_id, conversation_turn_id=conversation_turn_id,
             intent=intent,
+            user_context_section=user_context_section,
         )
     except _StageError as exc:
         yield {"error": f"synthesis stage failed: {exc}"}
@@ -215,11 +229,13 @@ async def _run_intent_extractor(
     engine_state: dict[str, Any],
     router_category: str,
     router_reason: str,
+    user_context_section: str,
 ) -> IntentOutput:
     system_prompt = build_intent_prompt(
         engine_state=engine_state,
         router_category=router_category,
         router_reason=router_reason,
+        user_context_section=user_context_section,
     )
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
@@ -264,8 +280,12 @@ async def _run_synthesiser(
     user_id: str,
     conversation_turn_id: str,
     intent: IntentOutput,
+    user_context_section: str,
 ) -> SynthesisOutput:
-    system_prompt = build_synthesiser_prompt(intent.model_dump())
+    system_prompt = build_synthesiser_prompt(
+        intent.model_dump(),
+        user_context_section=user_context_section,
+    )
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
         {

@@ -18,7 +18,7 @@ from server.api.engine_state import (
     get_pipeline_snapshot,
     get_snapshot_buffer,
 )
-from server.api.llm.correction_detector import detect_and_store
+from server.api.llm.feedback_detector import detect_and_store
 from server.api.llm.service import LlmService
 from server.api.models import InvestigateRequest
 

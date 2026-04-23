@@ -29,7 +29,8 @@ from server.api.engine_state import (
 )
 from server.api.llm.block_intents import save_block_intent
 from server.api.llm.build_orchestrator import run_build_pipeline
-from server.api.llm.correction_detector import detect_and_store
+from server.api.llm.failures import log_failure
+from server.api.llm.feedback_detector import detect_and_store
 from server.api.llm.orchestration_config import get_llm_orchestration_config
 from server.api.llm.preview import build_preview
 from server.api.llm.service import LlmService
@@ -38,6 +39,7 @@ from server.api.models import (
     BlockCommitResponse,
     BlockPreviewRequest,
     BuildConverseRequest,
+    LlmFailureLogRequest,
     PreviewResponse,
     StoredBlockIntent,
 )
@@ -254,6 +256,35 @@ async def blocks_commit(
         stored_intent_id=intent_id,
         stream_name=payload.stream_name,
         new_desired_positions=new_positions,
+    )
+
+
+# ---------------------------------------------------------------------------
+# UI-driven failure signals
+# ---------------------------------------------------------------------------
+
+@router.post("/api/llm/failures", status_code=204)
+async def log_llm_failure(
+    req: LlmFailureLogRequest,
+    user: User = Depends(current_user),
+) -> None:
+    """Record a UI-driven failure signal (preview_rejection today).
+
+    The client calls this when the trader cancels a proposal or otherwise
+    surfaces a rejection the detector would not see from the conversation
+    alone. The write is fire-and-forget from the caller's perspective:
+    any persistence failure is logged server-side and swallowed so the
+    client's UX never depends on a successful write.
+    """
+    trigger = "preview_ui" if req.signal_type == "preview_rejection" else "chat_message"
+    await asyncio.to_thread(
+        log_failure,
+        user_id=user.id,
+        signal_type=req.signal_type,
+        trigger=trigger,
+        conversation_turn_id=req.conversation_turn_id,
+        llm_call_id=req.llm_call_id,
+        metadata=req.metadata,
     )
 
 
