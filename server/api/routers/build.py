@@ -103,6 +103,7 @@ async def build_converse(
                     detector_models=cfg.detector_models,
                     max_tokens=cfg.max_tokens_detector,
                     temperature=cfg.temperature_detector,
+                    context_window=orch_config.detector_context_window,
                     conversation=req.conversation,
                     assistant_response="".join(assistant_response),
                     user_id=user.id,

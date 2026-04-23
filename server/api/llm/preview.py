@@ -169,7 +169,7 @@ def _payload_to_stream_config(payload: ProposedBlockPayload) -> StreamConfig:
     rows go into a polars DataFrame with key_cols + timestamp + raw_value
     (+ optional start_timestamp for event blocks).
     """
-    snapshot_df = _rows_to_dataframe(payload.snapshot_rows, payload.key_cols)
+    snapshot_df = _rows_to_dataframe(payload.snapshot_rows)
     block = BlockConfig(
         annualized=payload.block.annualized,
         temporal_position=payload.block.temporal_position,
@@ -188,15 +188,11 @@ def _payload_to_stream_config(payload: ProposedBlockPayload) -> StreamConfig:
     )
 
 
-def _rows_to_dataframe(
-    rows: list[ProposalSnapshotRow],
-    key_cols: list[str],
-) -> pl.DataFrame:
+def _rows_to_dataframe(rows: list[ProposalSnapshotRow]) -> pl.DataFrame:
     """Shape the snapshot rows into a pipeline-ready DataFrame.
 
-    Columns: key_cols (which include ``symbol`` / ``expiry``) plus
-    ``timestamp`` and ``raw_value``, plus ``start_timestamp`` iff any row
-    carries one (event-vol blocks).
+    Columns: ``symbol`` / ``expiry`` plus ``timestamp`` and ``raw_value``,
+    plus ``start_timestamp`` iff any row carries one (event-vol blocks).
 
     ``expiry`` is parsed to ``datetime`` so it concats cleanly with
     pipeline-side streams that store expiries as Datetime (the trader-
@@ -231,7 +227,6 @@ def _rows_to_dataframe(
     if casts:
         df = df.with_columns(casts)
 
-    del key_cols  # kept in the signature for clarity; logic is key-agnostic
     return df
 
 

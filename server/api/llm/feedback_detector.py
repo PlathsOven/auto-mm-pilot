@@ -28,11 +28,6 @@ from server.api.llm.user_context import CONTROLLED_KEYS, upsert_entry
 log = logging.getLogger(__name__)
 
 
-# Last N messages of conversation sent to the detector. Broader window
-# costs tokens; tighter window misses context for preference inference.
-_CONTEXT_WINDOW = 6
-
-
 _DETECTION_PROMPT = """\
 You are the feedback detector for a trading terminal's AI assistant.
 
@@ -128,6 +123,7 @@ async def detect_and_store(
     detector_models: tuple[str, ...],
     max_tokens: int,
     temperature: float,
+    context_window: int,
     conversation: list[dict[str, str]],
     assistant_response: str,
     user_id: str,
@@ -144,6 +140,7 @@ async def detect_and_store(
             detector_models=detector_models,
             max_tokens=max_tokens,
             temperature=temperature,
+            context_window=context_window,
             conversation=conversation,
             assistant_response=assistant_response,
             user_id=user_id,
@@ -159,6 +156,7 @@ async def _detect_and_store_inner(
     detector_models: tuple[str, ...],
     max_tokens: int,
     temperature: float,
+    context_window: int,
     conversation: list[dict[str, str]],
     assistant_response: str,
     user_id: str,
@@ -168,7 +166,7 @@ async def _detect_and_store_inner(
     if not any(m["role"] == "assistant" for m in conversation) and not assistant_response:
         return
 
-    recent = conversation[-_CONTEXT_WINDOW:]
+    recent = conversation[-context_window:]
     if assistant_response:
         recent = [*recent, {"role": "assistant", "content": assistant_response}]
 

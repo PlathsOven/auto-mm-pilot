@@ -19,6 +19,7 @@ from server.api.engine_state import (
     get_snapshot_buffer,
 )
 from server.api.llm.feedback_detector import detect_and_store
+from server.api.llm.orchestration_config import get_llm_orchestration_config
 from server.api.llm.service import LlmService
 from server.api.models import InvestigateRequest
 
@@ -78,6 +79,7 @@ async def investigate(
                 detector_models=cfg.detector_models,
                 max_tokens=cfg.max_tokens_detector,
                 temperature=cfg.temperature_detector,
+                context_window=get_llm_orchestration_config().detector_context_window,
                 conversation=req.conversation,
                 assistant_response="".join(full_response),
                 user_id=user.id,

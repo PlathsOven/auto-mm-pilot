@@ -21,18 +21,6 @@ from server.api.llm.snapshot_buffer import SnapshotRingBuffer
 from server.api.llm.user_context import serialize_for_prompt as serialize_user_context
 
 
-# Map ``ChatMode`` → audit ``stage`` per spec §9.1. ``ChatMode`` literals
-# ("investigate" / "build" / "general") distinguish UI behaviour; the
-# ``stage`` column classifies the call inside the broader pipeline
-# ("investigation" / "general" / etc.). Build mode's transitional stage
-# stays "build" until Milestone 2 replaces it with router/intent/synthesis.
-_CHAT_MODE_STAGE: dict[ChatMode, str] = {
-    "investigate": "investigation",
-    "build": "build",
-    "general": "general",
-}
-
-
 class LlmService:
     """High-level LLM orchestration for the investigation role."""
 
@@ -75,7 +63,11 @@ class LlmService:
         share a turn_id).
         """
         stream_contexts = serialize_stream_contexts()
-        history_context = self._extract_history(snapshot_buffer, now)
+        if snapshot_buffer is not None and len(snapshot_buffer) >= 2:
+            ts = now or datetime.now(timezone.utc).replace(tzinfo=None)
+            history_context = snapshot_buffer.build_history_context(ts)
+        else:
+            history_context = None
         user_context_section = serialize_user_context(user_id)
         system_prompt = build_system_prompt(
             mode,
@@ -86,10 +78,13 @@ class LlmService:
             user_context_section=user_context_section,
         )
         messages = [{"role": "system", "content": system_prompt}, *conversation]
+        # ChatMode distinguishes UI behaviour; `stage` classifies the call
+        # in the audit log — "investigate" maps to "investigation".
+        stage = "investigation" if mode == "investigate" else mode
         async with record_call(
             user_id=user_id,
             conversation_turn_id=conversation_turn_id,
-            stage=_CHAT_MODE_STAGE[mode],
+            stage=stage,
             mode=mode,
             model=self._config.investigation_models[0],
             messages=messages,
@@ -105,14 +100,3 @@ class LlmService:
             ):
                 handle.accumulate_delta(delta)
                 yield delta
-
-    @staticmethod
-    def _extract_history(
-        buffer: SnapshotRingBuffer | None,
-        now: datetime | None,
-    ) -> str | None:
-        """Build history context string from the snapshot buffer, if available."""
-        if buffer is None or len(buffer) < 2:
-            return None
-        ts = now or datetime.now(timezone.utc).replace(tzinfo=None)
-        return buffer.build_history_context(ts)

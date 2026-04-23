@@ -115,7 +115,6 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `server/api/llm/prompts/investigation.py` | Investigation mode: reasoning protocol, data sections, engine commands |
 | `server/api/llm/prompts/general.py` | General mode: catch-all conversational, minimal engine summary |
 | `server/api/llm/prompts/build.py` | Build mode: stream onboarding + opinion → `create_stream` / `create_manual_block` engine commands |
-| `server/api/llm/test_investigation.py` | **CLI harness, not prod code** — interactive test for Zone E investigation LLM with mock pipeline data |
 | `server/core/__init__.py` | Core pipeline package — re-exports public API |
 | `server/core/config.py` | `BlockConfig`, `StreamConfig` dataclasses, `SECONDS_PER_YEAR` |
 | `server/core/helpers.py` | `annualize`, `deannualize` |

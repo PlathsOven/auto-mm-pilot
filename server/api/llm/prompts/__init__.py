@@ -34,24 +34,13 @@ def build_system_prompt(
 
     - investigate: engine state, stream contexts, pipeline snapshot, history
     - general:     engine state (positions summary only)
-    - build:       delegates to the orchestrator endpoint — returns the
-                   investigate prompt as a defensive fallback (callers
-                   should route Build requests to /api/build/converse).
+    - build:       not routed here — Build uses ``/api/build/converse``
 
     ``user_context_section`` is the per-user vocabulary / preferences
     block from ``server/api/llm/user_context.serialize_for_prompt`` —
     injected after SHARED_CORE in every mode's prompt.
     """
     if mode == "investigate":
-        base = build_investigation_prompt(
-            engine_state, stream_contexts_json, pipeline_snapshot,
-            history_context, user_context_section=user_context_section,
-        )
-    elif mode == "build":
-        # Build mode should never reach this path once the client is on
-        # /api/build/converse. Fall through to the investigation prompt
-        # defensively so the server doesn't 500 if a stale client
-        # (pre-M2) still sends mode="build" to /api/investigate.
         base = build_investigation_prompt(
             engine_state, stream_contexts_json, pipeline_snapshot,
             history_context, user_context_section=user_context_section,
