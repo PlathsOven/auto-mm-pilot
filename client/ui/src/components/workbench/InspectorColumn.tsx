@@ -3,6 +3,7 @@ import { InspectorRouter } from "./InspectorRouter";
 import { useFocus } from "../../providers/FocusProvider";
 import { useHotkeys } from "../../hooks/useHotkeys";
 import { safeGetItem, safeSetItem } from "../../utils";
+import { Tooltip } from "../ui/Tooltip";
 import {
   INSPECTOR_COLUMN_MAX_WIDTH_PX,
   INSPECTOR_COLUMN_MIN_WIDTH_PX,
@@ -110,39 +111,47 @@ export function InspectorColumn() {
       style={{ width: totalWidth, userSelect: dragging ? "none" : undefined }}
     >
       {open && (
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          onMouseDown={onHandleMouseDown}
-          className={`absolute left-0 top-0 z-10 h-full w-1 cursor-ew-resize transition-colors ${
-            dragging ? "bg-mm-accent/60" : "hover:bg-mm-accent/30"
-          }`}
-          title="Drag to resize inspector"
-        />
+        <Tooltip label="Drag to resize inspector" side="left">
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize inspector column"
+            tabIndex={-1}
+            onMouseDown={onHandleMouseDown}
+            className={`absolute left-0 top-0 z-10 h-full w-1 cursor-ew-resize transition-colors ${
+              dragging ? "bg-mm-accent/60" : "hover:bg-mm-accent/30"
+            }`}
+          />
+        </Tooltip>
       )}
-      <button
-        type="button"
-        onClick={() => persistOpen(!open)}
-        className={`group flex h-full w-[18px] shrink-0 cursor-pointer items-center justify-center border-r border-black/[0.06] transition-colors hover:bg-mm-accent/[0.06] ${
-          hasHiddenContent
-            ? "animate-pulse bg-mm-accent/15 shadow-[inset_2px_0_0_0_rgba(79,91,213,0.65)]"
-            : "bg-black/[0.02]"
-        }`}
-        title={
+      <Tooltip
+        label={
           hasHiddenContent
             ? `Expand inspector — ${focusHint(focus)} ( [ or ] )`
             : `${open ? "Collapse" : "Expand"} inspector ( [ or ] )`
         }
-        aria-label={open ? "Collapse inspector" : "Expand inspector"}
+        side="left"
       >
-        <span
-          className={`text-[11px] font-semibold transition-colors group-hover:text-mm-accent ${
-            hasHiddenContent ? "text-mm-accent" : "text-mm-text-subtle"
+        <button
+          type="button"
+          onClick={() => persistOpen(!open)}
+          className={`group flex h-full w-[18px] shrink-0 cursor-pointer items-center justify-center border-r border-black/[0.06] transition-colors hover:bg-mm-accent/[0.06] ${
+            hasHiddenContent
+              ? "animate-pulse bg-mm-accent/15 shadow-[inset_2px_0_0_0_rgba(79,91,213,0.65)]"
+              : "bg-black/[0.02]"
           }`}
+          aria-label={open ? "Collapse inspector" : "Expand inspector"}
+          aria-expanded={open}
         >
-          {open ? "›" : "‹"}
-        </span>
-      </button>
+          <span
+            className={`text-[11px] font-semibold transition-colors group-hover:text-mm-accent ${
+              hasHiddenContent ? "text-mm-accent" : "text-mm-text-subtle"
+            }`}
+          >
+            {open ? "›" : "‹"}
+          </span>
+        </button>
+      </Tooltip>
       {open && (
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex shrink-0 items-baseline gap-2 border-b border-black/[0.05] px-3 py-1.5">

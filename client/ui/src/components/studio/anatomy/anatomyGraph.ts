@@ -100,6 +100,10 @@ export const OUTPUT_NODE_POSITION = { x: X.output, y: Y_MAIN };
 
 export const STREAM_COLUMN_X = X.streams;
 export const STREAM_ROW_HEIGHT = 90;
+// Offset for the ConnectorNode rendered upstream of a connector-fed stream.
+// 220px clears the stream card width (200px) plus a small gap so edge
+// labels don't crowd the source node.
+export const CONNECTOR_OFFSET = 220;
 
 // ---------------------------------------------------------------------------
 // Tracks (fair / var / market / edge)

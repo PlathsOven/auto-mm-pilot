@@ -360,10 +360,10 @@ export function CommittableTextarea(
           // onBlur-revert handler doesn't fire before the click commits.
           onMouseDown={(e) => e.preventDefault()}
           onClick={commit}
-          className="absolute bottom-1.5 right-1.5 rounded-md bg-mm-accent px-1.5 py-0.5 text-[9px] font-medium text-white shadow-sm transition-colors hover:opacity-90"
+          className="btn-accent-gradient absolute bottom-1.5 right-1.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium"
           title="Confirm"
         >
-          ↵ Save
+          <span className="relative">↵ Save</span>
         </button>
       )}
     </div>

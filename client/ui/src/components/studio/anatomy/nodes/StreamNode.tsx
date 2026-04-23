@@ -4,6 +4,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { BlockConfigPayload, RegisteredStreamStatus } from "../../../../types";
 import { deleteStream, setStreamActive } from "../../../../services/streamApi";
 import { useRegisteredStreams } from "../../../../hooks/useRegisteredStreams";
+import { Tooltip } from "../../../ui/Tooltip";
 
 export interface StreamNodeData {
   streamName: string;
@@ -208,37 +209,48 @@ function StreamHoverPopover({ data, anchorRef }: PopoverProps) {
 
       {data.status !== "PENDING" && (
         <div className="mt-2.5 flex items-center justify-between border-t border-black/[0.06] pt-2">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={data.active}
-            onClick={handleToggleActive}
-            disabled={busy}
-            className="flex items-center gap-1.5 text-[10px] text-mm-text-dim transition-colors hover:text-mm-text disabled:opacity-50"
-            title={data.active ? "Deactivate stream" : "Reactivate stream"}
+          <Tooltip
+            label={
+              data.active
+                ? `Deactivate ${data.streamName} — stays in the registry but drops out of the pipeline`
+                : `Reactivate ${data.streamName} — rejoins the pipeline on the next tick`
+            }
+            side="top"
           >
-            <span
-              className={`relative inline-flex h-[12px] w-[22px] items-center rounded-full transition-colors ${
-                data.active ? "bg-mm-accent" : "bg-mm-text-dim/30"
-              }`}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={data.active}
+              aria-label={data.active ? `Deactivate ${data.streamName}` : `Reactivate ${data.streamName}`}
+              onClick={handleToggleActive}
+              disabled={busy}
+              className="flex items-center gap-1.5 text-[10px] text-mm-text-dim transition-colors hover:text-mm-text disabled:opacity-50"
             >
               <span
-                className={`inline-block h-[8px] w-[8px] transform rounded-full bg-white shadow-sm transition-transform ${
-                  data.active ? "translate-x-[12px]" : "translate-x-[2px]"
+                className={`relative inline-flex h-[12px] w-[22px] items-center rounded-full transition-colors ${
+                  data.active ? "bg-mm-accent" : "bg-mm-text-dim/30"
                 }`}
-              />
-            </span>
-            <span>{data.active ? "active" : "inactive"}</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={busy}
-            className="rounded p-1 text-[10px] text-mm-text-dim transition-colors hover:bg-mm-error/10 hover:text-mm-error disabled:opacity-50"
-            title="Delete stream"
-          >
-            ✕
-          </button>
+              >
+                <span
+                  className={`inline-block h-[8px] w-[8px] transform rounded-full bg-white shadow-sm transition-transform ${
+                    data.active ? "translate-x-[12px]" : "translate-x-[2px]"
+                  }`}
+                />
+              </span>
+              <span>{data.active ? "active" : "inactive"}</span>
+            </button>
+          </Tooltip>
+          <Tooltip label={`Delete ${data.streamName} from the registry — this cannot be undone`} side="top">
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={busy}
+              aria-label={`Delete ${data.streamName}`}
+              className="rounded p-1 text-[10px] text-mm-text-dim transition-colors hover:bg-mm-error/10 hover:text-mm-error disabled:opacity-50"
+            >
+              ✕
+            </button>
+          </Tooltip>
         </div>
       )}
 

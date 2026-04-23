@@ -30,17 +30,23 @@ from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
 from server.api.client_ws_auth import authenticate_client_ws
+from server.api.connector_state import get_connector_state_store
 from server.api.engine_state import rerun_and_broadcast
 from server.api.market_value_store import get_store as get_market_value_store
 from server.api.market_value_store import set_entries as mv_set_entries
 from server.api.models import (
     ClientWsAck,
+    ClientWsConnectorInputFrame,
     ClientWsError,
     ClientWsInboundFrame,
     ClientWsMarketValueFrame,
 )
 from server.api.sequence_counter import get_counter as get_sequence_counter
-from server.api.stream_registry import get_stream_registry
+from server.api.stream_registry import (
+    StreamIsConnectorFed,
+    StreamIsNotConnectorFed,
+    get_stream_registry,
+)
 from server.api.unregistered_push_store import get_store as get_unregistered_push_store
 from server.api.ws import get_latest_payload, register_client, unregister_client
 from server.api.zero_edge_guard import ZERO_EDGE_CODE, ZeroEdgeBlocked, check_zero_edge
@@ -163,6 +169,47 @@ async def _process_market_value_frame(user_id: str, data: dict, websocket: WebSo
     await websocket.send_text(ack.model_dump_json())
 
 
+async def _process_connector_input_frame(
+    user_id: str, data: dict, websocket: WebSocket,
+) -> None:
+    frame = ClientWsConnectorInputFrame(**data)
+
+    registry = get_stream_registry(user_id)
+    connector_store = get_connector_state_store(user_id)
+    rows_payload = [r.model_dump() for r in frame.rows]
+
+    rows_accepted, rows_emitted = registry.ingest_connector_input(
+        frame.stream_name, rows_payload, connector_store,
+    )
+
+    pipeline_rerun = False
+    server_seq = get_sequence_counter(user_id).next()
+    if rows_emitted > 0:
+        stream_configs = registry.build_stream_configs()
+        if stream_configs:
+            try:
+                await rerun_and_broadcast(user_id, stream_configs)
+                pipeline_rerun = True
+            except Exception:
+                log.exception("Pipeline re-run failed after WS connector input")
+                ack = ClientWsAck(
+                    seq=frame.seq,
+                    rows_accepted=rows_accepted,
+                    pipeline_rerun=False,
+                    server_seq=server_seq,
+                )
+                await websocket.send_text(ack.model_dump_json())
+                return
+
+    ack = ClientWsAck(
+        seq=frame.seq,
+        rows_accepted=rows_accepted,
+        pipeline_rerun=pipeline_rerun,
+        server_seq=server_seq,
+    )
+    await websocket.send_text(ack.model_dump_json())
+
+
 async def _process_inbound_frame(user_id: str, raw: str, websocket: WebSocket) -> None:
     seq: int | None = None
     try:
@@ -172,6 +219,8 @@ async def _process_inbound_frame(user_id: str, raw: str, websocket: WebSocket) -
         frame_type = data.get("type", "snapshot")
         if frame_type == "market_value":
             await _process_market_value_frame(user_id, data, websocket)
+        elif frame_type == "connector_input":
+            await _process_connector_input_frame(user_id, data, websocket)
         else:
             await _process_snapshot_frame(user_id, data, websocket)
 
@@ -181,6 +230,14 @@ async def _process_inbound_frame(user_id: str, raw: str, websocket: WebSocket) -
 
     except ValidationError as exc:
         err = ClientWsError(seq=seq, detail=f"Frame validation failed: {exc.error_count()} errors")
+        await websocket.send_text(err.model_dump_json())
+
+    except StreamIsConnectorFed as exc:
+        err = ClientWsError(seq=seq, detail=f"STREAM_IS_CONNECTOR_FED: {exc}")
+        await websocket.send_text(err.model_dump_json())
+
+    except StreamIsNotConnectorFed as exc:
+        err = ClientWsError(seq=seq, detail=f"STREAM_IS_NOT_CONNECTOR_FED: {exc}")
         await websocket.send_text(err.model_dump_json())
 
     except KeyError as exc:

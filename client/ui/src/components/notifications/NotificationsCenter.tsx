@@ -81,7 +81,7 @@ export function NotificationsCenter({ open, onClose }: Props) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className="fixed inset-0 z-40 bg-black/10"
+            className="fixed inset-0 z-40 bg-black/15 backdrop-blur-[2px]"
             onClick={onClose}
             aria-hidden="true"
           />
@@ -91,7 +91,7 @@ export function NotificationsCenter({ open, onClose }: Props) {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed right-0 top-0 z-50 flex h-full w-[420px] flex-col overflow-hidden border-l border-black/[0.08] bg-white/95 shadow-xl"
+            className="glass-panel-xl fixed right-0 top-0 z-50 flex h-full w-[420px] flex-col overflow-hidden rounded-none border-y-0 border-r-0 border-l border-white/40"
             role="dialog"
             aria-label="Notifications"
           >

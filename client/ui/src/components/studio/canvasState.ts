@@ -54,6 +54,10 @@ export interface StreamDraft {
   target_mapping: TargetMappingDraft;
   block_shape: BlockShapeDraft;
   confidence: ConfidenceDraft;
+  /** Server-side connector wiring. When non-null, sections 3-6 are
+   *  auto-filled from the connector's recommended defaults and locked. */
+  connector_name: string | null;
+  connector_params: Record<string, unknown>;
 }
 
 export type SectionStatus = "empty" | "draft" | "valid";
@@ -83,6 +87,7 @@ export function prefilledDraft(prefill: StreamDraftPrefill): StreamDraft {
     ...EMPTY_DRAFT,
     identity: { ...EMPTY_DRAFT.identity },
     data_shape: { ...EMPTY_DRAFT.data_shape },
+    connector_params: { ...EMPTY_DRAFT.connector_params },
   };
   if (prefill.streamName) {
     base.identity.stream_name = prefill.streamName;
@@ -126,6 +131,8 @@ export const EMPTY_DRAFT: StreamDraft = {
     decay_rate_prop_per_min: 0.0,
   },
   confidence: { var_fair_ratio: 0.2 },
+  connector_name: null,
+  connector_params: {},
 };
 
 // ---------------------------------------------------------------------------
@@ -179,9 +186,18 @@ export function validateConfidence(d: ConfidenceDraft): SectionState {
 }
 
 export function validateAll(draft: StreamDraft): Record<SectionId, SectionState> {
+  // Connector-fed streams own raw_value generation server-side, so the Data
+  // Shape sample-CSV requirement doesn't apply — the panel renders a
+  // read-only schema instead. Mark it valid by default in that case so the
+  // Activate button isn't blocked on an empty CSV that the trader is never
+  // asked to fill in.
+  const dataShape = draft.connector_name
+    ? ({ status: "valid" } satisfies SectionState)
+    : validateDataShape(draft.data_shape);
+
   return {
     identity: validateIdentity(draft.identity),
-    data_shape: validateDataShape(draft.data_shape),
+    data_shape: dataShape,
     target_mapping: validateTargetMapping(draft.target_mapping),
     block_shape: validateBlockShape(draft.block_shape),
     confidence: validateConfidence(draft.confidence),

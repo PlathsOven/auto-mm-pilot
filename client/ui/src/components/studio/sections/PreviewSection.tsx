@@ -1,3 +1,4 @@
+import { findConnector, useConnectorCatalog } from "../../../hooks/useConnectorCatalog";
 import type { StreamDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
 import { LiveEquationStrip } from "../../equation/LiveEquationStrip";
@@ -9,12 +10,15 @@ interface Props {
 }
 
 /**
- * Final canvas section. Shows live equation context and a read-only draft
- * summary. The Activate button lives in `<StreamCanvasFooter/>` so it stays
- * pinned at the bottom of the canvas — the architect doesn't have to scroll
- * through every section to find the CTA.
+ * Final canvas section. Shows live equation context and either a draft
+ * summary (user-fed streams) or an SDK integration snippet
+ * (connector-fed streams). The Activate button lives in
+ * `<StreamCanvasFooter/>` so the architect doesn't have to scroll past
+ * every section to find the CTA.
  */
 export function PreviewSection({ draft, state }: Props) {
+  const { connectors } = useConnectorCatalog();
+  const connector = findConnector(connectors, draft.connector_name);
   return (
     <SectionCard
       title="Preview"
@@ -24,20 +28,27 @@ export function PreviewSection({ draft, state }: Props) {
       <div className="grid gap-3">
         <LiveEquationStrip size="lg" />
 
-        <div className="rounded-md border border-black/[0.06] bg-black/[0.03] p-3">
-          <div className="mb-2 text-[10px] uppercase tracking-wider text-mm-text-dim">
-            Draft summary
+        {connector ? (
+          <ConnectorIntegrationSnippet
+            streamName={draft.identity.stream_name || "<stream_name>"}
+            connector={connector}
+          />
+        ) : (
+          <div className="rounded-md border border-black/[0.06] bg-black/[0.03] p-3">
+            <div className="mb-2 text-[10px] uppercase tracking-wider text-mm-text-dim">
+              Draft summary
+            </div>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
+              <DraftRow label="Stream" value={draft.identity.stream_name || "—"} />
+              <DraftRow label="Key cols" value={draft.identity.key_cols.join(", ") || "—"} />
+              <DraftRow label="Scale" value={draft.target_mapping.scale.toString()} />
+              <DraftRow label="Offset" value={draft.target_mapping.offset.toString()} />
+              <DraftRow label="Exponent" value={draft.target_mapping.exponent.toString()} />
+              <DraftRow label="var_fair_ratio" value={draft.confidence.var_fair_ratio.toString()} />
+              <DraftRow label="Temporal" value={draft.block_shape.temporal_position} />
+            </dl>
           </div>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
-            <DraftRow label="Stream" value={draft.identity.stream_name || "—"} />
-            <DraftRow label="Key cols" value={draft.identity.key_cols.join(", ") || "—"} />
-            <DraftRow label="Scale" value={draft.target_mapping.scale.toString()} />
-            <DraftRow label="Offset" value={draft.target_mapping.offset.toString()} />
-            <DraftRow label="Exponent" value={draft.target_mapping.exponent.toString()} />
-            <DraftRow label="var_fair_ratio" value={draft.confidence.var_fair_ratio.toString()} />
-            <DraftRow label="Temporal" value={draft.block_shape.temporal_position} />
-          </dl>
-        </div>
+        )}
       </div>
     </SectionCard>
   );
@@ -49,6 +60,41 @@ function DraftRow({ label, value }: { label: string; value: string }) {
       <dt className="text-mm-text-dim">{label}</dt>
       <dd className="font-mono text-mm-text">{value}</dd>
     </>
+  );
+}
+
+function ConnectorIntegrationSnippet({
+  streamName,
+  connector,
+}: {
+  streamName: string;
+  connector: { name: string; input_key_cols: string[]; input_value_fields: { name: string }[] };
+}) {
+  // Build an example row with placeholder values so the trader can copy +
+  // tweak rather than read the schema and re-derive.
+  const samplePairs = [
+    `"timestamp": "2026-01-01T00:00:00"`,
+    ...connector.input_key_cols.map((k) => `"${k}": "BTC"`),
+    ...connector.input_value_fields.map((f) => `"${f.name}": 68500.0`),
+  ];
+  const rowLiteral = `{${samplePairs.join(", ")}}`;
+  const snippet = `await client.push_connector_input(\n  "${streamName}",\n  [${rowLiteral}],\n)`;
+  return (
+    <div className="rounded-md border border-mm-accent/30 bg-mm-accent/[0.05] p-3">
+      <div className="mb-2 flex items-baseline justify-between">
+        <span className="text-[10px] uppercase tracking-wider text-mm-text-dim">
+          SDK integration
+        </span>
+        <span className="text-[9px] font-mono text-mm-accent">connector: {connector.name}</span>
+      </div>
+      <pre className="overflow-x-auto rounded-sm bg-black/[0.04] p-2 text-[10px] leading-snug text-mm-text">
+        <code className="font-mono">{snippet}</code>
+      </pre>
+      <p className="mt-2 text-[9px] text-mm-text-dim">
+        Posit computes <code className="font-mono">raw_value</code> from your inputs;
+        positions update on the next pipeline tick.
+      </p>
+    </div>
   );
 }
 

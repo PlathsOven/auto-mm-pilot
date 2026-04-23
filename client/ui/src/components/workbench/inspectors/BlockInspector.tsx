@@ -246,9 +246,9 @@ function BlockEditor({ block, isManual }: { block: BlockRow; isManual: boolean }
             type="button"
             disabled={!valid || submitting}
             onClick={() => submit(draft)}
-            className="rounded-md bg-mm-accent px-3 py-1 text-[10px] font-semibold text-white transition-colors hover:bg-mm-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="btn-accent-gradient rounded-md px-3 py-1 text-[10px] font-semibold"
           >
-            {submitting ? "Saving…" : "Save changes"}
+            <span className="relative">{submitting ? "Saving…" : "Save changes"}</span>
           </button>
         </footer>
       )}

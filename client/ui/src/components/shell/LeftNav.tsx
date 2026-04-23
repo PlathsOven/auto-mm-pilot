@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Sidebar } from "../ui/Sidebar";
+import { Tooltip } from "../ui/Tooltip";
 import { PositLogo } from "./PositLogo";
 import { UserMenu } from "../UserMenu";
 import { useMode, MODE_LABELS, PRIMARY_MODES, type ModeId } from "../../providers/ModeProvider";
@@ -131,20 +132,22 @@ export function LeftNav() {
             </motion.div>
           )}
         </AnimatePresence>
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          className="rounded-md p-1 text-[11px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          <motion.span
-            animate={{ rotate: collapsed ? 0 : 180 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="inline-block"
+        <Tooltip label={collapsed ? "Expand sidebar" : "Collapse sidebar"} side="right">
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="rounded-md p-1 text-[11px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
           >
-            ›
-          </motion.span>
-        </button>
+            <motion.span
+              animate={{ rotate: collapsed ? 0 : 180 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="inline-block"
+            >
+              ›
+            </motion.span>
+          </button>
+        </Tooltip>
       </div>
 
       {/* Primary nav (modes) */}
@@ -204,11 +207,16 @@ function NavButton({
   active: boolean;
   onActivate: () => void;
 }) {
+  // Tooltip is disabled when the sidebar is expanded — the label is already
+  // shown inline next to the icon, so an extra hover card would be noise.
+  // When collapsed (icon-only strip) the tooltip is the only way to name the
+  // mode, so it becomes essential rather than decorative.
   return (
+    <Tooltip label={item.label} side="right" disabled={!collapsed}>
     <motion.button
       type="button"
       onClick={onActivate}
-      title={item.label}
+      aria-label={item.label}
       whileTap={{ scale: 0.97 }}
       transition={{ duration: 0.12, ease: "easeOut" }}
       className={`relative flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors ${
@@ -247,5 +255,6 @@ function NavButton({
         </span>
       )}
     </motion.button>
+    </Tooltip>
   );
 }

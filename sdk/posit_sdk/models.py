@@ -6,7 +6,7 @@ When the server wire format changes, update here to match.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.alias_generators import to_camel
@@ -192,6 +192,89 @@ class StreamSpec(BaseModel):
         return self
 
 
+class ConnectorParamSchema(BaseModel):
+    """One user-tunable parameter exposed by a server-side connector."""
+
+    name: str
+    type: Literal["int", "float", "list_int", "list_float"]
+    default: Any
+    description: str
+    min: float | None = None
+    max: float | None = None
+
+
+class ConnectorInputFieldSchema(BaseModel):
+    """One non-key, non-timestamp field on every connector input row."""
+
+    name: str
+    type: Literal["float", "int", "str"]
+    description: str
+
+
+class ConnectorSchema(BaseModel):
+    """Full catalog metadata for a single connector."""
+
+    name: str
+    display_name: str
+    description: str
+    input_key_cols: list[str]
+    input_value_fields: list[ConnectorInputFieldSchema]
+    output_unit_label: str
+    params: list[ConnectorParamSchema]
+    recommended_scale: float
+    recommended_offset: float
+    recommended_exponent: float
+    recommended_block: BlockConfig
+
+
+class ConnectorCatalogResponse(BaseModel):
+    """Response for ``PositClient.list_connectors()``."""
+
+    connectors: list[ConnectorSchema]
+
+
+class ConnectorInputRow(BaseModel):
+    """One row of a connector input batch.
+
+    Connector input schemas vary per connector — extra fields are allowed
+    on the wire and validated server-side against the connector's
+    ``input_key_cols`` + ``input_value_fields``.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    timestamp: str = Field(..., description="ISO 8601 timestamp")
+
+    @field_validator("timestamp")
+    @classmethod
+    def _timestamp_parseable(cls, v: str) -> str:
+        try:
+            _parse_datetime_tolerant(v)
+        except ValueError as exc:
+            raise ValueError(
+                f"timestamp must be ISO 8601 or DDMMMYY, got {v!r}: {exc}"
+            ) from exc
+        return v
+
+
+class ConnectorInputResponse(BaseModel):
+    """Response from ``PositClient.push_connector_input`` / REST ingest."""
+
+    stream_name: str
+    rows_accepted: int
+    rows_emitted: int
+    pipeline_rerun: bool
+    server_seq: int = 0
+
+
+class ConnectorStateSummary(BaseModel):
+    """Per-stream warmup-progress numbers for a connector-fed stream."""
+
+    min_n_eff: float
+    warmup_threshold: float
+    symbols_tracked: int
+
+
 class StreamResponse(BaseModel):
     """Response for stream CRUD endpoints.
 
@@ -205,6 +288,10 @@ class StreamResponse(BaseModel):
       transform is applied to produce ``target_market_value``.
     - ``fair`` values the pipeline emits downstream are always in target
       space, so ``exponent=2`` is the vol-to-variance convention.
+
+    ``connector_name`` (when non-None) flags the stream as connector-fed —
+    push connector inputs via ``PositClient.push_connector_input`` instead
+    of ``push_snapshot``.
     """
 
     stream_name: str
@@ -214,6 +301,8 @@ class StreamResponse(BaseModel):
     offset: float | None = None
     exponent: float | None = None
     block: BlockConfig | None = None
+    connector_name: str | None = None
+    connector_params: dict[str, Any] | None = None
 
 
 class SnapshotResponse(BaseModel):
@@ -227,8 +316,8 @@ class StreamState(BaseModel):
     """Extended stream metadata returned by ``PositClient.describe_stream``.
 
     Configuration fields mirror ``StreamResponse``; the operational fields
-    (``row_count``, ``last_ingest_ts``) surface the view integrators
-    previously had to curl for.
+    (``row_count``, ``last_ingest_ts``, ``connector_state_summary``)
+    surface the view integrators previously had to curl for.
     """
 
     stream_name: str
@@ -240,6 +329,9 @@ class StreamState(BaseModel):
     block: BlockConfig | None = None
     row_count: int
     last_ingest_ts: str | None = None
+    connector_name: str | None = None
+    connector_params: dict[str, Any] | None = None
+    connector_state_summary: ConnectorStateSummary | None = None
 
 
 class HealthResponse(BaseModel):

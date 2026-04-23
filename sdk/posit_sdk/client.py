@@ -6,7 +6,7 @@ import logging
 import os
 import time
 import warnings
-from typing import AsyncGenerator, Awaitable
+from typing import Any, AsyncGenerator, Awaitable
 
 from pydantic import create_model
 
@@ -23,6 +23,9 @@ from posit_sdk.models import (
     BankrollResponse,
     BlockConfig,
     BlockRowResponse,
+    ConnectorCatalogResponse,
+    ConnectorInputResponse,
+    ConnectorInputRow,
     HealthResponse,
     IntegratorEvent,
     IntegratorEventType,
@@ -480,6 +483,8 @@ class PositClient:
         offset: float = 0.0,
         exponent: float = 1.0,
         block: BlockConfig | None = None,
+        connector_name: str | None = None,
+        connector_params: dict[str, Any] | None = None,
     ) -> StreamResponse:
         """**Deprecated** — use ``upsert_stream`` / ``bootstrap_streams`` instead.
 
@@ -494,6 +499,9 @@ class PositClient:
         factories ``configure_stream_for_variance`` /
         ``configure_stream_for_linear`` for the two common transforms.
 
+        For connector-fed streams, prefer ``upsert_connector_stream``
+        which bundles create + connector-aware configure.
+
         Will be removed in v0.2.
         """
         warnings.warn(
@@ -503,7 +511,13 @@ class PositClient:
             stacklevel=2,
         )
         return await self._require_rest().configure_stream(
-            stream_name, scale=scale, offset=offset, exponent=exponent, block=block,
+            stream_name,
+            scale=scale,
+            offset=offset,
+            exponent=exponent,
+            block=block,
+            connector_name=connector_name,
+            connector_params=connector_params,
         )
 
     async def configure_stream_for_variance(
@@ -575,6 +589,123 @@ class PositClient:
     async def delete_stream(self, stream_name: str) -> None:
         await self._require_rest().delete_stream(stream_name)
         self._ready_streams.discard(stream_name)
+
+    # ----- Connectors -----
+
+    async def list_connectors(self) -> ConnectorCatalogResponse:
+        """Return the server's connector catalog (catalog metadata only).
+
+        Connector implementations live in ``server/core/connectors/`` and
+        are never served — this returns the safe-to-show metadata used to
+        render the Stream Canvas picker.
+        """
+        return await self._require_rest().list_connectors()
+
+    async def upsert_connector_stream(
+        self,
+        stream_name: str,
+        connector_name: str,
+        *,
+        key_cols: list[str],
+        params: dict[str, Any] | None = None,
+    ) -> StreamResponse:
+        """Idempotent connector-fed stream setup — create + configure in one call.
+
+        Looks up ``connector_name`` in the catalog, applies its
+        recommended defaults (scale / offset / exponent / block), and
+        merges the user-supplied ``params`` over the connector's
+        defaults. The resulting stream is connector-fed: snapshot pushes
+        return 409 STREAM_IS_CONNECTOR_FED and you must use
+        ``push_connector_input`` instead.
+
+        Safe to re-run on every process launch — like ``upsert_stream``,
+        existing streams are reconfigured rather than recreated.
+        """
+        catalog = await self.list_connectors()
+        connector = next(
+            (c for c in catalog.connectors if c.name == connector_name),
+            None,
+        )
+        if connector is None:
+            raise PositValidationError(
+                f"Unknown connector {connector_name!r}; available: "
+                f"{[c.name for c in catalog.connectors]}"
+            )
+        await self._validate_key_cols(key_cols)
+
+        existing_by_name = {s.stream_name: s for s in await self.list_streams()}
+        existing = existing_by_name.get(stream_name)
+
+        if existing is not None and list(existing.key_cols) != list(key_cols):
+            log.info(
+                "Connector stream %r key_cols migration %s -> %s",
+                stream_name, existing.key_cols, key_cols,
+            )
+            await self._require_rest().update_stream(
+                stream_name, new_key_cols=key_cols,
+            )
+
+        created_fresh = existing is None
+        if created_fresh:
+            await self._require_rest().create_stream(stream_name, key_cols)
+
+        self._ready_streams.add(stream_name)
+        try:
+            return await self._require_rest().configure_stream(
+                stream_name,
+                scale=connector.recommended_scale,
+                offset=connector.recommended_offset,
+                exponent=connector.recommended_exponent,
+                block=connector.recommended_block,
+                connector_name=connector_name,
+                connector_params=params,
+            )
+        except Exception:
+            if created_fresh:
+                try:
+                    await self._require_rest().delete_stream(stream_name)
+                except Exception:
+                    log.exception(
+                        "Rollback after failed configure of %r also failed", stream_name,
+                    )
+                self._ready_streams.discard(stream_name)
+            raise
+
+    async def push_connector_input(
+        self,
+        stream_name: str,
+        rows: list[ConnectorInputRow],
+    ) -> ConnectorInputResponse:
+        """Push connector input rows. Prefers WS, falls back to REST.
+
+        Raises ``PositStreamNotRegistered`` synchronously if the target
+        stream is not known to be registered. Raises ``PositValidationError``
+        on the server's 409 STREAM_IS_NOT_CONNECTOR_FED (the stream exists
+        but is user-fed — use ``push_snapshot`` instead).
+        """
+        self._assert_registered(stream_name)
+        if self._ws_state() == WsState.OPEN:
+            ack = await self._require_ws().push_connector_input(stream_name, rows)
+            return ConnectorInputResponse(
+                stream_name=stream_name,
+                rows_accepted=ack.rows_accepted,
+                # WS ACK doesn't carry the emitted-row count back — REST
+                # callers wanting it should use the REST endpoint directly.
+                rows_emitted=0,
+                pipeline_rerun=ack.pipeline_rerun,
+                server_seq=ack.server_seq,
+            )
+        self._maybe_warn_ws_fallback()
+        try:
+            return await self._require_rest().push_connector_input(stream_name, rows)
+        except PositApiError as exc:
+            if self._handle_not_registered(stream_name, exc):
+                raise PositStreamNotRegistered(stream_name) from exc
+            if exc.status_code == 409 and "STREAM_IS_NOT_CONNECTOR_FED" in exc.message:
+                raise PositValidationError(
+                    f"Stream {stream_name!r} is not connector-fed; use push_snapshot()."
+                ) from exc
+            raise
 
     async def upsert_stream(
         self,

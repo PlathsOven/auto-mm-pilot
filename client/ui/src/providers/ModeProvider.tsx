@@ -43,8 +43,8 @@ export const MODE_LABELS: Record<ModeId, string> = {
  * Parsed route state.
  *
  * `segments` are the slash-separated parts of everything after the mode, and
- * `query` holds any `?k=v` pairs. For example, `#anatomy?stream=btc&template=fomc`
- * yields `{ mode: "anatomy", segments: [], query: { stream: "btc", template: "fomc" } }`.
+ * `query` holds any `?k=v` pairs. For example, `#anatomy?stream=rv_btc`
+ * yields `{ mode: "anatomy", segments: [], query: { stream: "rv_btc" } }`.
  */
 interface ParsedRoute {
   mode: ModeId;

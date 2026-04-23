@@ -2,11 +2,13 @@ import { useTransforms } from "../../../providers/TransformsProvider";
 import { useActivePositionSizing } from "../../../hooks/useActivePositionSizing";
 import type { ConfidenceDraft, SectionState } from "../canvasState";
 import { SectionCard } from "./SectionCard";
+import { ConnectorLockedHint } from "./TargetMappingSection";
 
 interface Props {
   value: ConfidenceDraft;
   onChange: (next: ConfidenceDraft) => void;
   state: SectionState;
+  readOnly?: boolean;
 }
 
 const SLIDER_MIN = 0.01;
@@ -32,7 +34,7 @@ function linearPct(v: number): number {
  * Confidence is expressed as a `var_fair_ratio` — variance per unit fair value.
  * Lower values mean higher confidence (less variance for the same edge).
  */
-export function ConfidenceSection({ value, onChange, state }: Props) {
+export function ConfidenceSection({ value, onChange, state, readOnly = false }: Props) {
   const { steps } = useTransforms();
   const variance = steps?.variance?.selected ?? "fair_proportional";
   const positionSizing = useActivePositionSizing();
@@ -66,6 +68,7 @@ export function ConfidenceSection({ value, onChange, state }: Props) {
           {variance}
         </code>
       </div>
+      {readOnly && <ConnectorLockedHint />}
       <div className="grid gap-3">
         {/* The anchor labels are positioned absolutely at the slider's
             proportional value position so they line up with the track
@@ -76,15 +79,14 @@ export function ConfidenceSection({ value, onChange, state }: Props) {
             min={SLIDER_MIN}
             max={SLIDER_MAX}
             step={SLIDER_STEP}
+            disabled={readOnly}
             value={Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, value.var_fair_ratio))}
             onChange={(e) => {
               const raw = parseFloat(e.target.value);
-              // Round to 2dp to match the step resolution so floating-point
-              // noise doesn't leak values like 0.30000000000000004.
               const next = Math.round(raw * 100) / 100;
               onChange({ var_fair_ratio: next });
             }}
-            className="w-full accent-mm-accent"
+            className={`w-full accent-mm-accent ${readOnly ? "cursor-not-allowed opacity-60" : ""}`}
           />
           <div className="pointer-events-none absolute inset-x-0 top-4 h-10">
             {ANCHORS.map((a) => {
@@ -104,11 +106,12 @@ export function ConfidenceSection({ value, onChange, state }: Props) {
                 <button
                   key={a.value}
                   type="button"
-                  onClick={() => onChange({ var_fair_ratio: a.value })}
+                  disabled={readOnly}
+                  onClick={() => !readOnly && onChange({ var_fair_ratio: a.value })}
                   style={{ left: `${pct}%`, transform: translate }}
                   className={`pointer-events-auto absolute top-0 rounded px-1 py-0.5 ${textAlign} transition-colors hover:text-mm-text ${
                     active ? "text-mm-accent" : "text-mm-text-dim"
-                  }`}
+                  } ${readOnly ? "cursor-not-allowed opacity-60" : ""}`}
                 >
                   <div className="tabular-nums text-[10px]">{a.value.toFixed(2)}</div>
                   <div className="whitespace-nowrap text-[9px]">{a.label}</div>

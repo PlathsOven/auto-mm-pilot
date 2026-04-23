@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { Tooltip } from "../ui/Tooltip";
 
 interface HotkeyCheatsheetProps {
   open: boolean;
@@ -44,7 +45,7 @@ export function HotkeyCheatsheet({ open, onClose }: HotkeyCheatsheetProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className="fixed inset-0 z-[200] bg-black/30"
+            className="fixed inset-0 z-[200] bg-black/30 backdrop-blur-[2px]"
             onClick={onClose}
             aria-hidden
           />
@@ -54,18 +55,20 @@ export function HotkeyCheatsheet({ open, onClose }: HotkeyCheatsheetProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 4 }}
             transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed left-1/2 top-1/2 z-[201] w-[480px] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-white/50 bg-white/85 shadow-2xl shadow-black/15 ring-1 ring-black/[0.06] backdrop-blur-glass32"
+            className="glass-panel-xl fixed left-1/2 top-1/2 z-[201] w-[480px] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden"
           >
             <div className="flex items-center justify-between border-b border-black/[0.06] px-4 py-2">
               <span className="zone-header">Keyboard shortcuts</span>
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-md p-1 text-[11px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
-                title="Close (Esc)"
-              >
-                ✕
-              </button>
+              <Tooltip label="Close cheatsheet (Esc)" side="left">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close keyboard shortcuts"
+                  className="rounded-md p-1 text-[11px] text-mm-text-subtle transition-colors hover:bg-black/[0.04] hover:text-mm-text"
+                >
+                  ✕
+                </button>
+              </Tooltip>
             </div>
             <div className="max-h-[60vh] overflow-y-auto px-4 py-3">
               {ROWS.map((group) => (
@@ -93,7 +96,7 @@ export function HotkeyCheatsheet({ open, onClose }: HotkeyCheatsheetProps) {
                 </section>
               ))}
             </div>
-            <div className="border-t border-black/[0.06] bg-black/[0.02] px-4 py-1.5 text-[9px] text-mm-text-dim">
+            <div className="border-t border-black/[0.06] bg-white/30 px-4 py-1.5 text-[9px] text-mm-text-dim">
               Shortcuts are disabled while typing in inputs.
             </div>
           </motion.div>

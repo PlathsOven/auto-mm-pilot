@@ -97,7 +97,6 @@ export function NodeDetailPanel({
             <StreamCanvas
               key={`${selection.streamName}:${streamPrefill?.streamName ?? ""}`}
               streamName={selection.streamName}
-              templateId={null}
               prefill={streamPrefill ?? null}
               onActivated={onStreamActivated}
             />

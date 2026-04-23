@@ -134,7 +134,7 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="fixed inset-0 z-40 bg-black/30"
+            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px]"
             onClick={onClose}
             aria-hidden
           />
@@ -144,7 +144,7 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed right-0 top-0 z-50 flex h-screen w-[560px] flex-col border-l border-black/[0.06] bg-white/80 shadow-xl shadow-black/[0.06] backdrop-blur-glass32"
+            className="glass-panel-xl fixed right-0 top-0 z-50 flex h-screen w-[560px] flex-col rounded-none border-y-0 border-r-0 border-l border-white/40"
             onClick={(e) => e.stopPropagation()}
           >
         {/* Header */}
@@ -313,15 +313,17 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
               type="button"
               disabled={!valid || submitting}
               onClick={() => submit(draft)}
-              className="rounded-lg bg-mm-accent px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-mm-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
+              className="btn-accent-gradient rounded-lg px-4 py-1.5 text-xs font-semibold"
             >
-              {submitting
-                ? mode === "create"
-                  ? "Creating..."
-                  : "Saving..."
-                : mode === "create"
-                  ? "Create block"
-                  : "Save changes"}
+              <span className="relative">
+                {submitting
+                  ? mode === "create"
+                    ? "Creating..."
+                    : "Saving..."
+                  : mode === "create"
+                    ? "Create block"
+                    : "Save changes"}
+              </span>
             </button>
           )}
         </footer>

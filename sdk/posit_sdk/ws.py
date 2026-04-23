@@ -12,7 +12,13 @@ import websockets
 import websockets.exceptions
 
 from posit_sdk.exceptions import PositApiError, PositAuthError, PositConnectionError
-from posit_sdk.models import MarketValueEntry, PositionPayload, SnapshotRow, WsAck
+from posit_sdk.models import (
+    ConnectorInputRow,
+    MarketValueEntry,
+    PositionPayload,
+    SnapshotRow,
+    WsAck,
+)
 
 log = logging.getLogger(__name__)
 
@@ -286,6 +292,18 @@ class WsClient:
         return await self._send({
             "type": "market_value",
             "entries": [e.model_dump() for e in entries],
+        })
+
+    async def push_connector_input(
+        self,
+        stream_name: str,
+        rows: list[ConnectorInputRow],
+    ) -> WsAck:
+        """Push connector input rows and wait for the server ACK."""
+        return await self._send({
+            "type": "connector_input",
+            "stream_name": stream_name,
+            "rows": [r.model_dump() for r in rows],
         })
 
     async def positions(self) -> AsyncGenerator[PositionPayload, None]:

@@ -47,9 +47,9 @@ export function StreamCanvasFooter({ allValid, activating, result, onActivate }:
           type="button"
           disabled={!allValid || activating}
           onClick={onActivate}
-          className="rounded-lg bg-mm-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-mm-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
+          className="btn-accent-gradient rounded-lg px-4 py-2 text-xs font-semibold"
         >
-          {activating ? "Activating…" : "Activate stream"}
+          <span className="relative">{activating ? "Activating…" : "Activate stream"}</span>
         </button>
       </div>
     </div>

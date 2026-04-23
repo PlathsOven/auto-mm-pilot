@@ -8,6 +8,9 @@ interface Props {
   value: TargetMappingDraft;
   onChange: (next: TargetMappingDraft) => void;
   state: SectionState;
+  /** True when the parent canvas locks this section — connector-fed streams
+   *  auto-fill the values from the connector's recommended defaults. */
+  readOnly?: boolean;
 }
 
 /**
@@ -18,7 +21,7 @@ interface Props {
  * stores the values in TargetMappingDraft (scale/offset/exponent), which
  * matches the existing `affine_power` shape used by the configure endpoint.
  */
-export function TargetMappingSection({ value, onChange, state }: Props) {
+export function TargetMappingSection({ value, onChange, state, readOnly = false }: Props) {
   const { steps } = useTransforms();
   const activeName = steps?.unit_conversion?.selected ?? "affine_power";
 
@@ -46,10 +49,11 @@ export function TargetMappingSection({ value, onChange, state }: Props) {
       message={state.message}
     >
       <TransformBadge name={activeName} />
+      {readOnly && <ConnectorLockedHint />}
       <div className="mt-2 grid grid-cols-3 gap-3">
-        <Field type="number" label="scale" required committable value={value.scale} onChange={(v) => patch("scale", v)} />
-        <Field type="number" label="offset" required committable value={value.offset} onChange={(v) => patch("offset", v)} />
-        <Field type="number" label="exponent" required committable value={value.exponent} onChange={(v) => patch("exponent", v)} />
+        <Field type="number" label="scale" required committable disabled={readOnly} value={value.scale} onChange={(v) => patch("scale", v)} />
+        <Field type="number" label="offset" required committable disabled={readOnly} value={value.offset} onChange={(v) => patch("offset", v)} />
+        <Field type="number" label="exponent" required committable disabled={readOnly} value={value.exponent} onChange={(v) => patch("exponent", v)} />
       </div>
 
       <div className="mt-3 grid gap-2 rounded-md border border-black/[0.06] bg-black/[0.03] px-3 py-2">
@@ -103,6 +107,17 @@ function TransformBadge({ name }: { name: string }) {
         {name}
       </code>
     </div>
+  );
+}
+
+/** Caption shown above a connector-locked section. Identical wording across
+ *  every locked section so the trader recognises the pattern after the first
+ *  encounter. */
+export function ConnectorLockedHint() {
+  return (
+    <p className="mt-1 text-[9px] italic text-mm-text-dim">
+      Auto-filled from connector — values are locked in v1.
+    </p>
   );
 }
 

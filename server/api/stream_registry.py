@@ -17,7 +17,7 @@ import logging
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
@@ -25,7 +25,38 @@ from server.api.stream_history import StreamHistoryBuffer
 from server.api.user_scope import UserRegistry
 from server.core.config import BlockConfig, StreamConfig
 
+if TYPE_CHECKING:  # pragma: no cover
+    from server.api.connector_state import ConnectorStateStore
+
 log = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Connector / snapshot routing errors — caller translates to HTTP 409.
+# ---------------------------------------------------------------------------
+
+
+class StreamIsConnectorFed(Exception):
+    """Raised when a snapshot push targets a connector-fed stream."""
+
+    def __init__(self, stream_name: str, connector_name: str) -> None:
+        self.stream_name = stream_name
+        self.connector_name = connector_name
+        super().__init__(
+            f"Stream '{stream_name}' is connector-fed by '{connector_name}'; "
+            f"use POST /api/streams/{stream_name}/connector-input instead."
+        )
+
+
+class StreamIsNotConnectorFed(Exception):
+    """Raised when a connector-input push targets a user-fed stream."""
+
+    def __init__(self, stream_name: str) -> None:
+        self.stream_name = stream_name
+        super().__init__(
+            f"Stream '{stream_name}' is not connector-fed; "
+            f"use POST /api/snapshots instead."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -110,6 +141,12 @@ class StreamRegistration:
     # can render an accumulating time series even when producers push one
     # row at a time (``snapshot_rows`` is replaced, not appended).
     history: StreamHistoryBuffer = field(default_factory=StreamHistoryBuffer)
+
+    # Connector wiring. When ``connector_name`` is non-None the stream is
+    # connector-fed: snapshot pushes are rejected, and ingest happens via
+    # ``ingest_connector_input`` which delegates to ConnectorStateStore.
+    connector_name: str | None = None
+    connector_params: dict[str, Any] | None = None
 
     @property
     def status(self) -> str:
@@ -344,8 +381,15 @@ class StreamRegistry:
         sample_csv: str | None = None,
         value_column: str | None = None,
         applies_to: list[tuple[str, str]] | None = None,
+        connector_name: str | None = None,
+        connector_params: dict[str, Any] | None = None,
     ) -> StreamRegistration:
-        """Admin sets the pipeline-facing parameters → moves stream to READY."""
+        """Admin sets the pipeline-facing parameters → moves stream to READY.
+
+        ``connector_name`` (optional) flags the stream as connector-fed so
+        ``ingest_snapshot`` rejects snapshot pushes; the matching
+        ``ingest_connector_input`` is the only valid ingest path.
+        """
         with self._lock:
             reg = self._streams.get(stream_name)
             if reg is None:
@@ -358,7 +402,12 @@ class StreamRegistry:
             reg.sample_csv = sample_csv
             reg.value_column = value_column
             reg.applies_to = applies_to
-            log.info("Stream '%s' configured (status=%s)", stream_name, reg.status)
+            reg.connector_name = connector_name
+            reg.connector_params = connector_params
+            log.info(
+                "Stream '%s' configured (status=%s, connector=%s)",
+                stream_name, reg.status, connector_name,
+            )
             return reg
 
     # -- Active toggle ------------------------------------------------------
@@ -378,13 +427,20 @@ class StreamRegistry:
 
     # -- Delete -------------------------------------------------------------
 
-    def delete(self, stream_name: str) -> None:
+    def delete(
+        self,
+        stream_name: str,
+        connector_store: "ConnectorStateStore | None" = None,
+    ) -> None:
+        """Delete a stream; optionally evict its connector state."""
         with self._lock:
             if stream_name not in self._streams:
                 raise KeyError(f"Stream '{stream_name}' not found")
             del self._streams[stream_name]
             self.manual_blocks.unmark(stream_name)
             log.info("Stream deleted: %s", stream_name)
+        if connector_store is not None:
+            connector_store.evict(stream_name)
 
     # -- Snapshot ingestion -------------------------------------------------
 
@@ -393,7 +449,7 @@ class StreamRegistry:
         stream_name: str,
         rows: list[dict[str, Any]],
     ) -> int:
-        """Store snapshot rows for a READY stream."""
+        """Store snapshot rows for a READY, user-fed stream."""
         with self._lock:
             reg = self._streams.get(stream_name)
             if reg is None:
@@ -403,6 +459,8 @@ class StreamRegistry:
                     f"Stream '{stream_name}' is not READY (status={reg.status}). "
                     "Admin must configure it first."
                 )
+            if reg.connector_name is not None:
+                raise StreamIsConnectorFed(stream_name, reg.connector_name)
 
             required = _REQUIRED_SNAPSHOT_COLS | set(reg.key_cols)
             for i, row in enumerate(rows):
@@ -417,6 +475,137 @@ class StreamRegistry:
             reg.history.push_rows(reg.key_cols, rows)
             log.info("Snapshot ingested for '%s': %d rows", stream_name, len(rows))
             return len(rows)
+
+    def ingest_connector_input(
+        self,
+        stream_name: str,
+        rows: list[dict[str, Any]],
+        connector_store: "ConnectorStateStore",
+    ) -> tuple[int, int]:
+        """Push connector inputs to ``stream_name``; emit snapshot rows.
+
+        Returns ``(rows_accepted, rows_emitted)`` — accepted is the inbound
+        row count (the connector consumed all of them, raising on bad
+        input); emitted is how many ``SnapshotRow`` entries actually landed
+        in the stream's ``snapshot_rows`` after the State Store fans
+        per-symbol output across the current dim universe (one row per
+        ``(symbol, expiry)`` in the universe). When the universe is empty
+        the emit count is zero and no pipeline rerun fires — see the
+        "Implementation note" in ``tasks/spec-connectors.md`` for the
+        bootstrapping limitation.
+        """
+        with self._lock:
+            reg = self._streams.get(stream_name)
+            if reg is None:
+                raise KeyError(f"Stream '{stream_name}' not found")
+            if reg.status != "READY":
+                raise ValueError(
+                    f"Stream '{stream_name}' is not READY (status={reg.status}). "
+                    "Admin must configure it first."
+                )
+            if reg.connector_name is None:
+                raise StreamIsNotConnectorFed(stream_name)
+            connector_name = reg.connector_name
+            connector_params = dict(reg.connector_params or {})
+            stream_key_cols = list(reg.key_cols)
+
+        # Connector mutation runs outside the registry lock — the connector
+        # store has its own lock, and the connector's process() can be slow.
+        emitted = connector_store.process(
+            stream_name, connector_name, connector_params, rows,
+        )
+
+        # Fan emitted per-symbol rows across (symbol, expiry) pairs in the
+        # current dim universe so the pipeline sees per-(symbol, expiry)
+        # rows like any other stream.
+        fanned = self._fan_emit_rows(emitted, stream_key_cols)
+
+        if fanned:
+            with self._lock:
+                reg = self._streams.get(stream_name)
+                if reg is None:
+                    # Stream was deleted between the connector call and now;
+                    # drop the emit silently — the evict will have cleared
+                    # state already.
+                    return len(rows), 0
+                reg.snapshot_rows = fanned
+                reg.history.push_rows(reg.key_cols, fanned)
+
+        log.info(
+            "Connector input ingested for '%s' via %s: %d rows in, %d emitted, "
+            "%d fanned across dim universe",
+            stream_name, connector_name, len(rows), len(emitted), len(fanned),
+        )
+        return len(rows), len(fanned)
+
+    def _fan_emit_rows(
+        self,
+        emitted: list[dict[str, Any]],
+        stream_key_cols: list[str],
+    ) -> list[dict[str, Any]]:
+        """Replicate connector emit rows across the current dim universe.
+
+        The connector emits rows tagged with its ``input_key_cols`` (e.g.
+        ``["symbol"]`` for realized_vol). The stream's ``key_cols`` are the
+        full risk-dimension set (``["symbol", "expiry"]``). For every
+        emitted row, replicate it once per ``expiry`` value the same symbol
+        already has in the dim universe — read from every other configured
+        stream's snap rows. Returns ``[]`` when the universe is empty.
+        """
+        if not emitted:
+            return []
+
+        # Collect (symbol, expiry) pairs from every *other* stream's snap
+        # rows. We skip the connector-fed stream itself to avoid the
+        # bootstrap chicken-and-egg of "the universe is what I emitted".
+        universe_by_symbol: dict[Any, set[Any]] = {}
+        with self._lock:
+            for reg in self._streams.values():
+                if reg.connector_name is not None:
+                    continue
+                if "symbol" not in reg.key_cols or "expiry" not in reg.key_cols:
+                    continue
+                for row in reg.snapshot_rows:
+                    sym = row.get("symbol")
+                    exp = row.get("expiry")
+                    if sym is None or exp is None:
+                        continue
+                    universe_by_symbol.setdefault(sym, set()).add(exp)
+
+        if not universe_by_symbol:
+            return []
+
+        # For per-symbol emits, replicate across that symbol's expiries.
+        # If the connector emitted for a symbol not in the universe (e.g.
+        # the trader pushes ETH ticks but only BTC has expiries), the row
+        # is dropped silently — same shape as the universe-empty case.
+        fanned: list[dict[str, Any]] = []
+        missing_keys = [k for k in stream_key_cols if k not in {"symbol", "expiry"}]
+        for row in emitted:
+            sym = row.get("symbol")
+            expiries = universe_by_symbol.get(sym, set())
+            for exp in expiries:
+                fan_row = dict(row)
+                fan_row.setdefault("expiry", exp)
+                # Anything else the stream's key_cols requires that the
+                # connector didn't emit — set to None so the missing-cols
+                # validator passes (the pipeline tolerates Nulls in extra
+                # key columns).
+                for k in missing_keys:
+                    fan_row.setdefault(k, None)
+                fanned.append(fan_row)
+        return fanned
+
+    def connector_state_summary(
+        self, stream_name: str, connector_store: "ConnectorStateStore",
+    ):
+        """Return the connector's state summary for ``stream_name`` or None."""
+        with self._lock:
+            reg = self._streams.get(stream_name)
+            if reg is None or reg.connector_name is None:
+                return None
+            connector_name = reg.connector_name
+        return connector_store.summary(stream_name, connector_name)
 
     # -- Pipeline consumption -----------------------------------------------
 
