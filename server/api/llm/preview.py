@@ -13,7 +13,6 @@ side effects; we call it directly rather than going through
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -40,8 +39,6 @@ from server.api.stream_registry import (
 )
 from server.core.config import BlockConfig, StreamConfig
 from server.core.pipeline import run_pipeline
-
-log = logging.getLogger(__name__)
 
 # Column names from the pipeline output used by the diff.
 _POSITION_COL = "smoothed_desired_position"
@@ -100,21 +97,19 @@ def build_preview(
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     aggregate_mv = market_values_to_dict(user_id)
 
-    try:
-        simulated = run_pipeline(
-            streams=simulated_configs,
-            risk_dimension_cols=RISK_DIMENSION_COLS,
-            now=now,
-            bankroll=engine.bankroll,
-            smoothing_hl_secs=SMOOTHING_HL_SECS,
-            time_grid_interval=TIME_GRID_INTERVAL,
-            transform_config=engine.transform_config,
-            aggregate_market_values=aggregate_mv,
-            space_market_values={},
-        )
-    except Exception:
-        log.exception("preview pipeline run failed for user=%s", user_id)
-        raise
+    # Any run_pipeline failure propagates — the /api/blocks/preview
+    # handler in routers/build.py logs + converts to a 500.
+    simulated = run_pipeline(
+        streams=simulated_configs,
+        risk_dimension_cols=RISK_DIMENSION_COLS,
+        now=now,
+        bankroll=engine.bankroll,
+        smoothing_hl_secs=SMOOTHING_HL_SECS,
+        time_grid_interval=TIME_GRID_INTERVAL,
+        transform_config=engine.transform_config,
+        aggregate_market_values=aggregate_mv,
+        space_market_values={},
+    )
 
     before_df = engine.pipeline_results.get("desired_pos_df") if engine.pipeline_results else None
     after_df = simulated["desired_pos_df"]

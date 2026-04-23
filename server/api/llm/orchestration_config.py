@@ -19,6 +19,14 @@ from dataclasses import dataclass, field
 from server.api.config import parse_str_list
 
 
+def _env_int(name: str, default: int) -> int:
+    return int(os.getenv(name, str(default)))
+
+
+def _env_float(name: str, default: float) -> float:
+    return float(os.getenv(name, str(default)))
+
+
 # Default model fallback chains per stage. Stages 1 + 2 favour Haiku-class
 # fast models — the router only needs to classify, and the intent extractor
 # emits structured JSON. Stages 3 + 3.5 step up to Sonnet/GPT-4/Gemini Pro
@@ -49,54 +57,46 @@ class LlmOrchestrationConfig:
 
     # ── Stage 1: Router ─────────────────────────────────────────────────
     router_models: tuple[str, ...] = field(
-        default_factory=lambda: parse_str_list(
-            "LLM_ROUTER_MODELS", _DEFAULT_ROUTER_MODELS,
-        )
+        default_factory=lambda: parse_str_list("LLM_ROUTER_MODELS", _DEFAULT_ROUTER_MODELS)
     )
     router_max_tokens: int = field(
-        default_factory=lambda: int(os.getenv("LLM_ROUTER_MAX_TOKENS", "200"))
+        default_factory=lambda: _env_int("LLM_ROUTER_MAX_TOKENS", 200)
     )
     router_temperature: float = field(
-        default_factory=lambda: float(os.getenv("LLM_ROUTER_TEMPERATURE", "0.0"))
+        default_factory=lambda: _env_float("LLM_ROUTER_TEMPERATURE", 0.0)
     )
 
     # ── Stage 2: Intent extractor ───────────────────────────────────────
     intent_models: tuple[str, ...] = field(
-        default_factory=lambda: parse_str_list(
-            "LLM_INTENT_MODELS", _DEFAULT_INTENT_MODELS,
-        )
+        default_factory=lambda: parse_str_list("LLM_INTENT_MODELS", _DEFAULT_INTENT_MODELS)
     )
     intent_max_tokens: int = field(
-        default_factory=lambda: int(os.getenv("LLM_INTENT_MAX_TOKENS", "1500"))
+        default_factory=lambda: _env_int("LLM_INTENT_MAX_TOKENS", 1500)
     )
     intent_temperature: float = field(
-        default_factory=lambda: float(os.getenv("LLM_INTENT_TEMPERATURE", "0.2"))
+        default_factory=lambda: _env_float("LLM_INTENT_TEMPERATURE", 0.2)
     )
 
     # ── Stage 3: Synthesiser ────────────────────────────────────────────
     synthesis_models: tuple[str, ...] = field(
-        default_factory=lambda: parse_str_list(
-            "LLM_SYNTHESIS_MODELS", _DEFAULT_SYNTHESIS_MODELS,
-        )
+        default_factory=lambda: parse_str_list("LLM_SYNTHESIS_MODELS", _DEFAULT_SYNTHESIS_MODELS)
     )
     synthesis_max_tokens: int = field(
-        default_factory=lambda: int(os.getenv("LLM_SYNTHESIS_MAX_TOKENS", "2000"))
+        default_factory=lambda: _env_int("LLM_SYNTHESIS_MAX_TOKENS", 2000)
     )
     synthesis_temperature: float = field(
-        default_factory=lambda: float(os.getenv("LLM_SYNTHESIS_TEMPERATURE", "0.1"))
+        default_factory=lambda: _env_float("LLM_SYNTHESIS_TEMPERATURE", 0.1)
     )
 
     # ── Stage 3.5: Critique ─────────────────────────────────────────────
     critique_models: tuple[str, ...] = field(
-        default_factory=lambda: parse_str_list(
-            "LLM_CRITIQUE_MODELS", _DEFAULT_CRITIQUE_MODELS,
-        )
+        default_factory=lambda: parse_str_list("LLM_CRITIQUE_MODELS", _DEFAULT_CRITIQUE_MODELS)
     )
     critique_max_tokens: int = field(
-        default_factory=lambda: int(os.getenv("LLM_CRITIQUE_MAX_TOKENS", "800"))
+        default_factory=lambda: _env_int("LLM_CRITIQUE_MAX_TOKENS", 800)
     )
     critique_temperature: float = field(
-        default_factory=lambda: float(os.getenv("LLM_CRITIQUE_TEMPERATURE", "0.0"))
+        default_factory=lambda: _env_float("LLM_CRITIQUE_TEMPERATURE", 0.0)
     )
 
     # ── Feedback loop thresholds ────────────────────────────────────────
@@ -105,17 +105,13 @@ class LlmOrchestrationConfig:
     # confirmed nor explicitly rejected within this many seconds are logged
     # to llm_failures with signal_type="silent_rejection".
     silent_rejection_threshold_secs: int = field(
-        default_factory=lambda: int(os.getenv(
-            "LLM_SILENT_REJECTION_THRESHOLD_SECS", "120",
-        ))
+        default_factory=lambda: _env_int("LLM_SILENT_REJECTION_THRESHOLD_SECS", 120)
     )
 
     # How often the silent-rejection sweep runs. Shorter = faster signal
     # capture + more DB churn. Longer = lag between abandonment and flag.
     silent_rejection_sweep_interval_secs: int = field(
-        default_factory=lambda: int(os.getenv(
-            "LLM_SILENT_REJECTION_SWEEP_INTERVAL_SECS", "30",
-        ))
+        default_factory=lambda: _env_int("LLM_SILENT_REJECTION_SWEEP_INTERVAL_SECS", 30)
     )
 
     # Post-commit edit threshold — if a trader edits or deletes a block
@@ -123,16 +119,14 @@ class LlmOrchestrationConfig:
     # LLM first-pass failure. Beyond this window, edits are assumed to
     # reflect new information rather than a correction.
     post_commit_edit_threshold_secs: int = field(
-        default_factory=lambda: int(os.getenv(
-            "LLM_POST_COMMIT_EDIT_THRESHOLD_SECS", "600",
-        ))
+        default_factory=lambda: _env_int("LLM_POST_COMMIT_EDIT_THRESHOLD_SECS", 600)
     )
 
     # Feedback detector — how many recent messages of context to include
     # when asking the detector model whether the latest exchange contains
     # a correction / discontent / preference signal.
     detector_context_window: int = field(
-        default_factory=lambda: int(os.getenv("LLM_DETECTOR_CONTEXT_WINDOW", "6"))
+        default_factory=lambda: _env_int("LLM_DETECTOR_CONTEXT_WINDOW", 6)
     )
 
     # Stage 4 preview — if the live desired-position snapshot was captured
@@ -140,9 +134,7 @@ class LlmOrchestrationConfig:
     # "before" side reflects a stale snapshot so the trader can interpret
     # the delta appropriately.
     preview_stale_threshold_secs: float = field(
-        default_factory=lambda: float(os.getenv(
-            "LLM_PREVIEW_STALE_THRESHOLD_SECS", "30.0",
-        ))
+        default_factory=lambda: _env_float("LLM_PREVIEW_STALE_THRESHOLD_SECS", 30.0)
     )
 
     # ── Target budgets (design targets, not enforced at runtime) ─────────
@@ -150,9 +142,7 @@ class LlmOrchestrationConfig:
     # Breaching this triggers the Milestone 2 follow-up: merge Stages 1 + 2
     # into a single structured-output LLM call. Not enforced at runtime.
     end_to_end_latency_budget_secs: float = field(
-        default_factory=lambda: float(os.getenv(
-            "LLM_END_TO_END_LATENCY_BUDGET_SECS", "5.0",
-        ))
+        default_factory=lambda: _env_float("LLM_END_TO_END_LATENCY_BUDGET_SECS", 5.0)
     )
 
 
