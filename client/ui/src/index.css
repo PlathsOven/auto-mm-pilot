@@ -32,48 +32,13 @@
     background: rgba(0, 0, 0, 0.20);
   }
 
-  /* ── Interactive cursor baseline ──
-     Every affordance must be honest: anything clickable shows the click
-     cursor, anything typable shows the text cursor, anything disabled
-     shows not-allowed. `!important` is used here because in this
-     codebase a handful of third-party stylesheets (react-flow, echarts
-     overlay layers, electron chrome) occasionally leak `cursor: default`
-     onto wrapping elements, and the cost of a stray wrong cursor in a
-     trading UI outweighs the usual "avoid !important" rule. These are
-     affordance signals, not decoration — they must always win. */
-  button:not(:disabled),
-  button:not(:disabled) *,
-  a[href],
-  a[href] *,
-  [role="button"]:not([aria-disabled="true"]),
-  [role="button"]:not([aria-disabled="true"]) *,
-  [role="tab"]:not([aria-disabled="true"]),
-  [role="switch"]:not([aria-disabled="true"]),
-  [role="menuitem"]:not([aria-disabled="true"]),
-  [role="option"]:not([aria-disabled="true"]),
-  summary,
-  label[for] {
-    cursor: pointer !important;
-  }
-
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([disabled]),
-  textarea:not([disabled]),
-  [contenteditable]:not([contenteditable="false"]) {
-    cursor: text !important;
-  }
-
-  button:disabled,
-  [aria-disabled="true"],
-  input:disabled,
-  textarea:disabled,
-  select:disabled {
-    cursor: not-allowed !important;
-  }
-
   /* Keyboard-focus ring on interactive elements. `:focus-visible` keeps
      the ring off mouse clicks so pointer users see a clean surface, while
      keyboard users get visible feedback. Colour + opacity mirror the
-     input focus-ring already used in `.form-input`. */
+     input focus-ring already used in `.form-input`. Cursor rules are
+     left to Tailwind preflight + component-level `cursor-*` utilities;
+     the base layer intentionally does nothing for cursor so no subtle
+     cascade interactions can surprise us. */
   button:focus-visible,
   [role="button"]:focus-visible,
   [role="tab"]:focus-visible,
