@@ -57,6 +57,7 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `client/ui/src/components/shell/StatusBar.tsx` | 24px bottom strip — WS state, last-tick freshness, Posit Control toggle (advisory until server hook lands), palette + cheatsheet hints, UTC clock. |
 | `client/ui/src/components/ui/Tabs.tsx` | Reusable tab strip primitive (pill + underline variants). Used by WorkbenchRail, DesiredPositionGrid view modes, LlmChat mode select. |
 | `client/ui/src/components/ui/Sidebar.tsx` | Reusable sidebar shell (collapsible, glass). Used by LeftNav today; `WorkbenchRail` and Anatomy `StreamSidebar` keep their bespoke shells (Phase 3 cleanup candidate). |
+| `client/ui/src/components/ui/Tooltip.tsx` | Reusable affordance-hint primitive — framer-motion popover, 400ms hover delay, immediate on keyboard focus, Esc-dismissible, portal-rendered. Preferred over native `title=` for any icon-only or cryptic control. |
 | `client/ui/src/pages/WorkbenchPage.tsx` | **Unified Workbench** — replaces the old Floor + Brain pages. Position grid + streams + updates + block table on the canvas, focus-driven Inspector + Chat in the right rail. |
 | `client/ui/src/components/workbench/WorkbenchRail.tsx` | Right rail with Inspector + Chat tabs; collapsible (persisted), responds to `[` / `]` and to `investigate()` from `ChatProvider`. |
 | `client/ui/src/components/workbench/InspectorRouter.tsx` | Routes Inspector content based on current `Focus` kind. |
