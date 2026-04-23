@@ -6,6 +6,7 @@ import { useTransforms } from "../../providers/TransformsProvider";
 import { formatUtcTime, safeGetItem, safeSetItem } from "../../utils";
 import { POSIT_CONTROL_KEY, STATUSBAR_HEIGHT_PX, STATUSBAR_TICK_MS } from "../../constants";
 import { BankrollControl } from "./BankrollControl";
+import { Tooltip } from "../ui/Tooltip";
 
 interface StatusBarProps {
   onShowCheatsheet: () => void;
@@ -62,30 +63,34 @@ export function StatusBar({ onShowCheatsheet }: StatusBarProps) {
 
       <Divider />
 
-      <span className="flex items-baseline gap-1">
-        <span className="text-mm-text-subtle">tick</span>
-        <span className="font-mono tabular-nums text-mm-text">
-          {elapsedMs == null ? "—" : `+${elapsedMs}ms`}
+      <Tooltip label="Time since the last pipeline tick — the lower, the fresher" side="top">
+        <span className="flex items-baseline gap-1" tabIndex={0}>
+          <span className="text-mm-text-subtle">tick</span>
+          <span className="font-mono tabular-nums text-mm-text">
+            {elapsedMs == null ? "—" : `+${elapsedMs}ms`}
+          </span>
         </span>
-      </span>
+      </Tooltip>
 
       <Divider />
 
       <div className="relative flex items-center">
-        <button
-          ref={bankrollTriggerRef}
-          type="button"
-          onClick={() => setBankrollOpen((v) => !v)}
-          className={`flex items-baseline gap-1 rounded px-1.5 py-0.5 transition-colors hover:bg-black/[0.04] ${
-            bankrollOpen ? "bg-black/[0.04] text-mm-text" : ""
-          }`}
-          title="Edit bankroll"
-        >
-          <span className="text-mm-text-subtle">bankroll</span>
-          <span className="font-mono tabular-nums text-mm-text">
-            {Number.isFinite(bankroll) ? bankroll.toLocaleString() : "—"}
-          </span>
-        </button>
+        <Tooltip label="Edit bankroll — the capital Posit sizes positions against" side="top">
+          <button
+            ref={bankrollTriggerRef}
+            type="button"
+            onClick={() => setBankrollOpen((v) => !v)}
+            aria-label="Edit bankroll"
+            className={`flex items-baseline gap-1 rounded px-1.5 py-0.5 transition-colors hover:bg-black/[0.04] ${
+              bankrollOpen ? "bg-black/[0.04] text-mm-text" : ""
+            }`}
+          >
+            <span className="text-mm-text-subtle">bankroll</span>
+            <span className="font-mono tabular-nums text-mm-text">
+              {Number.isFinite(bankroll) ? bankroll.toLocaleString() : "—"}
+            </span>
+          </button>
+        </Tooltip>
         <BankrollControl
           open={bankrollOpen}
           onClose={() => setBankrollOpen(false)}
@@ -95,62 +100,87 @@ export function StatusBar({ onShowCheatsheet }: StatusBarProps) {
 
       <Divider />
 
-      <button
-        type="button"
-        onClick={togglePosit}
-        className="flex items-center gap-1.5 rounded px-1.5 py-0.5 transition-colors hover:bg-black/[0.04]"
-        title={positEnabled ? "Posit automation is armed (advisory only today)" : "Posit automation is paused"}
+      <Tooltip
+        label={
+          positEnabled
+            ? "Posit automation is armed (advisory only today) — click to pause"
+            : "Posit automation is paused — click to arm"
+        }
+        side="top"
       >
-        <span
-          className={`inline-block h-1.5 w-1.5 rounded-full ${positEnabled ? "bg-mm-accent" : "bg-mm-text-subtle"}`}
-        />
-        <span className="text-mm-text-subtle">control</span>
-        <span className={`font-semibold tracking-wider ${positEnabled ? "text-mm-accent" : "text-mm-text-dim"}`}>
-          {positEnabled ? "ARMED" : "PAUSED"}
-        </span>
-      </button>
+        <button
+          type="button"
+          onClick={togglePosit}
+          aria-label={positEnabled ? "Pause Posit automation" : "Arm Posit automation"}
+          aria-pressed={positEnabled}
+          className="flex items-center gap-1.5 rounded px-1.5 py-0.5 transition-colors hover:bg-black/[0.04]"
+        >
+          <span
+            className={`inline-block h-1.5 w-1.5 rounded-full ${positEnabled ? "bg-mm-accent" : "bg-mm-text-subtle"}`}
+          />
+          <span className="text-mm-text-subtle">control</span>
+          <span className={`font-semibold tracking-wider ${positEnabled ? "text-mm-accent" : "text-mm-text-dim"}`}>
+            {positEnabled ? "ARMED" : "PAUSED"}
+          </span>
+        </button>
+      </Tooltip>
 
       <span className="ml-auto flex items-center gap-3">
-        <button
-          type="button"
-          onClick={toggleNotifications}
-          className={`relative rounded px-1.5 py-0.5 transition-colors hover:bg-black/[0.04] hover:text-mm-text ${
-            notificationCount > 0 ? "text-mm-warn" : ""
-          }`}
-          title={
+        <Tooltip
+          label={
             notificationCount > 0
-              ? `${notificationCount} pending notification${notificationCount === 1 ? "" : "s"}`
-              : "Notifications"
+              ? `${notificationCount} pending notification${notificationCount === 1 ? "" : "s"} — click to open`
+              : "Open notifications"
           }
+          side="top"
         >
-          ⚑
-          {notificationCount > 0 && (
-            <span className="ml-1 rounded-full bg-mm-warn/20 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums">
-              {notificationCount}
-            </span>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={openPalette}
-          className="rounded px-1.5 py-0.5 transition-colors hover:bg-black/[0.04] hover:text-mm-text"
-          title="Command palette"
-        >
-          ⌘K
-        </button>
-        <button
-          type="button"
-          onClick={onShowCheatsheet}
-          className="rounded px-1.5 py-0.5 transition-colors hover:bg-black/[0.04] hover:text-mm-text"
-          title="Keyboard shortcuts"
-        >
-          ?
-        </button>
+          <button
+            type="button"
+            onClick={toggleNotifications}
+            aria-label={
+              notificationCount > 0
+                ? `${notificationCount} pending notifications`
+                : "Open notifications"
+            }
+            className={`relative rounded px-1.5 py-0.5 transition-colors hover:bg-black/[0.04] hover:text-mm-text ${
+              notificationCount > 0 ? "text-mm-warn" : ""
+            }`}
+          >
+            ⚑
+            {notificationCount > 0 && (
+              <span className="ml-1 rounded-full bg-mm-warn/20 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums">
+                {notificationCount}
+              </span>
+            )}
+          </button>
+        </Tooltip>
+        <Tooltip label="Open command palette (⌘K)" side="top">
+          <button
+            type="button"
+            onClick={openPalette}
+            aria-label="Open command palette"
+            className="rounded px-1.5 py-0.5 transition-colors hover:bg-black/[0.04] hover:text-mm-text"
+          >
+            ⌘K
+          </button>
+        </Tooltip>
+        <Tooltip label="Show keyboard shortcuts (?)" side="top">
+          <button
+            type="button"
+            onClick={onShowCheatsheet}
+            aria-label="Show keyboard shortcuts"
+            className="rounded px-1.5 py-0.5 transition-colors hover:bg-black/[0.04] hover:text-mm-text"
+          >
+            ?
+          </button>
+        </Tooltip>
         <Divider />
-        <span className="flex items-baseline gap-1">
-          <span className="text-mm-text-subtle">UTC</span>
-          <span className="font-mono tabular-nums text-mm-text">{formatUtcTime(now).slice(0, 8)}</span>
-        </span>
+        <Tooltip label="Current server time in UTC" side="top">
+          <span className="flex items-baseline gap-1" tabIndex={0}>
+            <span className="text-mm-text-subtle">UTC</span>
+            <span className="font-mono tabular-nums text-mm-text">{formatUtcTime(now).slice(0, 8)}</span>
+          </span>
+        </Tooltip>
       </span>
     </footer>
   );
@@ -165,12 +195,23 @@ function ConnectionPill({ status }: { status: "CONNECTED" | "CONNECTING" | "DISC
     status === "CONNECTED" ? "live"
     : status === "CONNECTING" ? "connecting"
     : "offline";
+  const explain =
+    status === "CONNECTED" ? "WebSocket connected — positions update in real time"
+    : status === "CONNECTING" ? "WebSocket is reconnecting — values may be stale"
+    : "WebSocket offline — values on screen are frozen from the last connected tick";
   return (
-    <span className="flex items-center gap-1.5" title={`WebSocket: ${status}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-      <span className="text-mm-text-subtle">ws</span>
-      <span className="text-mm-text">{label}</span>
-    </span>
+    <Tooltip label={explain} side="top">
+      <span
+        className="flex items-center gap-1.5"
+        tabIndex={0}
+        role="status"
+        aria-label={`WebSocket ${label}`}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+        <span className="text-mm-text-subtle">ws</span>
+        <span className="text-mm-text">{label}</span>
+      </span>
+    </Tooltip>
   );
 }
 

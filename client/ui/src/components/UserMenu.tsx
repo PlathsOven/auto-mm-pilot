@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useAuth } from "../providers/AuthProvider";
+import { Tooltip } from "./ui/Tooltip";
 
 interface UserMenuProps {
   onOpenAccount: () => void;
@@ -39,28 +40,37 @@ export function UserMenu({ onOpenAccount, onOpenAdmin, placement = "bottom-right
       ? "left-0 bottom-[calc(100%+4px)]"
       : "right-0 top-[calc(100%+4px)]";
 
+  // Tooltip only adds value in compact (collapsed sidebar) mode — the full
+  // mode already shows the username inline, so a tooltip would be redundant.
   return (
     <div ref={ref} className="relative w-full">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        title={user.username}
-        className={`flex items-center gap-1.5 rounded-md border border-black/[0.06] py-1 text-[11px] text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text ${
-          compact ? "w-7 justify-center px-0" : "w-full px-2"
-        }`}
+      <Tooltip
+        label={`${user.username} — click for account menu`}
+        side={placement === "top-left" ? "right" : "bottom"}
+        disabled={!compact}
       >
-        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-mm-accent/15 text-[9px] font-bold text-mm-accent">
-          {user.username.slice(0, 1).toUpperCase()}
-        </span>
-        {!compact && (
-          <>
-            <span className="min-w-0 flex-1 truncate text-left font-medium text-mm-text">
-              {user.username}
-            </span>
-            <span className="text-[9px] text-mm-text-subtle">▾</span>
-          </>
-        )}
-      </button>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-label={`${user.username} — account menu`}
+          aria-expanded={open}
+          className={`flex items-center gap-1.5 rounded-md border border-black/[0.06] py-1 text-[11px] text-mm-text-dim hover:bg-black/[0.04] hover:text-mm-text ${
+            compact ? "w-7 justify-center px-0" : "w-full px-2"
+          }`}
+        >
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-mm-accent/15 text-[9px] font-bold text-mm-accent">
+            {user.username.slice(0, 1).toUpperCase()}
+          </span>
+          {!compact && (
+            <>
+              <span className="min-w-0 flex-1 truncate text-left font-medium text-mm-text">
+                {user.username}
+              </span>
+              <span className="text-[9px] text-mm-text-subtle">▾</span>
+            </>
+          )}
+        </button>
+      </Tooltip>
 
       {open && (
         <div className={`absolute ${dropdownPositionClass} z-50 min-w-[160px] rounded-md border border-black/[0.06] bg-white py-1 text-xs shadow-elev-2`}
