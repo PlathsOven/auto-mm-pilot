@@ -1,4 +1,4 @@
-"""Snapshot ingestion endpoint — scoped to the calling user."""
+"""Snapshot + connector-input ingestion endpoints — scoped to the calling user."""
 
 from __future__ import annotations
 
@@ -8,11 +8,21 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
+from server.api.connector_state import get_connector_state_store
 from server.api.engine_state import rerun_and_broadcast
 from server.api.market_value_store import get_store as get_market_value_store
-from server.api.models import SnapshotRequest, SnapshotResponse
+from server.api.models import (
+    ConnectorInputRequest,
+    ConnectorInputResponse,
+    SnapshotRequest,
+    SnapshotResponse,
+)
 from server.api.sequence_counter import get_counter as get_sequence_counter
-from server.api.stream_registry import get_stream_registry
+from server.api.stream_registry import (
+    StreamIsConnectorFed,
+    StreamIsNotConnectorFed,
+    get_stream_registry,
+)
 from server.api.unregistered_push_store import get_store as get_unregistered_push_store
 from server.api.zero_edge_guard import ZERO_EDGE_CODE, ZeroEdgeBlocked, check_zero_edge
 
@@ -80,6 +90,19 @@ async def ingest_snapshot(
                 ),
             },
         ) from exc
+    except StreamIsConnectorFed as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "STREAM_IS_CONNECTOR_FED",
+                "stream": exc.stream_name,
+                "connector": exc.connector_name,
+                "hint": (
+                    f"Push to POST /api/streams/{exc.stream_name}/connector-input "
+                    f"instead — connector '{exc.connector_name}' owns this stream."
+                ),
+            },
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -99,6 +122,90 @@ async def ingest_snapshot(
     return SnapshotResponse(
         stream_name=req.stream_name,
         rows_accepted=accepted,
+        pipeline_rerun=pipeline_rerun,
+        server_seq=get_sequence_counter(user.id).next(),
+    )
+
+
+@router.post(
+    "/api/streams/{stream_name}/connector-input",
+    response_model=ConnectorInputResponse,
+)
+async def ingest_connector_input(
+    stream_name: str,
+    req: ConnectorInputRequest,
+    user: User = Depends(current_user),
+) -> ConnectorInputResponse:
+    """Push connector input rows for a connector-fed stream.
+
+    Mirrors POST /api/snapshots for streams whose ``raw_value`` is owned
+    by a server-side connector. The connector consumes the inbound rows
+    and may emit zero-or-more ``SnapshotRow`` entries onto the stream
+    (each one reflects an internal-state change worth re-running the
+    pipeline for).
+    """
+    if req.stream_name != stream_name:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"URL stream {stream_name!r} does not match request body "
+                f"stream_name {req.stream_name!r}"
+            ),
+        )
+
+    registry = get_stream_registry(user.id)
+    connector_store = get_connector_state_store(user.id)
+    rows_payload = [r.model_dump() for r in req.rows]
+
+    try:
+        rows_accepted, rows_emitted = registry.ingest_connector_input(
+            stream_name, rows_payload, connector_store,
+        )
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "STREAM_NOT_REGISTERED",
+                "stream": stream_name,
+                "hint": (
+                    "Register the stream + configure with a connector_name "
+                    "before pushing connector inputs."
+                ),
+            },
+        ) from exc
+    except StreamIsNotConnectorFed as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "STREAM_IS_NOT_CONNECTOR_FED",
+                "stream": exc.stream_name,
+                "hint": (
+                    f"Stream '{exc.stream_name}' is user-fed; push snapshots "
+                    f"via POST /api/snapshots instead."
+                ),
+            },
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    pipeline_rerun = False
+    if rows_emitted > 0:
+        stream_configs = registry.build_stream_configs()
+        if stream_configs:
+            try:
+                await rerun_and_broadcast(user.id, stream_configs)
+                pipeline_rerun = True
+            except Exception as exc:
+                log.exception("Pipeline re-run failed after connector input")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Rows accepted but pipeline re-run failed: {exc}",
+                ) from exc
+
+    return ConnectorInputResponse(
+        stream_name=stream_name,
+        rows_accepted=rows_accepted,
+        rows_emitted=rows_emitted,
         pipeline_rerun=pipeline_rerun,
         server_seq=get_sequence_counter(user.id).next(),
     )

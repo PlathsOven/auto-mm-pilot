@@ -8,10 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
+from server.api.connector_state import get_connector_state_store
 from server.api.engine_state import get_engine, rerun_and_broadcast
 from server.api.models import (
     AdminConfigureStreamRequest,
     BlockConfigPayload,
+    ConnectorStateSummary,
     CreateStreamRequest,
     SetStreamActiveRequest,
     StreamKeyTimeseries,
@@ -26,6 +28,7 @@ from server.api.stream_registry import StreamRegistration, get_stream_registry
 from server.api.unregistered_push_store import get_store as get_unregistered_push_store
 from server.api.ws import restart_ticker
 from server.core.config import BlockConfig
+from server.core.connectors import get_connector, resolve_params
 
 log = logging.getLogger(__name__)
 
@@ -56,6 +59,8 @@ def _stream_to_response(reg: StreamRegistration) -> StreamResponse:
         description=reg.description,
         sample_csv=reg.sample_csv,
         value_column=reg.value_column,
+        connector_name=reg.connector_name,
+        connector_params=reg.connector_params,
     )
 
 
@@ -123,6 +128,17 @@ async def describe_stream(
             var_fair_ratio=reg.block.var_fair_ratio,
         )
 
+    summary_payload: ConnectorStateSummary | None = None
+    if reg.connector_name is not None:
+        store = get_connector_state_store(user.id)
+        summary = store.summary(reg.stream_name, reg.connector_name)
+        if summary is not None:
+            summary_payload = ConnectorStateSummary(
+                min_n_eff=summary.min_n_eff,
+                warmup_threshold=summary.warmup_threshold,
+                symbols_tracked=summary.symbols_tracked,
+            )
+
     return StreamStateResponse(
         stream_name=reg.stream_name,
         key_cols=list(reg.key_cols),
@@ -137,6 +153,9 @@ async def describe_stream(
         value_column=reg.value_column,
         row_count=len(reg.snapshot_rows),
         last_ingest_ts=last_ts,
+        connector_name=reg.connector_name,
+        connector_params=reg.connector_params,
+        connector_state_summary=summary_payload,
     )
 
 
@@ -179,6 +198,27 @@ async def configure_stream(
     except (AssertionError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"Invalid BlockConfig: {exc}") from exc
 
+    resolved_connector_params: dict | None = None
+    if req.connector_name is not None:
+        connector = get_connector(req.connector_name)
+        if connector is None:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "UNKNOWN_CONNECTOR",
+                    "connector_name": req.connector_name,
+                },
+            )
+        try:
+            resolved_connector_params = resolve_params(
+                connector.params, req.connector_params,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        # Connector switch invalidates any existing state — evict before
+        # the next push allocates fresh state for the new connector.
+        get_connector_state_store(user.id).evict(stream_name)
+
     try:
         reg = registry.configure(
             stream_name,
@@ -194,6 +234,8 @@ async def configure_stream(
                 if req.applies_to is not None
                 else None
             ),
+            connector_name=req.connector_name,
+            connector_params=resolved_connector_params,
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -283,6 +325,6 @@ async def delete_stream(
 ) -> None:
     registry = get_stream_registry(user.id)
     try:
-        registry.delete(stream_name)
+        registry.delete(stream_name, get_connector_state_store(user.id))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

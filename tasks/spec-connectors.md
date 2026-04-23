@@ -171,9 +171,11 @@ These come back in `ConnectorSchema.recommended_*` and are the values the Stream
 
 ### Keying
 
-- Stream `key_cols = ["symbol"]` (per the user decision in planning — option (a) in Q2).
-- Input rows carry `symbol` as the only key beyond `timestamp + price`.
-- The scalar `raw_value` fans across every `(symbol, expiry)` pair in the dim universe by the existing `applies_to=None` fan-out in `build_blocks_df` — no change to the pipeline.
+- Stream `key_cols = ["symbol", "expiry"]` (matches the existing pipeline's `risk_dimension_cols` requirement — see implementation note below).
+- Input rows carry `symbol` as the only key beyond `timestamp + price` (per the connector's `input_key_cols`).
+- The connector emits **per-symbol** `raw_value` rows; the State Store fans each emit across every `(symbol, expiry)` pair in the current dim universe before writing to `snapshot_rows`. The pipeline then sees per-`(symbol, expiry)` rows like any other stream — no change to `build_blocks_df`.
+
+**Implementation note (added 2026-04-23):** Original spec had `key_cols=["symbol"]` and assumed `applies_to=None` scalar fan-out would handle expiries. That fan-out path requires `height==1` (single-row scalar), which a per-symbol stream is not. The pipeline also enforces `key_cols ⊇ risk_dimension_cols` upstream of fan-out. To keep the spec's "no pipeline change" promise, the State Store performs the fan-out instead — every per-symbol emission is replicated across `(symbol, exp)` for each `exp` the symbol currently has in the dim universe. **Limitation:** before any non-connector stream is configured, the dim universe is empty and connector emissions become zero rows (no pipeline rerun). The trader needs at least one user-fed or manual-block stream to seed the universe.
 
 ### Data shape changes
 
