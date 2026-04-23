@@ -35,40 +35,38 @@
   /* ── Interactive cursor baseline ──
      Every affordance must be honest: anything clickable shows the click
      cursor, anything typable shows the text cursor, anything disabled
-     shows not-allowed. Tailwind's preflight already gives `<button>` a
-     pointer cursor but misses `role="button"`, tabs, switches, and any
-     `<div onClick>` pattern used across the codebase; these rules close
-     those gaps with zero specificity (`:where`) so component-level
-     Tailwind utilities still win on override. */
-  :where(
-    button:not(:disabled),
-    a[href],
-    [role="button"]:not([aria-disabled="true"]),
-    [role="tab"]:not([aria-disabled="true"]),
-    [role="switch"]:not([aria-disabled="true"]),
-    [role="menuitem"]:not([aria-disabled="true"]),
-    [role="option"]:not([aria-disabled="true"]),
-    summary,
-    label[for]
-  ) {
+     shows not-allowed. Tailwind's preflight sets `cursor: pointer` on
+     `<button>` and `[role="button"]` but also sets `cursor: default` on
+     `:disabled` — these rules close the gaps for role=tab, role=switch,
+     custom onClick divs (via tabindex), and keep `cursor: not-allowed`
+     on disabled controls where the Tailwind preflight default leaks
+     through. Direct selectors (no `:where`) so specificity matches
+     Tailwind's preflight and component-level Tailwind utilities still
+     win on explicit override via `.cursor-*` classes (those live in
+     `@layer utilities`, which cascades after `@layer base`). */
+  button:not(:disabled),
+  a[href],
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  [role="switch"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([aria-disabled="true"]),
+  [role="option"]:not([aria-disabled="true"]),
+  summary,
+  label[for] {
     cursor: pointer;
   }
 
-  :where(
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([disabled]),
-    textarea:not([disabled]),
-    [contenteditable]:not([contenteditable="false"])
-  ) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([disabled]),
+  textarea:not([disabled]),
+  [contenteditable]:not([contenteditable="false"]) {
     cursor: text;
   }
 
-  :where(
-    button:disabled,
-    [aria-disabled="true"],
-    input:disabled,
-    textarea:disabled,
-    select:disabled
-  ) {
+  button:disabled,
+  [aria-disabled="true"],
+  input:disabled,
+  textarea:disabled,
+  select:disabled {
     cursor: not-allowed;
   }
 
@@ -76,16 +74,14 @@
      the ring off mouse clicks so pointer users see a clean surface, while
      keyboard users get visible feedback. Colour + opacity mirror the
      input focus-ring already used in `.form-input`. */
-  :where(
-    button,
-    [role="button"],
-    [role="tab"],
-    [role="switch"],
-    [role="menuitem"],
-    [role="option"],
-    a,
-    summary
-  ):focus-visible {
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  [role="tab"]:focus-visible,
+  [role="switch"]:focus-visible,
+  [role="menuitem"]:focus-visible,
+  [role="option"]:focus-visible,
+  a:focus-visible,
+  summary:focus-visible {
     outline: 2px solid rgba(79, 91, 213, 0.5);
     outline-offset: 1px;
   }
