@@ -106,6 +106,7 @@ def _row_to_model(row: BlockIntent) -> StoredBlockIntent:
         id=row.id,
         user_id=row.user_id,
         stream_name=row.stream_name,
+        # ORM column is Mapped[str]; Pydantic field is Literal — Pydantic validates at construction.
         action=row.action,  # type: ignore[arg-type]
         original_phrasing=row.original_phrasing,
         intent=IntentOutput(**row.intent_output),
