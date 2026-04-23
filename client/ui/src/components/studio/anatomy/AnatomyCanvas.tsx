@@ -15,10 +15,12 @@ import { useTransforms } from "../../../providers/TransformsProvider";
 import { useMode } from "../../../providers/ModeProvider";
 import { useWebSocket } from "../../../providers/WebSocketProvider";
 import { useRegisteredStreams } from "../../../hooks/useRegisteredStreams";
+import { useConnectorCatalog } from "../../../hooks/useConnectorCatalog";
 import { ANATOMY_STARTUP_GRACE_MS } from "../../../constants";
 
 import { StreamNode, type StreamNodeData } from "./nodes/StreamNode";
 import { AddStreamNode } from "./nodes/AddStreamNode";
+import { ConnectorNode } from "./nodes/ConnectorNode";
 import { TransformNode } from "./nodes/TransformNode";
 import { OutputNode } from "./nodes/OutputNode";
 import { LaneBandNode } from "./nodes/LaneBandNode";
@@ -31,6 +33,7 @@ import { useTransformEditors } from "./useTransformEditors";
 const NODE_TYPES: NodeTypes = {
   stream: StreamNode,
   addStream: AddStreamNode,
+  connector: ConnectorNode,
   transform: TransformNode,
   output: OutputNode,
   laneBand: LaneBandNode,
@@ -69,6 +72,7 @@ export function AnatomyCanvas() {
 function AnatomyCanvasInner() {
   const { steps, error, refresh } = useTransforms();
   const { streams } = useRegisteredStreams();
+  const { connectors } = useConnectorCatalog();
   const { setMode } = useMode();
   const { payload } = useWebSocket();
   const positionCount = payload?.positions.length ?? 0;
@@ -138,8 +142,8 @@ function AnatomyCanvasInner() {
   // ---------------------------------------------------------------------
   const { nodes, edges } = useMemo(() => {
     if (!steps) return { nodes: [], edges: [] };
-    return buildAnatomyGraph(steps, streams, savingKey, live, highlightedStreamNames);
-  }, [steps, streams, savingKey, live, highlightedStreamNames]);
+    return buildAnatomyGraph(steps, streams, savingKey, live, highlightedStreamNames, connectors);
+  }, [steps, streams, savingKey, live, highlightedStreamNames, connectors]);
 
   // One-shot initial fit to the streams cluster. Driven by an effect
   // instead of the `<ReactFlow fitView fitViewOptions={...}/>` props

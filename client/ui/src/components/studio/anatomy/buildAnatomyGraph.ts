@@ -1,6 +1,11 @@
 import type { Node, Edge } from "@xyflow/react";
-import type { TransformStep, RegisteredStream } from "../../../types";
+import type {
+  ConnectorSchema,
+  RegisteredStream,
+  TransformStep,
+} from "../../../types";
 import {
+  CONNECTOR_OFFSET,
   LANE_BANDS,
   LANE_BOUNDARIES,
   NODE_TRACKS,
@@ -39,6 +44,7 @@ const PIPELINE_EDGE_STROKE_WIDTH = 1.75;
 // measurement (which produced a blank minimap earlier).
 const STREAM_NODE_SIZE = { width: 200, height: 90 };
 const ADD_STREAM_NODE_SIZE = { width: 200, height: 44 };
+const CONNECTOR_NODE_SIZE = { width: 200, height: 90 };
 const TRANSFORM_NODE_SIZE = { width: 240, height: 140 };
 const OUTPUT_NODE_SIZE = { width: 220, height: 140 };
 
@@ -58,6 +64,7 @@ export function buildAnatomyGraph(
   savingKey: string | null,
   live: boolean,
   highlightedStreamNames: Set<string>,
+  connectorCatalog: ConnectorSchema[] = [],
 ): { nodes: Node[]; edges: Edge[] } {
   const out: Node[] = [];
   const es: Edge[] = [];
@@ -91,12 +98,13 @@ export function buildAnatomyGraph(
   const totalRows = totalStreams + 1;
   const verticalCenter = 300 - (totalRows * STREAM_ROW_HEIGHT) / 2;
   streams.forEach((s, i) => {
+    const yPos = verticalCenter + i * STREAM_ROW_HEIGHT;
     out.push({
       id: `stream-${s.stream_name}`,
       type: "stream",
       position: {
         x: STREAM_COLUMN_X,
-        y: verticalCenter + i * STREAM_ROW_HEIGHT,
+        y: yPos,
       },
       ...STREAM_NODE_SIZE,
       data: {
@@ -127,6 +135,49 @@ export function buildAnatomyGraph(
       labelBgPadding: EDGE_LABEL_BG_PADDING,
       labelBgBorderRadius: EDGE_LABEL_BG_RADIUS,
     });
+
+    // Connector-fed streams get a ConnectorNode upstream + an extra edge
+    // labelled with the connector's input/output unit so the trader can
+    // read provenance (input → connector → stream → pipeline) at a glance.
+    if (s.connector_name) {
+      const schema = connectorCatalog.find((c) => c.name === s.connector_name);
+      const displayName = schema?.display_name ?? s.connector_name;
+      const inputLabel = schema
+        ? `${schema.input_key_cols.join(", ")} + ${schema.input_value_fields.map((f) => f.name).join(", ")}`
+        : "input";
+      const outputLabel = schema?.output_unit_label ?? "raw_value";
+      const connectorId = `connector-${s.stream_name}`;
+      out.push({
+        id: connectorId,
+        type: "connector",
+        position: {
+          x: STREAM_COLUMN_X - CONNECTOR_OFFSET,
+          y: yPos,
+        },
+        ...CONNECTOR_NODE_SIZE,
+        data: {
+          streamName: s.stream_name,
+          connectorName: s.connector_name,
+          displayName,
+          inputLabel,
+          outputLabel,
+        },
+        draggable: true,
+      });
+      es.push({
+        id: `e-${connectorId}-stream-${s.stream_name}`,
+        source: connectorId,
+        target: `stream-${s.stream_name}`,
+        type: "default",
+        animated: live,
+        label: outputLabel,
+        style: { stroke: STREAM_EDGE_STROKE, strokeWidth: STREAM_EDGE_STROKE_WIDTH },
+        labelStyle: EDGE_LABEL_STYLE,
+        labelBgStyle: EDGE_LABEL_BG_STYLE,
+        labelBgPadding: EDGE_LABEL_BG_PADDING,
+        labelBgBorderRadius: EDGE_LABEL_BG_RADIUS,
+      });
+    }
   });
 
   // "+ New stream" tile — sits directly under the last stream. Click routes

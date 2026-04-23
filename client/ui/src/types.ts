@@ -41,6 +41,52 @@ export interface RegisteredStream {
   description: string | null;
   sample_csv: string | null;
   value_column: string | null;
+  connector_name: string | null;
+  connector_params: Record<string, unknown> | null;
+}
+
+/** A connector input field schema (one per non-key, non-timestamp field). */
+export interface ConnectorInputFieldSchema {
+  name: string;
+  type: "float" | "int" | "str";
+  description: string;
+}
+
+/** A user-tunable connector parameter. */
+export interface ConnectorParamSchema {
+  name: string;
+  type: "int" | "float" | "list_int" | "list_float";
+  default: unknown;
+  description: string;
+  min: number | null;
+  max: number | null;
+}
+
+/** Full catalog metadata for a single connector — safe to render client-side. */
+export interface ConnectorSchema {
+  name: string;
+  display_name: string;
+  description: string;
+  input_key_cols: string[];
+  input_value_fields: ConnectorInputFieldSchema[];
+  output_unit_label: string;
+  params: ConnectorParamSchema[];
+  recommended_scale: number;
+  recommended_offset: number;
+  recommended_exponent: number;
+  recommended_block: BlockConfigPayload;
+}
+
+/** Response for GET /api/connectors. */
+export interface ConnectorCatalogResponse {
+  connectors: ConnectorSchema[];
+}
+
+/** Per-stream warmup-progress numbers for a connector-fed stream. */
+export interface ConnectorStateSummary {
+  min_n_eff: number;
+  warmup_threshold: number;
+  symbols_tracked: number;
 }
 
 /** Global context bar state */
