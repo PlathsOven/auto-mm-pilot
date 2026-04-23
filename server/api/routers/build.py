@@ -245,10 +245,21 @@ async def blocks_commit(
     try:
         await asyncio.to_thread(save_block_intent, stored)
     except Exception as exc:
-        log.exception("block_intents persist failed")
+        log.exception("block_intents persist failed — rolling back stream")
+        # Roll back the stream so there's no partial-commit state (live
+        # stream without a provenance row). Any rerun that already went
+        # to clients will be superseded by the next tick with the
+        # stream absent.
+        try:
+            registry.delete(payload.stream_name)
+            rollback_configs = registry.build_stream_configs()
+            if rollback_configs:
+                await rerun_and_broadcast(user.id, rollback_configs)
+        except Exception:
+            log.exception("rollback after block_intents persist failure also failed")
         raise HTTPException(
             status_code=500,
-            detail=f"Block committed but intent persistence failed: {exc}",
+            detail=f"Intent persistence failed — block was rolled back: {exc}",
         ) from exc
 
     new_positions = _extract_new_desired_positions(user.id)

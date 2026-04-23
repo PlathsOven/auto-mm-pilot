@@ -85,8 +85,15 @@ def build_preview(
 
     proposed_config = _payload_to_stream_config(payload)
 
-    # Clone current configs; replace an existing same-name entry (e.g.
-    # trader re-proposing the same opinion) instead of duplicating.
+    # Clone current configs. If a stream with the proposed name already
+    # exists, the preview replaces it (so the trader sees a coherent
+    # what-if diff) AND adds a note — the commit endpoint will refuse
+    # the same name with 409, so this makes the inconsistency visible
+    # rather than silent.
+    name_collision = any(
+        sc.stream_name == payload.stream_name
+        for sc in registry.build_stream_configs()
+    )
     current_configs = [
         sc for sc in registry.build_stream_configs()
         if sc.stream_name != payload.stream_name
@@ -120,6 +127,12 @@ def build_preview(
     after_total = _sum_abs_positions(after_df)
 
     notes: list[str] = []
+    if name_collision:
+        notes.append(
+            f"Stream '{payload.stream_name}' already exists — preview "
+            "shows a what-if replacement, but commit will refuse "
+            "(delete the existing stream first or rename this one)."
+        )
     if engine.state is not None:
         state_ts = engine.state.get("timestamp")
         if isinstance(state_ts, str):

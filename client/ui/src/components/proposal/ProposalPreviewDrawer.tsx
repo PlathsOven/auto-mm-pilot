@@ -148,6 +148,29 @@ export function ProposalPreviewDrawer({ proposal, onConfirm, onCancel }: Props) 
                 </p>
               </section>
 
+              {proposal.synthesis.choice.mode === "custom"
+                && proposal.synthesis.choice.critique
+                && proposal.synthesis.choice.critique.concerns.length > 0 && (
+                <section className="rounded-md border border-amber-400/40 bg-amber-50/60 px-3 py-2">
+                  <h4 className="text-[10px] uppercase tracking-wider text-amber-800">
+                    Review raised these concerns
+                  </h4>
+                  <ul className="mt-1 list-disc pl-4 text-[12px] text-amber-900">
+                    {proposal.synthesis.choice.critique.concerns.map((c, i) => (
+                      <li key={i}>{c}</li>
+                    ))}
+                  </ul>
+                  {proposal.synthesis.choice.critique.suggested_alternative_preset_id && (
+                    <p className="mt-1 text-[11px] italic text-amber-900">
+                      Suggested preset instead:{" "}
+                      <span className="font-mono">
+                        {proposal.synthesis.choice.critique.suggested_alternative_preset_id}
+                      </span>
+                    </p>
+                  )}
+                </section>
+              )}
+
               <section>
                 <h4 className="text-[10px] uppercase tracking-wider text-mm-text-dim">
                   Desired-position impact

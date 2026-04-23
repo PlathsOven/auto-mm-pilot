@@ -42,6 +42,36 @@ CONTROLLED_KEYS: frozenset[str] = frozenset({
     "framework_mastery_level",
 })
 
+
+_MASTERY_LEVELS = frozenset({"novice", "intermediate", "expert"})
+
+
+def _value_matches_key(key: str, value: Any) -> bool:
+    """Check that ``value`` matches the shape specified in spec §9.3.1.
+
+    Defensive: a malformed detector response (e.g. wrong type in
+    ``magnitude_vocabulary.value``) would otherwise poison the prompt
+    injection layer or blow up downstream consumers. Unknown keys are
+    already rejected at the ``CONTROLLED_KEYS`` gate.
+    """
+    if key in (
+        "magnitude_vocabulary", "confidence_language", "preferred_decay_rates",
+    ):
+        # dict[str, <scalar>] — every key a string; every value anything
+        # JSON-serialisable (string / number / bool).
+        return (
+            isinstance(value, dict)
+            and all(isinstance(k, str) for k in value.keys())
+        )
+    if key in (
+        "typical_expiries_of_interest", "typical_symbols_of_interest",
+        "calibration_notes",
+    ):
+        return isinstance(value, list) and all(isinstance(v, str) for v in value)
+    if key == "framework_mastery_level":
+        return value in _MASTERY_LEVELS
+    return False
+
 # Display order in the prompt — broad personality signals first, then
 # specific vocab / patterns. Stable so the same user sees the same
 # section shape across every turn.
@@ -81,6 +111,11 @@ def upsert_entry(
     """
     if key not in CONTROLLED_KEYS:
         log.warning("upsert_entry rejected unknown key: %s", key)
+        return
+    if not _value_matches_key(key, value):
+        log.warning(
+            "upsert_entry rejected malformed value for key=%s: %r", key, value,
+        )
         return
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     try:
