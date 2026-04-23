@@ -13,7 +13,7 @@ Posit is an advisory trading platform for crypto options market-making desks. It
 | `sdk/` | LLM | Client-facing Python SDK (`posit-sdk` on PyPI) — async HTTP + WebSocket wrapper external integrators use to push snapshots and receive positions. Standalone package with its own `pyproject.toml`; not imported by `server/` or `client/`. |
 | `server/api/` | LLM | FastAPI routing, WebSocket transport, request/response models |
 | `server/api/llm/` | LLM | OpenRouter client, LLM service, system prompts, snapshot buffer |
-| `server/core/` | LLM | Proprietary math — the pricing pipeline. |
+| `server/core/` | LLM | Proprietary math — the pricing pipeline plus the server-side connector framework (pre-built input transforms such as realized-vol). |
 | `pitch/` | LLM | Next.js presentation deck (architecture slides, links to deployed client for demo) |
 | `prototyping/` | LLM | Notebooks for manual API exploration |
 
@@ -95,7 +95,7 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `server/api/config.py` | OpenRouter env config (API key, model fallback lists, generation params, snapshot buffer settings) |
 | `server/api/models.py` | **Canonical Pydantic request/response models for all API boundary data.** Read before any feature crossing the API boundary. |
 | `server/api/main.py` | FastAPI app factory — lifespan, CORS, error handler, router registration, health + WS mounts |
-| `server/api/routers/*.py` | Route modules (llm, streams, snapshots, bankroll, transforms, pipeline, blocks, market_values) extracted from main.py |
+| `server/api/routers/*.py` | Route modules (llm, streams, snapshots, bankroll, transforms, pipeline, blocks, market_values, connectors) extracted from main.py |
 | `server/api/stream_registry.py` | In-memory stream registry — CRUD, snapshot storage, validation, `StreamConfig` builder |
 | `server/api/market_value_store.py` | Aggregate-market-value singleton — `{(symbol, expiry): total_vol}` + dirty flag for coalesced ticker reruns |
 | `server/api/ws.py` | WebSocket endpoint — singleton ticker broadcasts pipeline ticks; `restart_ticker()` on re-run. Each broadcast is validated through `ServerPayload`. |
@@ -120,6 +120,8 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `server/core/pipeline.py` | All pipeline step functions + `run_pipeline()` orchestrator |
 | `server/core/mock_scenario.py` | Mock stream configs, scenario params, market pricing |
 | `server/core/serializers.py` | DataFrame→dict bridge for LLM prompt injection |
+| `server/core/connectors/` | Server-side pre-built input transforms (`base.py` + `registry.py` + one module per connector — `realized_vol.py` today). Catalog metadata is served to the client via the connectors router; connector implementations never leave the server (IP-barrier asset). Public API re-exported from `__init__.py`. |
+| `server/api/connector_state.py` | Per-user connector state store, keyed by stream name. Mediates API input rows → connector `process()` → emitted `SnapshotRow`s; state is opaque to the rest of the server. Evicts on stream delete or connector switch. Surfaces warm-up progress via `describe_stream`. |
 | `sdk/pyproject.toml` | `posit-sdk` package metadata (hatchling, v0.1.0) — independent PyPI distribution |
 | `sdk/posit_sdk/client.py` | `PositClient` — public facade over REST + WebSocket; pool caching, fallback logic |
 | `sdk/posit_sdk/rest.py` | Async httpx wrapper for the REST surface (stream CRUD, snapshots, market values, bankroll) |

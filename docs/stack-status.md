@@ -38,6 +38,9 @@
 | **Engine State Provider** | `server/api/engine_state.py` | `PROD` | Core Pipeline | Runs `server/core` pipeline, serializes snapshots for LLM layer |
 | **Config** | `server/api/config.py` | `PROD` | `.env` | Model lists, generation params, buffer config |
 | **Core Pipeline** | `server/core/` (`config.py`, `helpers.py`, `transforms/`, `pipeline.py`, `serializers.py`, `mock_scenario.py`) | `PROD` | Polars | Steps 4–6: config, helpers, per-step transform modules in `transforms/`, orchestration pipeline, serializers. Running on mock scenario data. |
+| **Connector Registry** | `server/core/connectors/` (`__init__.py`, `base.py`, `registry.py`, `realized_vol.py`) | `PROD` | `server/core/config.py` | Pre-built input transforms. One registered connector today: `realized_vol` (multi-horizon EWMA over spot ticks → annualized RV). Adding a connector = one new module + registry entry. |
+| **Connector Catalog Endpoint** | `server/api/routers/connectors.py` | `PROD` | Connector Registry | `GET /api/connectors` returns wire-shape catalog (name, input schema, params, recommended block). Auth-required, process-global. |
+| **Connector State Store** | `server/api/connector_state.py` | `PROD` | Connector Registry, Stream Registry | Per-user, per-stream opaque state object. Integrated with WS client ingest (`connector_input` frame type) and `POST /api/streams/{name}/connector-input`. Wiring on `stream_registry.py` uncommitted as of session start. |
 
 ## SDK (`sdk/`)
 
