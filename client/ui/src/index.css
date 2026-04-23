@@ -32,6 +32,64 @@
     background: rgba(0, 0, 0, 0.20);
   }
 
+  /* ── Interactive cursor baseline ──
+     Every affordance must be honest: anything clickable shows the click
+     cursor, anything typable shows the text cursor, anything disabled
+     shows not-allowed. Tailwind's preflight already gives `<button>` a
+     pointer cursor but misses `role="button"`, tabs, switches, and any
+     `<div onClick>` pattern used across the codebase; these rules close
+     those gaps with zero specificity (`:where`) so component-level
+     Tailwind utilities still win on override. */
+  :where(
+    button:not(:disabled),
+    a[href],
+    [role="button"]:not([aria-disabled="true"]),
+    [role="tab"]:not([aria-disabled="true"]),
+    [role="switch"]:not([aria-disabled="true"]),
+    [role="menuitem"]:not([aria-disabled="true"]),
+    [role="option"]:not([aria-disabled="true"]),
+    summary,
+    label[for]
+  ) {
+    cursor: pointer;
+  }
+
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([disabled]),
+    textarea:not([disabled]),
+    [contenteditable]:not([contenteditable="false"])
+  ) {
+    cursor: text;
+  }
+
+  :where(
+    button:disabled,
+    [aria-disabled="true"],
+    input:disabled,
+    textarea:disabled,
+    select:disabled
+  ) {
+    cursor: not-allowed;
+  }
+
+  /* Keyboard-focus ring on interactive elements. `:focus-visible` keeps
+     the ring off mouse clicks so pointer users see a clean surface, while
+     keyboard users get visible feedback. Colour + opacity mirror the
+     input focus-ring already used in `.form-input`. */
+  :where(
+    button,
+    [role="button"],
+    [role="tab"],
+    [role="switch"],
+    [role="menuitem"],
+    [role="option"],
+    a,
+    summary
+  ):focus-visible {
+    outline: 2px solid rgba(79, 91, 213, 0.5);
+    outline-offset: 1px;
+  }
+
   /* Optional grain overlay — toggled by setting `data-grain="on"` on <html>
      (driven by VITE_UI_GRAIN at boot). Apple-website style tactility for
      the glass surfaces, off by default to keep the canvas clean. */
