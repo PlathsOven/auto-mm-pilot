@@ -20,6 +20,9 @@ Stages:
      in target space.
   F. Smoothing — forward EWM on edge and var.
   G. Position sizing — default Kelly = edge * bankroll / var.
+  H. Exposure → position — per-timestamp solve P = C_s⁻¹ · E · C_e⁻¹
+     against the per-user correlation stores; identity matrices (the
+     empty-store default) reduce to P == E cell-for-cell.
 
 All pluggable steps dispatch through the transform registry. Default
 selections match the spec exactly and reproduce today's options numbers
@@ -372,6 +375,10 @@ def run_pipeline(
     transform_config: dict[str, Any] | None = None,
     aggregate_market_values: dict[tuple[str, str], float] | None = None,
     space_market_values: dict[tuple[str, str, str], float] | None = None,
+    symbol_correlations: dict[tuple[str, str], float] | None = None,
+    expiry_correlations: dict[tuple[str, str], float] | None = None,
+    symbol_correlations_draft: dict[tuple[str, str], float] | None = None,
+    expiry_correlations_draft: dict[tuple[str, str], float] | None = None,
 ) -> dict[str, pl.DataFrame]:
     """Execute the full 4-space pipeline and return every intermediate frame.
 
@@ -381,7 +388,13 @@ def run_pipeline(
       space_series_df  — one row per (dim × space_id × timestamp) post space-mean + MVI.
       dim_calc_df      — one row per (dim × timestamp) in calc space (pre calc→target).
       dim_target_df    — one row per (dim × timestamp) in target space with edge.
-      desired_pos_df   — dim_target_df + smoothed_{edge,var} + raw/smoothed positions.
+      desired_pos_df   — dim_target_df + smoothed_{edge,var} + raw/smoothed positions
+                         + raw/smoothed exposures + raw/smoothed hypotheticals.
+
+    Stage H (exposure → position) runs after position sizing. With empty
+    correlation maps (the default) both materialised matrices collapse to
+    identity, so ``raw_desired_position == raw_desired_exposure`` cell-for-
+    cell — day-one behaviour is unchanged.
     """
     from_dict(transform_config or {})
 
@@ -397,6 +410,7 @@ def run_pipeline(
     ctt_fn = get_step("calc_to_target").get_selected()
     smooth_fn = get_step("smoothing").get_selected()
     pos_fn = get_step("position_sizing").get_selected()
+    etp_fn = get_step("exposure_to_position").get_selected()
 
     var_params = get_step("variance").get_param_values()
     fair_params = get_step("temporal_fair_value").get_param_values()
@@ -409,6 +423,8 @@ def run_pipeline(
 
     agg_mv = aggregate_market_values or {}
     space_mv = space_market_values or {}
+    symbol_corr = symbol_correlations or {}
+    expiry_corr = expiry_correlations or {}
 
     # Stage A: block expansion.
     blocks_df = build_blocks_df(streams, risk_dimension_cols, unit_fn, var_fn, var_params)
@@ -481,6 +497,39 @@ def run_pipeline(
         pl.when(pl.col("smoothed_var").abs() < VAR_FLOOR).then(0.0)
         .otherwise(pos_fn.fn(pl.col("smoothed_edge"), pl.col("smoothed_var"), bankroll, **pos_params))
         .alias("smoothed_desired_position"),
+    )
+
+    # Stage H: exposure → position correlation inverse. Stage G's output
+    # is renamed in *intent* (not on the wire) to the trader's net exposure
+    # — what they *want* the exposure to be ignoring correlations. Copy
+    # those into the new exposure columns, then overwrite position with
+    # the correlation-inverted result. Identity matrices (the default for
+    # an empty store) make the solve a no-op.
+    desired_pos_df = desired_pos_df.with_columns(
+        pl.col("raw_desired_position").alias("raw_desired_exposure"),
+        pl.col("smoothed_desired_position").alias("smoothed_desired_exposure"),
+    )
+    desired_pos_df = etp_fn.fn(
+        desired_pos_df,
+        risk_dimension_cols=risk_dimension_cols,
+        symbol_correlations=symbol_corr,
+        expiry_correlations=expiry_corr,
+        symbol_correlations_draft=symbol_correlations_draft,
+        expiry_correlations_draft=expiry_correlations_draft,
+        exposure_col="raw_desired_exposure",
+        position_col="raw_desired_position",
+        hypothetical_col="raw_desired_position_hypothetical",
+    )
+    desired_pos_df = etp_fn.fn(
+        desired_pos_df,
+        risk_dimension_cols=risk_dimension_cols,
+        symbol_correlations=symbol_corr,
+        expiry_correlations=expiry_corr,
+        symbol_correlations_draft=symbol_correlations_draft,
+        expiry_correlations_draft=expiry_correlations_draft,
+        exposure_col="smoothed_desired_exposure",
+        position_col="smoothed_desired_position",
+        hypothetical_col="smoothed_desired_position_hypothetical",
     )
 
     return {

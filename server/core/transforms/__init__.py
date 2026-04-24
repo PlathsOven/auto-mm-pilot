@@ -27,6 +27,7 @@ from server.core.transforms import (  # noqa: F401
     aggregation,
     calc_to_target,
     decay,
+    exposure_to_position,
     fair_value,
     market_value_inference,
     position_sizing,
