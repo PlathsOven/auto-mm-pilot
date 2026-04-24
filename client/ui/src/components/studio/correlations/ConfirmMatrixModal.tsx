@@ -95,16 +95,25 @@ export function ConfirmMatrixModal({
             onClick={confirming ? undefined : onCancel}
             aria-hidden
           />
-          <motion.div
-            key="confirm-corr-modal"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="glass-panel-xl fixed left-1/2 top-1/2 z-50 flex max-h-[80vh] w-[min(640px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl"
-            role="dialog"
-            aria-modal
+          {/* Flex-centering wrapper — framer-motion's y-animate overrides
+              Tailwind's -translate-y-1/2 when both land on the same node,
+              which left the modal at top:50%-only and pushed it below the
+              viewport center. Centering via flex on a wrapper keeps the
+              vertical-slide animation independent of positioning. */}
+          <div
+            key="confirm-corr-wrapper"
+            className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4"
           >
+            <motion.div
+              key="confirm-corr-modal"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              className="glass-panel-xl pointer-events-auto flex max-h-[80vh] w-[min(640px,92vw)] flex-col overflow-hidden rounded-xl"
+              role="dialog"
+              aria-modal
+            >
             <header className="flex items-center justify-between border-b border-black/[0.06] px-4 py-3">
               <h3 className="zone-header">{title}</h3>
               <button
@@ -208,7 +217,8 @@ export function ConfirmMatrixModal({
                 {confirming ? "Committing…" : "Yes, commit"}
               </button>
             </footer>
-          </motion.div>
+            </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>
