@@ -1,15 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  createColumnHelper,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  useReactTable,
-  type ColumnDef,
-  type SortingState,
-  type VisibilityState,
-} from "@tanstack/react-table";
 import { fetchBlocks } from "../../../services/blockApi";
 import type { BlockRow } from "../../../types";
 import {
@@ -24,202 +13,59 @@ import {
 import { POLL_INTERVAL_BLOCKS_MS, BLOCKS_FOLLOW_FOCUS_KEY } from "../../../constants";
 import { useFocus } from "../../../providers/FocusProvider";
 
-const col = createColumnHelper<BlockRow>();
+/**
+ * Block Inspector — family-grouped variant.
+ *
+ * Default row = one per (block_name, stream_name) family. The fair / var
+ * summary shows the min…max across the family's dims so the trader can sanity
+ * check at a glance; the chevron expands inline to per-dim rows for the
+ * numeric drill-down. This was the user-journey improvement behind the
+ * Opinions reframe — a single ema_iv opinion no longer duplicates into
+ * 8 rows across symbols/expiries.
+ *
+ * Clicking a family row body sets `opinion` focus (the Opinions tab +
+ * OpinionInspector are the deep-dive surface); clicking a dim row sets
+ * `block` focus (engine-level inspection via the existing BlockInspector).
+ *
+ * Preserved from the pre-collapse variant:
+ *  - symbol / expiry / stream / source filter dropdowns
+ *  - global text filter (matches block / stream / symbol / expiry / space)
+ *  - follow-focus auto-filter (cell / symbol / expiry / stream / block)
+ *  - pipeline polling (POLL_INTERVAL_BLOCKS_MS)
+ */
 
-/** All column definitions. The `id` doubles as the visibility key. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TanStack column helper produces heterogeneous accessor types
-const ALL_COLUMNS: ColumnDef<BlockRow, any>[] = [
-  col.accessor("block_name", {
-    header: "Block",
-    cell: (info) => <span className="font-medium text-mm-text">{info.getValue()}</span>,
-  }),
-  col.accessor("source", {
-    header: "Source",
-    cell: (info) => {
-      const v = info.getValue();
-      return (
-        <span
-          className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${
-            v === "manual" ? "bg-mm-warn/15 text-mm-warn" : "bg-mm-accent/10 text-mm-accent"
-          }`}
-        >
-          {v}
-        </span>
-      );
-    },
-    enableSorting: false,
-    filterFn: (row, _id, value: string) => row.original.source === value,
-  }),
-  // Filter functions are explicit lambdas (not the "equals" string preset)
-  // so the comparison stays correct even when the column is hidden — the
-  // string preset depends on TanStack resolving the column's accessor at
-  // filter time, which silently no-ops when the row's getValue() returns
-  // undefined for hidden columns in some setups.
-  col.accessor("stream_name", {
-    header: "Stream",
-    filterFn: (row, _id, value: string) => row.original.stream_name === value,
-  }),
-  col.accessor("symbol", {
-    header: "Symbol",
-    filterFn: (row, _id, value: string) => row.original.symbol === value,
-  }),
-  col.accessor("expiry", {
-    header: "Expiry",
-    filterFn: (row, _id, value: string) => row.original.expiry === value,
-  }),
-  col.accessor("space_id", { header: "Space" }),
-  col.accessor("fair", {
-    header: "Fair",
-    cell: (info) => (
-      <span className={`font-mono tabular-nums ${info.getValue() != null ? valColor(info.getValue() ?? 0) : ""}`}>
-        {formatNullable(info.getValue())}
-      </span>
-    ),
-    sortingFn: "basic",
-  }),
-  col.accessor("var", {
-    header: "Variance",
-    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
-    sortingFn: "basic",
-  }),
-  // Engine parameters (hidden by default)
-  col.accessor("annualized", {
-    header: "Annualized",
-    cell: (info) => (info.getValue() ? "yes" : "no"),
-  }),
-  col.accessor("temporal_position", { header: "Temporal Pos" }),
-  col.accessor("decay_end_size_mult", {
-    header: "Decay End",
-    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
-  }),
-  col.accessor("decay_rate_prop_per_min", {
-    header: "Decay Rate",
-    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue(), 6)}</span>,
-  }),
-  col.accessor("var_fair_ratio", {
-    header: "Var/Fair Ratio",
-    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
-  }),
-  col.accessor("scale", {
-    header: "Scale",
-    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
-  }),
-  col.accessor("offset", {
-    header: "Offset",
-    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
-  }),
-  col.accessor("exponent", {
-    header: "Exponent",
-    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
-  }),
-  // Output values (hidden by default)
-  col.accessor("raw_value", {
-    header: "Raw Value",
-    cell: (info) => <span className="font-mono tabular-nums">{formatNullable(info.getValue())}</span>,
-  }),
-  col.accessor("market_value_source", {
-    header: "Market Source",
-    cell: (info) => {
-      const v = info.getValue();
-      if (v == null) return <span className="text-mm-text-dim">—</span>;
-      return (
-        <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium uppercase ${
-          v === "block" ? "bg-mm-accent/10 text-mm-accent"
-          : v === "aggregate" ? "bg-mm-warn/15 text-mm-warn"
-          : "bg-black/[0.04] text-mm-text-dim"
-        }`}>
-          {v}
-        </span>
-      );
-    },
-  }),
-  col.accessor("applies_to", {
-    header: "Applies To",
-    cell: (info) => {
-      const v = info.getValue() as [string, string][] | null | undefined;
-      if (v == null || v.length === 0) {
-        return (
-          <span className="rounded-full bg-mm-accent/10 px-1.5 py-0.5 text-[9px] font-medium text-mm-accent">
-            all dims
-          </span>
-        );
-      }
-      return (
-        <span className="text-[10px] text-mm-text-dim">
-          {v.length === 1 ? `${v[0][0]}/${v[0][1]}` : `${v.length} dims`}
-        </span>
-      );
-    },
-    enableSorting: false,
-  }),
-  // Timing (hidden by default)
-  col.accessor("start_timestamp", { header: "Start TS" }),
-  col.accessor("updated_at", { header: "Updated" }),
-];
-
-/** Columns visible by default — everything else starts hidden. */
-const DEFAULT_VISIBLE = new Set([
-  "block_name",
-  "source",
-  "stream_name",
-  "symbol",
-  "expiry",
-  "space_id",
-  "applies_to",
-  "fair",
-  "var",
-]);
-
-function buildDefaultVisibility(): VisibilityState {
-  const vis: VisibilityState = {};
-  for (const c of ALL_COLUMNS) {
-    // TanStack column defs store the accessor key or an explicit id
-    const raw = c as unknown as Record<string, unknown>;
-    const id = (raw.accessorKey as string | undefined) ?? (raw.id as string | undefined);
-    if (id) vis[id] = DEFAULT_VISIBLE.has(id);
-  }
-  return vis;
-}
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+const ALL = "__all__";
 
 interface Props {
   headerAction?: React.ReactNode;
   onRefresh?: () => void;
   refreshKey?: number;
-  /** Single-click handler — Phase 1 sets workbench focus. */
+  /** Per-dim row click — sets block focus so BlockInspector opens. */
   onRowClick?: (block: BlockRow) => void;
-  /** Optional separate handler for "edit this block" (double-click + Edit btn). */
+  /** Optional "edit this block" affordance (double-click + Edit btn). */
   onRowEdit?: (block: BlockRow) => void;
 }
 
-/**
- * Block Inspector for Studio -> Brain.
- *
- * TanStack Table with column visibility toggle, multi-column sort,
- * global filter, and row click to open the detail drawer.
- */
-const ALL = "__all__";
+interface BlockFamily {
+  key: string;                 // "stream|block"
+  block_name: string;
+  stream_name: string;
+  source: "stream" | "manual";
+  dims: BlockRow[];
+  symbols: string[];
+  expiries: string[];
+  fair_min: number | null;
+  fair_max: number | null;
+  var_min: number | null;
+  var_max: number | null;
+}
 
 export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowClick, onRowEdit }: Props) {
-  const { focus } = useFocus();
+  const { focus, setFocus } = useFocus();
   const [blocks, setBlocks] = useState<BlockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [globalFilter, setGlobalFilter] = useState("");
-  // Default sort is by identity columns — stream then block name — so the
-  // row order stays fixed across polling refreshes. Earlier default of
-  // `fair DESC` made the list shuffle every tick as fair values moved, which
-  // broke the "click the row you're looking at" flow. Output-column sorting
-  // is still available by clicking the column header.
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: "stream_name", desc: false },
-    { id: "block_name", desc: false },
-  ]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(buildDefaultVisibility);
-  const [colMenuOpen, setColMenuOpen] = useState(false);
   const [symbolFilter, setSymbolFilter] = useState<string>(ALL);
   const [expiryFilter, setExpiryFilter] = useState<string>(ALL);
   const [streamFilter, setStreamFilter] = useState<string>(ALL);
@@ -227,10 +73,9 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
   const [followFocus, setFollowFocus] = useState<boolean>(
     () => safeGetItem(BLOCKS_FOLLOW_FOCUS_KEY) !== "false",
   );
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  // Auto-filter to the focused dimension when "follow focus" is on. Reverting
-  // is the same gesture: click the same focus again to unfocus, or toggle
-  // "follow focus" off to keep the manual filter selection.
+  // Auto-filter to the focused dimension when "follow focus" is on.
   useEffect(() => {
     if (!followFocus) return;
     if (!focus) {
@@ -251,18 +96,23 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
       setSymbolFilter(ALL);
       setExpiryFilter(focus.expiry);
       setStreamFilter(ALL);
-    } else if (focus.kind === "stream") {
+    } else if (focus.kind === "stream" || focus.kind === "opinion") {
       setSymbolFilter(ALL);
       setExpiryFilter(ALL);
       setStreamFilter(focus.name);
     } else if (focus.kind === "block") {
-      // Block focus highlights a single row; clear axis filters so the row
-      // is visible in context.
       setSymbolFilter(ALL);
       setExpiryFilter(ALL);
       setStreamFilter(ALL);
     }
   }, [focus, followFocus]);
+
+  // Auto-expand the family containing a block-focused row so the dim stays visible.
+  useEffect(() => {
+    if (focus?.kind !== "block") return;
+    const key = `${focus.key.streamName}|${focus.key.blockName}`;
+    setExpanded((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
+  }, [focus]);
 
   const persistFollowFocus = useCallback((next: boolean) => {
     setFollowFocus(next);
@@ -292,43 +142,36 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
     if (refreshKey !== undefined) refresh();
   }, [refreshKey, refresh]);
 
-  const columns = useMemo(() => ALL_COLUMNS, []);
+  // Filter per-dim rows first, then group — this way a "BTC" filter hides
+  // any dim that isn't BTC even if the family has other dims, and the
+  // family rollup reflects the visible subset.
+  const filteredDims = useMemo(() => {
+    const q = globalFilter.trim().toLowerCase();
+    return blocks.filter((b) => {
+      if (symbolFilter !== ALL && b.symbol !== symbolFilter) return false;
+      if (expiryFilter !== ALL && b.expiry !== expiryFilter) return false;
+      if (streamFilter !== ALL && b.stream_name !== streamFilter) return false;
+      if (sourceFilter !== ALL && b.source !== sourceFilter) return false;
+      if (q && !matchesGlobalFilter(b, q)) return false;
+      return true;
+    });
+  }, [blocks, symbolFilter, expiryFilter, streamFilter, sourceFilter, globalFilter]);
 
-  const table = useReactTable({
-    data: blocks,
-    columns,
-    state: { globalFilter, sorting, columnVisibility },
-    onGlobalFilterChange: setGlobalFilter,
-    onSortingChange: setSorting,
-    onColumnVisibilityChange: setColumnVisibility,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    globalFilterFn: (row, _colId, filterValue: string) => {
-      const q = filterValue.toLowerCase();
-      const o = row.original;
-      return (
-        o.block_name.toLowerCase().includes(q) ||
-        o.stream_name.toLowerCase().includes(q) ||
-        o.symbol.toLowerCase().includes(q) ||
-        o.expiry.toLowerCase().includes(q) ||
-        o.space_id.toLowerCase().includes(q)
-      );
-    },
-  });
+  const families = useMemo(() => groupIntoFamilies(filteredDims), [filteredDims]);
 
-  // Push the dropdown values into TanStack's internal columnFilters. Uncontrolled
-  // filters avoid the fragility of double-binding state + a no-op onChange shim.
-  useEffect(() => {
-    table.getColumn("symbol")?.setFilterValue(symbolFilter === ALL ? undefined : symbolFilter);
-    table.getColumn("expiry")?.setFilterValue(expiryFilter === ALL ? undefined : expiryFilter);
-    table.getColumn("stream_name")?.setFilterValue(streamFilter === ALL ? undefined : streamFilter);
-    table.getColumn("source")?.setFilterValue(sourceFilter === ALL ? undefined : sourceFilter);
-  }, [table, symbolFilter, expiryFilter, streamFilter, sourceFilter]);
+  // Stable sort: stream_name then block_name. Output-column sort isn't
+  // exposed today (it was rarely used in the flat view and the range
+  // summary makes it less useful here).
+  const sortedFamilies = useMemo(() => {
+    return [...families].sort((a, b) => {
+      if (a.stream_name !== b.stream_name) {
+        return a.stream_name.localeCompare(b.stream_name);
+      }
+      return a.block_name.localeCompare(b.block_name);
+    });
+  }, [families]);
 
-  // Distinct symbol + expiry + stream values for the filter dropdowns +
-  // source counts.
-  const { symbolOptions, expiryOptions, streamOptions, sourceCounts, visibleCount } = useMemo(() => {
+  const { symbolOptions, expiryOptions, streamOptions, sourceCounts } = useMemo(() => {
     const syms = new Set<string>();
     const exps = new Set<string>();
     const streams = new Set<string>();
@@ -346,20 +189,37 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
       expiryOptions: Array.from(exps).sort(),
       streamOptions: Array.from(streams).sort(),
       sourceCounts: { stream, manual },
-      visibleCount: table.getFilteredRowModel().rows.length,
     };
-  }, [blocks, table]);
+  }, [blocks]);
+
+  const toggleFamily = useCallback((key: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const onFamilyClick = useCallback(
+    (fam: BlockFamily) => {
+      setFocus({ kind: "opinion", name: fam.stream_name });
+    },
+    [setFocus],
+  );
+
+  const totalFamilies = groupIntoFamilies(blocks).length;
+  const filteredDimCount = filteredDims.length;
+  const totalDimCount = blocks.length;
+  const visibleLabel =
+    filteredDimCount === totalDimCount
+      ? `${sortedFamilies.length} families · ${totalDimCount} dims · ${sourceCounts.stream} stream + ${sourceCounts.manual} manual`
+      : `${sortedFamilies.length} of ${totalFamilies} families · ${filteredDimCount} of ${totalDimCount} dims`;
 
   return (
     <section className="flex h-full min-h-0 flex-col p-3">
-      {/* Header row */}
       <div className="mb-2 flex shrink-0 flex-wrap items-center gap-2">
-        <h3 className="zone-header">Block Inspector</h3>
-        <span className="text-[10px] text-mm-text-dim" title={`${sourceCounts.stream} stream + ${sourceCounts.manual} manual = ${blocks.length} total`}>
-          {visibleCount === blocks.length
-            ? `${blocks.length} total · ${sourceCounts.stream} stream + ${sourceCounts.manual} manual`
-            : `${visibleCount} of ${blocks.length} (${sourceCounts.stream} stream + ${sourceCounts.manual} manual)`}
-        </span>
+        <span className="text-[10px] text-mm-text-dim">{visibleLabel}</span>
 
         <select
           value={symbolFilter}
@@ -429,51 +289,6 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
           className="form-input max-w-[140px]"
         />
 
-        {/* Column visibility toggle */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setColMenuOpen((o) => !o)}
-            className="form-input flex items-center gap-1 text-[10px]"
-            title="Toggle columns"
-          >
-            Columns
-            <span className="text-[8px]">{colMenuOpen ? "\u25B2" : "\u25BC"}</span>
-          </button>
-          {colMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setColMenuOpen(false)} />
-              <div className="absolute right-0 top-full z-50 mt-1 max-h-64 w-48 overflow-y-auto rounded-lg border border-black/[0.08] bg-white p-2 shadow-lg">
-                <label className="mb-1 flex items-center gap-2 border-b border-black/[0.06] pb-1.5 text-[10px] font-semibold text-mm-text">
-                  <input
-                    type="checkbox"
-                    checked={table.getIsAllColumnsVisible()}
-                    ref={(el) => {
-                      if (el) el.indeterminate = !table.getIsAllColumnsVisible() && table.getIsSomeColumnsVisible();
-                    }}
-                    onChange={table.getToggleAllColumnsVisibilityHandler()}
-                    className="accent-mm-accent"
-                  />
-                  {table.getIsAllColumnsVisible() ? "Deselect all" : "Select all"}
-                </label>
-                {table.getAllLeafColumns().map((column) => (
-                  <label key={column.id} className="flex items-center gap-2 py-0.5 text-[10px]">
-                    <input
-                      type="checkbox"
-                      checked={column.getIsVisible()}
-                      onChange={column.getToggleVisibilityHandler()}
-                      className="accent-mm-accent"
-                    />
-                    {typeof column.columnDef.header === "string"
-                      ? column.columnDef.header
-                      : column.id}
-                  </label>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
         {headerAction}
       </div>
 
@@ -485,56 +300,36 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
 
       {loading && blocks.length === 0 ? (
         <p className="text-[11px] text-mm-text-dim">Loading blocks...</p>
+      ) : sortedFamilies.length === 0 ? (
+        <p className="text-[11px] text-mm-text-dim">No blocks match the current filters.</p>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-black/[0.06]">
           <table className="w-full border-collapse text-[10px]">
-            <thead className="bg-black/[0.03] text-mm-text-dim">
-              {table.getHeaderGroups().map((hg) => (
-                <tr key={hg.id}>
-                  {hg.headers.map((header) => (
-                    <th
-                      key={header.id}
-                      className={`cursor-pointer select-none px-2 py-1 font-medium text-left ${
-                        header.column.getCanSort() ? "hover:text-mm-text" : ""
-                      }`}
-                      onClick={header.column.getToggleSortingHandler()}
-                    >
-                      <span className="flex items-center gap-1">
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {{ asc: " \u2191", desc: " \u2193" }[
-                          header.column.getIsSorted() as string
-                        ] ?? ""}
-                      </span>
-                    </th>
-                  ))}
-                </tr>
-              ))}
+            <thead className="sticky top-0 z-10 bg-black/[0.03] text-mm-text-dim">
+              <tr>
+                <th className="w-6 px-1 py-1 font-medium" />
+                <th className="px-2 py-1 text-left font-medium">Block</th>
+                <th className="px-2 py-1 text-left font-medium">Source</th>
+                <th className="px-2 py-1 text-left font-medium">Stream</th>
+                <th className="px-2 py-1 text-left font-medium">Dims</th>
+                <th className="px-2 py-1 text-right font-medium">Fair</th>
+                <th className="px-2 py-1 text-right font-medium">Variance</th>
+              </tr>
             </thead>
             <tbody>
-              {table.getRowModel().rows.map((row) => {
-                const isFocused =
-                  focus?.kind === "block"
-                  && blockKeyEquals(focus.key, blockKeyOf(row.original));
+              {sortedFamilies.map((fam) => {
+                const isExpanded = expanded.has(fam.key);
                 return (
-                <tr
-                  key={`${blockKeyToString(blockKeyOf(row.original))}|${row.original.space_id}`}
-                  className={`border-t border-black/[0.03] transition-colors ${
-                    isFocused ? "bg-mm-accent-soft" : "hover:bg-mm-accent/5"
-                  } ${onRowClick ? "cursor-pointer" : ""}`}
-                  onClick={() => onRowClick?.(row.original)}
-                  onDoubleClick={(e) => {
-                    if (!onRowEdit) return;
-                    e.stopPropagation();
-                    onRowEdit(row.original);
-                  }}
-                  title={onRowEdit ? "Click to inspect · double-click to edit" : undefined}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-2 py-1">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
+                  <FamilyRowGroup
+                    key={fam.key}
+                    family={fam}
+                    expanded={isExpanded}
+                    focus={focus}
+                    onToggle={() => toggleFamily(fam.key)}
+                    onFamilyClick={() => onFamilyClick(fam)}
+                    onDimClick={onRowClick}
+                    onDimEdit={onRowEdit}
+                  />
                 );
               })}
             </tbody>
@@ -543,4 +338,183 @@ export function EditableBlockTable({ headerAction, onRefresh, refreshKey, onRowC
       )}
     </section>
   );
+}
+
+function FamilyRowGroup({
+  family,
+  expanded,
+  focus,
+  onToggle,
+  onFamilyClick,
+  onDimClick,
+  onDimEdit,
+}: {
+  family: BlockFamily;
+  expanded: boolean;
+  focus: ReturnType<typeof useFocus>["focus"];
+  onToggle: () => void;
+  onFamilyClick: () => void;
+  onDimClick?: (block: BlockRow) => void;
+  onDimEdit?: (block: BlockRow) => void;
+}) {
+  const isFocused =
+    focus?.kind === "opinion" && focus.name === family.stream_name;
+  return (
+    <>
+      <tr
+        className={`cursor-pointer border-t border-black/[0.03] transition-colors ${
+          isFocused ? "bg-mm-accent-soft" : "hover:bg-mm-accent/5"
+        }`}
+        onClick={onFamilyClick}
+      >
+        <td
+          className="w-6 cursor-pointer px-1 py-1 text-center text-mm-text-dim"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
+          title={expanded ? "Collapse dims" : "Expand dims"}
+        >
+          {expanded ? "▾" : "▸"}
+        </td>
+        <td className="px-2 py-1 font-medium text-mm-text">{family.block_name}</td>
+        <td className="px-2 py-1">
+          <span
+            className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${
+              family.source === "manual" ? "bg-mm-warn/15 text-mm-warn" : "bg-mm-accent/10 text-mm-accent"
+            }`}
+          >
+            {family.source}
+          </span>
+        </td>
+        <td className="px-2 py-1 text-mm-text-dim">{family.stream_name}</td>
+        <td className="px-2 py-1 text-mm-text-subtle">
+          {formatDimsSummary(family)}
+        </td>
+        <td className="px-2 py-1 text-right font-mono tabular-nums">
+          {formatRange(family.fair_min, family.fair_max)}
+        </td>
+        <td className="px-2 py-1 text-right font-mono tabular-nums">
+          {formatRange(family.var_min, family.var_max)}
+        </td>
+      </tr>
+      {expanded &&
+        family.dims.map((dim) => {
+          const dimFocused =
+            focus?.kind === "block" && blockKeyEquals(focus.key, blockKeyOf(dim));
+          const dimKey = `${blockKeyToString(blockKeyOf(dim))}|${dim.space_id}`;
+          return (
+            <tr
+              key={dimKey}
+              className={`border-t border-black/[0.02] transition-colors ${
+                dimFocused ? "bg-mm-accent-soft" : "hover:bg-mm-accent/[0.06]"
+              } ${onDimClick ? "cursor-pointer" : ""}`}
+              onClick={() => onDimClick?.(dim)}
+              onDoubleClick={(e) => {
+                if (!onDimEdit) return;
+                e.stopPropagation();
+                onDimEdit(dim);
+              }}
+              title={onDimEdit ? "Click to inspect · double-click to edit" : undefined}
+            >
+              <td className="w-6 px-1 py-0.5" />
+              <td className="px-2 py-0.5 text-mm-text-subtle">
+                <span className="pl-3">{dim.symbol} · {dim.expiry}</span>
+              </td>
+              <td className="px-2 py-0.5 text-mm-text-subtle">{dim.space_id}</td>
+              <td className="px-2 py-0.5 text-mm-text-subtle">
+                <span className="font-mono">
+                  γ={formatNullable(dim.var_fair_ratio, 3)}
+                </span>
+              </td>
+              <td className="px-2 py-0.5 text-mm-text-subtle">
+                {dim.market_value_source ?? "—"}
+              </td>
+              <td className={`px-2 py-0.5 text-right font-mono tabular-nums ${dim.fair != null ? valColor(dim.fair) : ""}`}>
+                {formatNullable(dim.fair)}
+              </td>
+              <td className="px-2 py-0.5 text-right font-mono tabular-nums">
+                {formatNullable(dim.var)}
+              </td>
+            </tr>
+          );
+        })}
+    </>
+  );
+}
+
+function matchesGlobalFilter(b: BlockRow, q: string): boolean {
+  return (
+    b.block_name.toLowerCase().includes(q) ||
+    b.stream_name.toLowerCase().includes(q) ||
+    b.symbol.toLowerCase().includes(q) ||
+    b.expiry.toLowerCase().includes(q) ||
+    b.space_id.toLowerCase().includes(q)
+  );
+}
+
+function groupIntoFamilies(blocks: BlockRow[]): BlockFamily[] {
+  const map = new Map<string, BlockFamily>();
+  for (const b of blocks) {
+    const key = `${b.stream_name}|${b.block_name}`;
+    let fam = map.get(key);
+    if (!fam) {
+      fam = {
+        key,
+        block_name: b.block_name,
+        stream_name: b.stream_name,
+        source: b.source,
+        dims: [],
+        symbols: [],
+        expiries: [],
+        fair_min: null,
+        fair_max: null,
+        var_min: null,
+        var_max: null,
+      };
+      map.set(key, fam);
+    }
+    fam.dims.push(b);
+    if (!fam.symbols.includes(b.symbol)) fam.symbols.push(b.symbol);
+    if (!fam.expiries.includes(b.expiry)) fam.expiries.push(b.expiry);
+    if (b.fair != null) {
+      fam.fair_min = fam.fair_min == null ? b.fair : Math.min(fam.fair_min, b.fair);
+      fam.fair_max = fam.fair_max == null ? b.fair : Math.max(fam.fair_max, b.fair);
+    }
+    if (b.var != null) {
+      fam.var_min = fam.var_min == null ? b.var : Math.min(fam.var_min, b.var);
+      fam.var_max = fam.var_max == null ? b.var : Math.max(fam.var_max, b.var);
+    }
+  }
+  for (const fam of map.values()) {
+    fam.symbols.sort();
+    fam.expiries.sort();
+    fam.dims.sort((a, b) => {
+      if (a.symbol !== b.symbol) return a.symbol.localeCompare(b.symbol);
+      if (a.expiry !== b.expiry) return a.expiry.localeCompare(b.expiry);
+      return a.space_id.localeCompare(b.space_id);
+    });
+  }
+  return Array.from(map.values());
+}
+
+function formatDimsSummary(fam: BlockFamily): string {
+  const symCount = fam.symbols.length;
+  const expCount = fam.expiries.length;
+  const total = fam.dims.length;
+  if (total === 1) return `${fam.symbols[0]} · ${fam.expiries[0]}`;
+  return `${symCount} ${plural("symbol", symCount)} × ${expCount} ${plural("expiry", expCount)} · ${total} ${plural("dim", total)}`;
+}
+
+function plural(word: string, n: number): string {
+  if (n === 1) return word;
+  if (word === "expiry") return "expiries";
+  return `${word}s`;
+}
+
+function formatRange(lo: number | null, hi: number | null): string {
+  if (lo == null && hi == null) return "—";
+  if (lo == null || hi == null) return formatNullable(lo ?? hi);
+  if (lo === hi) return formatNullable(lo);
+  return `${formatNullable(lo)}…${formatNullable(hi)}`;
 }
