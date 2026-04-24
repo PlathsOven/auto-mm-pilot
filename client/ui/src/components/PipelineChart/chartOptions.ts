@@ -1,6 +1,6 @@
 import type { EChartsOption } from "echarts";
 import type { PipelineTimeSeriesResponse } from "../../types";
-import type { Metric, Smoothing } from "../../utils";
+import type { Metric } from "../../utils";
 import {
   formatTooltipDate,
   makeTimeAxisFormatter,
@@ -34,9 +34,11 @@ export const BLOCK_COLORS = [
   "#9098a8", // neutral slate
 ];
 
-// Single authoritative chart line color — mm-text navy. The chart plots
-// one series at a time (the smoothing toggle swaps which variant), so the
-// old raw-vs-smoothed two-line palette is no longer needed.
+// Two-line palette for smoothable metrics. Smoothed keeps mm-text navy
+// (the single-line colour the chart has always used, so existing visuals
+// are preserved); instant pairs it with mm-accent indigo for a clearly
+// distinct second series.
+export const INSTANT_COLOR = "#4f5bd5";
 export const SMOOTHED_COLOR = "#1a1a2e";
 
 export const TOOLTIP_STYLE = {
@@ -51,85 +53,96 @@ export const TOOLTIP_STYLE = {
 // Per-metric resolution
 // ---------------------------------------------------------------------------
 
-interface MetricSeries {
-  /** Selected-variant values, already resolved against the smoothing toggle. */
-  values: number[];
-  /** Legend label for the series. */
+interface SeriesLine {
+  /** Legend label for this specific line. */
   label: string;
-  /** y-axis name + tick/tooltip formatter. */
-  yAxisName: string;
-  yAxisFormatter: (v: number) => string;
-  tooltipFormatter: (v: number) => string;
-  /** `marketSource` renders a step line — user-entered scalar over time.
+  /** Y-values aligned to ``aggregated.timestamps``. */
+  values: number[];
+  /** Stroke colour for the line and its legend marker. */
+  color: string;
+  /** ``marketSource`` renders a step line — user-entered scalar over time.
    *  Everything else is a standard interpolated line. */
   stepRender: boolean;
 }
 
-/** Resolve the (metric, smoothing) pair to a single displayed series that
- *  mirrors the Overview cell value. Metrics without a smoothed variant
- *  (marketSource) ignore the smoothing flag and always emit the source
- *  series. */
-function resolveMetricSeries(
+interface MetricSpec {
+  /** y-axis name + tick/tooltip formatter — shared across every line of
+   *  a metric since instant and smoothed variants use the same units. */
+  yAxisName: string;
+  yAxisFormatter: (v: number) => string;
+  tooltipFormatter: (v: number) => string;
+  /** One entry per displayed line. Smoothable metrics yield two
+   *  (instant + smoothed); ``marketSource`` yields one. */
+  lines: SeriesLine[];
+}
+
+/** Resolve a metric to its axis metadata + every displayed line.
+ *  Smoothable metrics emit both instant and smoothed variants so the
+ *  chart can overlay them. ``marketSource`` is a single step line. */
+function resolveMetricSpec(
   data: PipelineTimeSeriesResponse,
   metric: Metric,
-  smoothing: Smoothing,
-): MetricSeries {
+): MetricSpec {
   const agg = data.aggregated;
-  const s = smoothing === "smoothed";
   switch (metric) {
     case "desired":
       return {
-        values: s ? agg.smoothedDesiredPosition : agg.rawDesiredPosition,
-        label: s ? "Smoothed Desired" : "Instant Desired",
         yAxisName: "Desired ($)",
         yAxisFormatter: positionLabel,
         tooltipFormatter: sci,
-        stepRender: false,
+        lines: [
+          { label: "Instant Desired", values: agg.rawDesiredPosition, color: INSTANT_COLOR, stepRender: false },
+          { label: "Smoothed Desired", values: agg.smoothedDesiredPosition, color: SMOOTHED_COLOR, stepRender: false },
+        ],
       };
     case "edge":
       return {
-        values: s ? agg.smoothedEdge : agg.edge,
-        label: s ? "Smoothed Edge" : "Instant Edge",
         yAxisName: "Edge (vp)",
         yAxisFormatter: vpLabel,
         tooltipFormatter: vpLabel,
-        stepRender: false,
+        lines: [
+          { label: "Instant Edge", values: agg.edge, color: INSTANT_COLOR, stepRender: false },
+          { label: "Smoothed Edge", values: agg.smoothedEdge, color: SMOOTHED_COLOR, stepRender: false },
+        ],
       };
     case "variance":
       return {
-        values: s ? agg.smoothedVar : agg.var,
-        label: s ? "Smoothed Variance" : "Instant Variance",
         yAxisName: "Variance (vp)",
         yAxisFormatter: vpLabel,
         tooltipFormatter: vpLabel,
-        stepRender: false,
+        lines: [
+          { label: "Instant Variance", values: agg.var, color: INSTANT_COLOR, stepRender: false },
+          { label: "Smoothed Variance", values: agg.smoothedVar, color: SMOOTHED_COLOR, stepRender: false },
+        ],
       };
     case "fair":
       return {
-        values: s ? agg.smoothedTotalFair : agg.totalFair,
-        label: s ? "Smoothed Fair" : "Instant Fair",
         yAxisName: "Fair (vp)",
         yAxisFormatter: vpLabel,
         tooltipFormatter: vpLabel,
-        stepRender: false,
+        lines: [
+          { label: "Instant Fair", values: agg.totalFair, color: INSTANT_COLOR, stepRender: false },
+          { label: "Smoothed Fair", values: agg.smoothedTotalFair, color: SMOOTHED_COLOR, stepRender: false },
+        ],
       };
     case "marketCalc":
       return {
-        values: s ? agg.smoothedTotalMarketFair : agg.totalMarketFair,
-        label: s ? "Smoothed Market (Calc)" : "Instant Market (Calc)",
         yAxisName: "Market Calc (vp)",
         yAxisFormatter: vpLabel,
         tooltipFormatter: vpLabel,
-        stepRender: false,
+        lines: [
+          { label: "Instant Market (Calc)", values: agg.totalMarketFair, color: INSTANT_COLOR, stepRender: false },
+          { label: "Smoothed Market (Calc)", values: agg.smoothedTotalMarketFair, color: SMOOTHED_COLOR, stepRender: false },
+        ],
       };
     case "marketSource":
       return {
-        values: agg.marketVol,
-        label: "Market (Source)",
         yAxisName: "Market Source (vp)",
         yAxisFormatter: vpLabel,
         tooltipFormatter: vpLabel,
-        stepRender: true,
+        lines: [
+          { label: "Market (Source)", values: agg.marketVol, color: SMOOTHED_COLOR, stepRender: true },
+        ],
       };
   }
 }
@@ -139,33 +152,43 @@ function resolveMetricSeries(
 // ---------------------------------------------------------------------------
 
 /**
- * Build a single-metric historical time-series option for the (metric,
- * smoothing) pair picked on the Pipeline panel. One line per chart — the
- * smoothing toggle swaps which variant is plotted, matching the Overview
- * grid's cell semantics. ``marketSource`` renders as a step line; every
- * other metric as a standard interpolated line.
+ * Build a historical time-series option for the metric picked on the
+ * Pipeline panel. Smoothable metrics overlay both instant and smoothed
+ * variants as two simultaneous lines; ``marketSource`` renders as a
+ * single step line. The legend is only shown when there's more than one
+ * line, and its presence pushes the chart grid down to make room.
  */
 export function buildPipelineSingleMetricOptions(
   data: PipelineTimeSeriesResponse,
   metric: Metric,
-  smoothing: Smoothing,
 ): EChartsOption {
   const timestamps = data.aggregated.timestamps;
-  const spec = resolveMetricSeries(data, metric, smoothing);
+  const spec = resolveMetricSpec(data, metric);
+  const multiLine = spec.lines.length > 1;
 
-  const series: EChartsOption["series"] = [{
-    name: spec.label,
+  const series: EChartsOption["series"] = spec.lines.map((line) => ({
+    name: line.label,
     type: "line",
-    ...(spec.stepRender ? { step: "end" as const } : {}),
-    data: zipTimeSeries(timestamps, spec.values),
+    ...(line.stepRender ? { step: "end" as const } : {}),
+    data: zipTimeSeries(timestamps, line.values),
     showSymbol: false,
-    lineStyle: { width: 2, color: SMOOTHED_COLOR },
-    itemStyle: { color: SMOOTHED_COLOR },
-  }];
+    lineStyle: { width: 2, color: line.color },
+    itemStyle: { color: line.color },
+  }));
 
   return {
     backgroundColor: "transparent",
     animation: false,
+    legend: {
+      show: multiLine,
+      top: 2,
+      right: 16,
+      itemWidth: 14,
+      itemHeight: 8,
+      itemGap: 12,
+      icon: "roundRect",
+      textStyle: { color: "#6e6e82", fontSize: 10 },
+    },
     tooltip: {
       trigger: "axis",
       axisPointer: {
@@ -217,7 +240,7 @@ export function buildPipelineSingleMetricOptions(
         textStyle: { color: "#6e6e82", fontSize: 9 },
       },
     ],
-    grid: { left: 56, right: 16, top: 12, bottom: 48 },
+    grid: { left: 56, right: 16, top: multiLine ? 28 : 12, bottom: 48 },
     xAxis: {
       type: "time",
       axisLabel: {

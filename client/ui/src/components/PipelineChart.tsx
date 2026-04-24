@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { EChartsType } from "echarts/types/dist/echarts";
 import ReactECharts from "echarts-for-react";
 import type { PipelineTimeSeriesResponse } from "../types";
-import type { Metric, Smoothing } from "../utils";
+import type { Metric } from "../utils";
 import { buildPipelineSingleMetricOptions } from "./PipelineChart/chartOptions";
 
 interface PipelineChartProps {
@@ -10,17 +10,17 @@ interface PipelineChartProps {
   loading: boolean;
   error: string | null;
   metric: Metric;
-  smoothing: Smoothing;
 }
 
 /**
- * Single-metric pipeline time-series chart — fills the Metric tab.
+ * Pipeline time-series chart — fills the Metric tab.
  *
- * Plots one line per (metric, smoothing) pair — the smoothing toggle on
- * the panel swaps instant ↔ smoothed, matching the Overview cell
- * semantics. ``marketSource`` renders a single step line regardless of
- * smoothing. Per-space stacked decomposition lives in the sibling
- * Contributions tab (``PipelineContributionsChart``).
+ * Overlays both instant and smoothed variants as two simultaneous lines
+ * for every smoothable metric (desired, edge, variance, fair, marketCalc).
+ * ``marketSource`` is non-smoothable and renders a single step line.
+ * Legend entries let the trader toggle either line off. Per-space stacked
+ * decomposition lives in the sibling Contributions tab
+ * (``PipelineContributionsChart``).
  *
  * A `ResizeObserver` watches the wrapping div and calls `chart.resize()`
  * whenever the container dimensions change. ECharts only listens to
@@ -28,14 +28,14 @@ interface PipelineChartProps {
  * it had at first paint and lets the panel's right half go blank after
  * any layout shift.
  */
-export function PipelineChart({ data, loading, error, metric, smoothing }: PipelineChartProps) {
+export function PipelineChart({ data, loading, error, metric }: PipelineChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<EChartsType | null>(null);
 
   const chartOption = useMemo(() => {
     if (!data) return null;
-    return buildPipelineSingleMetricOptions(data, metric, smoothing);
-  }, [data, metric, smoothing]);
+    return buildPipelineSingleMetricOptions(data, metric);
+  }, [data, metric]);
 
   useEffect(() => {
     const el = containerRef.current;
