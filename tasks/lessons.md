@@ -14,6 +14,14 @@ Format per entry: **Rule.** Then `Why:` (what went wrong, so edge cases can be j
 
 ---
 
+## Extending an enum / literal union isn't free — grep every iteration site
+
+**Why:** 2026-04-24 — Stage H's M6 appended `"correlations"` to `PIPELINE_ORDER` in `anatomyGraph.ts` so the new node would slot into the DAG. Typecheck + build passed green. Anatomy came up blank at runtime. Root cause: `AnatomyCanvas.tsx:310` had a presence gate `PIPELINE_ORDER.every((k) => steps[k])` — since `steps` comes from the server's transform catalog and `correlations` is a pseudo-step without a server-registered transform, the gate failed and the canvas returned `null`. Typecheck was no help — `steps: Record<string, TransformStep>` accepts any string key, so `steps["correlations"]` is `TransformStep | undefined`, and `every(...steps[k])` is valid TS either way.
+
+**How to apply:** When adding an element to an enum / literal union / ordered-keys array that flows into a `.switch`, `.reduce`, `.every`, `.filter`, or record lookup somewhere downstream, grep for every iteration site and confirm the new element is intentionally handled. Typecheck catches `switch` exhaustiveness but not `.every(steps[k])`-style truthiness gates or `steps[k] ?? fallback` short-circuits. The gate sites to check for any ordered-pipeline-keys extension: `buildAnatomyGraph`, `AnatomyCanvas` pre-render gates, `TransformsProvider` hydration, and any docs / stack tables that enumerate the pipeline steps.
+
+---
+
 ## Manual Brain Rule lifted 2026-04-21 — `server/core/` is a normal LLM lane
 
 **Why:** Between 2025 and 2026-04-20, LLMs were barred from editing any file under `server/core/` (the "Manual Brain Rule"). The bugs that actually traced into that lane during that window were one-liner type casts and VAR_FLOOR bounds — trivial fixes whose handoff to a human cost far more than a mis-edit would have. The rule was producing queue time, not safety. The 4-space pipeline rewrite (`tasks/spec-pipeline-4-space.md`) was the forcing function. See `docs/decisions.md` 2026-04-21 for the full reasoning.
