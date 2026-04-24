@@ -2,6 +2,7 @@ import type { TransformStep } from "../../../types";
 import type { StepKey } from "./anatomyGraph";
 import { StreamCanvas } from "../StreamCanvas";
 import type { StreamDraftPrefill } from "../canvasState";
+import { CorrelationsEditor } from "../correlations/CorrelationsEditor";
 import { TransformDetail } from "./TransformDetail";
 
 export type AnatomySelection =
@@ -87,10 +88,7 @@ export function NodeDetailPanel({
             </button>
           </header>
           <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
-            <p className="text-[11px] text-mm-text-dim">
-              Editor coming next milestone. Both matrices default to identity —
-              positions currently equal exposures cell-for-cell.
-            </p>
+            <CorrelationsEditor />
           </div>
         </div>
       )}
