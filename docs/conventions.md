@@ -24,7 +24,6 @@
 - **React Context providers** for cross-component state (WebSocket, Layout, Chat). No prop drilling beyond 2 levels.
 - **SSE streaming** from the server for LLM responses. Chunks are assembled on the client.
 - **Singleton WebSocket ticker** on the server. One source of truth for pipeline state across all clients.
-- **TanStack Table** for data-heavy tables (column visibility, multi-column sort, global filter). Used by `EditableBlockTable`.
 - **Engine-command protocol.** LLM emits ` ```engine-command` fenced blocks containing `{ action, params }`. The client (`engineCommands.ts`) parses them, strips from the displayed message, and routes: `create_manual_block` → BlockDrawer (interactive review), `create_stream` → auto-execute via REST.
 - **`<think>` tag stripping.** Streaming responses pass through `_strip_think_tags()` in `client.py` before reaching the client, so reasoning-model internals never surface in the UI.
 - **`.to_dicts()` for DataFrame → dict serialization.** Never `iter_rows(named=True)` loops. Use `.to_dicts()` for bulk conversion and list comprehensions for field renaming. `build_blocks_df` uses `select(...)` + `pl.concat` so block-row construction is a pure columnar pass.
