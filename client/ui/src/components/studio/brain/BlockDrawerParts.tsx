@@ -144,12 +144,18 @@ export function ReadOnlyField({ label, value }: { label: string; value: number |
 // ---------------------------------------------------------------------------
 
 /**
- * Multi-select for the stream's ``applies_to`` list. Shows every pair in
- * the current dim universe as a chip; unchecked = "null" = all dims.
+ * Multi-select for the stream's ``applies_to`` list.
  *
- * The store contract: ``null`` means "fan out to every pair in the dim
- * universe" (default). An explicit list means "exactly these pairs".
- * Empty list is a client-side state only — submit collapses it to null.
+ * Two mutually exclusive states:
+ *   - "All symbols/expiries" selected  → value is ``null``; fans to every
+ *     pair in the dim universe. This is the default.
+ *   - One or more individual pairs selected → value is the explicit list.
+ *
+ * Clicking the "All" chip switches into all-mode (clears any per-pair
+ * selection). Clicking an individual chip while in all-mode switches into
+ * list-mode with just that chip selected. Within list-mode, chips toggle
+ * individually; if the trader deselects the last one, the field auto-
+ * reverts to all-mode rather than leaving an invalid empty selection.
  */
 export function AppliesToField({
   value,
@@ -169,49 +175,48 @@ export function AppliesToField({
   const togglePair = (pair: [string, string]) => {
     if (readOnly) return;
     const key = selectedKey(pair);
-    const current = isAll ? [] : (value ?? []);
+    // Coming from all-mode: switch to list-mode seeded with just this pair.
+    if (isAll) {
+      onChange([pair]);
+      return;
+    }
+    const current = value ?? [];
     const next = selectedSet.has(key)
       ? current.filter((p) => selectedKey(p) !== key)
       : [...current, pair];
+    // Empty list is an invalid selection — auto-revert to all-mode.
     onChange(next.length === 0 ? null : next);
   };
 
   const setAll = () => {
     if (readOnly) return;
+    if (isAll) return;
     onChange(null);
   };
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-medium text-mm-text-dim">Applies to</span>
-        {!readOnly && !isAll && (
-          <button
-            type="button"
-            onClick={setAll}
-            className="text-[9px] text-mm-accent hover:underline"
-            title="Reset to all dims"
-          >
-            Reset to all
-          </button>
-        )}
-      </div>
-      {isAll ? (
-        <div className="flex flex-wrap gap-1">
-          <span
-            className="rounded-full bg-mm-accent/10 px-2 py-0.5 text-[10px] font-medium text-mm-accent"
-            title="This block fans out to every (symbol, expiry) pair in the dim universe."
-          >
-            All dims
-          </span>
-        </div>
-      ) : null}
+      <span className="text-[10px] font-medium text-mm-text-dim">Applies to</span>
       {options.length === 0 ? (
         <p className="text-[10px] italic text-mm-text-dim">
           No dims in the universe yet — register at least one stream with a snapshot.
         </p>
       ) : (
         <div className="flex flex-wrap gap-1">
+          <button
+            type="button"
+            disabled={readOnly}
+            onClick={setAll}
+            className={`rounded-full border px-2 py-0.5 text-[10px] transition-colors ${
+              isAll
+                ? "border-mm-accent bg-mm-accent/10 text-mm-accent"
+                : "border-black/[0.08] bg-transparent text-mm-text-dim hover:border-mm-accent/40 hover:text-mm-text"
+            } ${readOnly ? "cursor-default opacity-80" : "cursor-pointer"}`}
+            title="This block fans out to every (symbol, expiry) pair in the dim universe."
+            aria-pressed={isAll}
+          >
+            All symbols/expiries
+          </button>
           {options.map((pair) => {
             const key = selectedKey(pair);
             const isSelected = selectedSet.has(key);
@@ -226,6 +231,7 @@ export function AppliesToField({
                     ? "border-mm-accent bg-mm-accent/10 text-mm-accent"
                     : "border-black/[0.08] bg-transparent text-mm-text-dim hover:border-mm-accent/40 hover:text-mm-text"
                 } ${readOnly ? "cursor-default opacity-80" : "cursor-pointer"}`}
+                aria-pressed={isSelected}
               >
                 {pair[0]}/{pair[1]}
               </button>
