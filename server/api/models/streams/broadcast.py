@@ -47,6 +47,13 @@ class DesiredPosition(_WireModel):
     inverse of ``total_vol ** 2 → aggregate_var`` — sum the per-grid-cell
     variance-unit value from the current tick to expiry, divide by T in
     years, sign-preserving sqrt. That's the number an options trader reads.
+
+    Stage H (``exposure_to_position``) splits the old ``desired_pos`` /
+    ``raw_desired_pos`` into an exposure (pre-correlation) and a position
+    (post-correlation). The ``*_exposure`` fields are always emitted — they
+    equal the position fields when both matrices are identity. The
+    ``*_hypothetical`` fields are populated only when a draft correlation
+    matrix is live; otherwise they're ``None``.
     """
     symbol: str
     expiry: str
@@ -56,6 +63,14 @@ class DesiredPosition(_WireModel):
     smoothed_var: float
     desired_pos: float
     raw_desired_pos: float
+    # Defaults are M1 placeholders — the serializer (M4) emits real
+    # values once the pipeline's Stage H lands (M3). Both fields are
+    # always emitted when the full pipeline is wired; they equal the
+    # position fields when both correlation matrices are identity.
+    raw_desired_exposure: float = 0.0
+    smoothed_desired_exposure: float = 0.0
+    raw_desired_position_hypothetical: float | None = None
+    smoothed_desired_position_hypothetical: float | None = None
     current_pos: float
     total_fair: float
     smoothed_total_fair: float

@@ -12,6 +12,7 @@ Sub-modules:
 * ``crud`` — stream CRUD + connector catalog + admin configure.
 * ``ingest`` — snapshot, bankroll, aggregate market-value ingest responses.
 * ``blocks`` — block table, opinions aggregator, manual-block ingest.
+* ``correlations`` — symbol + expiry correlation matrices (Stage H).
 * ``ws_client`` — bidirectional ``/ws/client`` frames + ACK union.
 * ``transforms`` — pipeline transform configuration.
 * ``broadcast`` — per-tick broadcast payload + notification channels.
@@ -44,6 +45,15 @@ from server.api.models.streams.broadcast import (
     ZeroPositionDiagnostic,
     ZeroPositionDiagnosticsResponse,
     ZeroPositionReason,
+)
+from server.api.models.streams.correlations import (
+    CorrelationEntry,
+    ExpiryCorrelationEntry,
+    ExpiryCorrelationListResponse,
+    SetExpiryCorrelationsRequest,
+    SetSymbolCorrelationsRequest,
+    SymbolCorrelationEntry,
+    SymbolCorrelationListResponse,
 )
 from server.api.models.streams.crud import (
     AdminConfigureStreamRequest,
@@ -129,6 +139,14 @@ __all__ = [
     "ZeroPositionDiagnostic",
     "ZeroPositionDiagnosticsResponse",
     "ZeroPositionReason",
+    # correlations
+    "CorrelationEntry",
+    "ExpiryCorrelationEntry",
+    "ExpiryCorrelationListResponse",
+    "SetExpiryCorrelationsRequest",
+    "SetSymbolCorrelationsRequest",
+    "SymbolCorrelationEntry",
+    "SymbolCorrelationListResponse",
     # crud
     "AdminConfigureStreamRequest",
     "BlockConfigPayload",

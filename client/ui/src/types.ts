@@ -110,6 +110,15 @@ export interface DesiredPosition {
   smoothedVar: number;
   desiredPos: number;
   rawDesiredPos: number;
+  /** Pre-correlation exposure (the Kelly output). Equals the position
+   *  fields when both correlation matrices are identity. */
+  rawDesiredExposure: number;
+  smoothedDesiredExposure: number;
+  /** Post-correlation position under the *draft* matrices. ``null`` when
+   *  no draft is live — the position + draft columns are broadcast
+   *  simultaneously so the grid can annotate pending changes inline. */
+  rawDesiredPositionHypothetical: number | null;
+  smoothedDesiredPositionHypothetical: number | null;
   currentPos: number;
   totalFair: number;
   smoothedTotalFair: number;
@@ -872,4 +881,42 @@ export interface LlmFailureLogRequest {
   conversation_turn_id?: string | null;
   llm_call_id?: number | null;
   metadata?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Correlations — Stage H exposure → position translation
+// ---------------------------------------------------------------------------
+
+/** One upper-triangle correlation entry. ``a < b`` by convention; the
+ *  server canonicalises on write so clients may emit in any order. */
+export interface SymbolCorrelationEntry {
+  a: string;
+  b: string;
+  rho: number;
+}
+
+export interface ExpiryCorrelationEntry {
+  a: string;
+  b: string;
+  rho: number;
+}
+
+/** GET /api/correlations/symbols — both slots in one envelope.
+ *  ``draft === null`` means no draft is live (Confirm / Discard disabled). */
+export interface SymbolCorrelationListResponse {
+  committed: SymbolCorrelationEntry[];
+  draft: SymbolCorrelationEntry[] | null;
+}
+
+export interface ExpiryCorrelationListResponse {
+  committed: ExpiryCorrelationEntry[];
+  draft: ExpiryCorrelationEntry[] | null;
+}
+
+export interface SetSymbolCorrelationsRequest {
+  entries: SymbolCorrelationEntry[];
+}
+
+export interface SetExpiryCorrelationsRequest {
+  entries: ExpiryCorrelationEntry[];
 }
