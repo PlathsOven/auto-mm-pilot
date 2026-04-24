@@ -101,7 +101,7 @@ export async function apiFetch<T>(
 // ---------------------------------------------------------------------------
 
 export interface SseCallbacks {
-  onDelta: (text: string) => void;
+  onDelta: (payload: unknown) => void;
   onDone: () => void;
   onError: (error: string) => void;
 }

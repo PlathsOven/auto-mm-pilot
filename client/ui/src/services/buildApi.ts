@@ -121,9 +121,7 @@ export function streamBuildConverse(
   callbacks: BuildConverseCallbacks,
 ): AbortController {
   return streamFetchSSE("/api/build/converse", req, {
-    // streamFetchSSE's `onDelta` is typed as string but at runtime passes
-    // the parsed JSON value — which for this endpoint is a dict event.
-    // Dispatch on shape here.
+    // Build-mode events arrive as parsed dicts; dispatch on shape.
     onDelta: (payload: unknown) => {
       if (typeof payload !== "object" || payload === null) return;
       const ev = payload as Record<string, unknown>;
