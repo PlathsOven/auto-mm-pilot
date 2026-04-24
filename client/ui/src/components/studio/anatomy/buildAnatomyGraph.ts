@@ -31,6 +31,7 @@ const STEP_LABELS: Record<StepKey, string> = {
   calc_to_target: "Calc → Target",
   smoothing: "Smoothing",
   position_sizing: "Position Sizing",
+  correlations: "Correlations",
 };
 
 const STREAM_EDGE_STROKE = "rgba(129,140,248,0.5)";
@@ -201,6 +202,32 @@ export function buildAnatomyGraph(
   for (const key of PIPELINE_ORDER) {
     const pos = STEP_NODE_POSITIONS[key];
     if (!pos) continue;
+
+    // Correlations is a control surface, not a server-registered
+    // TransformStep — it's rendered as its own node type so it doesn't
+    // need the server catalog's implementation picker + numeric params.
+    if (key === "correlations") {
+      out.push({
+        id: key,
+        type: "correlations",
+        position: pos,
+        ...TRANSFORM_NODE_SIZE,
+        data: {
+          stepNumber: displayedIdx + 1,
+          label: STEP_LABELS[key],
+          subtitle: PIPELINE_NARRATIVE[key],
+          // Live draft / singular flags land on the node in M7 once the
+          // editor + singular-alert channel are wired. Keep the fields
+          // typed here so the node shell is final.
+          draftPending: false,
+          singular: false,
+        },
+        draggable: true,
+      });
+      displayedIdx++;
+      continue;
+    }
+
     const step = steps[key];
     if (!step) continue;
 

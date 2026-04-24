@@ -7,6 +7,7 @@ import { TransformDetail } from "./TransformDetail";
 export type AnatomySelection =
   | { kind: "transform"; stepKey: StepKey }
   | { kind: "stream"; streamName: string }
+  | { kind: "correlations" }
   | { kind: "none" };
 
 interface Props {
@@ -64,6 +65,33 @@ export function NodeDetailPanel({
               />
             );
           })()}
+        </div>
+      )}
+
+      {selection.kind === "correlations" && (
+        <div className="flex h-full flex-col">
+          <header className="flex shrink-0 items-center justify-between gap-2 border-b border-black/[0.06] px-4 py-3">
+            <div className="min-w-0">
+              <h3 className="zone-header">Correlations</h3>
+              <p className="mt-0.5 truncate font-mono text-[10px] text-mm-text-dim">
+                P = Cₛ⁻¹ · E · Cₑ⁻¹
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md p-1 text-[12px] text-mm-text-dim transition-colors hover:bg-black/[0.04] hover:text-mm-text"
+              title="Close (Esc)"
+            >
+              ✕
+            </button>
+          </header>
+          <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+            <p className="text-[11px] text-mm-text-dim">
+              Editor coming next milestone. Both matrices default to identity —
+              positions currently equal exposures cell-for-cell.
+            </p>
+          </div>
         </div>
       )}
 

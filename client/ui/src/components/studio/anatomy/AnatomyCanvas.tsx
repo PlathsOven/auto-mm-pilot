@@ -22,6 +22,7 @@ import { StreamNode, type StreamNodeData } from "./nodes/StreamNode";
 import { AddStreamNode } from "./nodes/AddStreamNode";
 import { ConnectorNode } from "./nodes/ConnectorNode";
 import { TransformNode } from "./nodes/TransformNode";
+import { CorrelationsNode } from "./nodes/CorrelationsNode";
 import { OutputNode } from "./nodes/OutputNode";
 import { LaneBandNode } from "./nodes/LaneBandNode";
 import { NodeDetailPanel } from "./NodeDetailPanel";
@@ -35,6 +36,7 @@ const NODE_TYPES: NodeTypes = {
   addStream: AddStreamNode,
   connector: ConnectorNode,
   transform: TransformNode,
+  correlations: CorrelationsNode,
   output: OutputNode,
   laneBand: LaneBandNode,
 };
@@ -84,6 +86,7 @@ function AnatomyCanvasInner() {
     closePanel,
     openStream,
     openTransform,
+    openCorrelations,
   } = useAnatomySelection();
 
   const { savingKey, saveError, onSelectTransform, onParamChange } = useTransformEditors();
@@ -202,6 +205,13 @@ function AnatomyCanvasInner() {
         closePanel();
         return;
       }
+      if (
+        selection.kind === "correlations"
+        && node.type === "correlations"
+      ) {
+        closePanel();
+        return;
+      }
 
       // Pan/zoom to the clicked node so it ends up centred regardless of
       // which slice of the DAG was previously visible.
@@ -221,11 +231,13 @@ function AnatomyCanvasInner() {
         openStream("new");
       } else if (node.type === "transform") {
         openTransform(node.id as StepKey);
+      } else if (node.type === "correlations") {
+        openCorrelations();
       } else if (node.type === "output") {
         setMode("workbench");
       }
     },
-    [fitNodeIntoView, setMode, selection, closePanel, openTransform, openStream],
+    [fitNodeIntoView, setMode, selection, closePanel, openTransform, openStream, openCorrelations],
   );
 
   const onPaneClick = useCallback(() => {
