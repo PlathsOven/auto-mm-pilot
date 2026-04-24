@@ -70,24 +70,33 @@ function ConnectorIntegrationSnippet({
   streamName: string;
   connector: { name: string; input_key_cols: string[]; input_value_fields: { name: string }[] };
 }) {
-  // Build an example row with placeholder values so the trader can copy +
-  // tweak rather than read the schema and re-derive.
-  const samplePairs = [
-    `"timestamp": "2026-01-01T00:00:00"`,
-    ...connector.input_key_cols.map((k) => `"${k}": "BTC"`),
-    ...connector.input_value_fields.map((f) => `"${f.name}": 68500.0`),
+  // Multi-line dict literal so the snippet wraps naturally inside the ~400px
+  // sidebar — a single-line `[{...}]` overflowed even with overflow-x-auto
+  // because the outer card had no inner max-width constraint.
+  const fieldLines = [
+    `      "timestamp": "2026-01-01T00:00:00",`,
+    ...connector.input_key_cols.map((k) => `      "${k}": "BTC",`),
+    ...connector.input_value_fields.map((f) => `      "${f.name}": 68500.0,`),
   ];
-  const rowLiteral = `{${samplePairs.join(", ")}}`;
-  const snippet = `await client.push_connector_input(\n  "${streamName}",\n  [${rowLiteral}],\n)`;
+  const snippet = [
+    `await client.push_connector_input(`,
+    `  "${streamName}",`,
+    `  [`,
+    `    {`,
+    ...fieldLines,
+    `    },`,
+    `  ],`,
+    `)`,
+  ].join("\n");
   return (
-    <div className="rounded-md border border-mm-accent/30 bg-mm-accent/[0.05] p-3">
-      <div className="mb-2 flex items-baseline justify-between">
+    <div className="min-w-0 rounded-md border border-mm-accent/30 bg-mm-accent/[0.05] p-3">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
         <span className="text-[10px] uppercase tracking-wider text-mm-text-dim">
           SDK integration
         </span>
-        <span className="text-[9px] font-mono text-mm-accent">connector: {connector.name}</span>
+        <span className="truncate text-[9px] font-mono text-mm-accent">connector: {connector.name}</span>
       </div>
-      <pre className="overflow-x-auto rounded-sm bg-black/[0.04] p-2 text-[10px] leading-snug text-mm-text">
+      <pre className="whitespace-pre-wrap break-words rounded-sm bg-black/[0.04] p-2 text-[10px] leading-snug text-mm-text">
         <code className="font-mono">{snippet}</code>
       </pre>
       <p className="mt-2 text-[9px] text-mm-text-dim">

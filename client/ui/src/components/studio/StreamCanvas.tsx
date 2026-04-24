@@ -184,9 +184,9 @@ export function StreamCanvas({ streamName, prefill, onActivated }: Props) {
   ]);
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden">
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-6 py-4">
           <div className="mb-4">
             <h2 className="zone-header">Stream Canvas</h2>
             <p className="mt-1 text-[11px] text-mm-text-dim">
