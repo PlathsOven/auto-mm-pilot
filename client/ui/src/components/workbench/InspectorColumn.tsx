@@ -174,6 +174,7 @@ function focusHint(focus: ReturnType<typeof useFocus>["focus"]): string {
     case "symbol": return focus.symbol;
     case "expiry": return focus.expiry;
     case "stream": return focus.name;
+    case "opinion": return focus.name;
     case "block":
       return `${focus.key.blockName} · ${focus.key.symbol} ${focus.key.expiry}`;
   }

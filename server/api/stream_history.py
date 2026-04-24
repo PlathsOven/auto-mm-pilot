@@ -21,6 +21,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Iterable
 
+from server.api.datetime_parsing import parse_datetime_tolerant
+
 # Per-key entry cap. High enough to cover several hours of one-per-second
 # pushes; older entries fall off the deque first. Mirrors
 # ``POSITION_HISTORY_MAX_ENTRIES`` in ``position_history.py``.
@@ -135,7 +137,7 @@ def _coerce_ts(value: Any) -> datetime | None:
         return value.replace(tzinfo=None) if value.tzinfo is not None else value
     if isinstance(value, str):
         try:
-            dt = datetime.fromisoformat(value)
+            dt = parse_datetime_tolerant(value)
         except ValueError:
             return None
         return dt.replace(tzinfo=None) if dt.tzinfo is not None else dt

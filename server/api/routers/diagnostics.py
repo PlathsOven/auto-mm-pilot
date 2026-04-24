@@ -105,7 +105,7 @@ async def zero_position_diagnostics(
     ) if at_or_before.height else None
 
     diagnostics: list[ZeroPositionDiagnostic] = []
-    for row in latest.iter_rows(named=True):
+    for row in latest.to_dicts():
         desired = float(row.get("smoothed_desired_position") or 0.0)
         if abs(desired) > POS_ZERO_TOL:
             continue

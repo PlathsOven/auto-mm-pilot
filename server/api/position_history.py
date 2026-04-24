@@ -157,6 +157,8 @@ def _f(v: object) -> float:
     """Coerce Polars cell values (possibly None) to float; None → 0.0."""
     if v is None:
         return 0.0
+    # ``v: object`` may be any Polars cell type; float() raises on unsupported
+    # inputs, which is the desired behaviour here (caller guarantees numeric).
     return float(v)  # type: ignore[arg-type]
 
 

@@ -24,12 +24,11 @@
 - **React Context providers** for cross-component state (WebSocket, Layout, Chat). No prop drilling beyond 2 levels.
 - **SSE streaming** from the server for LLM responses. Chunks are assembled on the client.
 - **Singleton WebSocket ticker** on the server. One source of truth for pipeline state across all clients.
-- **TanStack Table** for data-heavy tables (column visibility, multi-column sort, global filter). Used by `EditableBlockTable`.
 - **Engine-command protocol.** LLM emits ` ```engine-command` fenced blocks containing `{ action, params }`. The client (`engineCommands.ts`) parses them, strips from the displayed message, and routes: `create_manual_block` → BlockDrawer (interactive review), `create_stream` → auto-execute via REST.
 - **`<think>` tag stripping.** Streaming responses pass through `_strip_think_tags()` in `client.py` before reaching the client, so reasoning-model internals never surface in the UI.
 - **`.to_dicts()` for DataFrame → dict serialization.** Never `iter_rows(named=True)` loops. Use `.to_dicts()` for bulk conversion and list comprehensions for field renaming. `build_blocks_df` uses `select(...)` + `pl.concat` so block-row construction is a pure columnar pass.
 - **`apiFetch` + `streamFetchSSE` in `client/ui/src/services/api.ts`.** All other service modules go through these two helpers — `apiFetch` for JSON request/response, `streamFetchSSE` for SSE token streams. Never reach for `fetch` directly from a service.
-- **`parse_datetime_tolerant()` from `stream_registry.py`** for all datetime string parsing (ISO 8601 + DDMMMYY). Single source — do not duplicate.
+- **`parse_datetime_tolerant()` from `server/api/datetime_parsing.py`** for all datetime string parsing (ISO 8601 + DDMMMYY). Single source — do not duplicate.
 - **Conventional commits** — `feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`.
 - **Surgical staging** — `git add path1 path2`, never `git add .` or `git add -A`.
 - **SDK follows every server-side canonical.** `sdk/posit_sdk/` uses Pydantic v2 for wire shapes, async httpx + websockets for IO, `__all__` named exports, full type hints, no Pandas, no `requests`. Treat it as an exemplar reference when you need a clean implementation of these patterns.

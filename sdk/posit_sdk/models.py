@@ -15,7 +15,7 @@ from pydantic.alias_generators import to_camel
 def _parse_datetime_tolerant(raw: str) -> datetime:
     """Accept ISO 8601 (``2026-03-27T00:00:00``) or DDMMMYY (``27MAR26``).
 
-    Mirrors ``server.api.stream_registry.parse_datetime_tolerant`` so the SDK
+    Mirrors ``server.api.datetime_parsing.parse_datetime_tolerant`` so the SDK
     can reject unparseable values up-front instead of round-tripping to a 422.
     """
     try:

@@ -23,11 +23,11 @@
 ## 2. Layout Structure
 The UI is a fixed-height, single-page application (SPA) divided into four primary zones using CSS Grid.
 
-### A. Data Streams Sidebar (Left — 2/12 Width)
-* **Header:** "Data Streams" — sentence case, `zone-header` class.
-* **Component:** Minimal list of live streams. Each row shows only stream name + last-update age (`formatAge`). No status pips, no registry state, no key-col metadata — those details live in Anatomy. Link: "Manage in Anatomy →".
-* **Cards:** `.glass-card` treatment — `bg-white/40 backdrop-blur-lg border-white/50 rounded-md`.
-* **Narrower than before** (was 3 cols, now 2) — it's a status list, not a workspace.
+### A. Opinions Panel (Bottom — Full Width, 260px tall)
+* **Header:** "Opinions" — sentence case, `zone-header` class — followed by a sm `<Tabs/>` with `Opinions` and `Blocks`. Right side: `Manage in Anatomy →` link + `+ New opinion` button (only shown on the Opinions tab; opens BlockDrawer).
+* **Opinions tab:** Table. Columns: concerns dot · name · description (inline-editable) · last update (`formatAge`) · source pill (`Data` = indigo, `View` = amber) · blocks count · active toggle (power icon) · delete (trash → "Delete?" confirm). Row body click sets `opinion` focus → `OpinionInspector` opens in the right rail. Description click opens an inline `<input>` — Enter saves, Esc cancels, blur saves. When the stream has no explicit description yet, the cell shows the immutable `BlockIntent.original_phrasing` in italic; the editable description lives on the stream registration and doesn't touch audit state.
+* **Blocks tab:** `EditableBlockTable` in family-grouped mode. One row per `(block_name, stream_name)` family with fair / variance shown as `min…max`. Chevron expands to indented per-dim rows. Family-row click sets `opinion` focus (jumps back to Opinions); dim-row click sets `block` focus for engine-level drill-down. Preserves filter dropdowns (symbol / expiry / stream / source), global text filter, and the "follow focus" auto-filter toggle.
+* **Replaces** the former `Data Streams` sidebar (2/12 width, left column) + the former `EditableBlockTable` flat-view block inspector. The opinions frame makes the trader's mental model — a belief — first-class; blocks are the mathematical materialisation and stay one tab away.
 
 ### B. Global Context Bar (Top — 56px Height)
 * **Treatment:** `.glass-bar` — `bg-white/65 backdrop-blur-2xl border-b border-black/[0.08]`. Content slides under this frosted strip.

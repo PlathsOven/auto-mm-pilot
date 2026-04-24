@@ -225,8 +225,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         "/api/investigate",
         { conversation, mode: chatMode },
         {
-          onDelta: (text) => {
-            accumulated += text;
+          onDelta: (raw) => {
+            accumulated += typeof raw === "string" ? raw : String(raw);
             updateMessage(assistantId, accumulated);
           },
           onDone: () => {

@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
+from server.api.datetime_parsing import parse_datetime_tolerant
+
 
 def canonical_expiry_key(expiry: object) -> str:
     """Normalise any expiry representation to the canonical naive-ISO key.
@@ -36,14 +38,9 @@ def canonical_expiry_key(expiry: object) -> str:
     if isinstance(expiry, date):
         return datetime(expiry.year, expiry.month, expiry.day).isoformat()
     if isinstance(expiry, str):
-        # Try ISO first (covers tz-aware ``+00:00`` suffix and naive forms).
+        # ISO (tz-aware ``+00:00`` or naive) or DDMMMYY short form.
         try:
-            return canonical_expiry_key(datetime.fromisoformat(expiry))
-        except ValueError:
-            pass
-        # Try DDMMMYY — the SDK test's documented short form.
-        try:
-            return canonical_expiry_key(datetime.strptime(expiry, "%d%b%y"))
+            return canonical_expiry_key(parse_datetime_tolerant(expiry))
         except ValueError:
             pass
         # Date-only ISO without a time component is already handled by

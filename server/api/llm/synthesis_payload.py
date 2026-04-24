@@ -17,6 +17,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from server.api.datetime_parsing import parse_datetime_tolerant
 from server.api.llm.parameter_presets import find_preset
 from server.api.llm.stages import StageError
 from server.api.models import (
@@ -184,10 +185,9 @@ def _optional_datetime(val: Any) -> datetime | None:
     if isinstance(val, datetime):
         return val
     if isinstance(val, str):
-        # Accept both "...Z" and "+00:00"; store naive UTC to match the
-        # codebase convention (see server/api/auth/models.py docstring).
-        s = val.replace("Z", "+00:00")
-        dt = datetime.fromisoformat(s)
+        # Store naive UTC to match the codebase convention (see
+        # server/api/auth/models.py docstring).
+        dt = parse_datetime_tolerant(val)
         if dt.tzinfo is not None:
             dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
         return dt

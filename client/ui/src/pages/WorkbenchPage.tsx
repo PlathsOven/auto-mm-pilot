@@ -1,7 +1,6 @@
 import { useCallback, useState } from "react";
 import { DesiredPositionGrid } from "../components/DesiredPositionGrid";
-import { StreamStatusList } from "../components/floor/StreamStatusList";
-import { EditableBlockTable } from "../components/studio/brain/EditableBlockTable";
+import { OpinionsPanel } from "../components/opinions/OpinionsPanel";
 import { BlockDrawer } from "../components/studio/brain/BlockDrawer";
 import { InspectorColumn } from "../components/workbench/InspectorColumn";
 import { UpdatesTicker } from "../components/workbench/UpdatesTicker";
@@ -17,10 +16,14 @@ import { blockKeyOf } from "../utils";
  *  - Updates ticker (horizontal scrolling strip, ~36px)
  *  - Position grid (with view-mode tabs; flex-1)
  *  - Pipeline chart (with linked view-mode tabs; flex-1, fills the panel)
- *  - Streams + Block Inspector (h-[260px], side-by-side)
+ *  - Opinions panel (tabbed: Opinions + Blocks; h-[260px])
  *
  * The position grid view-mode is owned here so the pipeline panel can mirror
  * it ("Linked" toggle in the pipeline header).
+ *
+ * The opinions panel replaces the old StreamStatusList + EditableBlockTable
+ * side-by-side layout. Opinions are the trader's mental model; blocks are
+ * the mathematical materialisation and live one tab away.
  *
  * Inspector lives in its own right-side column. Chat moved out of the rail
  * and into a bottom dock — see `<ChatDock/>` mounted by `<AppShell/>`.
@@ -32,9 +35,7 @@ export function WorkbenchPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [blockRefreshKey, setBlockRefreshKey] = useState(0);
 
-  const openCreateBlock = useCallback(() => {
-    setDrawerOpen(true);
-  }, []);
+  const openCreateOpinion = useCallback(() => setDrawerOpen(true), []);
 
   const onBlockRowClick = useCallback(
     (block: BlockRow) => {
@@ -61,26 +62,13 @@ export function WorkbenchPage() {
           <PipelineChartPanel gridViewMode={gridViewMode} onGridViewModeChange={setGridViewMode} />
         </section>
 
-        <div className="flex h-[260px] shrink-0 gap-2">
-          <section className="glass-panel w-[240px] shrink-0 overflow-hidden">
-            <StreamStatusList />
-          </section>
-          <section className="glass-panel flex min-w-0 flex-1 overflow-hidden">
-            <EditableBlockTable
-              refreshKey={blockRefreshKey}
-              onRowClick={onBlockRowClick}
-              headerAction={
-                <button
-                  type="button"
-                  onClick={openCreateBlock}
-                  className="btn-accent-gradient rounded-md px-2.5 py-1 text-[10px] font-semibold"
-                >
-                  <span className="relative">+ Manual block</span>
-                </button>
-              }
-            />
-          </section>
-        </div>
+        <section className="glass-panel h-[260px] shrink-0 overflow-hidden">
+          <OpinionsPanel
+            onCreateOpinion={openCreateOpinion}
+            blockRefreshKey={blockRefreshKey}
+            onBlockRowClick={onBlockRowClick}
+          />
+        </section>
       </main>
 
       <InspectorColumn />

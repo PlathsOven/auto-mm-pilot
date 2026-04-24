@@ -103,20 +103,19 @@ async def repeat(
     False — matches the "republish every N seconds" pattern where the
     initial push is handled elsewhere.
     """
+    async def _call() -> None:
+        try:
+            await handler()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("repeat: handler error")
+
     if run_immediately:
-        await _safe_call(handler)
+        await _call()
     while True:
         await asyncio.sleep(every)
-        await _safe_call(handler)
-
-
-async def _safe_call(handler: NullaryHandler) -> None:
-    try:
-        await handler()
-    except asyncio.CancelledError:
-        raise
-    except Exception:
-        log.exception("repeat: handler error")
+        await _call()
 
 
 async def run_forever(*tasks: Awaitable[None]) -> None:

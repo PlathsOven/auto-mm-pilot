@@ -33,10 +33,8 @@ from server.api.models import (
     ProposalSnapshotRow,
     ProposedBlockPayload,
 )
-from server.api.stream_registry import (
-    get_stream_registry,
-    parse_datetime_tolerant,
-)
+from server.api.datetime_parsing import parse_datetime_tolerant
+from server.api.stream_registry import get_stream_registry
 from server.core.config import BlockConfig, StreamConfig
 from server.core.pipeline import run_pipeline
 
@@ -129,7 +127,7 @@ def build_preview(
         state_ts = engine.state.get("timestamp")
         if isinstance(state_ts, str):
             try:
-                live_ts = datetime.fromisoformat(state_ts.replace("Z", "+00:00"))
+                live_ts = parse_datetime_tolerant(state_ts)
                 if live_ts.tzinfo is not None:
                     live_ts = live_ts.astimezone(timezone.utc).replace(tzinfo=None)
                 age = (now - live_ts).total_seconds()

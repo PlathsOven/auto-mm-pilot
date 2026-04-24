@@ -83,9 +83,8 @@ def engine_state_from_pipeline(
     blocks_df = results["blocks_df"]
 
     pos_rows = desired_pos_df.filter(pl.col("timestamp") == timestamp)
-    positions = []
-    for row in pos_rows.iter_rows(named=True):
-        positions.append({
+    positions = [
+        {
             "asset": row.get("symbol", ""),
             "expiry": _serialize_value(row.get("expiry")),
             "desiredVega": row.get("smoothed_desired_position", 0.0),
@@ -95,7 +94,9 @@ def engine_state_from_pipeline(
                 - row.get("raw_desired_position", 0.0)
             ),
             "updatedAt": _serialize_value(timestamp),
-        })
+        }
+        for row in pos_rows.to_dicts()
+    ]
 
     stream_names = blocks_df["stream_name"].unique().to_list() if blocks_df.height > 0 else []
     streams = [
@@ -112,10 +113,10 @@ def engine_state_from_pipeline(
         "riskDimensions": [],
     }
     unique_dims = desired_pos_df.select(risk_dimension_cols).unique()
-    for dim_row in unique_dims.iter_rows(named=True):
-        context["riskDimensions"].append(
-            {rdc: _serialize_value(dim_row[rdc]) for rdc in risk_dimension_cols}
-        )
+    context["riskDimensions"] = [
+        {rdc: _serialize_value(dim_row[rdc]) for rdc in risk_dimension_cols}
+        for dim_row in unique_dims.to_dicts()
+    ]
 
     return {
         "positions": positions,
@@ -170,13 +171,14 @@ def _enrich_block_summary_at_timestamp(
     if ts_slice.height == 0:
         return
 
-    lookup: dict[str, dict[str, float]] = {}
-    for row in ts_slice.iter_rows(named=True):
-        lookup[row["block_name"]] = {
+    lookup: dict[str, dict[str, float]] = {
+        row["block_name"]: {
             "fair": row.get("fair", 0.0),
             "var": row.get("var", 0.0),
             "market": row.get("market", 0.0),
         }
+        for row in ts_slice.to_dicts()
+    }
 
     for block in block_summary:
         bn = block.get("block_name", "")
