@@ -51,6 +51,7 @@ Fix the root cause, not the symptom. One bug = one fix in one place. If your dif
 
 ## Context Pointers
 - Architecture: `docs/architecture.md`
+- LLM orchestration: `docs/llm-orchestration.md`
 - Conventions: `docs/conventions.md`
 - Decisions: `docs/decisions.md`
 - Product theory: `docs/product.md`

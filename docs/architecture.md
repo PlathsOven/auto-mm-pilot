@@ -37,6 +37,7 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `CLAUDE.md` | Auto-loaded agent instructions for Claude Code + Windsurf |
 | `.windsurfrules` | Windsurf-specific thin pointer to `CLAUDE.md` |
 | `docs/architecture.md` | This file — system map |
+| `docs/llm-orchestration.md` | LLM Build pipeline developer reference — stage flow, event shapes, persistence, config knobs |
 | `docs/conventions.md` | Patterns used, patterns avoided, schema sources of truth |
 | `docs/decisions.md` | Append-only decision log |
 | `docs/user-journey.md` | Personas + core flows |
