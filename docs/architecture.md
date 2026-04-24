@@ -63,6 +63,8 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `client/ui/src/components/workbench/WorkbenchRail.tsx` | Right rail with Inspector + Chat tabs; collapsible (persisted), responds to `[` / `]` and to `investigate()` from `ChatProvider`. |
 | `client/ui/src/components/workbench/InspectorRouter.tsx` | Routes Inspector content based on current `Focus` kind. |
 | `client/ui/src/components/workbench/inspectors/*.tsx` | One file per focus kind: `CellInspector`, `SymbolExpiryInspector`, `StreamInspector`, `BlockInspector`, `EmptyInspector`. |
+| `client/ui/src/components/proposal/BlockIntentCard.tsx` | Read-only "Why this block exists" card — renders the trader's verbatim phrasing + preset/custom reasoning + commit timestamp for any stream that was committed via the Build orchestrator. Mounted inside both `StreamInspector` and `BlockInspector`; hidden entirely on 404. |
+| `client/ui/src/hooks/useStreamIntent.ts` | Hook backing `BlockIntentCard` — 4-state `loading / hidden / ready / error` model with AbortController race protection, resolves `GET /api/streams/{name}/intent`. |
 | `client/ui/src/components/workbench/HotkeyCheatsheet.tsx` | `?`-triggered overlay listing every workbench keyboard shortcut. |
 | `client/ui/src/providers/FocusProvider.tsx` | Workbench focus state — typed `Focus` union (cell / symbol / expiry / stream / block). Replaces the old `SelectionProvider`. |
 | `client/ui/src/hooks/useHotkeys.ts` | Bare-key + `g`-prefix chord hotkey hook. Skips events while typing in inputs. |
@@ -101,6 +103,7 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `server/api/main.py` | FastAPI app factory — lifespan, CORS, error handler, router registration, health + WS mounts |
 | `server/api/routers/*.py` | Route modules (llm, streams, snapshots, bankroll, transforms, pipeline, blocks, market_values, connectors) extracted from main.py |
 | `server/api/stream_registry.py` | In-memory stream registry — CRUD, snapshot storage, validation, `StreamConfig` builder |
+| `server/api/blocks/manual_block.py` | Shared `apply_manual_block(...)` helper — create → configure → (optional) ingest → mark → rerun+broadcast in one place, with consistent rollback on any step failure. Used by both `POST /api/blocks` (+ Manual block button) and `POST /api/blocks/commit` (Build-orchestrator confirm). |
 | `server/api/market_value_store.py` | Aggregate-market-value singleton — `{(symbol, expiry): total_vol}` + dirty flag for coalesced ticker reruns |
 | `server/api/ws.py` | WebSocket endpoint — singleton ticker broadcasts pipeline ticks; `restart_ticker()` on re-run. Each broadcast is validated through `ServerPayload`. |
 | `server/api/ws_serializers.py` | Pipeline DataFrame → JSON-safe dict serialization helpers (extracted from `ws.py`) |
@@ -120,6 +123,8 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `server/api/llm/feedback_detector.py` | Stage-5 async fanout — corrections → `domain_kb`, discontent → `llm_failures`, preferences → `user_context` |
 | `server/api/llm/block_intents.py` | Persistence for `BlockIntent` rows — intent triplet attached to every committed stream |
 | `server/api/llm/failures.py` | Persistence for `LlmFailure` rows — discontent / preview_rejection / silent_rejection / post_commit_edit |
+| `server/api/llm/pending_proposals.py` | Per-user in-memory map of outstanding Build proposals under an `asyncio.Lock`. Registered at `/api/blocks/preview`, resolved at commit / preview_rejection, overflow-evicted to `llm_failures(signal_type="silent_rejection")`. |
+| `server/api/llm/silent_rejection_sweep.py` | Background coroutine started by `main.lifespan` — every `silent_rejection_sweep_interval_secs` drains stale `pending_proposals` entries and logs each as `llm_failures(signal_type="silent_rejection")`. Clean `CancelledError` shutdown. |
 | `server/api/llm/user_context.py` | Per-user controlled-vocabulary context store + prompt serialiser |
 | `server/api/llm/models.py` | SQLAlchemy ORM — `LlmCall`, `BlockIntent`, `LlmFailure`, `UserContextEntry`, `DomainKbEntry` |
 | `server/api/llm/snapshot_buffer.py` | Pipeline snapshot ring buffer — stores time-series history, builds condensed delta tables for LLM context |

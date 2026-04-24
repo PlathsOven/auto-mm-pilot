@@ -23,7 +23,7 @@
 
 | Component | File(s) | Status | Depends On | Notes |
 |-----------|---------|--------|------------|-------|
-| **FastAPI App** | `server/api/main.py` | `PROD` | Engine State Provider, LLM Service, WS Ticker | CORS enabled, SSE streaming, WS |
+| **FastAPI App** | `server/api/main.py` | `PROD` | Engine State Provider, LLM Service, WS Ticker, Silent Rejection Sweep | CORS enabled, SSE streaming, WS; lifespan starts the silent-rejection sweep task and best-effort deletes the legacy `domain_kb.json` |
 | **WS Ticker** | `server/api/ws.py` | `PROD` | Engine State Provider | Singleton background ticker broadcasts pipeline ticks to WS clients |
 | **Client WS Endpoint** | `server/api/client_ws.py` | `PROD` | WS Ticker, Stream Registry, Client WS Auth | Auth-gated `/ws/client` — inbound snapshots with ACK, outbound positions via broadcast |
 | **Client WS Auth** | `server/api/client_ws_auth.py` | `PROD` | `CLIENT_WS_API_KEY`, `CLIENT_WS_ALLOWED_IPS` env vars | API key + IP whitelist gate |
@@ -47,12 +47,15 @@
 | **Feedback Detector (Build S5)** | `server/api/llm/feedback_detector.py` | `PROD` | OpenRouter Client, Domain KB, LLM Failures, User Context | Async fanout — corrections → `domain_kb`, discontent → `llm_failures`, preferences → `user_context` |
 | **Block Intents** | `server/api/llm/block_intents.py` | `PROD` | LLM ORM | Persists `BlockIntent` rows — intent / synthesis / preview triplet attached to every committed block |
 | **LLM Failures** | `server/api/llm/failures.py` | `PROD` | LLM ORM | Persists `LlmFailure` — discontent / preview_rejection / silent_rejection / post_commit_edit |
+| **Pending Proposals Store** | `server/api/llm/pending_proposals.py` | `PROD` | — | Per-user in-memory map under `asyncio.Lock`; registers on `/api/blocks/preview`, resolves on commit / preview_rejection, overflow-evicts into silent_rejection |
+| **Silent Rejection Sweep** | `server/api/llm/silent_rejection_sweep.py` | `PROD` | Pending Proposals Store, LLM Failures | Background coroutine started by `main.lifespan`; drains stale proposals every `silent_rejection_sweep_interval_secs` into `llm_failures(signal_type="silent_rejection")` |
 | **User Context** | `server/api/llm/user_context.py` | `PROD` | LLM ORM | Per-user controlled-vocabulary store + prompt serialiser |
-| **Domain KB** | `server/api/llm/domain_kb.py` | `PROD` | — | Factual-correction store (append-only JSON file) serialised into build prompts |
-| **LLM ORM Models** | `server/api/llm/models.py` | `PROD` | SQLAlchemy | `LlmCall`, `BlockIntent`, `LlmFailure`, `UserContextEntry` tables |
+| **Domain KB** | `server/api/llm/domain_kb.py` | `PROD` | LLM ORM | Per-user factual-correction store (`domain_kb_entries` table, upsert on `(user_id, topic)`) serialised into every mode's system prompt |
+| **LLM ORM Models** | `server/api/llm/models.py` | `PROD` | SQLAlchemy | `LlmCall`, `BlockIntent`, `LlmFailure`, `UserContextEntry`, `DomainKbEntry` tables |
 | **Snapshot Buffer** | `server/api/llm/snapshot_buffer.py` | `PROD` | — | Ring buffer + delta table builder |
 | **Stream Context DB** | `server/api/llm/context_db.py` | `MOCK` | — | Hardcoded stream metadata; will be client-contributed via API |
 | **Engine State Provider** | `server/api/engine_state.py` | `PROD` | Core Pipeline | Runs `server/core` pipeline, serializes snapshots for LLM layer |
+| **Shared Block Apply Flow** | `server/api/blocks/manual_block.py` | `PROD` | Stream Registry, Engine State Provider | `apply_manual_block(...)` — create → configure → (optional) ingest → mark → rerun+broadcast with rollback on any step. Used by `POST /api/blocks` and Build-orchestrator's `/api/blocks/commit`. |
 | **Config** | `server/api/config.py` | `PROD` | `.env` | Model lists, generation params, buffer config |
 | **Core Pipeline** | `server/core/` (`config.py`, `helpers.py`, `transforms/`, `pipeline.py`, `serializers.py`, `mock_scenario.py`) | `PROD` | Polars | Steps 4–6: config, helpers, per-step transform modules in `transforms/`, orchestration pipeline, serializers. Running on mock scenario data. |
 | **Connector Registry** | `server/core/connectors/` (`__init__.py`, `base.py`, `registry.py`, `realized_vol.py`) | `PROD` | `server/core/config.py` | Pre-built input transforms. One registered connector today: `realized_vol` (multi-horizon EWMA over spot ticks → annualized RV). Adding a connector = one new module + registry entry. |
@@ -84,9 +87,10 @@
 | **Transforms Provider** | `client/ui/src/providers/TransformsProvider.tsx` | `PROD` | transforms API | Stream-config draft state for Anatomy editor |
 | **LLM API Client** | `client/ui/src/services/llmApi.ts` | `PROD` | FastAPI App | SSE client for `/api/investigate` |
 | **Desired Position Grid** | `client/ui/src/components/DesiredPositionGrid.tsx` | `PROD` | WebSocketProvider, FocusProvider | Clickable cells set focus instead of opening chat |
-| **Pipeline Chart** | `client/ui/src/components/PipelineChart.tsx` (+ `components/PipelineChart/`) | `PROD` | WebSocketProvider, pipeline-timeseries endpoint | ECharts time-series for Position / Fair / Variance views |
+| **Pipeline Chart** | `client/ui/src/components/PipelineChart.tsx` (+ `components/PipelineChart/`) | `PROD` | WebSocketProvider, pipeline-timeseries endpoint | ECharts time-series — smoothable metrics (desired / edge / variance / fair / marketCalc) overlay instant + smoothed as two lines; marketSource is a single step line |
 | **Team Chat (LLM Chat)** | `client/ui/src/components/LlmChat.tsx` | `PROD` | ChatProvider | Streaming assistant + system messages |
 | **Block Drawer** | `client/ui/src/components/studio/brain/BlockDrawer.tsx` | `PROD` | Block API | Unified create/edit/inspect drawer |
+| **Block Intent Card** | `client/ui/src/components/proposal/BlockIntentCard.tsx` (+ `hooks/useStreamIntent.ts`) | `PROD` | Build API (`fetchStreamIntent`) | Read-only "Why this block exists" card — verbatim phrasing + preset/custom reasoning + commit timestamp, mounted in `StreamInspector` + `BlockInspector`; hidden on 404 |
 | **Engine Commands** | `client/ui/src/services/engineCommands.ts` | `PROD` | Stream API, Block API | Parses + executes engine-command fenced blocks from LLM responses |
 | **Stream Status List** | `client/ui/src/components/floor/StreamStatusList.tsx` | `PROD` | WebSocketProvider | Read-only stream list (name + last update) |
 | **Stream Canvas** | `client/ui/src/components/studio/StreamCanvas.tsx` | `PROD` | stream API, TransformsProvider | 7-section create/edit form hosted in Anatomy's right detail panel |

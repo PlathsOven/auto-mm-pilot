@@ -10,7 +10,7 @@
 
 ## Schema Source of Truth
 
-- **Python (server-side) data shapes:** `server/api/models.py` (Pydantic). Every endpoint's request and response inherits from these models. **Read `models.py` before modifying any feature that crosses the API boundary.**
+- **Python (server-side) data shapes:** `server/api/models/` (Pydantic package). Every endpoint's request and response inherits from these models. The package is split into `_shared` (base primitives), `auth` (auth / account / admin / usage), `streams` (streams, connectors, snapshots, blocks, client WS frames, transforms, market values, broadcast + pipeline time-series wire shapes), and `llm` (LLM orchestration — router → intent → synthesis → critique, preview / commit / stored intent triplets, admin latency telemetry). `models/__init__.py` re-exports every public name so `from server.api.models import X` continues to work. **Read the relevant sub-module before modifying any feature that crosses the API boundary.**
 - **TypeScript (client-side) data shapes:** `client/ui/src/types.ts`. Every WS payload, every HTTP response shape. **Read `types.ts` before modifying any feature that crosses the API boundary.**
 - When the two diverge, Pydantic is the upstream truth — update `types.ts` to match.
 

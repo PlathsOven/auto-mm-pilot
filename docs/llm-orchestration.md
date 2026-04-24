@@ -28,7 +28,7 @@ POST /api/build/converse (SSE)
 
 async (fire-and-forget after stream closes):
 └─ feedback_detector.detect_and_store
-   ├─ factual_correction   → domain_kb.json        + llm_failures (mirror)
+   ├─ factual_correction   → domain_kb_entries     + llm_failures (mirror)
    ├─ discontent_signals[] → llm_failures (per signal)
    └─ preference_signals[] → user_context_entries (upsert by key)
 
@@ -105,9 +105,9 @@ All require auth via `Depends(current_user)`; `LlmService` is lazy-initialised s
 | `block_intents` table | `/api/blocks/commit` on success (`block_intents.save_block_intent`) | intent / synthesis / preview triplet + `original_phrasing` per committed stream |
 | `llm_failures` table | feedback detector (`discontent`, `factual_correction` mirror) + `/api/llm/failures` (`preview_rejection`) + in-flight silent-rejection sweep (`silent_rejection`) + in-flight post-commit edit detector (`post_commit_edit`) | one row per detected failure, typed by `signal_type` |
 | `user_context_entries` table | feedback detector `preference_signals[]` | upsert by `(user_id, key)`; `key` is restricted to `user_context.CONTROLLED_KEYS` |
-| `domain_kb.json` (file) | feedback detector `factual_correction` | append-only JSON list of corrections; serialised into every Build prompt via `prompts/core.py` |
+| `domain_kb_entries` table | feedback detector `factual_correction` | upsert by `(user_id, topic)`; per-user — one trader's corrections never leak into another's prompts. `serialize_kb_section(user_id)` appends them to every mode's system prompt. |
 
-ORM models: `server/api/llm/models.py` — `LlmCall`, `BlockIntent`, `LlmFailure`, `UserContextEntry`.
+ORM models: `server/api/llm/models.py` — `LlmCall`, `BlockIntent`, `LlmFailure`, `UserContextEntry`, `DomainKbEntry`.
 
 ## Error handling
 
