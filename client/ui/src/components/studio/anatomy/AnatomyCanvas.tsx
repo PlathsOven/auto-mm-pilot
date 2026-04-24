@@ -307,7 +307,13 @@ function AnatomyCanvasInner() {
 
   if (!steps) return null;
 
-  const allPresent = PIPELINE_ORDER.every((k) => steps[k]);
+  // "correlations" is a pseudo-step — rendered as its own node type
+  // (CorrelationsNode) without a server-side TransformStep entry, so
+  // exclude it from the presence gate. Every other pipeline step must
+  // be in the server catalog before the canvas renders.
+  const allPresent = PIPELINE_ORDER
+    .filter((k) => k !== "correlations")
+    .every((k) => steps[k]);
   if (!allPresent) return null;
 
   const showDetailPanel = selection.kind !== "none";
