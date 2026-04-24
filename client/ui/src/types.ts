@@ -230,6 +230,8 @@ export interface EngineCommand {
 export type ViewMode =
   | "position"
   | "rawPosition"
+  | "exposure"
+  | "rawExposure"
   | "edge"
   | "smoothedEdge"
   | "variance"

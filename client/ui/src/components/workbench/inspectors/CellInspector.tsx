@@ -67,14 +67,48 @@ export function CellInspector({ symbol, expiry }: CellInspectorProps) {
         {position == null ? (
           <p className="text-[11px] text-mm-text-dim">No live position for this cell yet.</p>
         ) : (
-          <section className="grid grid-cols-2 gap-1.5">
-            <Stat label="Desired Pos" value={position.desiredPos} unit="$vega" decimals={2} signed />
-            <Stat label="Raw Desired" value={position.rawDesiredPos} unit="$vega" decimals={2} signed />
-            <Stat label="Edge" value={position.edgeVol} unit="vp" decimals={2} signed />
-            <Stat label="Variance" value={position.varianceVol} unit="vp" decimals={2} />
-            <Stat label="Total Fair" value={position.totalFairVol} unit="vp" decimals={2} />
-            <Stat label="Market Fair" value={position.totalMarketFairVol} unit="vp" decimals={2} />
-          </section>
+          <>
+            <section className="grid grid-cols-2 gap-1.5">
+              {/* Exposure + Position as a side-by-side pair — always shown,
+                  even when matrices are identity and the two coincide.
+                  Keeping the pair unconditional beats a conditional render
+                  that confuses readers every time the store changes. */}
+              <Stat
+                label="Exposure (smoothed)"
+                value={position.smoothedDesiredExposure}
+                unit="$vega"
+                decimals={2}
+                signed
+              />
+              <Stat
+                label="Desired Pos"
+                value={position.desiredPos}
+                unit="$vega"
+                decimals={2}
+                signed
+                hypothetical={position.smoothedDesiredPositionHypothetical}
+              />
+              <Stat
+                label="Exposure (instant)"
+                value={position.rawDesiredExposure}
+                unit="$vega"
+                decimals={2}
+                signed
+              />
+              <Stat
+                label="Raw Desired"
+                value={position.rawDesiredPos}
+                unit="$vega"
+                decimals={2}
+                signed
+                hypothetical={position.rawDesiredPositionHypothetical}
+              />
+              <Stat label="Edge" value={position.edgeVol} unit="vp" decimals={2} signed />
+              <Stat label="Variance" value={position.varianceVol} unit="vp" decimals={2} />
+              <Stat label="Total Fair" value={position.totalFairVol} unit="vp" decimals={2} />
+              <Stat label="Market Fair" value={position.totalMarketFairVol} unit="vp" decimals={2} />
+            </section>
+          </>
         )}
 
         <section className="flex flex-col gap-1.5 border-t border-black/[0.05] pt-2">
@@ -121,12 +155,16 @@ function Stat({
   unit,
   decimals,
   signed = false,
+  hypothetical,
 }: {
   label: string;
   value: number;
   unit: string;
   decimals: number;
   signed?: boolean;
+  /** Optional — when non-null, render an amber "draft: X.XX" chip under
+   *  the main value so the Inspector shows the pending-commit preview. */
+  hypothetical?: number | null;
 }) {
   return (
     <div className="glass-card flex flex-col gap-0.5 px-2 py-1">
@@ -138,6 +176,15 @@ function Stat({
         {value.toFixed(decimals)}
         {unit && <span className="ml-1 text-[9px] text-mm-text-subtle">{unit}</span>}
       </span>
+      {hypothetical !== null && hypothetical !== undefined && (
+        <span
+          className="mt-0.5 rounded bg-amber-400/15 px-1 py-0.5 font-mono text-[9px] text-amber-800"
+          title="Position under the pending correlation draft."
+        >
+          draft: {signed && hypothetical > 0 ? "+" : ""}
+          {hypothetical.toFixed(decimals)}
+        </span>
+      )}
     </div>
   );
 }
