@@ -21,7 +21,7 @@ When editing any command, update **both** files in the same commit. A Stop hook 
 Client ingests + displays; server computes. Full system map: `docs/architecture.md`.
 
 ## Schemas (read before crossing API boundary)
-- **Python (server) shapes:** `server/api/models.py` (Pydantic).
+- **Python (server) shapes:** `server/api/models/` (Pydantic package — `_shared` / `auth` / `streams` / `llm` sub-modules; `__init__.py` re-exports every public name).
 - **TypeScript (client) shapes:** `client/ui/src/types.ts`.
 - When the two diverge, Pydantic is upstream — update `types.ts` to match.
 

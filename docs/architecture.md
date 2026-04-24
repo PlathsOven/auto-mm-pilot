@@ -97,7 +97,7 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `client/ui/src/services/marketValueApi.ts` | HTTP client for `/api/market-values` CRUD (aggregate total vol per symbol/expiry) |
 | `client/ui/UI_SPEC.md` | UI design specification |
 | `server/api/config.py` | OpenRouter env config (API key, model fallback lists, generation params, snapshot buffer settings) |
-| `server/api/models.py` | **Canonical Pydantic request/response models for all API boundary data.** Read before any feature crossing the API boundary. |
+| `server/api/models/` | **Canonical Pydantic request/response models for all API boundary data.** Split by concern: `_shared` (base primitives), `auth` (auth / account / admin / usage), `streams` (stream / connector / snapshot / block / WS / transform / market-value / broadcast / pipeline-series), `llm` (5-stage Build pipeline, preview / commit / stored intent, admin latency telemetry). `models/__init__.py` re-exports every public name so `from server.api.models import X` still works. Read the relevant sub-module before any feature crossing the API boundary. |
 | `server/api/main.py` | FastAPI app factory — lifespan, CORS, error handler, router registration, health + WS mounts |
 | `server/api/routers/*.py` | Route modules (llm, streams, snapshots, bankroll, transforms, pipeline, blocks, market_values, connectors) extracted from main.py |
 | `server/api/stream_registry.py` | In-memory stream registry — CRUD, snapshot storage, validation, `StreamConfig` builder |
@@ -121,7 +121,7 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `server/api/llm/block_intents.py` | Persistence for `BlockIntent` rows — intent triplet attached to every committed stream |
 | `server/api/llm/failures.py` | Persistence for `LlmFailure` rows — discontent / preview_rejection / silent_rejection / post_commit_edit |
 | `server/api/llm/user_context.py` | Per-user controlled-vocabulary context store + prompt serialiser |
-| `server/api/llm/models.py` | SQLAlchemy ORM — `LlmCall`, `BlockIntent`, `LlmFailure`, `UserContextEntry` |
+| `server/api/llm/models.py` | SQLAlchemy ORM — `LlmCall`, `BlockIntent`, `LlmFailure`, `UserContextEntry`, `DomainKbEntry` |
 | `server/api/llm/snapshot_buffer.py` | Pipeline snapshot ring buffer — stores time-series history, builds condensed delta tables for LLM context |
 | `server/api/llm/context_db.py` | Stream context database — metadata about each data stream (MOCK-initialized) |
 | `server/api/llm/prompts/__init__.py` | `build_system_prompt(mode, ...)` dispatcher — routes Investigate / General to mode-specific builders (Build is handled by `build_orchestrator`) |
@@ -169,5 +169,5 @@ See `docs/decisions.md` for the full reasoning behind each.
 
 ## Boundaries & Contracts
 
-- **Server API boundary:** all request/response shapes defined in `server/api/models.py` (Pydantic). Validation runs automatically at request time.
+- **Server API boundary:** all request/response shapes defined in the `server/api/models/` package (Pydantic). Validation runs automatically at request time.
 - **Client API boundary:** all inbound/outbound shapes defined in `client/ui/src/types.ts` (TS interfaces). These must match the Pydantic models — when changing one, check the other.
