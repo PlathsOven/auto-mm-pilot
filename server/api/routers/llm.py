@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,7 +18,8 @@ from server.api.engine_state import (
     get_pipeline_snapshot,
     get_snapshot_buffer,
 )
-from server.api.llm.correction_detector import detect_and_store
+from server.api.llm.feedback_detector import detect_and_store
+from server.api.llm.orchestration_config import get_llm_orchestration_config
 from server.api.llm.service import LlmService
 from server.api.models import InvestigateRequest
 
@@ -51,11 +53,16 @@ async def investigate(
     pipeline_snapshot = get_pipeline_snapshot(user.id)
     snapshot_buffer = get_snapshot_buffer(user.id)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+    # One turn_id groups every LLM call spawned by this user turn:
+    # the main investigation stream + the async correction-detector follow-up.
+    conversation_turn_id = str(uuid.uuid4())
 
     async def event_generator():
         full_response: list[str] = []
         try:
             async for delta in service.investigate_stream(
+                user_id=user.id,
+                conversation_turn_id=conversation_turn_id,
                 conversation=req.conversation,
                 engine_state=engine_state,
                 pipeline_snapshot=pipeline_snapshot,
@@ -72,8 +79,11 @@ async def investigate(
                 detector_models=cfg.detector_models,
                 max_tokens=cfg.max_tokens_detector,
                 temperature=cfg.temperature_detector,
+                context_window=get_llm_orchestration_config().detector_context_window,
                 conversation=req.conversation,
                 assistant_response="".join(full_response),
+                user_id=user.id,
+                conversation_turn_id=conversation_turn_id,
             ))
 
             yield "data: [DONE]\n\n"

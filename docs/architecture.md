@@ -107,15 +107,30 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `server/api/client_ws_auth.py` | Client WS auth — API key validation + IP whitelist, runs before accept |
 | `server/api/engine_state.py` | Engine state singleton — mock init + live `rerun_pipeline()`, mutable bankroll |
 | `server/api/llm/client.py` | Async OpenRouter HTTP client (complete + stream + fallback wrappers) |
-| `server/api/llm/service.py` | LLM orchestration — investigation chat |
+| `server/api/llm/service.py` | LLM service — Investigate / General chat streaming wrapper |
+| `server/api/llm/build_orchestrator.py` | Build-mode orchestrator — event loop + four `_run_*` stage runners (router → intent → synthesis → critique) |
+| `server/api/llm/stages.py` | `run_json_stage` / `run_tool_stage` — canonical `record_call` + `complete_with_fallback` glue; hosts `StageError` |
+| `server/api/llm/openrouter_parse.py` | Canonical OpenRouter response helpers — `get_content`, `get_tool_call`, `strip_markdown_fences`, `parse_json_content` |
+| `server/api/llm/synthesis_payload.py` | Synthesis tool-call → `ProposedBlockPayload` conversion (preset + custom) with framework-invariant validation |
+| `server/api/llm/preview.py` | Stage 4 — runs the pipeline on a simulated stream-config list and diffs `desired_pos_df` against live state |
+| `server/api/llm/orchestration_config.py` | `LlmOrchestrationConfig` — single frozen dataclass holding every tunable threshold / model chain / temperature / token budget with env-var overrides |
+| `server/api/llm/parameter_presets.py` | Preset registry — canonical situation → `(BlockConfig, UnitConversion)` mappings; serialised into the Stage-3 prompt |
+| `server/api/llm/audit.py` | `record_call` context manager — persists one `LlmCall` row per outbound LLM request |
+| `server/api/llm/feedback_detector.py` | Stage-5 async fanout — corrections → `domain_kb`, discontent → `llm_failures`, preferences → `user_context` |
+| `server/api/llm/block_intents.py` | Persistence for `BlockIntent` rows — intent triplet attached to every committed stream |
+| `server/api/llm/failures.py` | Persistence for `LlmFailure` rows — discontent / preview_rejection / silent_rejection / post_commit_edit |
+| `server/api/llm/user_context.py` | Per-user controlled-vocabulary context store + prompt serialiser |
+| `server/api/llm/models.py` | SQLAlchemy ORM — `LlmCall`, `BlockIntent`, `LlmFailure`, `UserContextEntry` |
 | `server/api/llm/snapshot_buffer.py` | Pipeline snapshot ring buffer — stores time-series history, builds condensed delta tables for LLM context |
 | `server/api/llm/context_db.py` | Stream context database — metadata about each data stream (MOCK-initialized) |
-| `server/api/llm/prompts/__init__.py` | `build_system_prompt(mode, ...)` dispatcher — routes to mode-specific builders |
+| `server/api/llm/prompts/__init__.py` | `build_system_prompt(mode, ...)` dispatcher — routes Investigate / General to mode-specific builders (Build is handled by `build_orchestrator`) |
 | `server/api/llm/prompts/core.py` | Shared core: role, framework, language rules, hard constraints, response discipline |
 | `server/api/llm/prompts/investigation.py` | Investigation mode: reasoning protocol, data sections, engine commands |
 | `server/api/llm/prompts/general.py` | General mode: catch-all conversational, minimal engine summary |
-| `server/api/llm/prompts/build.py` | Build mode: stream onboarding + opinion → `create_stream` / `create_manual_block` engine commands |
-| `server/api/llm/test_investigation.py` | **CLI harness, not prod code** — interactive test for Zone E investigation LLM with mock pipeline data |
+| `server/api/llm/prompts/router.py` | Stage-1 intake router prompt (view / stream / headline / question / none) |
+| `server/api/llm/prompts/intent_extractor.py` | Stage-2 prompt — emits `IntentOutput` (StructuredIntent / RawIntent / clarifying_question) |
+| `server/api/llm/prompts/synthesiser.py` | Stage-3 prompt + `select_preset` / `derive_custom_block` tool schemas |
+| `server/api/llm/prompts/critique.py` | Stage-3.5 prompt — reviews custom derivations against framework invariants |
 | `server/core/__init__.py` | Core pipeline package — re-exports public API |
 | `server/core/config.py` | `BlockConfig`, `StreamConfig` dataclasses, `SECONDS_PER_YEAR` |
 | `server/core/helpers.py` | `annualize`, `deannualize` |

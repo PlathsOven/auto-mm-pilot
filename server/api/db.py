@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
-    """Shared declarative base for every ORM model in server/api/auth/models.py."""
+    """Shared declarative base for every ORM model under server/api/."""
 
 
 # SQLite requires ``check_same_thread=False`` when the same engine is reused
@@ -38,6 +38,7 @@ def init_db() -> None:
     """
     # Import is lazy to avoid a circular dependency at module load time.
     from server.api.auth import models  # noqa: F401  ensures tables are registered
+    from server.api.llm import models as llm_models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     log.info("DB initialised (url=%s)", DATABASE_URL)

@@ -4,7 +4,7 @@
 
 - **Target file size: <300 lines.** Documented convention; enforcement is deferred. Several client components exceed this today — they will be addressed in a follow-up `/refactor` session.
 - **One concept per file.** A panel component, a service client, a provider — each in its own file.
-- **Tests colocated** where they exist (e.g. `server/api/llm/test_investigation.py` sits next to `service.py`). Note: `test_investigation.py` is a CLI harness, not an automated test.
+- **Tests colocated** where they exist.
 - **Barrel files are avoided.** Import from the concrete file, not from an index re-export.
 - **Default exports are avoided.** Named exports make refactors and finds safer.
 

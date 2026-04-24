@@ -1,8 +1,38 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { ChatMessage, ChatMode, InvestigationContext, PendingBlockCommand } from "../types";
+import type {
+  ChatMessage,
+  ChatMode,
+  IntentOutput,
+  InvestigationContext,
+  PendingBlockCommand,
+  PreviewResponse,
+  ProposedBlockPayload,
+  SynthesisOutput,
+} from "../types";
 import { streamFetchSSE } from "../services/api";
+import {
+  commitBlock,
+  logFailure,
+  previewBlock,
+  streamBuildConverse,
+} from "../services/buildApi";
 import { parseAndStripCommands, executeNonInteractiveCommands } from "../services/engineCommands";
+
+/** Bundle of everything the ProposalPreviewDrawer needs to render +
+ *  commit: the payload (what to create), the intent (why), the synthesis
+ *  (preset vs. custom derivation), and the preview diff.
+ *
+ *  ``conversation_turn_id`` is the orchestrator's audit identifier for
+ *  the turn that produced this proposal — attached to any failure
+ *  signals (preview_rejection) the client emits. */
+export interface PendingProposal {
+  payload: ProposedBlockPayload;
+  intent: IntentOutput;
+  synthesis: SynthesisOutput;
+  preview: PreviewResponse;
+  conversation_turn_id: string | null;
+}
 
 interface ChatState {
   messages: ChatMessage[];
@@ -11,8 +41,14 @@ interface ChatState {
   /** Whether the WorkbenchRail's Chat tab is currently surfaced. */
   drawerOpen: boolean;
   chatMode: ChatMode;
-  /** Pending manual-block command awaiting review in BlockDrawer. */
+  /** Pending manual-block command awaiting review in BlockDrawer.
+   *  Populated by the legacy engineCommands fence parser (Investigate
+   *  mode only; Build mode now goes through pendingProposal). */
   pendingBlockCommand: PendingBlockCommand | null;
+  /** Build-mode proposal awaiting Confirm / Cancel in the
+   *  ProposalPreviewDrawer. Carries the full Stage 1–4 trace so the
+   *  commit endpoint persists the intent triplet on approval. */
+  pendingProposal: PendingProposal | null;
   setChatMode: (mode: ChatMode) => void;
   sendMessage: (content: string) => void;
   pushSystemMessage: (content: string) => void;
@@ -24,6 +60,10 @@ interface ChatState {
   closeDrawer: () => void;
   toggleDrawer: () => void;
   clearPendingBlockCommand: () => void;
+  /** User confirmed in the preview drawer — commit the block. */
+  confirmProposal: () => Promise<void>;
+  /** User cancelled — clear the pending proposal (no server call in M3). */
+  cancelProposal: () => void;
 }
 
 const ChatContext = createContext<ChatState | null>(null);
@@ -46,6 +86,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [chatMode, setChatMode] = useState<ChatMode>("investigate");
   const [pendingBlockCommand, setPendingBlockCommand] =
     useState<PendingBlockCommand | null>(null);
+  const [pendingProposal, setPendingProposal] =
+    useState<PendingProposal | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatMessage[]>(messages);
   messagesRef.current = messages;
@@ -93,6 +135,91 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const assistantId = pushMessage("assistant", "");
       setIsStreaming(true);
       let accumulated = "";
+
+      // Build mode runs through the five-stage orchestrator endpoint.
+      // Investigate + General keep the legacy fence-parsing path.
+      if (chatMode === "build") {
+        // Stage 2 and Stage 3 outputs arrive as separate SSE events
+        // before the final proposal. Accumulate them so the commit
+        // endpoint gets the full Stage 1–4 trace when the trader
+        // confirms in the preview drawer.
+        let latestIntent: IntentOutput | null = null;
+        let latestSynthesis: SynthesisOutput | null = null;
+        // Orchestrator's conversation_turn_id — captured from the Stage 1
+        // event and threaded through into preview_rejection signals.
+        let turnId: string | null = null;
+
+        const controller = streamBuildConverse(
+          { conversation },
+          {
+            onDelta: (text) => {
+              accumulated += text;
+              updateMessage(assistantId, accumulated);
+            },
+            onTurnId: (id) => {
+              turnId = id;
+            },
+            onStageOutput: (stage, output) => {
+              if (stage === "intent") {
+                latestIntent = output as IntentOutput;
+              } else if (stage === "synthesis") {
+                latestSynthesis = output as SynthesisOutput;
+              }
+            },
+            onProposal: (payload) => {
+              const intent = latestIntent;
+              const synthesis = latestSynthesis;
+              if (!intent || !synthesis) {
+                pushMessage(
+                  "system",
+                  "Internal error: proposal arrived before intent/synthesis.",
+                );
+                return;
+              }
+              const tail =
+                payload.action === "create_manual_block"
+                  ? "Preparing preview — review the impact and confirm to create the block."
+                  : `Preparing to register ${payload.stream_name} — review and confirm.`;
+              accumulated = accumulated
+                ? `${accumulated}\n\n${tail}`
+                : tail;
+              updateMessage(assistantId, accumulated);
+
+              const capturedTurnId = turnId;
+              previewBlock(payload)
+                .then((preview) => {
+                  setPendingProposal({
+                    payload, intent, synthesis, preview,
+                    conversation_turn_id: capturedTurnId,
+                  });
+                })
+                .catch((err) => {
+                  const detail = err instanceof Error ? err.message : String(err);
+                  pushMessage("system", `Preview failed: ${detail}`);
+                });
+            },
+            onDone: () => {
+              setIsStreaming(false);
+              abortRef.current = null;
+              if (!accumulated) {
+                updateMessage(assistantId, "No response received from the engine.");
+              }
+            },
+            onError: (error) => {
+              setIsStreaming(false);
+              abortRef.current = null;
+              updateMessage(
+                assistantId,
+                accumulated
+                  ? `${accumulated}\n\n⚠ ${error}`
+                  : `⚠ ${error}`,
+              );
+            },
+          },
+        );
+        abortRef.current = controller;
+        return;
+      }
 
       const controller = streamFetchSSE(
         "/api/investigate",
@@ -185,6 +312,45 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setInvestigation(null);
   }, []);
 
+  const cancelProposal = useCallback(() => {
+    const proposal = pendingProposal;
+    setPendingProposal(null);
+    if (!proposal) return;
+    // Fire-and-forget: the signal is analytics-only; if it fails the
+    // trader has already moved on and shouldn't be bothered.
+    logFailure({
+      signal_type: "preview_rejection",
+      conversation_turn_id: proposal.conversation_turn_id,
+      metadata: {
+        action: proposal.payload.action,
+        stream_name: proposal.payload.stream_name,
+      },
+    }).catch(() => {});
+  }, [pendingProposal]);
+
+  const confirmProposal = useCallback(async () => {
+    const proposal = pendingProposal;
+    if (!proposal) return;
+    try {
+      const resp = await commitBlock({
+        payload: proposal.payload,
+        intent: proposal.intent,
+        synthesis: proposal.synthesis,
+        preview: proposal.preview,
+      });
+      pushMessage(
+        "system",
+        `\u2713 Stream '${resp.stream_name}' committed (intent id ${resp.stored_intent_id.slice(0, 8)}).`,
+      );
+      setPendingProposal(null);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      pushMessage("system", `\u2717 Commit failed: ${detail}`);
+      // Keep the drawer open so the trader can retry.
+      throw err;
+    }
+  }, [pendingProposal, pushMessage]);
+
   const value = useMemo<ChatState>(
     () => ({
       messages,
@@ -193,6 +359,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       drawerOpen,
       chatMode,
       pendingBlockCommand,
+      pendingProposal,
       setChatMode,
       sendMessage,
       pushSystemMessage,
@@ -204,6 +371,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       closeDrawer,
       toggleDrawer,
       clearPendingBlockCommand,
+      confirmProposal,
+      cancelProposal,
     }),
     [
       messages,
@@ -212,6 +381,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       drawerOpen,
       chatMode,
       pendingBlockCommand,
+      pendingProposal,
       sendMessage,
       pushSystemMessage,
       clearMessages,
@@ -222,6 +392,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       closeDrawer,
       toggleDrawer,
       clearPendingBlockCommand,
+      confirmProposal,
+      cancelProposal,
     ],
   );
 

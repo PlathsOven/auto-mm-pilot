@@ -27,7 +27,7 @@ else:
     load_dotenv()  # fallback: searches up to project root
 
 
-def _parse_str_list(env_var: str, defaults: tuple[str, ...]) -> tuple[str, ...]:
+def parse_str_list(env_var: str, defaults: tuple[str, ...]) -> tuple[str, ...]:
     """Parse a comma-separated env var into an ordered string tuple, or use defaults."""
     raw = os.getenv(env_var, "")
     if raw.strip():
@@ -118,7 +118,7 @@ class OpenRouterConfig:
     # Priority-ordered model fallback lists — override via comma-separated env vars.
     # The client tries each model in order; on failure it falls through to the next.
     investigation_models: tuple[str, ...] = field(
-        default_factory=lambda: _parse_str_list(
+        default_factory=lambda: parse_str_list(
             "OPENROUTER_INVESTIGATION_MODELS",
             ("anthropic/claude-sonnet-4", "openai/gpt-4.1", "google/gemini-2.5-pro-preview-06-05"),
         )
@@ -126,7 +126,7 @@ class OpenRouterConfig:
 
     # Correction detector — cheap model for background KB extraction.
     detector_models: tuple[str, ...] = field(
-        default_factory=lambda: _parse_str_list(
+        default_factory=lambda: parse_str_list(
             "OPENROUTER_DETECTOR_MODELS",
             ("anthropic/claude-3.5-haiku", "google/gemini-2.0-flash-001"),
         )

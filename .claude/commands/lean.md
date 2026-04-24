@@ -26,7 +26,7 @@ Read these first:
 - `tasks/lessons.md` — recent corrections that constrain what can be deleted
 
 Hard constraints:
-- Files flagged MOCK/STUB in `docs/stack-status.md` (e.g. `DailyWrap.tsx`, `server/api/llm/context_db.py`, `server/api/llm/test_investigation.py`) are intentional scaffolding — do not delete without human approval, even if the call graph says they're orphans.
+- Files flagged MOCK/STUB in `docs/stack-status.md` (e.g. `server/api/llm/context_db.py`) are intentional scaffolding — do not delete without human approval, even if the call graph says they're orphans.
 - Framework-auto-wired entry points (`App.tsx`, `main.tsx`, FastAPI routers registered via `include_router`) look orphan to naïve grep — exclude them.
 
 ### 2. Scope

@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
 from server.api.engine_state import get_pipeline_results, rerun_and_broadcast
+from server.api.llm.block_intents import log_post_commit_edit_if_recent
 from server.api.models import (
     BlockListResponse,
     BlockRowResponse,
@@ -294,6 +295,10 @@ async def update_block(
         [tuple(p) for p in req.applies_to] if req.applies_to is not None
         else existing_applies_to
     )
+    # Check for a recent Build-orchestrator commit — a quick edit here
+    # likely means the original proposal missed. Fire-and-forget.
+    log_post_commit_edit_if_recent(user.id, stream_name, mutation="update")
+
     registry.configure(
         stream_name, scale=scale, offset=offset, exponent=exponent, block=block,
         applies_to=applies_to,

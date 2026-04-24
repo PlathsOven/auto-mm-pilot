@@ -10,12 +10,14 @@ from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
 from server.api.connector_state import get_connector_state_store
 from server.api.engine_state import get_engine, rerun_and_broadcast
+from server.api.llm.block_intents import log_post_commit_edit_if_recent
 from server.api.models import (
     AdminConfigureStreamRequest,
     BlockConfigPayload,
     ConnectorStateSummary,
     CreateStreamRequest,
     SetStreamActiveRequest,
+    StreamIntentResponse,
     StreamKeyTimeseries,
     StreamListResponse,
     StreamResponse,
@@ -318,11 +320,40 @@ async def stream_timeseries(
     )
 
 
+@router.get("/api/streams/{stream_name}/intent", response_model=StreamIntentResponse)
+async def stream_intent(
+    stream_name: str,
+    user: User = Depends(current_user),
+) -> StreamIntentResponse:
+    """Return the persisted Build-orchestrator intent for this stream.
+
+    Powers the Inspector's "why does this block exist?" surface — shows
+    the trader's original phrasing + Stage-1→4 trace. Streams created
+    outside the Build orchestrator (pre-M3, or via the ``+ Manual block``
+    drawer) return 404; the client surfaces a placeholder.
+    """
+    import asyncio as _asyncio
+    from server.api.llm.block_intents import get_for_stream
+
+    stored = await _asyncio.to_thread(get_for_stream, user.id, stream_name)
+    if stored is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No Build-orchestrator intent recorded for stream '{stream_name}'",
+        )
+    return StreamIntentResponse(intent=stored)
+
+
 @router.delete("/api/streams/{stream_name}", status_code=204)
 async def delete_stream(
     stream_name: str,
     user: User = Depends(current_user),
 ) -> None:
+    # Before deleting, check whether this stream was recently committed via
+    # the Build orchestrator — a rapid delete is a signal the proposal
+    # missed. Fire-and-forget; same helper used by blocks.update_block.
+    log_post_commit_edit_if_recent(user.id, stream_name, mutation="delete")
+
     registry = get_stream_registry(user.id)
     try:
         registry.delete(stream_name, get_connector_state_store(user.id))

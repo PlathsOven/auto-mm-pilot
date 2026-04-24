@@ -156,6 +156,22 @@ def active_user_ids() -> list[str]:
     return _engine_states.active_users()
 
 
+def current_positions_per_dim(df: pl.DataFrame) -> pl.DataFrame:
+    """Pick the earliest row per ``(symbol, expiry)`` from ``desired_pos_df``.
+
+    ``desired_pos_df`` is a forward projection from ``now``; the first row
+    after sort-by-timestamp is the "current" value. ``maintain_order``
+    guards against hash-order non-determinism (see tasks/lessons.md).
+    """
+    if df.is_empty():
+        return df
+    return (
+        df.sort(["symbol", "expiry", "timestamp"])
+        .group_by(["symbol", "expiry"], maintain_order=True)
+        .agg(pl.col("smoothed_desired_position").first())
+    )
+
+
 # ---------------------------------------------------------------------------
 # Thin functional wrappers kept for backwards compatibility with callers.
 # ---------------------------------------------------------------------------
