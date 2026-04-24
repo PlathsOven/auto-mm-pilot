@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from server.api.datetime_parsing import parse_datetime_tolerant
 from server.core.config import SECONDS_PER_YEAR, BlockConfig
 from server.core.connectors.base import (
     Connector,
@@ -235,7 +236,7 @@ def _parse_ts(raw: Any) -> datetime:
         # Strip tz to match codebase convention (naive datetimes represent UTC).
         return raw.replace(tzinfo=None) if raw.tzinfo is not None else raw
     if isinstance(raw, str):
-        dt = datetime.fromisoformat(raw)
+        dt = parse_datetime_tolerant(raw)
         return dt.replace(tzinfo=None) if dt.tzinfo is not None else dt
     raise ValueError(f"timestamp must be datetime or ISO string, got {type(raw).__name__}")
 

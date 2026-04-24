@@ -18,6 +18,7 @@ from server.api.config import (
     UPDATE_THRESHOLD,
     VOL_POINTS_SCALE,
 )
+from server.api.datetime_parsing import parse_datetime_tolerant
 from server.api.expiry import canonical_expiry_key
 
 
@@ -53,9 +54,8 @@ def format_expiry(val: Any) -> str:
         # Already DDMMMYY (length 7, ends with 2-digit year)?
         if len(val) == 7 and val[2:5].isalpha():
             return val.upper()
-        # Try parsing as ISO and reformat.
         try:
-            return datetime.fromisoformat(val).strftime("%d%b%y").upper()
+            return parse_datetime_tolerant(val).strftime("%d%b%y").upper()
         except ValueError:
             pass
     return str(val)

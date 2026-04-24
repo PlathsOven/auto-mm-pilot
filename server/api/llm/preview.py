@@ -127,7 +127,7 @@ def build_preview(
         state_ts = engine.state.get("timestamp")
         if isinstance(state_ts, str):
             try:
-                live_ts = datetime.fromisoformat(state_ts.replace("Z", "+00:00"))
+                live_ts = parse_datetime_tolerant(state_ts)
                 if live_ts.tzinfo is not None:
                     live_ts = live_ts.astimezone(timezone.utc).replace(tzinfo=None)
                 age = (now - live_ts).total_seconds()
