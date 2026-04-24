@@ -17,8 +17,10 @@ import type {
   LlmFailureLogRequest,
   PreviewResponse,
   ProposedBlockPayload,
+  StoredBlockIntent,
+  StreamIntentResponse,
 } from "../types";
-import { apiFetch, streamFetchSSE } from "./api";
+import { ApiError, apiFetch, streamFetchSSE } from "./api";
 
 export type BuildStageName = "router" | "intent" | "synthesis" | "critique";
 
@@ -88,6 +90,29 @@ export async function logFailure(req: LlmFailureLogRequest): Promise<void> {
     method: "POST",
     body: JSON.stringify(req),
   });
+}
+
+/**
+ * GET /api/streams/{name}/intent — the persisted Build-orchestrator intent.
+ *
+ * Returns `null` on 404 so callers can distinguish "no intent recorded"
+ * (stream predates M3 or was created via the manual drawer) from a genuine
+ * transport error. All other failures propagate as `ApiError`.
+ */
+export async function fetchStreamIntent(
+  streamName: string,
+  signal?: AbortSignal,
+): Promise<StoredBlockIntent | null> {
+  try {
+    const res = await apiFetch<StreamIntentResponse>(
+      `/api/streams/${encodeURIComponent(streamName)}/intent`,
+      { signal },
+    );
+    return res.intent;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
 }
 
 /** Fire a Build-mode conversation at /api/build/converse and dispatch stage events. */

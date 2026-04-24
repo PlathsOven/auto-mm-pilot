@@ -7,8 +7,10 @@ Run:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +22,8 @@ from starlette.responses import Response
 from server.api.auth.tokens import resolve_user_from_request
 from server.api.client_ws import client_ws
 from server.api.db import init_db
+from server.api.llm.orchestration_config import get_llm_orchestration_config
+from server.api.llm.silent_rejection_sweep import run_sweep_forever
 from server.api.ws import pipeline_ws
 
 from server.api.routers.admin import router as admin_router
@@ -43,11 +47,51 @@ from server.api.routers.transforms import router as transforms_router
 log = logging.getLogger(__name__)
 
 
+# Legacy global domain-KB file, replaced by the per-user
+# ``domain_kb_entries`` SQLite table. Deleted on first boot after the
+# migration lands — contents are explicitly not backfilled.
+_LEGACY_DOMAIN_KB_PATH = (
+    Path(__file__).resolve().parent / "llm" / "domain_kb.json"
+)
+
+
+def _delete_legacy_domain_kb_file() -> None:
+    """Best-effort removal of the legacy ``domain_kb.json``.
+
+    Any failure (permissions, EBUSY) is logged and swallowed so startup
+    is never blocked — at worst the file is an orphan until the next
+    boot attempts deletion again.
+    """
+    try:
+        _LEGACY_DOMAIN_KB_PATH.unlink(missing_ok=True)
+    except OSError:
+        log.warning(
+            "failed to delete legacy domain_kb.json at %s",
+            _LEGACY_DOMAIN_KB_PATH, exc_info=True,
+        )
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """Initialise the DB schema on boot. No mock scenario bootstrap in v1."""
+    """Initialise the DB schema and start background workers on boot.
+
+    Today the only background worker is the silent-rejection sweep —
+    it drains abandoned Build proposals into ``llm_failures`` so the
+    feedback loop captures "trader walked away" as a signal.
+    """
     init_db()
-    yield
+    _delete_legacy_domain_kb_file()
+    sweep_task = asyncio.create_task(
+        run_sweep_forever(get_llm_orchestration_config()),
+    )
+    try:
+        yield
+    finally:
+        sweep_task.cancel()
+        try:
+            await sweep_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="Posit Server", version="0.2.0", lifespan=lifespan)

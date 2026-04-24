@@ -14,6 +14,7 @@ import {
   parseIsoUtc,
   sci,
 } from "../../PipelineChart/formatters";
+import { BlockIntentCard } from "../../proposal/BlockIntentCard";
 
 interface StreamInspectorProps {
   name: string;
@@ -226,6 +227,8 @@ export function StreamInspector({ name }: StreamInspectorProps) {
         ) : (
           <p className="text-[11px] text-mm-text-dim">No data.</p>
         )}
+
+        <BlockIntentCard streamName={name} />
       </div>
     </div>
   );

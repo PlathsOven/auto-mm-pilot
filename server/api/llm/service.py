@@ -71,6 +71,7 @@ class LlmService:
         user_context_section = serialize_user_context(user_id)
         system_prompt = build_system_prompt(
             mode,
+            user_id=user_id,
             engine_state=engine_state,
             stream_contexts_json=stream_contexts,
             pipeline_snapshot=pipeline_snapshot,

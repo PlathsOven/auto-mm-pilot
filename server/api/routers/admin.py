@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+from statistics import mean, median
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
@@ -16,12 +17,14 @@ from sqlalchemy import func, select
 from server.api.auth.dependencies import current_admin
 from server.api.auth.models import Session as SessionRow, UsageEvent, User
 from server.api.db import SessionLocal
-from server.api.llm.models import LlmFailure
+from server.api.llm.models import LlmCall, LlmFailure
 from server.api.models import (
     AdminLlmFailureListResponse,
     AdminLlmFailureRow,
     AdminUserListResponse,
     AdminUserSummary,
+    LlmLatencySummaryResponse,
+    LlmLatencySummaryStage,
 )
 
 router = APIRouter()
@@ -145,3 +148,100 @@ async def list_llm_failures(
         _fetch_failures_sync, user_id, signal_type, since, bounded,
     )
     return AdminLlmFailureListResponse(rows=rows)
+
+
+# ---------------------------------------------------------------------------
+# LLM latency triage (spec-llm-orchestration-housekeeping.md §3)
+# ---------------------------------------------------------------------------
+
+# Rolling window for the merge-decision triage — matches the spec's
+# "100-turn window" threshold for the Stage 1+2 collapse decision.
+_LATENCY_WINDOW_TURNS = 100
+
+_LATENCY_STAGES: tuple[str, ...] = ("router", "intent", "synthesis", "critique")
+
+
+def _percentile(sorted_values: list[float], pct: float) -> float:
+    """Nearest-rank-ish percentile on a pre-sorted list.
+
+    Clamped to ``max`` for small samples — under ~20 samples p95 collapses
+    to the maximum, which is what the spec's risk note already calls out.
+    """
+    if not sorted_values:
+        return 0.0
+    idx = min(int(len(sorted_values) * pct), len(sorted_values) - 1)
+    return float(sorted_values[idx])
+
+
+def _latency_summary_sync(window: int) -> LlmLatencySummaryResponse:
+    """Read per-stage latency stats from ``llm_calls`` for the recent window."""
+    with SessionLocal() as db:
+        # Find the last `window` Build turns that touched any stage we care
+        # about — order by the max created_at within the group so a turn's
+        # freshness is its last-stage wall-clock, not its first.
+        turn_stmt = (
+            select(
+                LlmCall.conversation_turn_id,
+                func.max(LlmCall.created_at).label("latest"),
+            )
+            .where(LlmCall.stage.in_(_LATENCY_STAGES))
+            .group_by(LlmCall.conversation_turn_id)
+            .order_by(func.max(LlmCall.created_at).desc())
+            .limit(window)
+        )
+        turn_ids = [row[0] for row in db.execute(turn_stmt).all()]
+        if not turn_ids:
+            return LlmLatencySummaryResponse(
+                turns_analysed=0, stages=[], p95_total_ms=0.0,
+            )
+
+        rows_stmt = select(
+            LlmCall.conversation_turn_id,
+            LlmCall.stage,
+            LlmCall.latency_ms,
+        ).where(
+            LlmCall.conversation_turn_id.in_(turn_ids),
+            LlmCall.stage.in_(_LATENCY_STAGES),
+        )
+        rows = db.execute(rows_stmt).all()
+
+    per_stage: dict[str, list[int]] = {s: [] for s in _LATENCY_STAGES}
+    per_turn_totals: dict[str, int] = {}
+    for turn_id, stage, latency_ms in rows:
+        per_stage[stage].append(latency_ms)
+        per_turn_totals[turn_id] = per_turn_totals.get(turn_id, 0) + latency_ms
+
+    stage_summaries: list[LlmLatencySummaryStage] = []
+    for stage in _LATENCY_STAGES:
+        values = per_stage[stage]
+        if not values:
+            continue
+        ordered = sorted(values)
+        stage_summaries.append(LlmLatencySummaryStage(
+            stage=stage,
+            count=len(values),
+            mean_ms=float(mean(values)),
+            p50_ms=float(median(values)),
+            p95_ms=_percentile(ordered, 0.95),
+        ))
+
+    totals = sorted(per_turn_totals.values())
+    return LlmLatencySummaryResponse(
+        turns_analysed=len(turn_ids),
+        stages=stage_summaries,
+        p95_total_ms=_percentile([float(v) for v in totals], 0.95),
+    )
+
+
+@router.get("/api/admin/llm-latency-summary", response_model=LlmLatencySummaryResponse)
+async def list_llm_latency_summary(
+    _admin: User = Depends(current_admin),
+) -> LlmLatencySummaryResponse:
+    """Per-stage latency distribution across the last ``_LATENCY_WINDOW_TURNS`` Build turns.
+
+    Feeds the spec §16.3 merge-decision: if ``p95_total_ms`` stays above
+    ``end_to_end_latency_budget_secs * 1000``, a follow-up spec merges
+    Stages 1+2 into one structured-output call. No runtime enforcement;
+    triage-only.
+    """
+    return await asyncio.to_thread(_latency_summary_sync, _LATENCY_WINDOW_TURNS)
