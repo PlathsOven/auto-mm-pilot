@@ -174,7 +174,9 @@ async def patch_active(
     try:
         reg = registry.set_active(name, req.active)
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=404, detail=f"Opinion '{name}' not found",
+        ) from exc
 
     stream_configs = registry.build_stream_configs()
     if stream_configs:
@@ -206,5 +208,7 @@ async def delete_opinion(name: str, user: User = Depends(current_user)) -> Respo
     try:
         registry.delete(name, get_connector_state_store(user.id))
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=404, detail=f"Opinion '{name}' not found",
+        ) from exc
     return Response(status_code=204)

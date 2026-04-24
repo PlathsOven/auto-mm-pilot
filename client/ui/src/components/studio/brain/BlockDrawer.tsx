@@ -112,14 +112,14 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
 
   const title =
     mode === "create"
-      ? "Add Manual Block"
+      ? "New Opinion"
       : mode === "edit"
         ? `Edit Block: ${block?.block_name ?? ""}`
         : `Inspect Block: ${block?.block_name ?? ""}`;
 
   const subtitle =
     mode === "create"
-      ? "Drop a one-off block into the pipeline without a stream."
+      ? "Capture a discretionary view as a manual block (no live stream needed)."
       : mode === "edit"
         ? "Modify this manual block's parameters and snapshot."
         : "Read-only view of a stream-sourced block.";
