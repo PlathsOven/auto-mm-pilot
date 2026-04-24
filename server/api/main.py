@@ -33,6 +33,7 @@ from server.api.routers.blocks import router as blocks_router
 from server.api.routers.bankroll import router as bankroll_router
 from server.api.routers.build import router as build_router
 from server.api.routers.connectors import router as connectors_router
+from server.api.routers.correlations import router as correlations_router
 from server.api.routers.diagnostics import router as diagnostics_router
 from server.api.routers.events import router as events_router
 from server.api.routers.llm import router as llm_router
@@ -194,6 +195,7 @@ app.include_router(opinions_router)
 app.include_router(diagnostics_router)
 app.include_router(positions_replay_router)
 app.include_router(connectors_router)
+app.include_router(correlations_router)
 
 
 # ---------------------------------------------------------------------------
