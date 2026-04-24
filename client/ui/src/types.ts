@@ -809,18 +809,18 @@ export interface SynthesisOutput {
 }
 
 /** One (symbol, expiry) row of a preview diff. */
-export interface PositionDelta {
+export interface PositionDiff {
   symbol: string;
   expiry: string;
   before: number;
   after: number;
-  absolute_change: number;
+  absolute_diff: number;
   percent_change: number | null;
 }
 
 /** Stage 4 output — position impact of applying the proposed block. */
 export interface PreviewResponse {
-  deltas: PositionDelta[];
+  diffs: PositionDiff[];
   total_bankroll_usage_before: number;
   total_bankroll_usage_after: number;
   notes: string[];

@@ -23,7 +23,7 @@ Restate these five dimensions for the primary persona (quant desk head running a
 1. **Minimal essential needs** — what must the trader see/do to get value? Strip away non-load-bearing. Reference the specific `docs/user-journey.md` flow (1–4) this task touches.
 2. **Desired emotional state** — should feel: in control, confident numbers are live/correct, able to act quickly. Should never feel: confused about what changed, uncertain about staleness, overwhelmed. State which emotional targets the task affects.
 3. **Intuitive actions** — what would the trader instinctively try? Click a cell to investigate. Scan left-to-right for the biggest number. Look at color before reading value. Design for these instincts.
-4. **Attention hierarchy** — where does the trader look first? Desired position grid dominates. Changes (highlights, deltas) pull the eye. Updates feed is peripheral until something moves. Chat is on-demand. Identify where this task lives.
+4. **Attention hierarchy** — where does the trader look first? Desired position grid dominates. Changes (highlights, diffs) pull the eye. Updates feed is peripheral until something moves. Chat is on-demand. Identify where this task lives.
 5. **Trust signals** — WS connection indicator, last-tick timestamp, highlight on fresh data, absence of stale indicators. If the task affects trust, state how.
 
 ### 3. Scope the Design Task

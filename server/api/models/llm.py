@@ -277,20 +277,20 @@ class SynthesisOutput(BaseModel):
     proposed_payload: ProposedBlockPayload
 
 
-class PositionDelta(BaseModel):
+class PositionDiff(BaseModel):
     """One (symbol, expiry) row of a preview diff."""
     symbol: str
     expiry: str
     before: float
     after: float
-    absolute_change: float
+    absolute_diff: float
     # ``None`` when ``before == 0`` — percent change is undefined.
     percent_change: float | None = None
 
 
 class PreviewResponse(BaseModel):
     """Stage 4 output — position impact of applying the proposed block."""
-    deltas: list[PositionDelta]
+    diffs: list[PositionDiff]
     total_bankroll_usage_before: float
     total_bankroll_usage_after: float
     notes: list[str] = Field(default_factory=list)

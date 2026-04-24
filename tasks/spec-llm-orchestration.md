@@ -660,17 +660,17 @@ class SnapshotRow(BaseModel):
 ```python
 # server/api/models.py
 
-class PositionDelta(BaseModel):
+class PositionDiff(BaseModel):
     symbol: str
     expiry: str
     before: float     # current desired position
     after: float      # desired position after the proposed block is applied
-    absolute_change: float
+    absolute_diff: float
     percent_change: float | None = None   # None when before == 0
 
 
 class PreviewResponse(BaseModel):
-    deltas: list[PositionDelta]
+    diffs: list[PositionDiff]
     total_bankroll_usage_before: float
     total_bankroll_usage_after: float
     notes: list[str] = Field(default_factory=list)  # e.g. "5 expiries unaffected"
@@ -750,7 +750,7 @@ class BlockPreviewRequest(BaseModel):
 1. Clone the current user's stream list from `stream_registry`.
 2. Apply the proposed payload to the clone (create / configure stream, apply snapshot rows if manual block).
 3. Call `run_pipeline(...)` on the clone — pure, does not mutate live state.
-4. Diff the resulting `desired_pos_df` against the live `position_history` / `state` → list of `PositionDelta`.
+4. Diff the resulting `desired_pos_df` against the live `position_history` / `state` → list of `PositionDiff`.
 5. Return.
 
 **Performance:** `run_pipeline` is already sub-second on modern hardware; no caching needed in v1. If preview feels slow, the first optimisation is re-using the cached `risk_dimension_cols` + `time_grid`.
@@ -1484,7 +1484,7 @@ No other edits required — no prompt-file changes, no schema changes.
 | `client/ui/src/services/buildApi.ts` | New — HTTP + SSE clients for the three build endpoints |
 | `client/ui/src/providers/BuildProvider.tsx` | Parallel to `ChatProvider` — state for the Build flow (conversation, proposal, preview, confirm) |
 | `client/ui/src/components/build/BuildPanel.tsx` | New — the Build mode UI (replaces routing to LlmChat in Build mode) |
-| `client/ui/src/components/build/ProposalPreview.tsx` | New — renders `PositionDelta[]` as a diff table with Confirm / Cancel |
+| `client/ui/src/components/build/ProposalPreview.tsx` | New — renders `PositionDiff[]` as a diff table with Confirm / Cancel |
 
 ### 12.2 Modified files
 
@@ -1593,7 +1593,7 @@ No full unit-test suite exists for the LLM layer today (OpenRouter calls are not
 - `test_parameter_presets.py` — every preset's `BlockConfig.__post_init__` invariants hold; `find_preset` roundtrips by id; `serialize_presets_for_prompt` includes every entry.
 - `test_intent_output_validation.py` — `IntentOutput` rejects multiple-fields-set, accepts exactly one.
 - `test_block_config_dict_roundtrip.py` — `BlockConfigDict.to_block_config()` enforces framework invariants (e.g. rejects `decay_end_size_mult=0.5` with `annualized=False`).
-- `test_preview_endpoint.py` — apply a known-good proposal against a mock stream registry and assert the returned deltas match a hand-computed baseline.
+- `test_preview_endpoint.py` — apply a known-good proposal against a mock stream registry and assert the returned diffs match a hand-computed baseline.
 
 ### 14.2 Integration tests — DB writes
 
@@ -1605,7 +1605,7 @@ No full unit-test suite exists for the LLM layer today (OpenRouter calls are not
 
 Scripted scenarios the implementer should walk through before declaring M2 / M3 / M4 done:
 
-1. **Canonical base-vol view:** "I think ETH vols will get bid to 60 on Dec expiries." → matches `base_vol_shifting_pct`, commits, preview shows ETH-only deltas.
+1. **Canonical base-vol view:** "I think ETH vols will get bid to 60 on Dec expiries." → matches `base_vol_shifting_pct`, commits, preview shows ETH-only diffs.
 2. **Canonical event view:** "FOMC next Wednesday is going to be a 3% move on BTC." → matches `event_vol_fast_decay_pct_move`, commits with `start_timestamp` set.
 3. **Unusual input requiring custom derivation:** "I want to register a view on realised-to-implied skew for SOL perps." → Stage 1 routes to `view` (closest hint), Stage 2 cannot fit `DiscretionaryViewIntent`, emits `RawIntent`, Stage 3 Mode B derives a block + critique runs.
 4. **Rejection path:** "I have a feed of BTC spot prices." → Stage 3 detects no conversion-to-variance path exists; LLM returns an explanation instead of a proposal.
