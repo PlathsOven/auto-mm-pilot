@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import type { DesiredPosition } from "../../../types";
@@ -44,14 +45,38 @@ function buildDiffRows(positions: DesiredPosition[]): DiffRow[] {
       diff,
     });
   }
-  // Biggest absolute moves first — matches the "scan for the outliers"
-  // mental model the trader uses when reviewing a batch of changes.
-  out.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
   return out;
 }
 
 function sumAbsDiff(rows: DiffRow[]): number {
   return rows.reduce((acc, r) => acc + Math.abs(r.diff), 0);
+}
+
+type SortKey = "symbol" | "expiry" | "committed" | "hypothetical" | "diff";
+type SortDir = "asc" | "desc";
+
+/** Compare two rows by the given column. ``diff`` compares by absolute
+ *  magnitude — "biggest moves" is what the trader cares about regardless
+ *  of sign. Everything else sorts by its natural value. */
+function compareRows(a: DiffRow, b: DiffRow, key: SortKey): number {
+  switch (key) {
+    case "symbol": return a.symbol.localeCompare(b.symbol);
+    case "expiry": return a.expiry.localeCompare(b.expiry);
+    case "committed": return a.committed - b.committed;
+    case "hypothetical": return a.hypothetical - b.hypothetical;
+    case "diff": return Math.abs(a.diff) - Math.abs(b.diff);
+  }
+}
+
+/** Initial sort direction when a column is first clicked — strings start
+ *  ascending (A→Z), numbers start descending (biggest first). */
+function initialDir(key: SortKey): SortDir {
+  return key === "symbol" || key === "expiry" ? "asc" : "desc";
+}
+
+function sortIndicator(active: boolean, dir: SortDir): string {
+  if (!active) return "";
+  return dir === "asc" ? " ↑" : " ↓";
 }
 
 function signed(n: number, decimals = 2): string {
@@ -77,6 +102,26 @@ export function ConfirmMatrixModal({
 }: Props) {
   const rows = buildDiffRows(positions);
   const sumAbs = sumAbsDiff(rows);
+  // Default — biggest magnitude moves first, the trader's "scan for
+  // outliers" entry point.
+  const [sortKey, setSortKey] = useState<SortKey>("diff");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const sortedRows = useMemo(() => {
+    const copy = [...rows];
+    const sign = sortDir === "asc" ? 1 : -1;
+    copy.sort((a, b) => sign * compareRows(a, b, sortKey));
+    return copy;
+  }, [rows, sortKey, sortDir]);
+
+  const onHeaderClick = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(initialDir(key));
+    }
+  };
+
   const title = kind === "symbols"
     ? "Confirm symbol correlations"
     : "Confirm expiry correlations";
@@ -163,15 +208,52 @@ export function ConfirmMatrixModal({
                   <table className="w-full text-[11px]">
                     <thead>
                       <tr className="border-b border-black/10 text-mm-text-dim">
-                        <th className="py-1 pr-2 text-left font-normal">Symbol</th>
-                        <th className="py-1 pr-2 text-left font-normal">Expiry</th>
-                        <th className="py-1 pr-2 text-right font-normal">Committed</th>
-                        <th className="py-1 pr-2 text-right font-normal">Draft</th>
-                        <th className="py-1 text-right font-normal">Diff</th>
+                        <SortHeader
+                          label="Symbol"
+                          sortKey="symbol"
+                          active={sortKey}
+                          dir={sortDir}
+                          onClick={onHeaderClick}
+                          align="left"
+                        />
+                        <SortHeader
+                          label="Expiry"
+                          sortKey="expiry"
+                          active={sortKey}
+                          dir={sortDir}
+                          onClick={onHeaderClick}
+                          align="left"
+                        />
+                        <SortHeader
+                          label="Committed"
+                          sortKey="committed"
+                          active={sortKey}
+                          dir={sortDir}
+                          onClick={onHeaderClick}
+                          align="right"
+                        />
+                        <SortHeader
+                          label="Draft"
+                          sortKey="hypothetical"
+                          active={sortKey}
+                          dir={sortDir}
+                          onClick={onHeaderClick}
+                          align="right"
+                        />
+                        <SortHeader
+                          label="Diff"
+                          sortKey="diff"
+                          active={sortKey}
+                          dir={sortDir}
+                          onClick={onHeaderClick}
+                          align="right"
+                          lastCol
+                          title="Sorts by absolute magnitude — sign is kept in the value."
+                        />
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map((r) => (
+                      {sortedRows.map((r) => (
                         <tr
                           key={`${r.symbol}-${r.expiry}`}
                           className="border-b border-black/[0.04]"
@@ -222,5 +304,45 @@ export function ConfirmMatrixModal({
         </>
       )}
     </AnimatePresence>
+  );
+}
+
+function SortHeader({
+  label,
+  sortKey,
+  active,
+  dir,
+  onClick,
+  align,
+  lastCol,
+  title,
+}: {
+  label: string;
+  sortKey: SortKey;
+  /** The currently-active sort key on the table. */
+  active: SortKey;
+  dir: SortDir;
+  onClick: (key: SortKey) => void;
+  align: "left" | "right";
+  /** Drops the right-padding on the last column so the indicator stays flush. */
+  lastCol?: boolean;
+  /** Optional tooltip — used to explain the diff-by-magnitude sort. */
+  title?: string;
+}) {
+  const isActive = active === sortKey;
+  return (
+    <th
+      className={`py-1 font-normal ${lastCol ? "" : "pr-2"} text-${align} ${
+        isActive ? "text-mm-text" : "text-mm-text-dim"
+      } cursor-pointer select-none hover:text-mm-text`}
+      onClick={() => onClick(sortKey)}
+      title={title}
+      aria-sort={isActive ? (dir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      {label}
+      <span className="inline-block w-3 text-[9px] text-mm-accent">
+        {sortIndicator(isActive, dir)}
+      </span>
+    </th>
   );
 }
