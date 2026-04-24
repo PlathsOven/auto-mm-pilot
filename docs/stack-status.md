@@ -28,11 +28,28 @@
 | **Client WS Endpoint** | `server/api/client_ws.py` | `PROD` | WS Ticker, Stream Registry, Client WS Auth | Auth-gated `/ws/client` — inbound snapshots with ACK, outbound positions via broadcast |
 | **Client WS Auth** | `server/api/client_ws_auth.py` | `PROD` | `CLIENT_WS_API_KEY`, `CLIENT_WS_ALLOWED_IPS` env vars | API key + IP whitelist gate |
 | **OpenRouter Client** | `server/api/llm/client.py` | `PROD` | `OPENROUTER_API_KEY` env var | Async httpx, fallback model chain, `<think>` tag stripping |
-| **LLM Service** | `server/api/llm/service.py` | `PROD` | OpenRouter Client, Prompts, Engine State | Investigation (stream) |
+| **LLM Service** | `server/api/llm/service.py` | `PROD` | OpenRouter Client, Prompts, Engine State | Investigate + General chat streaming wrapper. Build mode bypasses this and uses `build_orchestrator.py` instead. |
 | **Investigation Prompt** | `server/api/llm/prompts/investigation.py` | `PROD` | Core | Investigation mode: reasoning protocol, data sections, engine commands |
-| **Build Prompt** | `server/api/llm/prompts/build.py` | `PROD` | Core | Build mode: stream onboarding + opinion → manual block via engine-command |
 | **General Prompt** | `server/api/llm/prompts/general.py` | `PROD` | Core | General mode: catch-all conversational, minimal engine summary |
-| **Shared Core** | `server/api/llm/prompts/core.py` | `PROD` | — | Role, framework, language rules, hard constraints, response discipline |
+| **Shared Core Prompt** | `server/api/llm/prompts/core.py` | `PROD` | — | Role, framework, language rules, hard constraints, response discipline |
+| **Router Prompt (Build S1)** | `server/api/llm/prompts/router.py` | `PROD` | Core | Stage-1 intake router — classifies as view / stream / headline / question / none |
+| **Intent Extractor Prompt (Build S2)** | `server/api/llm/prompts/intent_extractor.py` | `PROD` | Core | Stage-2 — emits `IntentOutput` (StructuredIntent / RawIntent / clarifying_question) |
+| **Synthesiser Prompt (Build S3)** | `server/api/llm/prompts/synthesiser.py` | `PROD` | Core, Parameter Presets | Stage-3 — `select_preset` / `derive_custom_block` tool schemas |
+| **Critique Prompt (Build S3.5)** | `server/api/llm/prompts/critique.py` | `PROD` | Core | Stage-3.5 — reviews custom derivations against framework invariants |
+| **Build Orchestrator** | `server/api/llm/build_orchestrator.py` | `PROD` | Stage Runners, all Build-mode prompts | Event loop + four `_run_*` stage runners (router → intent → synthesis → critique) for `/api/build/converse` |
+| **Stage Runners** | `server/api/llm/stages.py` | `PROD` | OpenRouter Client, LLM Call Audit | `run_json_stage` / `run_tool_stage` wrap `record_call` + `complete_with_fallback`; host `StageError` |
+| **OpenRouter Parse Helpers** | `server/api/llm/openrouter_parse.py` | `PROD` | — | `get_content`, `get_tool_call`, `strip_markdown_fences`, `parse_json_content` |
+| **Synthesis Payload** | `server/api/llm/synthesis_payload.py` | `PROD` | Parameter Presets | Stage-3 tool-call → `ProposedBlockPayload` with framework-invariant validation |
+| **Impact Preview (Build S4)** | `server/api/llm/preview.py` | `PROD` | Core Pipeline | Runs pipeline on a simulated stream-config list, diffs `desired_pos_df` against live state. Backs `/api/blocks/preview`. |
+| **Orchestration Config** | `server/api/llm/orchestration_config.py` | `PROD` | env vars | `LlmOrchestrationConfig` — every threshold / model chain / temperature / token budget, frozen dataclass |
+| **Parameter Presets** | `server/api/llm/parameter_presets.py` | `PROD` | — | Canonical situation → `(BlockConfig, UnitConversion)` mappings; serialised into Stage-3 prompt |
+| **LLM Call Audit** | `server/api/llm/audit.py` | `PROD` | LLM ORM | `record_call` context manager — one `LlmCall` row per outbound LLM request |
+| **Feedback Detector (Build S5)** | `server/api/llm/feedback_detector.py` | `PROD` | OpenRouter Client, Domain KB, LLM Failures, User Context | Async fanout — corrections → `domain_kb`, discontent → `llm_failures`, preferences → `user_context` |
+| **Block Intents** | `server/api/llm/block_intents.py` | `PROD` | LLM ORM | Persists `BlockIntent` rows — intent / synthesis / preview triplet attached to every committed block |
+| **LLM Failures** | `server/api/llm/failures.py` | `PROD` | LLM ORM | Persists `LlmFailure` — discontent / preview_rejection / silent_rejection / post_commit_edit |
+| **User Context** | `server/api/llm/user_context.py` | `PROD` | LLM ORM | Per-user controlled-vocabulary store + prompt serialiser |
+| **Domain KB** | `server/api/llm/domain_kb.py` | `PROD` | — | Factual-correction store (append-only JSON file) serialised into build prompts |
+| **LLM ORM Models** | `server/api/llm/models.py` | `PROD` | SQLAlchemy | `LlmCall`, `BlockIntent`, `LlmFailure`, `UserContextEntry` tables |
 | **Snapshot Buffer** | `server/api/llm/snapshot_buffer.py` | `PROD` | — | Ring buffer + delta table builder |
 | **Stream Context DB** | `server/api/llm/context_db.py` | `MOCK` | — | Hardcoded stream metadata; will be client-contributed via API |
 | **Engine State Provider** | `server/api/engine_state.py` | `PROD` | Core Pipeline | Runs `server/core` pipeline, serializes snapshots for LLM layer |
@@ -63,7 +80,7 @@
 | **Mode Provider** | `client/ui/src/providers/ModeProvider.tsx` | `PROD` | — | Chat mode (investigate / build / general) |
 | **Command Palette** | `client/ui/src/providers/CommandPaletteProvider.tsx` | `PROD` | FocusProvider | Cmd-K jump-to surfaces |
 | **Notifications** | `client/ui/src/providers/NotificationsProvider.tsx` (+ `components/notifications/`) | `PROD` | Server push endpoint | Toasts + persisted notification feed |
-| **Chat Provider** | `client/ui/src/providers/ChatProvider.tsx` | `PROD` | LLM API Client, ModeProvider | Routes user messages to server `/api/investigate` (SSE) — mode-aware system prompt selected via ModeProvider |
+| **Chat Provider** | `client/ui/src/providers/ChatProvider.tsx` | `PROD` | LLM API Client, Build API Client, ModeProvider | Mode-aware routing: Build → `/api/build/converse` (5-stage pipeline, SSE) via `buildApi.streamBuildConverse`; Investigate / General → `/api/investigate` (SSE) |
 | **Transforms Provider** | `client/ui/src/providers/TransformsProvider.tsx` | `PROD` | transforms API | Stream-config draft state for Anatomy editor |
 | **LLM API Client** | `client/ui/src/services/llmApi.ts` | `PROD` | FastAPI App | SSE client for `/api/investigate` |
 | **Desired Position Grid** | `client/ui/src/components/DesiredPositionGrid.tsx` | `PROD` | WebSocketProvider, FocusProvider | Clickable cells set focus instead of opening chat |

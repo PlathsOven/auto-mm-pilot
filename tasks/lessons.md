@@ -26,7 +26,7 @@ Format per entry: **Rule.** Then `Why:` (what went wrong, so edge cases can be j
 
 **Why:** The LLM explained variance as "accounting for nonlinearity" instead of the correct "variance is summative, vol is not." When domain facts are left for the model to derive, it invents plausible-sounding but wrong explanations. The trader corrects it, but the correction is lost between sessions — the same mistake repeats.
 
-**How to apply:** Critical domain facts belong in the system prompt (FRAMEWORK section of `core.py`), not in the model's latent knowledge. When the trader corrects the LLM, the correction detector captures it into `domain_kb.json` so it persists. For the most important facts, also hardcode them directly in the prompt — belt and suspenders.
+**How to apply:** Critical domain facts belong in the system prompt (FRAMEWORK section of `core.py`), not in the model's latent knowledge. When the trader corrects the LLM, `server/api/llm/feedback_detector.py` captures the correction into `domain_kb.json` so it persists (the detector subsumes the older `correction_detector.py` removed in the 2026-04 LLM orchestration redesign). For the most important facts, also hardcode them directly in the prompt — belt and suspenders.
 
 ---
 
