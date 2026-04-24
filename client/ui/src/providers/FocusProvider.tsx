@@ -46,6 +46,8 @@ function focusEquals(a: Focus | null, b: Focus | null): boolean {
       return a.expiry === (b as Extract<Focus, { kind: "expiry" }>).expiry;
     case "stream":
       return a.name === (b as Extract<Focus, { kind: "stream" }>).name;
+    case "opinion":
+      return a.name === (b as Extract<Focus, { kind: "opinion" }>).name;
     case "block":
       return blockKeyEquals(a.key, (b as Extract<Focus, { kind: "block" }>).key);
   }

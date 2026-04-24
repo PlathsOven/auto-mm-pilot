@@ -299,7 +299,10 @@ export interface BlockKey {
  * - `cell` — a single (symbol, expiry) cell from the desired-position grid.
  * - `symbol` — an entire symbol row.
  * - `expiry` — an entire expiry column.
- * - `stream` — a registered data stream.
+ * - `stream` — a registered data stream (legacy; still the focus when a
+ *   block-family row is clicked from the Blocks tab for deep inspection).
+ * - `opinion` — a unified trader-facing view over a stream + its manual
+ *   blocks + BlockIntent. The Opinions tab sets this focus.
  * - `block` — a single block identified by its full composite key.
  */
 export type Focus =
@@ -307,7 +310,33 @@ export type Focus =
   | { kind: "symbol"; symbol: string }
   | { kind: "expiry"; expiry: string }
   | { kind: "stream"; name: string }
+  | { kind: "opinion"; name: string }
   | { kind: "block"; key: BlockKey };
+
+/**
+ * One row in the Opinions panel — aggregated view of a trader belief.
+ *
+ * `description` is editable (writes to StreamRegistration.description);
+ * `original_phrasing` is the immutable Build-orchestrator capture from
+ * BlockIntent, kept read-only so the feedback-loop audit trail stays
+ * frozen. Streams created outside Build (manual drawer, raw REST) have
+ * `original_phrasing === null`.
+ */
+export interface Opinion {
+  name: string;
+  kind: "stream" | "manual";
+  description: string | null;
+  original_phrasing: string | null;
+  last_update: string | null;
+  active: boolean;
+  block_count: number;
+  has_concerns: boolean;
+}
+
+/** GET /api/opinions response wrapper. */
+export interface OpinionsListResponse {
+  opinions: Opinion[];
+}
 
 // ---------------------------------------------------------------------------
 // API request / response types

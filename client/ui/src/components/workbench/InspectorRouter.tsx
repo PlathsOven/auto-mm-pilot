@@ -2,6 +2,7 @@ import { useFocus } from "../../providers/FocusProvider";
 import { CellInspector } from "./inspectors/CellInspector";
 import { SymbolExpiryInspector } from "./inspectors/SymbolExpiryInspector";
 import { StreamInspector } from "./inspectors/StreamInspector";
+import { OpinionInspector } from "./inspectors/OpinionInspector";
 import { BlockInspector } from "./inspectors/BlockInspector";
 import { EmptyInspector } from "./inspectors/EmptyInspector";
 
@@ -27,6 +28,8 @@ export function InspectorRouter() {
       return <SymbolExpiryInspector symbol={null} expiry={focus.expiry} />;
     case "stream":
       return <StreamInspector name={focus.name} />;
+    case "opinion":
+      return <OpinionInspector name={focus.name} />;
     case "block":
       return <BlockInspector blockKey={focus.key} />;
   }
