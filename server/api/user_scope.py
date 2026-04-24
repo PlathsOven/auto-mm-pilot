@@ -35,15 +35,6 @@ class UserRegistry(Generic[T]):
                 self._by_user[user_id] = inst
             return inst
 
-    def peek(self, user_id: str) -> T | None:
-        """Return the instance for ``user_id`` without creating one."""
-        with self._lock:
-            return self._by_user.get(user_id)
-
-    def drop(self, user_id: str) -> None:
-        with self._lock:
-            self._by_user.pop(user_id, None)
-
     def active_users(self) -> list[str]:
         """List user ids that currently own an instance."""
         with self._lock:

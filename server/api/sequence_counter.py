@@ -29,9 +29,6 @@ class SequenceCounter:
             self._value += 1
             return self._value
 
-    def peek(self) -> int:
-        return self._value
-
 
 _counters: UserRegistry[SequenceCounter] = UserRegistry(SequenceCounter)
 
