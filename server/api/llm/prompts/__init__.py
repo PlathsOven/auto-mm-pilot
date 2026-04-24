@@ -23,6 +23,7 @@ from server.api.llm.prompts.investigation import build_investigation_prompt
 def build_system_prompt(
     mode: ChatMode,
     *,
+    user_id: str,
     engine_state: dict[str, Any],
     stream_contexts_json: str = "[]",
     pipeline_snapshot: dict[str, Any] | None = None,
@@ -38,7 +39,9 @@ def build_system_prompt(
 
     ``user_context_section`` is the per-user vocabulary / preferences
     block from ``server/api/llm/user_context.serialize_for_prompt`` —
-    injected after SHARED_CORE in every mode's prompt.
+    injected after SHARED_CORE in every mode's prompt. ``user_id``
+    scopes the appended DOMAIN KNOWLEDGE section to this trader's
+    corrections only.
     """
     if mode == "investigate":
         base = build_investigation_prompt(
@@ -51,8 +54,8 @@ def build_system_prompt(
             engine_state, user_context_section=user_context_section,
         )
 
-    # Append accumulated domain knowledge to every mode
-    return base + serialize_kb_section()
+    # Append this user's accumulated domain knowledge to every mode
+    return base + serialize_kb_section(user_id)
 
 
 __all__ = [

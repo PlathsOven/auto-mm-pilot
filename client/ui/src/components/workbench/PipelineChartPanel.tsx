@@ -289,7 +289,6 @@ export function PipelineChartPanel({ gridViewMode, onGridViewModeChange }: Pipel
             loading={timeSeriesLoading}
             error={timeSeriesError}
             metric={effectiveMetric}
-            smoothing={effectiveSmoothing}
           />
         ) : (
           <PipelineContributionsChart

@@ -114,6 +114,13 @@ class LlmOrchestrationConfig:
         default_factory=lambda: _env_int("LLM_SILENT_REJECTION_SWEEP_INTERVAL_SECS", 30)
     )
 
+    # Cap on outstanding proposals held per user in the in-memory pending
+    # map. Bounded so a runaway client cannot balloon memory; on overflow
+    # the oldest entry is evicted and logged eagerly as silent_rejection.
+    pending_proposals_max_per_user: int = field(
+        default_factory=lambda: _env_int("LLM_PENDING_PROPOSALS_MAX_PER_USER", 32)
+    )
+
     # Post-commit edit threshold — if a trader edits or deletes a block
     # within this many seconds of creating it, the edit is flagged as an
     # LLM first-pass failure. Beyond this window, edits are assumed to

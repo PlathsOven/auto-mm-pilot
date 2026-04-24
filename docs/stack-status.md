@@ -23,19 +23,39 @@
 
 | Component | File(s) | Status | Depends On | Notes |
 |-----------|---------|--------|------------|-------|
-| **FastAPI App** | `server/api/main.py` | `PROD` | Engine State Provider, LLM Service, WS Ticker | CORS enabled, SSE streaming, WS |
+| **FastAPI App** | `server/api/main.py` | `PROD` | Engine State Provider, LLM Service, WS Ticker, Silent Rejection Sweep | CORS enabled, SSE streaming, WS; lifespan starts the silent-rejection sweep task and best-effort deletes the legacy `domain_kb.json` |
 | **WS Ticker** | `server/api/ws.py` | `PROD` | Engine State Provider | Singleton background ticker broadcasts pipeline ticks to WS clients |
 | **Client WS Endpoint** | `server/api/client_ws.py` | `PROD` | WS Ticker, Stream Registry, Client WS Auth | Auth-gated `/ws/client` — inbound snapshots with ACK, outbound positions via broadcast |
 | **Client WS Auth** | `server/api/client_ws_auth.py` | `PROD` | `CLIENT_WS_API_KEY`, `CLIENT_WS_ALLOWED_IPS` env vars | API key + IP whitelist gate |
 | **OpenRouter Client** | `server/api/llm/client.py` | `PROD` | `OPENROUTER_API_KEY` env var | Async httpx, fallback model chain, `<think>` tag stripping |
-| **LLM Service** | `server/api/llm/service.py` | `PROD` | OpenRouter Client, Prompts, Engine State | Investigation (stream) |
+| **LLM Service** | `server/api/llm/service.py` | `PROD` | OpenRouter Client, Prompts, Engine State | Investigate + General chat streaming wrapper. Build mode bypasses this and uses `build_orchestrator.py` instead. |
 | **Investigation Prompt** | `server/api/llm/prompts/investigation.py` | `PROD` | Core | Investigation mode: reasoning protocol, data sections, engine commands |
-| **Build Prompt** | `server/api/llm/prompts/build.py` | `PROD` | Core | Build mode: stream onboarding + opinion → manual block via engine-command |
 | **General Prompt** | `server/api/llm/prompts/general.py` | `PROD` | Core | General mode: catch-all conversational, minimal engine summary |
-| **Shared Core** | `server/api/llm/prompts/core.py` | `PROD` | — | Role, framework, language rules, hard constraints, response discipline |
+| **Shared Core Prompt** | `server/api/llm/prompts/core.py` | `PROD` | — | Role, framework, language rules, hard constraints, response discipline |
+| **Router Prompt (Build S1)** | `server/api/llm/prompts/router.py` | `PROD` | Core | Stage-1 intake router — classifies as view / stream / headline / question / none |
+| **Intent Extractor Prompt (Build S2)** | `server/api/llm/prompts/intent_extractor.py` | `PROD` | Core | Stage-2 — emits `IntentOutput` (StructuredIntent / RawIntent / clarifying_question) |
+| **Synthesiser Prompt (Build S3)** | `server/api/llm/prompts/synthesiser.py` | `PROD` | Core, Parameter Presets | Stage-3 — `select_preset` / `derive_custom_block` tool schemas |
+| **Critique Prompt (Build S3.5)** | `server/api/llm/prompts/critique.py` | `PROD` | Core | Stage-3.5 — reviews custom derivations against framework invariants |
+| **Build Orchestrator** | `server/api/llm/build_orchestrator.py` | `PROD` | Stage Runners, all Build-mode prompts | Event loop + four `_run_*` stage runners (router → intent → synthesis → critique) for `/api/build/converse` |
+| **Stage Runners** | `server/api/llm/stages.py` | `PROD` | OpenRouter Client, LLM Call Audit | `run_json_stage` / `run_tool_stage` wrap `record_call` + `complete_with_fallback`; host `StageError` |
+| **OpenRouter Parse Helpers** | `server/api/llm/openrouter_parse.py` | `PROD` | — | `get_content`, `get_tool_call`, `strip_markdown_fences`, `parse_json_content` |
+| **Synthesis Payload** | `server/api/llm/synthesis_payload.py` | `PROD` | Parameter Presets | Stage-3 tool-call → `ProposedBlockPayload` with framework-invariant validation |
+| **Impact Preview (Build S4)** | `server/api/llm/preview.py` | `PROD` | Core Pipeline | Runs pipeline on a simulated stream-config list, diffs `desired_pos_df` against live state. Backs `/api/blocks/preview`. |
+| **Orchestration Config** | `server/api/llm/orchestration_config.py` | `PROD` | env vars | `LlmOrchestrationConfig` — every threshold / model chain / temperature / token budget, frozen dataclass |
+| **Parameter Presets** | `server/api/llm/parameter_presets.py` | `PROD` | — | Canonical situation → `(BlockConfig, UnitConversion)` mappings; serialised into Stage-3 prompt |
+| **LLM Call Audit** | `server/api/llm/audit.py` | `PROD` | LLM ORM | `record_call` context manager — one `LlmCall` row per outbound LLM request |
+| **Feedback Detector (Build S5)** | `server/api/llm/feedback_detector.py` | `PROD` | OpenRouter Client, Domain KB, LLM Failures, User Context | Async fanout — corrections → `domain_kb`, discontent → `llm_failures`, preferences → `user_context` |
+| **Block Intents** | `server/api/llm/block_intents.py` | `PROD` | LLM ORM | Persists `BlockIntent` rows — intent / synthesis / preview triplet attached to every committed block |
+| **LLM Failures** | `server/api/llm/failures.py` | `PROD` | LLM ORM | Persists `LlmFailure` — discontent / preview_rejection / silent_rejection / post_commit_edit |
+| **Pending Proposals Store** | `server/api/llm/pending_proposals.py` | `PROD` | — | Per-user in-memory map under `asyncio.Lock`; registers on `/api/blocks/preview`, resolves on commit / preview_rejection, overflow-evicts into silent_rejection |
+| **Silent Rejection Sweep** | `server/api/llm/silent_rejection_sweep.py` | `PROD` | Pending Proposals Store, LLM Failures | Background coroutine started by `main.lifespan`; drains stale proposals every `silent_rejection_sweep_interval_secs` into `llm_failures(signal_type="silent_rejection")` |
+| **User Context** | `server/api/llm/user_context.py` | `PROD` | LLM ORM | Per-user controlled-vocabulary store + prompt serialiser |
+| **Domain KB** | `server/api/llm/domain_kb.py` | `PROD` | LLM ORM | Per-user factual-correction store (`domain_kb_entries` table, upsert on `(user_id, topic)`) serialised into every mode's system prompt |
+| **LLM ORM Models** | `server/api/llm/models.py` | `PROD` | SQLAlchemy | `LlmCall`, `BlockIntent`, `LlmFailure`, `UserContextEntry`, `DomainKbEntry` tables |
 | **Snapshot Buffer** | `server/api/llm/snapshot_buffer.py` | `PROD` | — | Ring buffer + delta table builder |
 | **Stream Context DB** | `server/api/llm/context_db.py` | `MOCK` | — | Hardcoded stream metadata; will be client-contributed via API |
 | **Engine State Provider** | `server/api/engine_state.py` | `PROD` | Core Pipeline | Runs `server/core` pipeline, serializes snapshots for LLM layer |
+| **Shared Block Apply Flow** | `server/api/blocks/manual_block.py` | `PROD` | Stream Registry, Engine State Provider | `apply_manual_block(...)` — create → configure → (optional) ingest → mark → rerun+broadcast with rollback on any step. Used by `POST /api/blocks` and Build-orchestrator's `/api/blocks/commit`. |
 | **Config** | `server/api/config.py` | `PROD` | `.env` | Model lists, generation params, buffer config |
 | **Core Pipeline** | `server/core/` (`config.py`, `helpers.py`, `transforms/`, `pipeline.py`, `serializers.py`, `mock_scenario.py`) | `PROD` | Polars | Steps 4–6: config, helpers, per-step transform modules in `transforms/`, orchestration pipeline, serializers. Running on mock scenario data. |
 | **Connector Registry** | `server/core/connectors/` (`__init__.py`, `base.py`, `registry.py`, `realized_vol.py`) | `PROD` | `server/core/config.py` | Pre-built input transforms. One registered connector today: `realized_vol` (multi-horizon EWMA over spot ticks → annualized RV). Adding a connector = one new module + registry entry. |
@@ -63,13 +83,14 @@
 | **Mode Provider** | `client/ui/src/providers/ModeProvider.tsx` | `PROD` | — | Chat mode (investigate / build / general) |
 | **Command Palette** | `client/ui/src/providers/CommandPaletteProvider.tsx` | `PROD` | FocusProvider | Cmd-K jump-to surfaces |
 | **Notifications** | `client/ui/src/providers/NotificationsProvider.tsx` (+ `components/notifications/`) | `PROD` | Server push endpoint | Toasts + persisted notification feed |
-| **Chat Provider** | `client/ui/src/providers/ChatProvider.tsx` | `PROD` | LLM API Client, ModeProvider | Routes user messages to server `/api/investigate` (SSE) — mode-aware system prompt selected via ModeProvider |
+| **Chat Provider** | `client/ui/src/providers/ChatProvider.tsx` | `PROD` | LLM API Client, Build API Client, ModeProvider | Mode-aware routing: Build → `/api/build/converse` (5-stage pipeline, SSE) via `buildApi.streamBuildConverse`; Investigate / General → `/api/investigate` (SSE) |
 | **Transforms Provider** | `client/ui/src/providers/TransformsProvider.tsx` | `PROD` | transforms API | Stream-config draft state for Anatomy editor |
 | **LLM API Client** | `client/ui/src/services/llmApi.ts` | `PROD` | FastAPI App | SSE client for `/api/investigate` |
 | **Desired Position Grid** | `client/ui/src/components/DesiredPositionGrid.tsx` | `PROD` | WebSocketProvider, FocusProvider | Clickable cells set focus instead of opening chat |
-| **Pipeline Chart** | `client/ui/src/components/PipelineChart.tsx` (+ `components/PipelineChart/`) | `PROD` | WebSocketProvider, pipeline-timeseries endpoint | ECharts time-series for Position / Fair / Variance views |
+| **Pipeline Chart** | `client/ui/src/components/PipelineChart.tsx` (+ `components/PipelineChart/`) | `PROD` | WebSocketProvider, pipeline-timeseries endpoint | ECharts time-series — smoothable metrics (desired / edge / variance / fair / marketCalc) overlay instant + smoothed as two lines; marketSource is a single step line |
 | **Team Chat (LLM Chat)** | `client/ui/src/components/LlmChat.tsx` | `PROD` | ChatProvider | Streaming assistant + system messages |
 | **Block Drawer** | `client/ui/src/components/studio/brain/BlockDrawer.tsx` | `PROD` | Block API | Unified create/edit/inspect drawer |
+| **Block Intent Card** | `client/ui/src/components/proposal/BlockIntentCard.tsx` (+ `hooks/useStreamIntent.ts`) | `PROD` | Build API (`fetchStreamIntent`) | Read-only "Why this block exists" card — verbatim phrasing + preset/custom reasoning + commit timestamp, mounted in `StreamInspector` + `BlockInspector`; hidden on 404 |
 | **Engine Commands** | `client/ui/src/services/engineCommands.ts` | `PROD` | Stream API, Block API | Parses + executes engine-command fenced blocks from LLM responses |
 | **Stream Status List** | `client/ui/src/components/floor/StreamStatusList.tsx` | `PROD` | WebSocketProvider | Read-only stream list (name + last update) |
 | **Stream Canvas** | `client/ui/src/components/studio/StreamCanvas.tsx` | `PROD` | stream API, TransformsProvider | 7-section create/edit form hosted in Anatomy's right detail panel |

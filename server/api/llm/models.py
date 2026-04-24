@@ -4,8 +4,9 @@ ORM models for the LLM orchestration layer.
 Milestone 1 registers ``LlmCall`` only — every outbound LLM request is
 written here with its full payload, tool calls, latency, and token counts.
 Later milestones add ``LlmFailure`` / ``UserContextEntry`` / ``BlockIntent``
-to this module; keeping the LLM concerns in their own models file (separate
-from ``server/api/auth/models.py``) scopes the blast radius of schema changes.
+/ ``DomainKbEntry`` to this module; keeping the LLM concerns in their own
+models file (separate from ``server/api/auth/models.py``) scopes the blast
+radius of schema changes.
 
 All datetimes are UTC-naive — matching the existing convention in
 ``server/api/auth/models.py``.
@@ -174,5 +175,35 @@ Index(
     "ix_user_context_user_key",
     UserContextEntry.user_id,
     UserContextEntry.key,
+    unique=True,
+)
+
+
+class DomainKbEntry(Base):
+    """Per-user framework-correction entries written by the feedback detector.
+
+    On ``(user_id, topic)`` conflict, the newer entry refines the older
+    one — latest observation wins. The prompt-build layer reads this
+    table at every LLM call and injects non-empty entries into a
+    ``## DOMAIN KNOWLEDGE`` section appended to the system prompt.
+    """
+
+    __tablename__ = "domain_kb_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False,
+    )
+    topic: Mapped[str] = mapped_column(String(128), nullable=False)
+    misconception: Mapped[str] = mapped_column(Text, nullable=False)
+    correct_fact: Mapped[str] = mapped_column(Text, nullable=False)
+    why_it_matters: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+Index(
+    "ix_domain_kb_user_topic",
+    DomainKbEntry.user_id,
+    DomainKbEntry.topic,
     unique=True,
 )

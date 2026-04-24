@@ -4,7 +4,7 @@ Unified feedback detector.
 One LLM call per completed trader turn emits three detection types in
 a single JSON object; the caller fans the output to three destinations:
 
-- ``factual_correction``  → ``domain_kb.json`` (global knowledge base)
+- ``factual_correction``  → ``domain_kb_entries`` (per-user knowledge base)
 - ``discontent_signals[]`` → ``llm_failures`` (``signal_type="discontent"``)
 - ``preference_signals[]`` → ``user_context_entries`` (upsert by key)
 
@@ -216,7 +216,7 @@ def _fanout(
 ) -> None:
     """Dispatch the detector output to its three destinations."""
 
-    # Destination 1: domain_kb.json (unchanged from the legacy detector).
+    # Destination 1: domain_kb_entries — scoped to the calling user.
     correction = result.get("factual_correction")
     if isinstance(correction, dict):
         entry = {
@@ -226,7 +226,7 @@ def _fanout(
             "why_it_matters": correction.get("why_it_matters", ""),
         }
         try:
-            save_domain_kb_entry(entry)
+            save_domain_kb_entry(user_id, entry)
         except Exception:
             log.warning("domain_kb save failed", exc_info=True)
         # Mirror to llm_failures for analytics.

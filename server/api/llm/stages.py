@@ -14,6 +14,7 @@ the LLM-call glue.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from server.api.llm.audit import record_call
@@ -40,8 +41,9 @@ async def run_json_stage(
     """Run a JSON-shaped LLM call and return the parsed content.
 
     Records the call to ``llm_calls`` and extracts the JSON dict from
-    ``choices[0].message.content``. Parse errors propagate as
-    ``json.JSONDecodeError``.
+    ``choices[0].message.content``. A malformed JSON body surfaces as
+    ``StageError`` with the stage name attached; downstream Pydantic
+    validation is still the caller's responsibility.
     """
     async with record_call(
         user_id=user_id,
@@ -62,7 +64,10 @@ async def run_json_stage(
         )
         handle.record_model_used(model_used)
         handle.capture_openrouter_response(resp)
-    return parse_json_content(resp)
+    try:
+        return parse_json_content(resp)
+    except json.JSONDecodeError as exc:
+        raise StageError(f"{stage} response was not valid JSON: {exc}") from exc
 
 
 async def run_tool_stage(
@@ -80,9 +85,9 @@ async def run_tool_stage(
 ) -> tuple[str, dict[str, Any]]:
     """Run a forced tool-call LLM request and return ``(name, args)``.
 
-    Records the call and pulls the first ``tool_calls`` entry. Raises
-    ``ValueError`` when the response carries no tool calls or arguments
-    are malformed.
+    Records the call and pulls the first ``tool_calls`` entry. Missing
+    tool calls or malformed arguments surface as ``StageError`` with the
+    stage name attached.
     """
     async with record_call(
         user_id=user_id,
@@ -105,4 +110,7 @@ async def run_tool_stage(
         )
         handle.record_model_used(model_used)
         handle.capture_openrouter_response(resp)
-    return get_tool_call(resp)
+    try:
+        return get_tool_call(resp)
+    except ValueError as exc:
+        raise StageError(f"{stage} tool call failed: {exc}") from exc

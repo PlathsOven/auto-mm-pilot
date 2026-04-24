@@ -13,6 +13,7 @@ import {
 } from "../../studio/brain/blockDrawerState";
 import { useSnapshotEditor } from "../../studio/brain/useSnapshotEditor";
 import { useBlockDraftSubmit } from "../../studio/brain/useBlockDraftSubmit";
+import { BlockIntentCard } from "../../proposal/BlockIntentCard";
 
 interface BlockInspectorProps {
   blockKey: BlockKey;
@@ -97,7 +98,7 @@ export function BlockInspector({ blockKey }: BlockInspectorProps) {
           {blocks == null ? "Loading block…" : `Block "${blockKey.blockName}" no longer exists.`}
         </p>
       ) : (
-        <BlockEditor block={block} isManual={isManual} />
+        <BlockEditor block={block} isManual={isManual} streamName={blockKey.streamName} />
       )}
     </div>
   );
@@ -108,7 +109,15 @@ export function BlockInspector({ blockKey }: BlockInspectorProps) {
  * components used by the create-mode BlockDrawer so the two surfaces stay
  * visually consistent.
  */
-function BlockEditor({ block, isManual }: { block: BlockRow; isManual: boolean }) {
+function BlockEditor({
+  block,
+  isManual,
+  streamName,
+}: {
+  block: BlockRow;
+  isManual: boolean;
+  streamName: string;
+}) {
   const [draft, setDraft] = useState<Draft>(() => draftFromBlock(block));
   // Re-sync the draft whenever the underlying block identity changes so
   // navigating between blocks doesn't show stale edits. Key on the full
@@ -238,6 +247,8 @@ function BlockEditor({ block, isManual }: { block: BlockRow; isManual: boolean }
             Stream-sourced block — read-only. Edit via the SDK or push new snapshot rows on the client.
           </p>
         )}
+
+        <BlockIntentCard streamName={streamName} />
       </div>
 
       {isManual && (
