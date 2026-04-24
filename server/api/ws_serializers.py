@@ -119,6 +119,19 @@ def positions_at_tick(
         pl.col("smoothed_var").fill_null(0.0).alias("smoothedVar"),
         pl.col("smoothed_desired_position").fill_null(0.0).round(2).alias("desiredPos"),
         pl.col("raw_desired_position").fill_null(0.0).round(2).alias("rawDesiredPos"),
+        # Stage H exposure columns — pre-correlation Kelly output. Equal
+        # to the position fields when both correlation stores are empty
+        # (identity matrices). Nullable only for frames produced before
+        # Stage H landed; live pipeline emits them unconditionally.
+        pl.col("raw_desired_exposure").fill_null(0.0).round(2).alias("rawDesiredExposure"),
+        pl.col("smoothed_desired_exposure").fill_null(0.0).round(2).alias("smoothedDesiredExposure"),
+        # Hypothetical columns — null when no draft is live; rounded when
+        # the draft solve wrote a value. ``fill_null`` is deliberately
+        # omitted so the wire distinguishes "no draft" from "draft = 0".
+        pl.col("raw_desired_position_hypothetical").round(2)
+            .alias("rawDesiredPositionHypothetical"),
+        pl.col("smoothed_desired_position_hypothetical").round(2)
+            .alias("smoothedDesiredPositionHypothetical"),
         pl.lit(0.0).alias("currentPos"),
         pl.col("total_fair").fill_null(0.0).alias("totalFair"),
         pl.col("smoothed_total_fair").fill_null(0.0).alias("smoothedTotalFair"),

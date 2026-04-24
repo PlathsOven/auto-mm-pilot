@@ -78,6 +78,10 @@ class EngineState:
         transform_config: dict[str, Any] | None = None,
         aggregate_market_values: dict[tuple[str, str], float] | None = None,
         space_market_values: dict[tuple[str, str, str], float] | None = None,
+        symbol_correlations: dict[tuple[str, str], float] | None = None,
+        expiry_correlations: dict[tuple[str, str], float] | None = None,
+        symbol_correlations_draft: dict[tuple[str, str], float] | None = None,
+        expiry_correlations_draft: dict[tuple[str, str], float] | None = None,
     ) -> dict[str, pl.DataFrame]:
         """Re-run the pipeline for this user and update all state."""
         if not streams:
@@ -105,6 +109,10 @@ class EngineState:
             transform_config=self.transform_config,
             aggregate_market_values=aggregate_market_values or {},
             space_market_values=space_market_values or {},
+            symbol_correlations=symbol_correlations or {},
+            expiry_correlations=expiry_correlations or {},
+            symbol_correlations_draft=symbol_correlations_draft,
+            expiry_correlations_draft=expiry_correlations_draft,
         )
 
         self.pipeline_snapshot = snapshot_from_pipeline(
@@ -182,12 +190,23 @@ def rerun_pipeline(
     bankroll: float | None = None,
     transform_config: dict[str, Any] | None = None,
 ) -> dict[str, pl.DataFrame]:
+    from server.api.correlation_store import (
+        get_expiry_store as get_expiry_corr,
+        get_symbol_store as get_symbol_corr,
+    )
     from server.api.market_value_store import to_dict as mv_to_dict
+
+    sym_corr = get_symbol_corr(user_id)
+    exp_corr = get_expiry_corr(user_id)
     return get_engine(user_id).rerun_pipeline(
         streams=streams,
         bankroll=bankroll,
         transform_config=transform_config,
         aggregate_market_values=mv_to_dict(user_id),
+        symbol_correlations=sym_corr.committed_map(),
+        expiry_correlations=exp_corr.committed_map(),
+        symbol_correlations_draft=sym_corr.draft_map(),
+        expiry_correlations_draft=exp_corr.draft_map(),
     )
 
 

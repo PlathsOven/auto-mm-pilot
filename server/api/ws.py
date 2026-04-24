@@ -28,6 +28,10 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from server.api.auth.tokens import resolve_user_id_from_session
 from server.api.config import TICK_INTERVAL_SECS
+from server.api.correlation_store import (
+    clear_all_dirty as clear_correlation_dirty,
+    is_any_dirty as is_correlation_dirty,
+)
 from server.api.engine_state import get_pipeline_results, rerun_pipeline
 from server.api.market_value_store import clear_dirty, is_dirty, to_dict as mv_to_dict
 from server.api.models import ServerPayload, SilentStreamAlert, UnregisteredPushAttempt
@@ -186,10 +190,21 @@ def _extract_timeline(results: dict[str, pl.DataFrame]) -> tuple[pl.DataFrame, p
 
 
 async def _check_dirty_rerun(user_id: str) -> None:
-    """Coalesced pipeline rerun if the user's market value store is dirty."""
-    if not is_dirty(user_id):
+    """Coalesced pipeline rerun if any per-user input store is dirty.
+
+    Checks both the aggregate market-value store and the correlation
+    stores (symbol + expiry). Draft-correlation writes flip the dirty
+    flag so the next tick re-runs Stage H against the new draft and
+    broadcasts the updated ``*_hypothetical`` columns.
+    """
+    mv_dirty = is_dirty(user_id)
+    corr_dirty = is_correlation_dirty(user_id)
+    if not (mv_dirty or corr_dirty):
         return
-    clear_dirty(user_id)
+    if mv_dirty:
+        clear_dirty(user_id)
+    if corr_dirty:
+        clear_correlation_dirty(user_id)
     registry = get_stream_registry(user_id)
     stream_configs = registry.build_stream_configs()
     if not stream_configs:
