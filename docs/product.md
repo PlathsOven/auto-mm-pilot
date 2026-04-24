@@ -98,6 +98,20 @@ The raw desired position (`edge * bankroll / var`) assumes we can instantly repo
 
 When the smoothed position is close to the raw position, it means the contributors to edge and variance are expected to remain mostly similar looking forward — we don't expect to need much repositioning. When they diverge, we are liquidity-constrained and the executable position is lagging the ideal.
 
+### Exposure vs. position
+
+Everything up to and including smoothing produces what the trader *wants their exposure to be* to each risk dimension — per-(symbol, expiry) scalars we call **desired exposures**. These are the Kelly outputs computed as if every (symbol, expiry) pair were uncorrelated. Holding +100 BTC-28MAR exposure and +100 ETH-28MAR exposure, the engine is saying "I want the P/L sensitivity to BTC vol and to ETH vol each to be +100 vega" — independently.
+
+But BTC and ETH vol aren't independent. If they move 60% together, holding +100 of each over-delivers: the first position already gives the trader some exposure to the second. The right **position** to put on is smaller in each leg than the exposure vector says. The translation happens in a final pipeline stage called **Stage H — exposure → position**, via the separable direct inversion
+
+```
+P = Cₛ⁻¹ · E · Cₑ⁻¹
+```
+
+where `E` is the k × m exposure matrix at each timestamp, `Cₛ` is the symbol-symbol correlation matrix (k × k), and `Cₑ` is the expiry-expiry correlation matrix (m × m). The trader maintains `Cₛ` and `Cₑ` directly, as first-class pipeline infrastructure — both matrices live in the Anatomy canvas as the "Correlations" node between `position_sizing` and the Desired Position output. Default state: both matrices are identity (fresh account, empty stores), which collapses Stage H to `P = E` cell-for-cell. Day one, positions and exposures coincide; the moment the trader declares BTC and ETH 0.5-correlated, the position vector shrinks accordingly.
+
+Two design choices worth naming: (1) matrices are edited with a **draft / commit** flow — an edit debounces into a pending draft, the pipeline reruns immediately and broadcasts the hypothetical positions alongside the committed ones so the editor shows live preview, and Confirm promotes draft → committed atomically through a loud diff modal. This mirrors how market-value edits work. (2) **Singular matrices fail loudly** — there is no Tikhonov regulariser or pseudo-inverse. If the trader declares two things perfectly correlated (ρ = ±1) or creates a redundant row, the pipeline refuses to run Stage H and surfaces the failure in the Notifications Center with a link back to the editor. Silently producing a regularised position from an unconstrained inverse is exactly the kind of "feature shows numbers but they're wrong" trap this framework is built to avoid.
+
 ### The LLM Explanation Layer
 
 The engine produces numbers. The LLM layer produces understanding. It receives the full pipeline state — per-block contributions, aggregated edge and variance, raw and smoothed positions — and translates this into plain trading language. It follows a strict reasoning chain: (1) did edge or variance drive the change? (2) which specific stream? (3) what happened in that stream? (4) how did total fair value compare against the aggregate market-implied reference? (5) what is the directional effect on position?
