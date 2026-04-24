@@ -19,7 +19,6 @@ Stages 1+2 into a single structured-output call (spec §16.3).
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -239,21 +238,21 @@ async def _run_router(
         {"role": "system", "content": ROUTER_SYSTEM_PROMPT},
         *conversation,
     ]
+    data = await run_json_stage(
+        client=client,
+        user_id=user_id,
+        conversation_turn_id=conversation_turn_id,
+        stage="router",
+        mode="build",
+        messages=messages,
+        models=orch_config.router_models,
+        temperature=orch_config.router_temperature,
+        max_tokens=orch_config.router_max_tokens,
+    )
     try:
-        data = await run_json_stage(
-            client=client,
-            user_id=user_id,
-            conversation_turn_id=conversation_turn_id,
-            stage="router",
-            mode="build",
-            messages=messages,
-            models=orch_config.router_models,
-            temperature=orch_config.router_temperature,
-            max_tokens=orch_config.router_max_tokens,
-        )
         return IntakeClassification(**data)
-    except (json.JSONDecodeError, ValidationError) as exc:
-        raise StageError(f"router output parse failed: {exc}") from exc
+    except ValidationError as exc:
+        raise StageError(f"router output validation failed: {exc}") from exc
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -283,21 +282,23 @@ async def _run_intent_extractor(
         {"role": "system", "content": system_prompt},
         *conversation,
     ]
+    data = await run_json_stage(
+        client=client,
+        user_id=user_id,
+        conversation_turn_id=conversation_turn_id,
+        stage="intent",
+        mode="build",
+        messages=messages,
+        models=orch_config.intent_models,
+        temperature=orch_config.intent_temperature,
+        max_tokens=orch_config.intent_max_tokens,
+    )
     try:
-        data = await run_json_stage(
-            client=client,
-            user_id=user_id,
-            conversation_turn_id=conversation_turn_id,
-            stage="intent",
-            mode="build",
-            messages=messages,
-            models=orch_config.intent_models,
-            temperature=orch_config.intent_temperature,
-            max_tokens=orch_config.intent_max_tokens,
-        )
         return IntentOutput(**data)
-    except (json.JSONDecodeError, ValidationError, ValueError) as exc:
-        raise StageError(f"intent output parse failed: {exc}") from exc
+    except (ValidationError, ValueError) as exc:
+        # ``ValueError`` covers IntentOutput's model_post_init — the
+        # "exactly one of structured/raw/clarifying_question" check.
+        raise StageError(f"intent output validation failed: {exc}") from exc
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -329,21 +330,18 @@ async def _run_synthesiser(
             ),
         },
     ]
-    try:
-        tool_name, tool_args = await run_tool_stage(
-            client=client,
-            user_id=user_id,
-            conversation_turn_id=conversation_turn_id,
-            stage="synthesis",
-            mode="build",
-            messages=messages,
-            models=orch_config.synthesis_models,
-            tools=SYNTHESISER_TOOLS,
-            temperature=orch_config.synthesis_temperature,
-            max_tokens=orch_config.synthesis_max_tokens,
-        )
-    except ValueError as exc:
-        raise StageError(f"synthesiser tool call failed: {exc}") from exc
+    tool_name, tool_args = await run_tool_stage(
+        client=client,
+        user_id=user_id,
+        conversation_turn_id=conversation_turn_id,
+        stage="synthesis",
+        mode="build",
+        messages=messages,
+        models=orch_config.synthesis_models,
+        tools=SYNTHESISER_TOOLS,
+        temperature=orch_config.synthesis_temperature,
+        max_tokens=orch_config.synthesis_max_tokens,
+    )
     if tool_name == "select_preset":
         return build_preset_synthesis(intent, tool_args)
     if tool_name == "derive_custom_block":
@@ -376,20 +374,20 @@ async def _run_critique(
             ),
         },
     ]
+    data = await run_json_stage(
+        client=client,
+        user_id=user_id,
+        conversation_turn_id=conversation_turn_id,
+        stage="critique",
+        mode="build",
+        messages=messages,
+        models=orch_config.critique_models,
+        temperature=orch_config.critique_temperature,
+        max_tokens=orch_config.critique_max_tokens,
+    )
     try:
-        data = await run_json_stage(
-            client=client,
-            user_id=user_id,
-            conversation_turn_id=conversation_turn_id,
-            stage="critique",
-            mode="build",
-            messages=messages,
-            models=orch_config.critique_models,
-            temperature=orch_config.critique_temperature,
-            max_tokens=orch_config.critique_max_tokens,
-        )
         return CustomDerivationCritique(**data)
-    except (json.JSONDecodeError, ValidationError) as exc:
-        raise StageError(f"critique output parse failed: {exc}") from exc
+    except ValidationError as exc:
+        raise StageError(f"critique output validation failed: {exc}") from exc
 
 
