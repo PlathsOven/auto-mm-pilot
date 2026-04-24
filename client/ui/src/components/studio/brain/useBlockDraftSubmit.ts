@@ -90,5 +90,12 @@ export function useBlockDraftSubmit(
     [mode, onSaved, onClose],
   );
 
-  return { submitting, error, submit, clearError: () => setError(null) };
+  // Memoized so the consuming ``BlockDrawer``'s draft-reset useEffect
+  // (which lists clearError in its dep array) doesn't re-run on every
+  // render and wipe the trader's in-progress edits — that was why clicks
+  // on the applies-to chips appeared to do nothing: the state update
+  // landed, then the effect immediately reset the draft.
+  const clearError = useCallback(() => setError(null), []);
+
+  return { submitting, error, submit, clearError };
 }

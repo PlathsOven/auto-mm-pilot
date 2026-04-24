@@ -6,6 +6,14 @@ Format per entry: **Rule.** Then `Why:` (what went wrong, so edge cases can be j
 
 ---
 
+## Memoize hook return values that callers put in useEffect deps
+
+**Why:** 2026-04-24 — the BlockDrawer's applies-to chips appeared to be un-clickable. Root cause: `useBlockDraftSubmit` returned `clearError: () => setError(null)` as a fresh inline arrow every render. The consuming `BlockDrawer` listed `clearError` in the dep array of its draft-reset useEffect, so the effect ran on *every* render — any successful `setDraft` call (from clicking a chip, typing in a field) immediately re-rendered, which re-ran the effect, which called `setDraft({ ...EMPTY_DRAFT, ... })` and wiped the just-applied edit. Typing-based fields sometimes appeared to work because React batching could make the flash brief enough to miss; click-based state (the applies-to chips) simply looked dead. Sibling `submit` was already `useCallback`-memoized, which is why *it* didn't break; the bug was that `clearError` had been skipped.
+
+**How to apply:** Any value returned from a custom hook that a caller is likely to put in a `useEffect` dep array must be reference-stable. Setters from `useState` already are. Arrow-wrappers around setters (`clearError`, `toggleX`, `resetY`) must be wrapped in `useCallback` with correct deps. If a hook returns multiple callables, memoize them individually rather than recreating the wrapper object — the object itself can change reference each render without breaking callers as long as the individual fields are stable. When debugging a React component where user input seems to vanish, audit every `useEffect` dep for unstable references *first* — it's the single most common cause.
+
+---
+
 ## Manual Brain Rule lifted 2026-04-21 — `server/core/` is a normal LLM lane
 
 **Why:** Between 2025 and 2026-04-20, LLMs were barred from editing any file under `server/core/` (the "Manual Brain Rule"). The bugs that actually traced into that lane during that window were one-liner type casts and VAR_FLOOR bounds — trivial fixes whose handoff to a human cost far more than a mis-edit would have. The rule was producing queue time, not safety. The 4-space pipeline rewrite (`tasks/spec-pipeline-4-space.md`) was the forcing function. See `docs/decisions.md` 2026-04-21 for the full reasoning.

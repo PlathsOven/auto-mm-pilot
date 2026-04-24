@@ -73,7 +73,9 @@ export function BlockDrawer({ open, mode, block, initialParams, onClose, onSaved
     };
   }, [open]);
 
-  // Reset draft when the drawer opens or the block changes
+  // Reset draft when the drawer opens or the block changes. `clearError`
+  // is memoized in `useBlockDraftSubmit` so this effect fires only on
+  // genuine open/mode/block/initialParams changes — not on every render.
   useEffect(() => {
     if (!open) return;
     if (mode === "create" && initialParams) {
