@@ -38,6 +38,7 @@ from server.api.routers.events import router as events_router
 from server.api.routers.llm import router as llm_router
 from server.api.routers.market_values import router as market_values_router
 from server.api.routers.notifications import router as notifications_router
+from server.api.routers.opinions import router as opinions_router
 from server.api.routers.pipeline import router as pipeline_router
 from server.api.routers.positions_replay import router as positions_replay_router
 from server.api.routers.snapshots import router as snapshots_router
@@ -189,6 +190,7 @@ app.include_router(pipeline_router)
 app.include_router(blocks_router)
 app.include_router(market_values_router)
 app.include_router(notifications_router)
+app.include_router(opinions_router)
 app.include_router(diagnostics_router)
 app.include_router(positions_replay_router)
 app.include_router(connectors_router)

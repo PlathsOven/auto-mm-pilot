@@ -344,6 +344,49 @@ class BlockListResponse(BaseModel):
     blocks: list[BlockRowResponse]
 
 
+# ---------------------------------------------------------------------------
+# Opinions — the unified trader-facing view over streams + manual blocks.
+# ---------------------------------------------------------------------------
+# An "opinion" is what the trader actually manages: a data-driven belief (a
+# live stream) or a discretionary view (a manual block). Both manifest as one
+# entry in the stream registry, so Opinion is an aggregation layer over
+# (StreamRegistration + BlockIntent + derived block count) — not a new store.
+#
+# description is mutable (persists in StreamRegistration.description) and is
+# what the trader edits inline; original_phrasing is the immutable audit
+# phrasing captured by the Build orchestrator in BlockIntent, kept read-only
+# so the feedback loop in tasks/lessons.md ("Ground domain knowledge in
+# prompts") still has a frozen reference point.
+
+OpinionKind = Literal["stream", "manual"]
+
+
+class Opinion(BaseModel):
+    """One row in the Opinions panel — aggregated view, not a stored entity."""
+    name: str
+    kind: OpinionKind
+    description: str | None = None
+    original_phrasing: str | None = None
+    last_update: str | None = None
+    active: bool
+    block_count: int
+    has_concerns: bool = False
+
+
+class OpinionsListResponse(BaseModel):
+    opinions: list[Opinion]
+
+
+class OpinionDescriptionPatch(BaseModel):
+    """PATCH /api/opinions/{name}/description body — pass null to clear."""
+    description: str | None = None
+
+
+class OpinionActivePatch(BaseModel):
+    """PATCH /api/opinions/{name}/active body — toggles pipeline contribution."""
+    active: bool
+
+
 class ManualBlockRequest(BaseModel):
     """User creates a manual block by specifying all input parameters."""
     stream_name: str = Field(..., min_length=1, description="Name for the manual stream")
