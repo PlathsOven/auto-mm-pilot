@@ -21,12 +21,14 @@ from fastapi.responses import StreamingResponse
 
 from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
+from server.api.blocks.manual_block import apply_manual_block
 from server.api.engine_state import (
     current_positions_per_dim,
     get_engine,
     get_engine_state,
     rerun_and_broadcast,
 )
+from server.api.llm import pending_proposals
 from server.api.llm.block_intents import save_block_intent
 from server.api.llm.build_orchestrator import run_build_pipeline
 from server.api.llm.failures import log_failure
@@ -34,6 +36,7 @@ from server.api.llm.feedback_detector import detect_and_store
 from server.api.llm.orchestration_config import get_llm_orchestration_config
 from server.api.llm.preview import build_preview
 from server.api.llm.service import LlmService
+from server.api.llm.silent_rejection_sweep import log_silent_rejection
 from server.api.models import (
     BlockCommitRequest,
     BlockCommitResponse,
@@ -141,12 +144,27 @@ async def blocks_preview(
     """Return the desired-position diff that would result from applying
     the proposal — without mutating live state."""
     try:
-        return await asyncio.to_thread(build_preview, user.id, req.payload)
+        response = await asyncio.to_thread(build_preview, user.id, req.payload)
     except Exception as exc:
         log.exception("preview failed for user=%s", user.id)
         raise HTTPException(
             status_code=500, detail=f"Preview failed: {exc}",
         ) from exc
+
+    # Register the surfaced proposal for silent-rejection tracking.
+    # conversation_turn_id is None because BlockPreviewRequest doesn't
+    # carry one — previews can come from paths outside a Build converse
+    # turn (spec §Acceptance criteria).
+    orch_config = get_llm_orchestration_config()
+    evictee = await pending_proposals.register(
+        user_id=user.id,
+        stream_name=req.payload.stream_name,
+        conversation_turn_id=None,
+        max_per_user=orch_config.pending_proposals_max_per_user,
+    )
+    if evictee is not None:
+        asyncio.create_task(log_silent_rejection(evictee))
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -179,54 +197,25 @@ async def blocks_commit(
             status_code=422, detail=f"Invalid BlockConfig: {exc}",
         ) from exc
 
-    # Apply via registry helpers — matches the existing manual-block
-    # flow in routers/blocks.py so registry invariants are enforced
-    # consistently across both paths.
-    try:
-        registry.create(payload.stream_name, list(payload.key_cols))
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-    try:
-        registry.configure(
-            payload.stream_name,
-            scale=payload.scale,
-            offset=payload.offset,
-            exponent=payload.exponent,
-            block=block,
-            applies_to=None,
-        )
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-    if payload.action == "create_manual_block" and payload.snapshot_rows:
-        try:
-            registry.ingest_snapshot(
-                payload.stream_name,
-                [r.model_dump(mode="json") for r in payload.snapshot_rows],
-            )
-        except (KeyError, ValueError) as exc:
-            registry.delete(payload.stream_name)
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
-        registry.manual_blocks.mark(
-            payload.stream_name,
-            datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
-        )
-
-    stream_configs = registry.build_stream_configs()
-    if stream_configs:
-        try:
-            await rerun_and_broadcast(user.id, stream_configs)
-        except Exception as exc:
-            log.exception("Pipeline re-run failed after commit")
-            try:
-                registry.delete(payload.stream_name)
-            except KeyError:
-                pass
-            raise HTTPException(
-                status_code=500,
-                detail=f"Block registered but pipeline re-run failed: {exc}",
-            ) from exc
+    # Bring the stream live via the shared helper. Empty snapshot_rows
+    # (the create_stream action) still runs the rerun — the helper skips
+    # ingest + manual-block mark in that case.
+    snapshot_dicts: list[dict] = (
+        [r.model_dump(mode="json") for r in payload.snapshot_rows]
+        if payload.action == "create_manual_block"
+        else []
+    )
+    await apply_manual_block(
+        user_id=user.id,
+        stream_name=payload.stream_name,
+        key_cols=list(payload.key_cols),
+        scale=payload.scale,
+        offset=payload.offset,
+        exponent=payload.exponent,
+        block=block,
+        snapshot_rows=snapshot_dicts,
+        applies_to=None,
+    )
 
     # Persist the intent triplet. Failure here is a hard error — the
     # stream is already live but its provenance isn't captured.
@@ -263,6 +252,11 @@ async def blocks_commit(
             detail=f"Intent persistence failed — block was rolled back: {exc}",
         ) from exc
 
+    # Confirmed commit — drop any pending silent-rejection entry.
+    await pending_proposals.resolve(
+        user_id=user.id, stream_name=payload.stream_name,
+    )
+
     new_positions = _extract_new_desired_positions(user.id)
     return BlockCommitResponse(
         stored_intent_id=intent_id,
@@ -298,6 +292,16 @@ async def log_llm_failure(
         llm_call_id=req.llm_call_id,
         metadata=req.metadata,
     )
+    # Defensive resolve: an explicit preview_rejection means the trader
+    # just dismissed a proposal — make sure it isn't also swept as a
+    # silent_rejection a few seconds later. ``stream_name`` is optional
+    # on the failure payload, so guard before hitting the pending store.
+    if req.signal_type == "preview_rejection":
+        stream_name = req.metadata.get("stream_name")
+        if isinstance(stream_name, str) and stream_name:
+            await pending_proposals.resolve(
+                user_id=user.id, stream_name=stream_name,
+            )
 
 
 # ---------------------------------------------------------------------------
