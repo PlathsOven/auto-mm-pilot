@@ -142,10 +142,15 @@ class EngineState:
         # Position chart gets a full time series across reruns. Per-space
         # calc-space values are captured alongside so the Pipeline chart's
         # decomposition view works across the historical window too.
+        # Stage H persists the committed correlation matrices on every
+        # point so historical playback uses the matrices that were active
+        # at each snapshot, not today's matrices.
         pos_rows = build_from_desired_pos_df(self.pipeline_results["desired_pos_df"], now)
         per_space = build_per_space_at_tick(self.pipeline_results["space_series_df"], now)
         self.position_history.push_rows(
             pos_rows, now, aggregate_market_values or {}, per_space,
+            symbol_correlations=symbol_correlations or {},
+            expiry_correlations=expiry_correlations or {},
         )
 
         return self.pipeline_results

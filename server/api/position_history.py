@@ -52,11 +52,21 @@ class PositionHistoryPoint:
     chart's decomposition view uses them for a per-risk-space stacked
     line. Empty dict when the pipeline emitted no per-space data for this
     dim (e.g. ``space_series_df`` is empty).
+
+    ``raw_desired_exposure`` / ``smoothed_desired_exposure`` are the
+    Stage G Kelly outputs captured pre-correlation-inverse. Equal to
+    the position fields when both correlation stores are empty.
+    ``symbol_correlations`` / ``expiry_correlations`` are the *full*
+    committed upper-triangle maps at the rerun moment — persisted inline
+    so the Position chart renders historical positions under the matrices
+    that were active at each historical point, not under today's matrices.
     """
 
     timestamp: datetime
     raw_desired_position: float
     smoothed_desired_position: float
+    raw_desired_exposure: float
+    smoothed_desired_exposure: float
     edge: float
     smoothed_edge: float
     var: float
@@ -67,6 +77,8 @@ class PositionHistoryPoint:
     smoothed_total_market_fair: float
     market_vol: float
     per_space: dict[str, tuple[float, float, float]]
+    symbol_correlations: dict[tuple[str, str], float]
+    expiry_correlations: dict[tuple[str, str], float]
 
 
 class PositionHistoryBuffer:
@@ -88,6 +100,8 @@ class PositionHistoryBuffer:
         timestamp: datetime,
         market_values: dict[tuple[str, str], float] | None = None,
         per_space_by_dim: dict[tuple[str, str], dict[str, tuple[float, float, float]]] | None = None,
+        symbol_correlations: dict[tuple[str, str], float] | None = None,
+        expiry_correlations: dict[tuple[str, str], float] | None = None,
     ) -> None:
         """Append one point per row to its (symbol, expiry) deque.
 
@@ -103,9 +117,18 @@ class PositionHistoryBuffer:
         ``{space_id: (fair, var, market_fair)}`` in calc space at the rerun
         moment. Stored on each point so the Pipeline chart's decomposition
         view can reconstruct per-space lines across the historical window.
+
+        ``symbol_correlations`` / ``expiry_correlations`` are the *full*
+        committed upper-triangle maps from the per-user correlation
+        stores at this rerun — captured inline on every point so the
+        Position chart plays back historical positions under the matrices
+        that were active at each snapshot, not under today's matrices.
         """
         mv = market_values or {}
         ps = per_space_by_dim or {}
+        # Copy once — every point in this rerun shares the same snapshot.
+        sym_corr = dict(symbol_correlations or {})
+        exp_corr = dict(expiry_correlations or {})
         with self._lock:
             for r in rows:
                 key = (str(r["symbol"]), _expiry_key(r["expiry"]))
@@ -117,6 +140,8 @@ class PositionHistoryBuffer:
                     timestamp=timestamp,
                     raw_desired_position=_f(r.get("raw_desired_position")),
                     smoothed_desired_position=_f(r.get("smoothed_desired_position")),
+                    raw_desired_exposure=_f(r.get("raw_desired_exposure")),
+                    smoothed_desired_exposure=_f(r.get("smoothed_desired_exposure")),
                     edge=_f(r.get("edge")),
                     smoothed_edge=_f(r.get("smoothed_edge")),
                     var=_f(r.get("var")),
@@ -127,6 +152,8 @@ class PositionHistoryBuffer:
                     smoothed_total_market_fair=_f(r.get("smoothed_total_market_fair")),
                     market_vol=_f(mv.get(key, 0.0)) * VOL_POINTS_SCALE,
                     per_space=dict(ps.get(key, {})),
+                    symbol_correlations=sym_corr,
+                    expiry_correlations=exp_corr,
                 ))
 
     def get_range(
