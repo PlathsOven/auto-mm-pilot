@@ -193,6 +193,16 @@ export interface MarketValueMismatchAlert {
   diff: number;
 }
 
+/** Stage H singular-matrix alert. Raised when Stage H's determinant
+ *  check fails (``|det| < 1e-9``); the pipeline rerun fails loudly and
+ *  the Notifications Center renders a card pointing the trader at the
+ *  Correlations editor. */
+export interface CorrelationSingularAlert {
+  matrixKind: "symbol" | "expiry";
+  det: number;
+  conditionNumber: number;
+}
+
 /** Top-level payload received over WebSocket */
 export interface ServerPayload {
   streams: DataStream[];
@@ -202,6 +212,7 @@ export interface ServerPayload {
   unregisteredPushes?: UnregisteredPushAttempt[];
   silentStreams?: SilentStreamAlert[];
   marketValueMismatches?: MarketValueMismatchAlert[];
+  correlationAlerts?: CorrelationSingularAlert[];
 }
 
 /** Context pushed to the LLM chat when a card or cell is clicked */

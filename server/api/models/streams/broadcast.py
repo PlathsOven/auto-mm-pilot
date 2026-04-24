@@ -139,6 +139,20 @@ class MarketValueMismatchAlert(_WireModel):
     diff: float  # implied - aggregate
 
 
+class CorrelationSingularAlert(_WireModel):
+    """Per-matrix alert emitted when the pipeline caught a singular C.
+
+    Raised by Stage H's ``check_singular`` call; persisted per-user so
+    the next WS tick carries the alert into the Notifications Center.
+    ``matrix_kind`` is ``"symbol"`` or ``"expiry"``. ``det`` and
+    ``condition_number`` are reported so the UI can show the trader
+    *why* their matrix is degenerate (e.g. a perfect ρ=1 pair).
+    """
+    matrix_kind: Literal["symbol", "expiry"]
+    det: float
+    condition_number: float
+
+
 class SilentStreamAlert(_WireModel):
     """A READY stream whose recent snapshots carried no ``market_value``.
 
@@ -209,6 +223,7 @@ class ServerPayload(_WireModel):
     unregistered_pushes: list[UnregisteredPushAttempt] = Field(default_factory=list)
     silent_streams: list[SilentStreamAlert] = Field(default_factory=list)
     market_value_mismatches: list[MarketValueMismatchAlert] = Field(default_factory=list)
+    correlation_alerts: list[CorrelationSingularAlert] = Field(default_factory=list)
     seq: int = 0
     prev_seq: int = 0
 

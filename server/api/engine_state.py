@@ -24,6 +24,7 @@ from server.api.config import (
     SNAPSHOT_BUFFER_MAX_DEFAULT,
     SNAPSHOT_LOOKBACK_OFFSETS_DEFAULT,
 )
+from server.api.correlation_matrix import SingularCorrelationError
 from server.api.llm.snapshot_buffer import SnapshotBufferConfig, SnapshotRingBuffer
 from server.api.position_history import (
     PositionHistoryBuffer,
@@ -195,6 +196,10 @@ def rerun_pipeline(
     bankroll: float | None = None,
     transform_config: dict[str, Any] | None = None,
 ) -> dict[str, pl.DataFrame]:
+    from server.api.correlation_alert_store import (
+        clear_all as clear_correlation_alerts,
+        record as record_correlation_alert,
+    )
     from server.api.correlation_store import (
         get_expiry_store as get_expiry_corr,
         get_symbol_store as get_symbol_corr,
@@ -203,16 +208,28 @@ def rerun_pipeline(
 
     sym_corr = get_symbol_corr(user_id)
     exp_corr = get_expiry_corr(user_id)
-    return get_engine(user_id).rerun_pipeline(
-        streams=streams,
-        bankroll=bankroll,
-        transform_config=transform_config,
-        aggregate_market_values=mv_to_dict(user_id),
-        symbol_correlations=sym_corr.committed_map(),
-        expiry_correlations=exp_corr.committed_map(),
-        symbol_correlations_draft=sym_corr.draft_map(),
-        expiry_correlations_draft=exp_corr.draft_map(),
-    )
+    try:
+        results = get_engine(user_id).rerun_pipeline(
+            streams=streams,
+            bankroll=bankroll,
+            transform_config=transform_config,
+            aggregate_market_values=mv_to_dict(user_id),
+            symbol_correlations=sym_corr.committed_map(),
+            expiry_correlations=exp_corr.committed_map(),
+            symbol_correlations_draft=sym_corr.draft_map(),
+            expiry_correlations_draft=exp_corr.draft_map(),
+        )
+    except SingularCorrelationError as e:
+        # Persist the alert so the next WS tick surfaces it in the
+        # Notifications Center. Re-raise so the caller knows the rerun
+        # did not succeed (the ticker path logs-and-continues; routes
+        # convert to 400 / 409 as appropriate).
+        record_correlation_alert(user_id, e)
+        raise
+    # Successful rerun — clear any stale singular alerts so the user
+    # doesn't keep seeing a warning after fixing the matrix.
+    clear_correlation_alerts(user_id)
+    return results
 
 
 def set_bankroll(user_id: str, value: float) -> None:

@@ -28,13 +28,19 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from server.api.auth.tokens import resolve_user_id_from_session
 from server.api.config import TICK_INTERVAL_SECS
+from server.api.correlation_alert_store import list_alerts as list_correlation_alerts
 from server.api.correlation_store import (
     clear_all_dirty as clear_correlation_dirty,
     is_any_dirty as is_correlation_dirty,
 )
 from server.api.engine_state import get_pipeline_results, rerun_pipeline
 from server.api.market_value_store import clear_dirty, is_dirty, to_dict as mv_to_dict
-from server.api.models import ServerPayload, SilentStreamAlert, UnregisteredPushAttempt
+from server.api.models import (
+    CorrelationSingularAlert,
+    ServerPayload,
+    SilentStreamAlert,
+    UnregisteredPushAttempt,
+)
 from server.api.positions_replay_store import get_store as get_replay_store
 from server.api.silent_stream_store import get_store as get_silent_stream_store
 from server.api.stream_registry import get_stream_registry
@@ -110,6 +116,7 @@ def _build_payload(
     unregistered_pushes: list | None = None,
     silent_streams: list | None = None,
     market_value_mismatches: list | None = None,
+    correlation_alerts: list | None = None,
     *,
     seq: int = 0,
     prev_seq: int = 0,
@@ -122,9 +129,21 @@ def _build_payload(
         unregistered_pushes=unregistered_pushes or [],
         silent_streams=silent_streams or [],
         market_value_mismatches=market_value_mismatches or [],
+        correlation_alerts=correlation_alerts or [],
         seq=seq,
         prev_seq=prev_seq,
     ).model_dump_json(by_alias=True)
+
+
+def _correlation_alerts_for(user_id: str) -> list[CorrelationSingularAlert]:
+    return [
+        CorrelationSingularAlert(
+            matrix_kind=a.matrix_kind,  # type: ignore[arg-type]
+            det=a.det,
+            condition_number=a.condition_number,
+        )
+        for a in list_correlation_alerts(user_id)
+    ]
 
 
 def _unregistered_pushes_for(user_id: str) -> list[UnregisteredPushAttempt]:
@@ -165,6 +184,7 @@ def _heartbeat_payload(user_id: str | None = None) -> str:
         streams = streams_from_registry(
             get_stream_registry(user_id).list_streams(), now,
         )
+    correlation_alerts = _correlation_alerts_for(user_id) if user_id else []
     return _build_payload(
         streams=streams,
         context={"lastUpdateTimestamp": now_ms},
@@ -172,6 +192,7 @@ def _heartbeat_payload(user_id: str | None = None) -> str:
         updates=[],
         unregistered_pushes=unregistered,
         silent_streams=silent,
+        correlation_alerts=correlation_alerts,
     )
 
 
@@ -276,6 +297,7 @@ def _build_user_payload_sync(user_id: str, real_now: datetime) -> str:
         _unregistered_pushes_for(user_id),
         _silent_streams_for(user_id),
         market_value_mismatches_from_positions(positions),
+        _correlation_alerts_for(user_id),
         seq=seq,
         prev_seq=prev_seq,
     )

@@ -33,6 +33,7 @@ from server.api.models.streams.blocks import (
     UpdateBlockRequest,
 )
 from server.api.models.streams.broadcast import (
+    CorrelationSingularAlert,
     DataStream,
     DesiredPosition,
     GlobalContext,
@@ -127,6 +128,7 @@ __all__ = [
     "OpinionsListResponse",
     "UpdateBlockRequest",
     # broadcast
+    "CorrelationSingularAlert",
     "DataStream",
     "DesiredPosition",
     "GlobalContext",
