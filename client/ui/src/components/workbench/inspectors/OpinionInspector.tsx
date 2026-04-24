@@ -1,15 +1,15 @@
 /**
  * Inspector for a focused opinion.
  *
- * An opinion is the trader's belief — a data-driven stream or a
- * discretionary manual block. This view shows what matters to the trader:
- * the editable description, any Build-orchestrator concerns that surfaced
- * at commit, the live time series, and the concrete blocks this opinion
- * materialised into on the pipeline.
+ * Merges the stream's time-series legend with the pipeline's blocks summary
+ * into a single per-dim table — one row per block, carrying the chart's
+ * colour + toggle (so the trader can hide/show series inline) alongside
+ * the pipeline's fair / variance values. The previous two-list layout
+ * (separate KeyList + BlocksSummary) visually duplicated the dims.
  *
- * Block-level debugging (per-dim numeric detail, engine params) is one
- * tab away in the Blocks tab of the OpinionsPanel — click a block-family
- * row there and the full BlockInspector opens.
+ * Block-level debugging (engine params, snapshot rows) is one tab away in
+ * the Blocks tab; click a family or dim row there and the full
+ * BlockInspector opens.
  */
 import { useCallback, useEffect, useState } from "react";
 import { useFocus } from "../../../providers/FocusProvider";
@@ -22,7 +22,12 @@ import { fetchBlocks } from "../../../services/blockApi";
 import type { BlockRow, Opinion } from "../../../types";
 import { POLL_INTERVAL_BLOCKS_MS } from "../../../constants";
 import { formatNullable, formatAge, valColor } from "../../../utils";
-import { StreamTimeseriesView } from "./StreamTimeseriesView";
+import { StreamTimeseriesChart } from "./StreamTimeseriesView";
+import {
+  useStreamTimeseries,
+  type StreamTimeseriesState,
+} from "../../../hooks/useStreamTimeseries";
+import { BLOCK_COLORS } from "../../PipelineChart/chartOptions";
 
 interface Props {
   name: string;
@@ -36,6 +41,7 @@ export function OpinionInspector({ name }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [togglePending, setTogglePending] = useState(false);
   const [blocks, setBlocks] = useState<BlockRow[]>([]);
+  const timeseries = useStreamTimeseries(name);
 
   useEffect(() => {
     let aborted = false;
@@ -115,11 +121,7 @@ export function OpinionInspector({ name }: Props) {
   if (opinion == null) {
     return (
       <div className="flex h-full flex-col">
-        <InspectorHeader
-          title="Opinion"
-          subtitle={name}
-          onClear={clearFocus}
-        />
+        <InspectorHeader title="Opinion" subtitle={name} onClear={clearFocus} />
         <div className="p-3">
           <p className="rounded-md border border-mm-error/30 bg-mm-error/[0.06] px-2 py-1 text-[10px] text-mm-error">
             {error ?? "Opinion no longer exists."}
@@ -200,14 +202,14 @@ export function OpinionInspector({ name }: Props) {
 
         {opinion.has_concerns && <ConcernsCard />}
 
-        <section className="flex min-h-[320px] flex-col gap-2">
+        <section className="flex flex-col gap-2">
           <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">
             Live data
           </span>
-          <StreamTimeseriesView streamName={name} />
+          <StreamTimeseriesChart state={timeseries} />
         </section>
 
-        <BlocksSummary blocks={blocks} />
+        <DerivedBlocksTable blocks={blocks} timeseries={timeseries} />
       </div>
     </div>
   );
@@ -347,8 +349,22 @@ function ConcernsCard() {
   );
 }
 
-function BlocksSummary({ blocks }: { blocks: BlockRow[] }) {
-  if (blocks.length === 0) {
+/**
+ * Combined legend + blocks table — one row per pipeline block. The colour
+ * swatch doubles as a hide/show toggle tied to the chart above (clicking it
+ * hides every series with the same stream-key, which may span multiple
+ * space_id rows). This replaces the separate KeyList + BlocksSummary
+ * sections that used to stack below the chart and visually duplicated the
+ * same dim list.
+ */
+function DerivedBlocksTable({
+  blocks,
+  timeseries,
+}: {
+  blocks: BlockRow[];
+  timeseries: StreamTimeseriesState;
+}) {
+  if (blocks.length === 0 && (!timeseries.data || timeseries.data.series.length === 0)) {
     return (
       <section className="flex flex-col gap-1 rounded-md border border-black/[0.06] bg-white/40 px-3 py-2">
         <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">
@@ -360,36 +376,89 @@ function BlocksSummary({ blocks }: { blocks: BlockRow[] }) {
       </section>
     );
   }
+
+  // Sort by (stream) key order so rows align with the chart's colour sequence.
+  // Blocks sharing a (symbol, expiry) share a colour; their order within a
+  // group follows the block_name / space_id ordering from the API.
+  const keyOrder = new Map<string, number>();
+  if (timeseries.data) {
+    timeseries.data.series.forEach((s, i) => {
+      keyOrder.set(timeseries.keyId(s.key), i);
+    });
+  }
+  const rows = [...blocks].sort((a, b) => {
+    const aKey = timeseries.keyId({ symbol: a.symbol, expiry: a.expiry });
+    const bKey = timeseries.keyId({ symbol: b.symbol, expiry: b.expiry });
+    const ai = keyOrder.get(aKey) ?? 999;
+    const bi = keyOrder.get(bKey) ?? 999;
+    if (ai !== bi) return ai - bi;
+    if (a.space_id !== b.space_id) return a.space_id.localeCompare(b.space_id);
+    return a.block_name.localeCompare(b.block_name);
+  });
+
   return (
     <section className="flex flex-col gap-1 rounded-md border border-black/[0.06] bg-white/40 px-3 py-2">
-      <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">
-        Blocks ({blocks.length})
-      </span>
+      <div className="flex items-center justify-between px-0.5 pb-1">
+        <span className="text-[9px] font-semibold uppercase tracking-wider text-mm-text-dim">
+          Derived blocks ({blocks.length})
+        </span>
+        <span className="text-[9px] text-mm-text-subtle">click colour to toggle chart</span>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[10px]">
           <thead className="text-mm-text-dim">
             <tr>
-              <th className="px-1.5 py-0.5 text-left font-medium">Symbol</th>
-              <th className="px-1.5 py-0.5 text-left font-medium">Expiry</th>
+              <th className="w-3 px-1 py-0.5" />
+              <th className="px-1.5 py-0.5 text-left font-medium">Dim</th>
               <th className="px-1.5 py-0.5 text-left font-medium">Space</th>
               <th className="px-1.5 py-0.5 text-right font-medium">Fair</th>
               <th className="px-1.5 py-0.5 text-right font-medium">Var</th>
             </tr>
           </thead>
           <tbody>
-            {blocks.map((b) => (
-              <tr key={`${b.symbol}|${b.expiry}|${b.space_id}|${b.block_name}`} className="border-t border-black/[0.04]">
-                <td className="px-1.5 py-0.5 text-mm-text">{b.symbol}</td>
-                <td className="px-1.5 py-0.5 text-mm-text">{b.expiry}</td>
-                <td className="px-1.5 py-0.5 text-mm-text-subtle">{b.space_id}</td>
-                <td className={`px-1.5 py-0.5 text-right font-mono tabular-nums ${b.fair != null ? valColor(b.fair) : ""}`}>
-                  {formatNullable(b.fair)}
-                </td>
-                <td className="px-1.5 py-0.5 text-right font-mono tabular-nums">
-                  {formatNullable(b.var)}
-                </td>
-              </tr>
-            ))}
+            {rows.map((b) => {
+              const id = timeseries.keyId({ symbol: b.symbol, expiry: b.expiry });
+              const hidden = timeseries.hiddenKeys.has(id);
+              const rawColor = timeseries.colorByKey.get(id) ?? BLOCK_COLORS[0];
+              const hasSeries = timeseries.colorByKey.has(id);
+              const color = hidden ? "rgba(0,0,0,0.18)" : rawColor;
+              return (
+                <tr
+                  key={`${b.block_name}|${b.symbol}|${b.expiry}|${b.space_id}`}
+                  className={`border-t border-black/[0.04] ${hidden ? "opacity-55" : ""}`}
+                >
+                  <td className="w-3 px-1 py-0.5">
+                    <button
+                      type="button"
+                      onClick={() => hasSeries && timeseries.toggleKey(id)}
+                      disabled={!hasSeries}
+                      className={hasSeries ? "cursor-pointer" : "cursor-default"}
+                      title={
+                        hasSeries
+                          ? hidden ? "Show on chart" : "Hide from chart"
+                          : "No time-series data for this dim yet"
+                      }
+                      aria-pressed={!hidden}
+                    >
+                      <span
+                        className="inline-block h-2 w-2 rounded-full"
+                        style={{ backgroundColor: color }}
+                      />
+                    </button>
+                  </td>
+                  <td className={`px-1.5 py-0.5 font-mono ${hidden ? "line-through text-mm-text-subtle" : "text-mm-text"}`}>
+                    {b.symbol} · {b.expiry}
+                  </td>
+                  <td className="px-1.5 py-0.5 text-mm-text-subtle">{b.space_id}</td>
+                  <td className={`px-1.5 py-0.5 text-right font-mono tabular-nums ${b.fair != null ? valColor(b.fair) : ""}`}>
+                    {formatNullable(b.fair)}
+                  </td>
+                  <td className="px-1.5 py-0.5 text-right font-mono tabular-nums">
+                    {formatNullable(b.var)}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
