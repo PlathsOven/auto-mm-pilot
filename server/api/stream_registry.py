@@ -16,11 +16,12 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
+from server.api.datetime_parsing import coerce_datetime_fields
+from server.api.manual_block_store import ManualBlockStore
 from server.api.stream_history import StreamHistoryBuffer
 from server.api.user_scope import UserRegistry
 from server.core.config import BlockConfig, StreamConfig
@@ -57,38 +58,6 @@ class StreamIsNotConnectorFed(Exception):
             f"Stream '{stream_name}' is not connector-fed; "
             f"use POST /api/snapshots instead."
         )
-
-
-# ---------------------------------------------------------------------------
-# Manual-block metadata store (one per user)
-# ---------------------------------------------------------------------------
-
-@dataclass
-class ManualBlockMetadata:
-    """Tracks manually-created blocks for source attribution."""
-    created_at: str
-
-
-class ManualBlockStore:
-    def __init__(self) -> None:
-        self._entries: dict[str, ManualBlockMetadata] = {}
-        self._lock = threading.Lock()
-
-    def mark(self, stream_name: str, created_at: str) -> None:
-        with self._lock:
-            self._entries[stream_name] = ManualBlockMetadata(created_at=created_at)
-
-    def unmark(self, stream_name: str) -> None:
-        with self._lock:
-            self._entries.pop(stream_name, None)
-
-    def is_manual(self, stream_name: str) -> bool:
-        with self._lock:
-            return stream_name in self._entries
-
-    def count(self) -> int:
-        with self._lock:
-            return len(self._entries)
 
 
 # Required columns in every snapshot row (in addition to key_cols)
@@ -173,7 +142,7 @@ class StreamRegistration:
         assert self.exponent is not None
         assert self.block is not None
 
-        rows = _coerce_datetime_fields(self.snapshot_rows, self.key_cols)
+        rows = coerce_datetime_fields(self.snapshot_rows, self.key_cols)
         snapshot_df = pl.DataFrame(rows)
 
         return StreamConfig(
@@ -191,46 +160,6 @@ class StreamRegistration:
                 else None
             ),
         )
-
-
-# ---------------------------------------------------------------------------
-# Datetime coercion helper
-# ---------------------------------------------------------------------------
-
-_DATETIME_FIELDS = {"timestamp", "start_timestamp", "expiry"}
-
-
-def parse_datetime_tolerant(raw: str) -> datetime:
-    """Accept ISO 8601 (``2026-03-27T00:00:00``) or DDMMMYY (``27MAR26``)."""
-    try:
-        return datetime.fromisoformat(raw)
-    except ValueError:
-        return datetime.strptime(raw, "%d%b%y")
-
-
-def _coerce_datetime_fields(
-    rows: list[dict[str, Any]],
-    key_cols: list[str],
-) -> list[dict[str, Any]]:
-    """Parse ISO-format strings into ``datetime`` objects for known datetime columns.
-
-    All datetimes are normalised to **naive** (tzinfo stripped) to match the
-    codebase convention where naive datetimes represent UTC.
-    """
-    dt_cols = _DATETIME_FIELDS | {k for k in key_cols if k in _DATETIME_FIELDS}
-    coerced: list[dict[str, Any]] = []
-    for row in rows:
-        out: dict[str, Any] = {}
-        for k, v in row.items():
-            if k in dt_cols and isinstance(v, str):
-                dt = parse_datetime_tolerant(v)
-                if dt.tzinfo is not None:
-                    dt = dt.replace(tzinfo=None)
-                out[k] = dt
-            else:
-                out[k] = v
-        coerced.append(out)
-    return coerced
 
 
 # ---------------------------------------------------------------------------

@@ -27,7 +27,7 @@ from server.api.models import (
     PipelineTimeSeriesResponse,
     ServerPayload,
 )
-from server.api.stream_registry import parse_datetime_tolerant
+from server.api.datetime_parsing import parse_datetime_tolerant
 from server.api.ws import get_current_tick_ts, get_latest_payload
 
 log = logging.getLogger(__name__)

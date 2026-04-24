@@ -33,10 +33,8 @@ from server.api.models import (
     ProposalSnapshotRow,
     ProposedBlockPayload,
 )
-from server.api.stream_registry import (
-    get_stream_registry,
-    parse_datetime_tolerant,
-)
+from server.api.datetime_parsing import parse_datetime_tolerant
+from server.api.stream_registry import get_stream_registry
 from server.core.config import BlockConfig, StreamConfig
 from server.core.pipeline import run_pipeline
 
