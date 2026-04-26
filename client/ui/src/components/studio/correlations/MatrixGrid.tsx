@@ -9,9 +9,15 @@ import { canonicalPair } from "../../../hooks/useCorrelationsDraft";
 type Entry = SymbolCorrelationEntry | ExpiryCorrelationEntry;
 
 interface Props {
-  /** Labels in lex-sort order — the pipeline sorts axes before pivoting
-   *  into the matrix solve, so the grid mirrors that order exactly. */
+  /** Identity keys for each axis entry. For expiries these are canonical
+   *  ISO datetimes (matches the correlation store); for symbols they're
+   *  bare ticker names. Lookup keys are derived directly via
+   *  ``canonicalPair`` so the store's entries resolve 1:1. */
   labels: string[];
+  /** Optional display formatter — when ``kind === "expiries"``, ISO keys
+   *  are rendered as DDMMMYY for readability. ``undefined`` means
+   *  identity (use the label verbatim — fine for symbol tickers). */
+  formatLabel?: (label: string) => string;
   /** Committed upper-triangle entries. Drives the lower-triangle (mirrored)
    *  and the unedited-cell display when no draft is live. */
   committed: Entry[];
@@ -49,12 +55,14 @@ function heatTint(rho: number, dim: boolean): string {
  */
 export const MatrixGrid = memo(function MatrixGrid({
   labels,
+  formatLabel,
   committed,
   draft,
   onEdit,
 }: Props) {
   const live = draft ?? committed;
   const draftLive = draft !== null;
+  const display = formatLabel ?? ((l: string) => l);
 
   // Pre-build the (a, b) → rho lookups once per render — avoids O(n²·m)
   // iteration across the full k×k grid.
@@ -89,7 +97,7 @@ export const MatrixGrid = memo(function MatrixGrid({
                 className="min-w-[60px] border border-black/[0.05] bg-black/[0.03] px-1.5 py-1 text-left font-mono font-medium text-mm-text-dim"
                 title={label}
               >
-                {label}
+                {display(label)}
               </th>
             ))}
           </tr>
@@ -101,7 +109,7 @@ export const MatrixGrid = memo(function MatrixGrid({
                 className="border border-black/[0.05] bg-black/[0.03] px-1.5 py-1 text-left font-mono font-medium text-mm-text-dim"
                 title={rowLabel}
               >
-                {rowLabel}
+                {display(rowLabel)}
               </th>
               {labels.map((colLabel, j) => {
                 if (i === j) {

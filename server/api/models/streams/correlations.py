@@ -80,3 +80,49 @@ class SetSymbolCorrelationsRequest(BaseModel):
 class SetExpiryCorrelationsRequest(BaseModel):
     """``PUT /api/correlations/expiries/draft`` — overwrites the draft matrix."""
     entries: list[ExpiryCorrelationEntry]
+
+
+class ApplyExpiryCorrelationMethodRequest(BaseModel):
+    """``POST /api/correlations/expiries/apply-method`` — populates draft from a calculator.
+
+    ``method_name`` selects a calculator in ``server.api.correlation_calculators``;
+    ``params`` is the method-specific parameter bag (e.g. ``{"alpha": 0.5}``
+    for ``forward_addition_blend``). ``expiries`` is the full universe the
+    calculator should compute pairs over — the server doesn't infer it from
+    live positions because the correlation store is agnostic to that axis
+    source. Callers pass canonical-ISO or DDMMMYY; the router canonicalises
+    before the calculator runs so lex-sort matches the matrix materialiser.
+    """
+    method_name: str = Field(..., min_length=1)
+    params: dict[str, float] = Field(default_factory=dict)
+    expiries: list[str] = Field(..., min_length=2)
+
+
+class ExpiryCorrelationMethodSchema(BaseModel):
+    """One calculator's public-facing metadata (``GET /api/correlations/expiries/methods``).
+
+    Clients render a picker from this list; the ``params`` schema tells the
+    UI which sliders / inputs to draw. Each param carries its own bounds
+    and a human-readable label so the UI doesn't need to hardcode them.
+    """
+    name: str
+    title: str
+    description: str
+    params: list["ExpiryCorrelationMethodParam"]
+
+
+class ExpiryCorrelationMethodParam(BaseModel):
+    """One tunable parameter on a correlation-calculator method."""
+    name: str
+    label: str
+    min: float
+    max: float
+    default: float
+
+
+class ExpiryCorrelationMethodsResponse(BaseModel):
+    """``GET /api/correlations/expiries/methods`` — the calculator library."""
+    methods: list[ExpiryCorrelationMethodSchema]
+
+
+ExpiryCorrelationMethodSchema.model_rebuild()

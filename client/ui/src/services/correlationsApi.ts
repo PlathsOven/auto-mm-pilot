@@ -6,12 +6,16 @@
  *   POST   /api/correlations/symbols/confirm      — promote draft → committed
  *   POST   /api/correlations/symbols/discard      — clear draft
  *   (+ same four for /api/correlations/expiries)
+ *   GET    /api/correlations/expiries/methods     — calculator library
+ *   POST   /api/correlations/expiries/apply-method — run calculator → draft
  *
  * All paths are session-token auth — no API key surface.
  */
 
 import type {
+  ApplyExpiryCorrelationMethodRequest,
   ExpiryCorrelationListResponse,
+  ExpiryCorrelationMethodsResponse,
   SetExpiryCorrelationsRequest,
   SetSymbolCorrelationsRequest,
   SymbolCorrelationListResponse,
@@ -77,5 +81,24 @@ export async function discardExpiryCorrelations(): Promise<ExpiryCorrelationList
   return apiFetch<ExpiryCorrelationListResponse>(
     "/api/correlations/expiries/discard",
     { method: "POST" },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Expiry correlation calculator library
+// ---------------------------------------------------------------------------
+
+export async function listExpiryCorrelationMethods(): Promise<ExpiryCorrelationMethodsResponse> {
+  return apiFetch<ExpiryCorrelationMethodsResponse>(
+    "/api/correlations/expiries/methods",
+  );
+}
+
+export async function applyExpiryCorrelationMethod(
+  req: ApplyExpiryCorrelationMethodRequest,
+): Promise<ExpiryCorrelationListResponse> {
+  return apiFetch<ExpiryCorrelationListResponse>(
+    "/api/correlations/expiries/apply-method",
+    { method: "POST", body: JSON.stringify(req) },
   );
 }

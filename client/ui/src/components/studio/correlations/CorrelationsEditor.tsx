@@ -3,13 +3,20 @@ import { useCallback, useMemo, useState } from "react";
 import { useWebSocket } from "../../../providers/WebSocketProvider";
 import { useCorrelationsDraft } from "../../../hooks/useCorrelationsDraft";
 import type { DesiredPosition } from "../../../types";
+import { formatExpiry } from "../../../utils";
 
 import { MatrixGrid } from "./MatrixGrid";
 import { ConfirmMatrixModal, type MatrixKind } from "./ConfirmMatrixModal";
+import { MethodPicker } from "./MethodPicker";
 
 /** Extract the sorted symbol / expiry universe from the live positions
- *  broadcast. The pipeline-side matrix materialiser uses the same lex-sort
- *  over the unique axis, so the editor order lines up with the numpy solve. */
+ *  broadcast. Symbols are alpha-sorted (ticker names compare naturally);
+ *  expiries are the canonical ISO datetimes (``p.expiryIso``) so
+ *  correlation-grid lookups resolve against the server's ISO-keyed store
+ *  without losing the exchange's time-of-day convention (08:00 UTC for
+ *  crypto options). ISO sorts lexicographically = chronologically, so
+ *  plain ``.sort()`` reads earliest → latest. Display formatting
+ *  (ISO → DDMMMYY) happens inside ``MatrixGrid``. */
 function axesFromPositions(positions: DesiredPosition[]): {
   symbols: string[];
   expiries: string[];
@@ -18,7 +25,7 @@ function axesFromPositions(positions: DesiredPosition[]): {
   const expirySet = new Set<string>();
   for (const p of positions) {
     symbolSet.add(p.symbol);
-    expirySet.add(p.expiry);
+    expirySet.add(p.expiryIso);
   }
   return {
     symbols: [...symbolSet].sort(),
@@ -34,8 +41,10 @@ interface MatrixSectionProps {
 }
 
 function MatrixSection({ kind, heading, labels, positions }: MatrixSectionProps) {
-  const { committed, localDraft, loading, error, saving, setRho, confirm, discard } =
-    useCorrelationsDraft(kind);
+  const {
+    committed, localDraft, loading, error, saving,
+    setRho, confirm, discard, applyMethod,
+  } = useCorrelationsDraft(kind);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
@@ -105,11 +114,16 @@ function MatrixSection({ kind, heading, labels, positions }: MatrixSectionProps)
         </span>
       </header>
 
+      {applyMethod && !loading && (
+        <MethodPicker expiries={labels} applyMethod={applyMethod} />
+      )}
+
       {loading ? (
         <p className="text-[11px] italic text-mm-text-dim">Loading correlations…</p>
       ) : (
         <MatrixGrid
           labels={labels}
+          formatLabel={kind === "expiries" ? formatExpiry : undefined}
           committed={committed}
           draft={localDraft}
           onEdit={setRho}

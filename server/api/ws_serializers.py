@@ -108,10 +108,15 @@ def positions_at_tick(
     # working; new clients can read the bare field directly.
     wire = rows.select(
         pl.col("symbol"),
+        # Canonical ISO expiry key — matches the correlation store, market-
+        # value store, and Stage H label set. Kept on the wire so the
+        # correlation UI can join against it without round-tripping through
+        # the lossy DDMMMYY display form. Aliased to camelCase for the
+        # ``DesiredPosition.expiryIso`` field.
         pl.col("expiry").map_elements(
             canonical_expiry_key,
             return_dtype=pl.Utf8,
-        ).alias("_expiry_iso"),
+        ).alias("expiryIso"),
         pl.col("expiry").map_elements(format_expiry, return_dtype=pl.Utf8).alias("expiry"),
         pl.col("edge").fill_null(0.0).alias("edge"),
         pl.col("smoothed_edge").fill_null(0.0).alias("smoothedEdge"),
@@ -154,12 +159,14 @@ def positions_at_tick(
 
     # Compute changeMagnitude per position using prev_positions lookup;
     # attach marketVol from the per-user aggregate-market-value store,
-    # keyed by (symbol, iso_expiry).
+    # keyed by (symbol, iso_expiry). ``expiryIso`` stays on the wire —
+    # the correlation UI uses it as the matrix-axis identity so DDMMMYY's
+    # lost time-of-day doesn't misalign against the pipeline.
     for pos in positions:
         key = f"{pos['symbol']}-{pos['expiry']}"
         prev_desired = prev_positions.get(key, pos["desiredPos"])
         pos["changeMagnitude"] = round(pos["desiredPos"] - prev_desired, 2)
-        mv_key = (pos["symbol"], pos.pop("_expiry_iso"))
+        mv_key = (pos["symbol"], pos["expiryIso"])
         pos["marketVol"] = mv_map.get(mv_key, 0.0) * VOL_POINTS_SCALE
 
     return positions

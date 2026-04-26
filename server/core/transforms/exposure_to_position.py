@@ -32,6 +32,7 @@ from server.api.correlation_matrix import (
     check_singular,
     materialise_matrix,
 )
+from server.api.expiry import canonical_expiry_key
 from server.core.transforms.registry import transform
 
 
@@ -105,9 +106,18 @@ def etp_correlation_inverse(
     val_arr = np.nan_to_num(val_arr, nan=0.0)
     E[t_idx, s_idx, e_idx] = val_arr
 
+    # The correlation store keys its entries in canonical-ISO strings
+    # (``server.api.expiry.canonical_expiry_key``); the pipeline's expiry
+    # column is a naive ``pl.Datetime`` that lists as ``datetime`` objects.
+    # ``materialise_matrix`` does key lookups by equality, so without the
+    # conversion every entry misses and the matrix silently degenerates to
+    # the identity — correlations would appear to have zero effect. Symbols
+    # are already plain strings and need no conversion.
+    expiries_iso = [canonical_expiry_key(e) for e in expiries]
+
     # Committed solve.
     C_s = materialise_matrix(symbol_correlations, symbols)
-    C_e = materialise_matrix(expiry_correlations, expiries)
+    C_e = materialise_matrix(expiry_correlations, expiries_iso)
     check_singular(C_s, "symbol")
     check_singular(C_e, "expiry")
     P = _solve_batch(C_s, E, C_e)
@@ -142,7 +152,7 @@ def etp_correlation_inverse(
         else expiry_correlations
     )
     C_s_draft = materialise_matrix(sym_draft, symbols)
-    C_e_draft = materialise_matrix(exp_draft, expiries)
+    C_e_draft = materialise_matrix(exp_draft, expiries_iso)
     check_singular(C_s_draft, "symbol")
     check_singular(C_e_draft, "expiry")
     P_draft = _solve_batch(C_s_draft, E, C_e_draft)

@@ -103,7 +103,13 @@ export interface GlobalContext {
  */
 export interface DesiredPosition {
   symbol: string;
+  /** DDMMMYY-formatted display string. Not a valid correlation-identity
+   *  key — DDMMMYY discards time-of-day. Use ``expiryIso`` for joins. */
   expiry: string;
+  /** Canonical ISO datetime (with time-of-day). Matches the correlation
+   *  store and Stage H matrix axis. Required for the correlations editor
+   *  to resolve against server entries. */
+  expiryIso: string;
   edge: number;
   smoothedEdge: number;
   variance: number;
@@ -220,12 +226,41 @@ export type InvestigationContext =
   | { type: "update"; card: UpdateCard }
   | { type: "position"; symbol: string; expiry: string; position: DesiredPosition };
 
+/** Per-stage debug metadata carried alongside every Build-pipeline event
+ *  so the Thinking panel can surface latency, model selection, and token
+ *  spend at a glance without a round-trip to the llm_calls table. */
+export interface BuildStageMeta {
+  elapsed_ms?: number;
+  model_used?: string | null;
+  tokens_in?: number;
+  tokens_out?: number;
+}
+
+/** One entry in an assistant message's "thinking" trace. Captures each
+ *  Build-pipeline stage event so the trader can inspect the router /
+ *  intent / synthesis / critique output, the final proposal payload, and
+ *  any error that halted the turn. */
+export type BuildStageEvent =
+  | ({ kind: "router"; output: unknown } & BuildStageMeta)
+  | ({ kind: "intent"; output: unknown } & BuildStageMeta)
+  | ({ kind: "synthesis"; output: unknown } & BuildStageMeta)
+  | ({ kind: "critique"; output: unknown } & BuildStageMeta)
+  | ({ kind: "proposal"; payload: unknown } & BuildStageMeta)
+  | { kind: "error"; message: string };
+
 /** A single message in the LLM chat */
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: number;
+  /** Ordered Build-pipeline stage events. Populated only for assistant
+   *  messages produced in Build mode; absent otherwise. */
+  stages?: BuildStageEvent[];
+  /** Orchestrator's conversation_turn_id — captured from the Stage 1
+   *  event. Used as the primary debug key in the Thinking panel header
+   *  and joins to the ``llm_calls`` table. */
+  turn_id?: string;
 }
 
 /** Parsed engine command from LLM response */
@@ -932,4 +967,35 @@ export interface SetSymbolCorrelationsRequest {
 
 export interface SetExpiryCorrelationsRequest {
   entries: ExpiryCorrelationEntry[];
+}
+
+/** POST /api/correlations/expiries/apply-method — run a named calculator.
+ *  ``expiries`` is the client-known universe (lex-sorted, canonical ISO or
+ *  DDMMMYY). Server canonicalises + de-dupes before running the calculator. */
+export interface ApplyExpiryCorrelationMethodRequest {
+  method_name: string;
+  params: Record<string, number>;
+  expiries: string[];
+}
+
+/** One tunable parameter on a calculator — min/max/default drive the UI slider. */
+export interface ExpiryCorrelationMethodParam {
+  name: string;
+  label: string;
+  min: number;
+  max: number;
+  default: number;
+}
+
+/** Metadata for one calculator. Rendered in the UI picker. */
+export interface ExpiryCorrelationMethodSchema {
+  name: string;
+  title: string;
+  description: string;
+  params: ExpiryCorrelationMethodParam[];
+}
+
+/** GET /api/correlations/expiries/methods — the whole calculator library. */
+export interface ExpiryCorrelationMethodsResponse {
+  methods: ExpiryCorrelationMethodSchema[];
 }

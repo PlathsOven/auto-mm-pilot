@@ -48,9 +48,13 @@ from server.api.models.streams.broadcast import (
     ZeroPositionReason,
 )
 from server.api.models.streams.correlations import (
+    ApplyExpiryCorrelationMethodRequest,
     CorrelationEntry,
     ExpiryCorrelationEntry,
     ExpiryCorrelationListResponse,
+    ExpiryCorrelationMethodParam,
+    ExpiryCorrelationMethodSchema,
+    ExpiryCorrelationMethodsResponse,
     SetExpiryCorrelationsRequest,
     SetSymbolCorrelationsRequest,
     SymbolCorrelationEntry,
@@ -142,9 +146,13 @@ __all__ = [
     "ZeroPositionDiagnosticsResponse",
     "ZeroPositionReason",
     # correlations
+    "ApplyExpiryCorrelationMethodRequest",
     "CorrelationEntry",
     "ExpiryCorrelationEntry",
     "ExpiryCorrelationListResponse",
+    "ExpiryCorrelationMethodParam",
+    "ExpiryCorrelationMethodSchema",
+    "ExpiryCorrelationMethodsResponse",
     "SetExpiryCorrelationsRequest",
     "SetSymbolCorrelationsRequest",
     "SymbolCorrelationEntry",

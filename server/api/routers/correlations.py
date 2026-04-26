@@ -14,19 +14,23 @@ on consistent string ordering.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from server.api.auth.dependencies import current_user
 from server.api.auth.models import User
+from server.api.correlation_calculators import get_calculator, list_calculators
 from server.api.correlation_store import (
     get_expiry_store,
     get_symbol_store,
 )
 from server.api.expiry import canonical_expiry_key
 from server.api.models import (
+    ApplyExpiryCorrelationMethodRequest,
     ExpiryCorrelationEntry,
     ExpiryCorrelationListResponse,
+    ExpiryCorrelationMethodsResponse,
     SetExpiryCorrelationsRequest,
     SetSymbolCorrelationsRequest,
     SymbolCorrelationEntry,
@@ -131,6 +135,11 @@ def _canonicalise_expiry_request(
 async def list_expiry_correlations(
     user: User = Depends(current_user),
 ) -> ExpiryCorrelationListResponse:
+    # Store + wire are both canonical ISO. The client's correlation axis is
+    # sourced from ``DesiredPosition.expiryIso`` (same canonicaliser) so
+    # grid lookups resolve 1:1 with stored entries. DDMMMYY on the wire
+    # would lose time-of-day (08:00 UTC for crypto expiries) and misalign
+    # against the pipeline's expiry column — see the 2026-04-24 fix.
     store = get_expiry_store(user.id)
     committed = [
         ExpiryCorrelationEntry(a=a, b=b, rho=rho)
@@ -182,4 +191,77 @@ async def discard_expiry_correlations(
     user: User = Depends(current_user),
 ) -> ExpiryCorrelationListResponse:
     get_expiry_store(user.id).discard_draft()
+    return await list_expiry_correlations(user=user)
+
+
+# ---------------------------------------------------------------------------
+# Expiry correlation calculator library
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/api/correlations/expiries/methods",
+    response_model=ExpiryCorrelationMethodsResponse,
+)
+async def list_expiry_correlation_methods(
+    user: User = Depends(current_user),
+) -> ExpiryCorrelationMethodsResponse:
+    """Return every registered calculator + its param schema.
+
+    Used by the UI picker to render method name + sliders. Public to every
+    authenticated user — calculators are code-owned, not per-user.
+    """
+    del user  # unused — method list is global
+    return ExpiryCorrelationMethodsResponse(
+        methods=[calc.schema() for calc in list_calculators()],
+    )
+
+
+@router.post(
+    "/api/correlations/expiries/apply-method",
+    response_model=ExpiryCorrelationListResponse,
+)
+async def apply_expiry_correlation_method(
+    req: ApplyExpiryCorrelationMethodRequest,
+    user: User = Depends(current_user),
+) -> ExpiryCorrelationListResponse:
+    """Compute a full draft upper-triangle via a named calculator.
+
+    Flow: canonicalise expiry labels → look up calculator → run → write
+    entries to the draft slot via ``set_draft``. The existing Confirm /
+    Discard endpoints handle promotion — this route never commits.
+    """
+    try:
+        calculator = get_calculator(req.method_name)
+    except KeyError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown calculator: {req.method_name!r}.",
+        )
+
+    canonical_expiries = [canonical_expiry_key(e) for e in req.expiries]
+    # De-duplication happens inside the calculator, but guard the router
+    # so a single-unique-expiry payload produces a clear 400 instead of
+    # an empty draft silently.
+    if len(set(canonical_expiries)) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="At least two distinct expiries are required.",
+        )
+
+    try:
+        tuples = calculator.compute_entries(
+            expiries=canonical_expiries,
+            params=req.params,
+            now=datetime.utcnow(),
+        )
+    except ValueError as exc:
+        # Param-range or canonicalisation failures surface as 400.
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    store = get_expiry_store(user.id)
+    store.set_draft([(t.a, t.b, t.rho) for t in tuples])
+    log.info(
+        "Applied calculator %r: %d draft entries over %d expiries for user %s",
+        req.method_name, len(tuples), len(canonical_expiries), user.id,
+    )
     return await list_expiry_correlations(user=user)

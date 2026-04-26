@@ -57,6 +57,13 @@ class DesiredPosition(_WireModel):
     """
     symbol: str
     expiry: str
+    # Canonical ISO expiry key (full datetime with time-of-day) — used as
+    # the correlation-matrix identity. ``expiry`` is DDMMMYY for display;
+    # DDMMMYY discards time-of-day, which misaligns with the pipeline's
+    # actual expiry column (e.g. crypto options typically expire at 08:00
+    # UTC, not midnight). Keep them separate: ``expiry`` for eyes,
+    # ``expiry_iso`` for joins + correlation lookups.
+    expiry_iso: str
     edge: float
     smoothed_edge: float
     variance: float

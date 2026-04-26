@@ -7,6 +7,7 @@ import type {
   SymbolCorrelationListResponse,
 } from "../types";
 import {
+  applyExpiryCorrelationMethod,
   confirmExpiryCorrelations,
   confirmSymbolCorrelations,
   discardExpiryCorrelations,
@@ -80,6 +81,12 @@ export interface CorrelationsDraftState {
   discard: () => Promise<void>;
   /** Re-fetch (e.g. after a WS reconnect). */
   refresh: () => Promise<void>;
+  /** Expiries only — fills the draft via a named calculator. ``null`` on
+   *  the symbols slot. Cancels any pending PUT debounce so the method's
+   *  matrix isn't overwritten by a stale per-cell edit. */
+  applyMethod:
+    | ((methodName: string, params: Record<string, number>, expiries: string[]) => Promise<void>)
+    | null;
 }
 
 /**
@@ -220,6 +227,38 @@ export function useCorrelationsDraft(kind: CorrelationKind): CorrelationsDraftSt
     }
   }, [handlers, applyResponse]);
 
+  // applyMethod is expiry-only — the server exposes no symbol calculator.
+  // We memoize a stable callback per-kind so MethodPicker's useEffect deps
+  // stay well-behaved.
+  const applyMethod = useMemo<CorrelationsDraftState["applyMethod"]>(() => {
+    if (kind !== "expiries") return null;
+    return async (
+      methodName: string,
+      params: Record<string, number>,
+      expiries: string[],
+    ) => {
+      // Cancel any queued per-cell PUT; the method's matrix becomes the
+      // new draft and we don't want a stale edit to clobber it.
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      pendingDraftRef.current = null;
+      putGenerationRef.current += 1;  // supersede any in-flight PUT
+      try {
+        const r = await applyExpiryCorrelationMethod({
+          method_name: methodName,
+          params,
+          expiries,
+        });
+        applyResponse(r);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        throw e;
+      }
+    };
+  }, [kind, applyResponse]);
+
   return {
     committed,
     localDraft,
@@ -230,5 +269,6 @@ export function useCorrelationsDraft(kind: CorrelationKind): CorrelationsDraftSt
     confirm,
     discard,
     refresh,
+    applyMethod,
   };
 }

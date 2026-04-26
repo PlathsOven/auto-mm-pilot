@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import type { DesiredPosition } from "../../../types";
+import { parseExpiry } from "../../../utils";
 
 export type MatrixKind = "symbols" | "expiries";
 
@@ -57,11 +58,21 @@ type SortDir = "asc" | "desc";
 
 /** Compare two rows by the given column. ``diff`` compares by absolute
  *  magnitude — "biggest moves" is what the trader cares about regardless
- *  of sign. Everything else sorts by its natural value. */
+ *  of sign. ``expiry`` parses the DDMMMYY label into a UTC timestamp so the
+ *  sort is chronological (lex order puts "25SEP26" before "27MAR26"), with
+ *  unparseable labels falling back to locale-compare so the order stays
+ *  deterministic. Everything else sorts by its natural value. */
 function compareRows(a: DiffRow, b: DiffRow, key: SortKey): number {
   switch (key) {
     case "symbol": return a.symbol.localeCompare(b.symbol);
-    case "expiry": return a.expiry.localeCompare(b.expiry);
+    case "expiry": {
+      const ta = parseExpiry(a.expiry);
+      const tb = parseExpiry(b.expiry);
+      if (Number.isNaN(ta) && Number.isNaN(tb)) return a.expiry.localeCompare(b.expiry);
+      if (Number.isNaN(ta)) return 1;
+      if (Number.isNaN(tb)) return -1;
+      return ta - tb;
+    }
     case "committed": return a.committed - b.committed;
     case "hypothetical": return a.hypothetical - b.hypothetical;
     case "diff": return Math.abs(a.diff) - Math.abs(b.diff);
