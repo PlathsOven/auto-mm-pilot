@@ -24,11 +24,12 @@ Posit is an advisory trading platform for crypto options market-making desks. It
 3. *— TRANSMISSION ACROSS VISIBILITY BARRIER —*
 4. Block expansion → Python server (`build_blocks_df`, raw→calc)
 5. Risk-space aggregation → Python server (per-space mean over blocks)
-6. Calc→target + smoothing + position sizing → Python server
-7. *— TRANSMISSION ACROSS VISIBILITY BARRIER —*
-8. Desired position → displayed in local client terminal
+6. Calc→target + smoothing + position sizing → Python server (desired *exposure*)
+7. Correlation translation → Python server (exposure → position via `P = Cₛ⁻¹·E·Cₑ⁻¹`)
+8. *— TRANSMISSION ACROSS VISIBILITY BARRIER —*
+9. Desired position → displayed in local client terminal
 
-See `docs/product.md` for the 4-space model (risk / raw / calc / target) these steps traverse.
+See `docs/product.md` for the 4-space model (risk / raw / calc / target) these steps traverse, and § "Exposure vs. position" for Step 7's role.
 
 ## Key Files
 
@@ -144,6 +145,20 @@ See `docs/product.md` for the 4-space model (risk / raw / calc / target) these s
 | `server/api/llm/prompts/intent_extractor.py` | Stage-2 prompt — emits `IntentOutput` (StructuredIntent / RawIntent / clarifying_question) |
 | `server/api/llm/prompts/synthesiser.py` | Stage-3 prompt + `select_preset` / `derive_custom_block` tool schemas |
 | `server/api/llm/prompts/critique.py` | Stage-3.5 prompt — reviews custom derivations against framework invariants |
+| `server/api/correlation_store.py` | Per-user symbol + expiry correlation stores — committed + draft slots + dirty flag mirroring `MarketValueStore`. Stage H reads both on every rerun. |
+| `server/api/correlation_matrix.py` | Pure-function helpers for Stage H — `materialise_matrix(entries, labels)` + `check_singular` + typed `SingularCorrelationError` with `(matrix_kind, det, condition_number)`. |
+| `server/api/correlation_alert_store.py` | Per-user latest-singular-failure registry. Populated by `engine_state.rerun_pipeline`'s catch; cleared on success; read by the WS ticker into `ServerPayload.correlation_alerts`. |
+| `server/api/correlation_calculators/` | Library of expiry-correlation calculators — each method derives a full upper-triangle from `(expiries, params, now)`. Protocol + helpers in `base.py`; registry in `registry.py`; method 1 (`forward_addition_blend`) uses `α + (1−α)·√(T_short/T_long)`. Populates the draft slot via the existing `correlation_store`; Confirm/Discard gate promotion. |
+| `server/api/routers/correlations.py` | 8 CRUD routes under `/api/correlations/{symbols,expiries}/{,draft,confirm,discard}` plus 2 calculator-library routes (`/api/correlations/expiries/methods`, `/api/correlations/expiries/apply-method`). Expiry labels canonicalised to ISO before Pydantic validation. |
+| `server/core/transforms/exposure_to_position.py` | Stage H transform — per-timestamp `P = Cₛ⁻¹·E·Cₑ⁻¹` via vectorised numpy solve over the stacked `(T, k, m)` exposure grid. Identity matrices collapse to no-op. |
+| `client/ui/src/services/correlationsApi.ts` | HTTP client for the 8 correlation routes. |
+| `client/ui/src/hooks/useCorrelationsDraft.ts` | Owns client-side committed + draft state per matrix kind; 500ms debounced PUT with generation counter to prevent stale writes. |
+| `client/ui/src/components/studio/correlations/CorrelationsEditor.tsx` | Stage H control surface — stacks symbol + expiry `MatrixGrid` editors, live Σ\|Δ\| summary off WS `*_hypothetical` columns, Confirm/Discard per matrix. Mounts `MethodPicker` above the expiry section only. |
+| `client/ui/src/components/studio/correlations/MatrixGrid.tsx` | k×k grid, editable upper triangle (0.05 step), mirrored lower triangle, locked diagonal, indigo/red heat tint. |
+| `client/ui/src/components/studio/correlations/MethodPicker.tsx` | Expiry-only calculator UI — method dropdown + per-param slider + "Apply to draft" button. Fetches `/api/correlations/expiries/methods` on mount; applies via `useCorrelationsDraft.applyMethod`. |
+| `client/ui/src/components/studio/correlations/ConfirmMatrixModal.tsx` | Loud confirm modal — per-cell diff table sorted by \|Δ\|, amber warning copy above. |
+| `client/ui/src/components/studio/anatomy/nodes/CorrelationsNode.tsx` | Stage H Anatomy DAG node. Renders draftPending / singular chips off live state (M7 / M9). |
+| `client/ui/src/components/notifications/CorrelationSingularCard.tsx` | Notifications-center card for `CorrelationSingularAlert` — reports condition number on log-10 scale + "Open correlation editor" deep-link. |
 | `server/core/__init__.py` | Core pipeline package — re-exports public API |
 | `server/core/config.py` | `BlockConfig`, `StreamConfig` dataclasses, `SECONDS_PER_YEAR` |
 | `server/core/transforms/` | Pipeline transform package — one module per step (`registry`, `unit_conversion`, `decay`, `fair_value`, `variance`, `risk_space_aggregation`, `market_value_inference`, `aggregation`, `calc_to_target`, `smoothing`, `position_sizing`). Public API re-exported from `__init__.py`. |

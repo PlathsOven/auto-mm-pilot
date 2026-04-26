@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { useChat } from "../providers/ChatProvider";
 import { Tabs, type TabItem } from "./ui/Tabs";
+import { StageThinking } from "./chat/StageThinking";
 import type { ChatMode } from "../types";
 import { SLASH_COMMANDS, tryRunSlash } from "../lib/slashCommands";
 import { useChatHistory } from "../hooks/useChatHistory";
@@ -164,13 +165,18 @@ export function LlmChat() {
                 </span>
               </div>
               {isPosit ? (
-                msg.content ? (
-                  <div className="prose-posit text-mm-text">
-                    <Markdown>{msg.content}</Markdown>
-                  </div>
-                ) : isStreaming ? (
-                  <ThinkingDots />
-                ) : null
+                <>
+                  {msg.stages && msg.stages.length > 0 && (
+                    <StageThinking stages={msg.stages} turnId={msg.turn_id} />
+                  )}
+                  {msg.content ? (
+                    <div className="prose-posit text-mm-text">
+                      <Markdown>{msg.content}</Markdown>
+                    </div>
+                  ) : isStreaming ? (
+                    <ThinkingDots />
+                  ) : null}
+                </>
               ) : (
                 <span className="whitespace-pre-wrap text-mm-text-dim">
                   {msg.content}

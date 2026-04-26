@@ -192,6 +192,10 @@ export function getCellValue(p: DesiredPosition, mode: ViewMode): number {
   switch (mode) {
     case "position": return p.desiredPos;
     case "rawPosition": return p.rawDesiredPos;
+    // Stage H — pre-correlation Kelly output. Always populated; equal to
+    // the position fields when both correlation matrices are identity.
+    case "exposure": return p.smoothedDesiredExposure;
+    case "rawExposure": return p.rawDesiredExposure;
     case "edge": return p.edgeVol;
     case "smoothedEdge": return p.smoothedEdgeVol;
     case "variance": return p.varianceVol;
@@ -211,9 +215,10 @@ export function getCellValue(p: DesiredPosition, mode: ViewMode): number {
 // View-mode composition — Metric × Smoothing
 // ---------------------------------------------------------------------------
 
-/** One of the six underlying metrics on the Overview + Pipeline controls. */
+/** One of the underlying metrics on the Overview + Pipeline controls. */
 export type Metric =
   | "desired"
+  | "exposure"
   | "edge"
   | "variance"
   | "fair"
@@ -226,7 +231,7 @@ export type Smoothing = "instant" | "smoothed";
  *  is a user-entered scalar with no time variation, so it defaults to
  *  instant values and renders the toggle disabled. */
 export const SMOOTHABLE_METRICS: readonly Metric[] = [
-  "desired", "edge", "variance", "fair", "marketCalc",
+  "desired", "exposure", "edge", "variance", "fair", "marketCalc",
 ];
 
 /** Compose a {@link ViewMode} from the 2D (metric, smoothing) control
@@ -236,6 +241,7 @@ export function viewModeOf(metric: Metric, smoothing: Smoothing): ViewMode {
   if (smoothing === "instant") {
     switch (metric) {
       case "desired": return "rawPosition";
+      case "exposure": return "rawExposure";
       case "edge": return "edge";
       case "variance": return "variance";
       case "fair": return "fair";
@@ -244,6 +250,7 @@ export function viewModeOf(metric: Metric, smoothing: Smoothing): ViewMode {
   }
   switch (metric) {
     case "desired": return "position";
+    case "exposure": return "exposure";
     case "edge": return "smoothedEdge";
     case "variance": return "smoothedVar";
     case "fair": return "smoothedFair";
@@ -258,6 +265,8 @@ export function metricOf(mode: ViewMode): { metric: Metric; smoothing: Smoothing
   switch (mode) {
     case "position": return { metric: "desired", smoothing: "smoothed" };
     case "rawPosition": return { metric: "desired", smoothing: "instant" };
+    case "exposure": return { metric: "exposure", smoothing: "smoothed" };
+    case "rawExposure": return { metric: "exposure", smoothing: "instant" };
     case "edge": return { metric: "edge", smoothing: "instant" };
     case "smoothedEdge": return { metric: "edge", smoothing: "smoothed" };
     case "variance": return { metric: "variance", smoothing: "instant" };

@@ -14,7 +14,7 @@
  */
 import { useCallback, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { IntentOutput, PositionDelta, SynthesisOutput } from "../../types";
+import type { IntentOutput, PositionDiff, SynthesisOutput } from "../../types";
 import type { PendingProposal } from "../../providers/ChatProvider";
 
 interface Props {
@@ -163,7 +163,7 @@ export function ProposalPreviewDrawer({ proposal, onConfirm, onCancel }: Props) 
                 <h4 className="text-[10px] uppercase tracking-wider text-mm-text-dim">
                   Desired-position impact
                 </h4>
-                <DeltaTable deltas={proposal.preview.deltas} />
+                <DiffTable diffs={proposal.preview.diffs} />
               </section>
 
               <section>
@@ -219,8 +219,8 @@ export function ProposalPreviewDrawer({ proposal, onConfirm, onCancel }: Props) 
   );
 }
 
-function DeltaTable({ deltas }: { deltas: PositionDelta[] }) {
-  if (deltas.length === 0) {
+function DiffTable({ diffs }: { diffs: PositionDiff[] }) {
+  if (diffs.length === 0) {
     return (
       <p className="mt-1 text-[12px] italic text-mm-text-dim">
         No position change — commit anyway to register the block.
@@ -235,18 +235,18 @@ function DeltaTable({ deltas }: { deltas: PositionDelta[] }) {
           <th className="py-1 pr-2 text-left font-normal">Expiry</th>
           <th className="py-1 pr-2 text-right font-normal">Before</th>
           <th className="py-1 pr-2 text-right font-normal">After</th>
-          <th className="py-1 pr-2 text-right font-normal">Δ</th>
+          <th className="py-1 pr-2 text-right font-normal">Diff</th>
           <th className="py-1 text-right font-normal">%</th>
         </tr>
       </thead>
       <tbody>
-        {deltas.map((d, i) => (
+        {diffs.map((d, i) => (
           <tr key={`${d.symbol}-${d.expiry}-${i}`} className="border-b border-black/[0.04]">
             <td className="py-1 pr-2 font-mono">{d.symbol}</td>
             <td className="py-1 pr-2 font-mono text-mm-text-dim">{d.expiry}</td>
             <td className="py-1 pr-2 text-right font-mono">{d.before.toFixed(2)}</td>
             <td className="py-1 pr-2 text-right font-mono">{d.after.toFixed(2)}</td>
-            <td className="py-1 pr-2 text-right font-mono">{formatSigned(d.absolute_change)}</td>
+            <td className="py-1 pr-2 text-right font-mono">{formatSigned(d.absolute_diff)}</td>
             <td className="py-1 text-right font-mono">{formatPercent(d.percent_change)}</td>
           </tr>
         ))}

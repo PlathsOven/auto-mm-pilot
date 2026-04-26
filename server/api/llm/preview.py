@@ -4,7 +4,7 @@ Stage 4 — Impact preview.
 Runs the pipeline on a cloned stream-config list (plus the proposed
 payload), diffs the resulting desired-position against the user's
 current live ``desired_pos_df``, and returns the per-(symbol, expiry)
-deltas.
+diffs.
 
 Pure — does not mutate live ``EngineState``. ``run_pipeline`` has no
 side effects; we call it directly rather than going through
@@ -28,7 +28,7 @@ from server.api.engine_state import (
 from server.api.llm.orchestration_config import get_llm_orchestration_config
 from server.api.market_value_store import to_dict as market_values_to_dict
 from server.api.models import (
-    PositionDelta,
+    PositionDiff,
     PreviewResponse,
     ProposalSnapshotRow,
     ProposedBlockPayload,
@@ -51,7 +51,7 @@ def build_preview(
     - ``create_stream`` proposals always preview as zero-impact — the
       stream registers but carries no data until a feed pushes snapshots.
     - ``create_manual_block`` proposals fan the supplied ``snapshot_rows``
-      into a ``StreamConfig`` and rerun the pipeline; deltas reflect the
+      into a ``StreamConfig`` and rerun the pipeline; diffs reflect the
       new block's contribution.
     """
     engine = get_engine(user_id)
@@ -66,7 +66,7 @@ def build_preview(
             if engine.pipeline_results else None
         )
         return PreviewResponse(
-            deltas=[],
+            diffs=[],
             total_bankroll_usage_before=before_total,
             total_bankroll_usage_after=before_total,
             notes=[
@@ -112,7 +112,7 @@ def build_preview(
     before_df = engine.pipeline_results.get("desired_pos_df") if engine.pipeline_results else None
     after_df = simulated["desired_pos_df"]
 
-    deltas = _compute_deltas(before_df, after_df)
+    diffs = _compute_diffs(before_df, after_df)
     before_total = _sum_abs_positions(before_df)
     after_total = _sum_abs_positions(after_df)
 
@@ -140,7 +140,7 @@ def build_preview(
                 pass
 
     return PreviewResponse(
-        deltas=deltas,
+        diffs=diffs,
         total_bankroll_usage_before=before_total,
         total_bankroll_usage_after=after_total,
         notes=notes,
@@ -228,14 +228,14 @@ def _parse_expiry(raw: str) -> datetime:
     return dt
 
 
-def _compute_deltas(
+def _compute_diffs(
     before_df: pl.DataFrame | None,
     after_df: pl.DataFrame,
-) -> list[PositionDelta]:
-    """Build the list of ``(symbol, expiry)`` position deltas.
+) -> list[PositionDiff]:
+    """Build the list of ``(symbol, expiry)`` position diffs.
 
     Left-joins the "current row" per dim from each frame on
-    ``(symbol, expiry)`` and emits one ``PositionDelta`` per dim that
+    ``(symbol, expiry)`` and emits one ``PositionDiff`` per dim that
     appears in the after-frame. ``percent_change`` is ``None`` when
     ``before == 0`` (undefined).
     """
@@ -250,7 +250,7 @@ def _compute_deltas(
         rows = after_current.with_columns(
             pl.lit(0.0).alias("before"),
             pl.col(_POSITION_COL).alias("after"),
-            pl.col(_POSITION_COL).alias("absolute_change"),
+            pl.col(_POSITION_COL).alias("absolute_diff"),
             pl.lit(None, dtype=pl.Float64).alias("percent_change"),
             pl.col("expiry").cast(pl.Utf8).alias("expiry_str"),
         )
@@ -264,7 +264,7 @@ def _compute_deltas(
             )
             .with_columns(pl.col("before").fill_null(0.0))
             .with_columns(
-                (pl.col("after") - pl.col("before")).alias("absolute_change"),
+                (pl.col("after") - pl.col("before")).alias("absolute_diff"),
                 pl.when(pl.col("before") != 0.0)
                 .then((pl.col("after") - pl.col("before")) / pl.col("before") * 100.0)
                 .otherwise(None)
@@ -274,12 +274,12 @@ def _compute_deltas(
         )
 
     return [
-        PositionDelta(
+        PositionDiff(
             symbol=r["symbol"],
             expiry=r["expiry_str"],
             before=float(r["before"]),
             after=float(r["after"]),
-            absolute_change=float(r["absolute_change"]),
+            absolute_diff=float(r["absolute_diff"]),
             percent_change=(
                 float(r["percent_change"])
                 if r["percent_change"] is not None else None

@@ -10,6 +10,7 @@ import {
 } from "./UnregisteredPushCard";
 import { SilentStreamCard } from "./SilentStreamCard";
 import { MarketValueMismatchCard } from "./MarketValueMismatchCard";
+import { CorrelationSingularCard } from "./CorrelationSingularCard";
 
 interface Props {
   open: boolean;
@@ -32,12 +33,16 @@ export function NotificationsCenter({ open, onClose }: Props) {
     unregistered,
     silentStreams,
     marketValueMismatches,
+    correlationAlerts,
     dismissUnregistered,
     dismissSilentStream,
   } = useNotifications();
 
   const totalCount =
-    unregistered.length + silentStreams.length + marketValueMismatches.length;
+    unregistered.length
+    + silentStreams.length
+    + marketValueMismatches.length
+    + correlationAlerts.length;
 
   const handleRegister = useCallback(
     (entry: UnregisteredPushAttempt) => {
@@ -70,6 +75,15 @@ export function NotificationsCenter({ open, onClose }: Props) {
     },
     [navigate, setFocus, onClose],
   );
+
+  const handleOpenCorrelationEditor = useCallback(() => {
+    // Deep-link to Anatomy and let the canvas render the correlations
+    // node so the trader can click into it. A fuller integration would
+    // pre-select the node via a query-param seeder like the stream deep
+    // link; leaving that to a follow-up keeps this M9 diff tight.
+    navigate("anatomy");
+    onClose();
+  }, [navigate, onClose]);
 
   return (
     <AnimatePresence>
@@ -150,6 +164,13 @@ export function NotificationsCenter({ open, onClose }: Props) {
                   key={`m:${e.symbol}:${e.expiry}`}
                   entry={e}
                   onOpenCell={handleOpenCell}
+                />
+              ))}
+              {correlationAlerts.map((e) => (
+                <CorrelationSingularCard
+                  key={`c:${e.matrixKind}`}
+                  entry={e}
+                  onOpenEditor={handleOpenCorrelationEditor}
                 />
               ))}
             </ul>

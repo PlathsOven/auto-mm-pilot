@@ -107,14 +107,20 @@ class HeadlineIntent(BaseModel):
     Full flow deferred (spec §2). Reserved type so the router can route
     headline-like inputs back to the trader with "what do you think this
     means for vol?" before extracting a DiscretionaryViewIntent.
+
+    ``magnitude_language`` and ``probable_timeframe`` are optional because
+    bare headlines (e.g. "BTC conference tomorrow at 3pm ET") often carry
+    no magnitude or timeframe cue — the LLM would otherwise have to hedge
+    with a filler string or hard-fail validation. ``direction`` defaults
+    to ``"ambiguous"`` for the same reason.
     """
     kind: Literal["headline"] = "headline"
     original_phrasing: str
     event_type: str
     market_variable_affected: str
-    direction: Literal["bullish_vol", "bearish_vol", "ambiguous"]
-    magnitude_language: str
-    probable_timeframe: str
+    direction: Literal["bullish_vol", "bearish_vol", "ambiguous"] = "ambiguous"
+    magnitude_language: str | None = None
+    probable_timeframe: str | None = None
 
 
 StructuredIntent = Annotated[
@@ -277,20 +283,20 @@ class SynthesisOutput(BaseModel):
     proposed_payload: ProposedBlockPayload
 
 
-class PositionDelta(BaseModel):
+class PositionDiff(BaseModel):
     """One (symbol, expiry) row of a preview diff."""
     symbol: str
     expiry: str
     before: float
     after: float
-    absolute_change: float
+    absolute_diff: float
     # ``None`` when ``before == 0`` — percent change is undefined.
     percent_change: float | None = None
 
 
 class PreviewResponse(BaseModel):
     """Stage 4 output — position impact of applying the proposed block."""
-    deltas: list[PositionDelta]
+    diffs: list[PositionDiff]
     total_bankroll_usage_before: float
     total_bankroll_usage_after: float
     notes: list[str] = Field(default_factory=list)

@@ -287,3 +287,17 @@ _define_step("risk_space_aggregation",
 _define_step("calc_to_target",
              contract_doc="(col: pl.Expr, tte_years: pl.Expr, risk_dim_cols: list[str], **params) -> pl.Expr",
              infrastructure_params=["col", "tte_years", "risk_dim_cols"])
+
+_define_step("exposure_to_position",
+             contract_doc=(
+                 "(df, risk_dimension_cols, symbol_correlations, "
+                 "expiry_correlations, symbol_correlations_draft, "
+                 "expiry_correlations_draft, exposure_col, position_col, "
+                 "hypothetical_col) -> pl.DataFrame"
+             ),
+             infrastructure_params=[
+                 "df", "risk_dimension_cols",
+                 "symbol_correlations", "expiry_correlations",
+                 "symbol_correlations_draft", "expiry_correlations_draft",
+                 "exposure_col", "position_col", "hypothetical_col",
+             ])

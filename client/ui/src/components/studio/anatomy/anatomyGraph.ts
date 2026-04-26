@@ -39,6 +39,7 @@ export const PIPELINE_ORDER = [
   "calc_to_target",
   "smoothing",
   "position_sizing",
+  "correlations",
 ] as const;
 
 export type StepKey = (typeof PIPELINE_ORDER)[number];
@@ -53,6 +54,21 @@ export const PIPELINE_NARRATIVE: Record<StepKey, string> = {
   calc_to_target: "Calc → target. edge = fair − market.",
   smoothing: "EWM-smooth edge and var.",
   position_sizing: "pos = edge · bankroll / var.",
+  correlations: "Back out position from exposure: P = Cₛ⁻¹·E·Cₑ⁻¹.",
+};
+
+/** Display label for each pipeline step — used on the node card and the
+ *  jump-list overlay. */
+export const STEP_LABELS: Record<StepKey, string> = {
+  unit_conversion: "Unit Conversion",
+  temporal_fair_value: "Temporal Distribution",
+  risk_space_aggregation: "Risk-Space Aggregation",
+  market_value_inference: "Market Value Inference",
+  aggregation: "Space Aggregation",
+  calc_to_target: "Calc → Target",
+  smoothing: "Smoothing",
+  position_sizing: "Position Sizing",
+  correlations: "Correlations",
 };
 
 // ---------------------------------------------------------------------------
@@ -76,7 +92,8 @@ const X = {
   calc_to_target: 3200,
   smoothing: 3840,
   position_sizing: 4480,
-  output: 5120,
+  correlations: 5120,
+  output: 5760,
 };
 
 const Y_MAIN = 240;
@@ -94,6 +111,7 @@ export const STEP_NODE_POSITIONS: Partial<Record<StepKey, { x: number; y: number
   calc_to_target: { x: X.calc_to_target, y: Y_MAIN },
   smoothing: { x: X.smoothing, y: Y_MAIN },
   position_sizing: { x: X.position_sizing, y: Y_MAIN },
+  correlations: { x: X.correlations, y: Y_MAIN },
 };
 
 export const OUTPUT_NODE_POSITION = { x: X.output, y: Y_MAIN };
@@ -162,6 +180,10 @@ export const NODE_TRACKS: Partial<Record<StepKey, NodeTrackSpec>> = {
   },
   smoothing: { in: ["edge", "var"], out: ["edge", "var"] },
   position_sizing: { in: ["edge", "var"], out: [] },
+  // correlations collapses position_sizing's merged output into a single
+  // track on both sides — the exposure → position translation is purely
+  // positional (not edge / var / market).
+  correlations: { in: [], out: [] },
 };
 
 // ---------------------------------------------------------------------------
@@ -287,6 +309,9 @@ export const PIPELINE_EDGES: AnatomyEdgeDef[] = [
   { id: "e-smooth-ps-edge", source: "smoothing", target: "position_sizing", sourceHandle: "edge", targetHandle: "edge", label: "smoothed_edge(t)" },
   { id: "e-smooth-ps-var", source: "smoothing", target: "position_sizing", sourceHandle: "var", targetHandle: "var", label: "smoothed_var(t)" },
 
-  // position_sizing → output — edge + var merged into position.
-  { id: "e-ps-output", source: "position_sizing", target: "output", label: "position(t)" },
+  // position_sizing → correlations — edge + var merged into exposure.
+  { id: "e-ps-corr", source: "position_sizing", target: "correlations", label: "exposure(t)" },
+
+  // correlations → output — post-correlation-inverse position.
+  { id: "e-corr-output", source: "correlations", target: "output", label: "position(t)" },
 ];

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type {
+  BuildStageEvent,
   ChatMessage,
   ChatMode,
   IntentOutput,
@@ -113,6 +114,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const appendStage = useCallback((id: string, event: BuildStageEvent) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === id ? { ...m, stages: [...(m.stages ?? []), event] } : m,
+      ),
+    );
+  }, []);
+
+  const setMessageTurnId = useCallback((id: string, turn_id: string) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, turn_id } : m)),
+    );
+  }, []);
+
   const sendMessage = useCallback(
     (content: string) => {
       pushMessage("user", content);
@@ -148,6 +163,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // Orchestrator's conversation_turn_id — captured from the Stage 1
         // event and threaded through into preview_rejection signals.
         let turnId: string | null = null;
+        // Flipped when an error event is surfaced so ``onDone`` doesn't
+        // clobber the shown error with "No response received".
+        let hadError = false;
 
         const controller = streamBuildConverse(
           { conversation },
@@ -158,15 +176,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             },
             onTurnId: (id) => {
               turnId = id;
+              setMessageTurnId(assistantId, id);
             },
-            onStageOutput: (stage, output) => {
+            onStageOutput: (stage, output, meta) => {
+              appendStage(assistantId, { kind: stage, output, ...meta });
               if (stage === "intent") {
                 latestIntent = output as IntentOutput;
               } else if (stage === "synthesis") {
                 latestSynthesis = output as SynthesisOutput;
               }
             },
-            onProposal: (payload) => {
+            onProposal: (payload, meta) => {
+              appendStage(assistantId, { kind: "proposal", payload, ...meta });
               const intent = latestIntent;
               const synthesis = latestSynthesis;
               if (!intent || !synthesis) {
@@ -201,11 +222,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             onDone: () => {
               setIsStreaming(false);
               abortRef.current = null;
-              if (!accumulated) {
+              if (!accumulated && !hadError) {
                 updateMessage(assistantId, "No response received from the engine.");
               }
             },
             onError: (error) => {
+              hadError = true;
+              appendStage(assistantId, { kind: "error", message: error });
               setIsStreaming(false);
               abortRef.current = null;
               updateMessage(

@@ -103,13 +103,28 @@ export interface GlobalContext {
  */
 export interface DesiredPosition {
   symbol: string;
+  /** DDMMMYY-formatted display string. Not a valid correlation-identity
+   *  key — DDMMMYY discards time-of-day. Use ``expiryIso`` for joins. */
   expiry: string;
+  /** Canonical ISO datetime (with time-of-day). Matches the correlation
+   *  store and Stage H matrix axis. Required for the correlations editor
+   *  to resolve against server entries. */
+  expiryIso: string;
   edge: number;
   smoothedEdge: number;
   variance: number;
   smoothedVar: number;
   desiredPos: number;
   rawDesiredPos: number;
+  /** Pre-correlation exposure (the Kelly output). Equals the position
+   *  fields when both correlation matrices are identity. */
+  rawDesiredExposure: number;
+  smoothedDesiredExposure: number;
+  /** Post-correlation position under the *draft* matrices. ``null`` when
+   *  no draft is live — the position + draft columns are broadcast
+   *  simultaneously so the grid can annotate pending changes inline. */
+  rawDesiredPositionHypothetical: number | null;
+  smoothedDesiredPositionHypothetical: number | null;
   currentPos: number;
   totalFair: number;
   smoothedTotalFair: number;
@@ -184,6 +199,16 @@ export interface MarketValueMismatchAlert {
   diff: number;
 }
 
+/** Stage H singular-matrix alert. Raised when Stage H's determinant
+ *  check fails (``|det| < 1e-9``); the pipeline rerun fails loudly and
+ *  the Notifications Center renders a card pointing the trader at the
+ *  Correlations editor. */
+export interface CorrelationSingularAlert {
+  matrixKind: "symbol" | "expiry";
+  det: number;
+  conditionNumber: number;
+}
+
 /** Top-level payload received over WebSocket */
 export interface ServerPayload {
   streams: DataStream[];
@@ -193,6 +218,7 @@ export interface ServerPayload {
   unregisteredPushes?: UnregisteredPushAttempt[];
   silentStreams?: SilentStreamAlert[];
   marketValueMismatches?: MarketValueMismatchAlert[];
+  correlationAlerts?: CorrelationSingularAlert[];
 }
 
 /** Context pushed to the LLM chat when a card or cell is clicked */
@@ -200,12 +226,41 @@ export type InvestigationContext =
   | { type: "update"; card: UpdateCard }
   | { type: "position"; symbol: string; expiry: string; position: DesiredPosition };
 
+/** Per-stage debug metadata carried alongside every Build-pipeline event
+ *  so the Thinking panel can surface latency, model selection, and token
+ *  spend at a glance without a round-trip to the llm_calls table. */
+export interface BuildStageMeta {
+  elapsed_ms?: number;
+  model_used?: string | null;
+  tokens_in?: number;
+  tokens_out?: number;
+}
+
+/** One entry in an assistant message's "thinking" trace. Captures each
+ *  Build-pipeline stage event so the trader can inspect the router /
+ *  intent / synthesis / critique output, the final proposal payload, and
+ *  any error that halted the turn. */
+export type BuildStageEvent =
+  | ({ kind: "router"; output: unknown } & BuildStageMeta)
+  | ({ kind: "intent"; output: unknown } & BuildStageMeta)
+  | ({ kind: "synthesis"; output: unknown } & BuildStageMeta)
+  | ({ kind: "critique"; output: unknown } & BuildStageMeta)
+  | ({ kind: "proposal"; payload: unknown } & BuildStageMeta)
+  | { kind: "error"; message: string };
+
 /** A single message in the LLM chat */
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: number;
+  /** Ordered Build-pipeline stage events. Populated only for assistant
+   *  messages produced in Build mode; absent otherwise. */
+  stages?: BuildStageEvent[];
+  /** Orchestrator's conversation_turn_id — captured from the Stage 1
+   *  event. Used as the primary debug key in the Thinking panel header
+   *  and joins to the ``llm_calls`` table. */
+  turn_id?: string;
 }
 
 /** Parsed engine command from LLM response */
@@ -221,6 +276,8 @@ export interface EngineCommand {
 export type ViewMode =
   | "position"
   | "rawPosition"
+  | "exposure"
+  | "rawExposure"
   | "edge"
   | "smoothedEdge"
   | "variance"
@@ -809,18 +866,18 @@ export interface SynthesisOutput {
 }
 
 /** One (symbol, expiry) row of a preview diff. */
-export interface PositionDelta {
+export interface PositionDiff {
   symbol: string;
   expiry: string;
   before: number;
   after: number;
-  absolute_change: number;
+  absolute_diff: number;
   percent_change: number | null;
 }
 
 /** Stage 4 output — position impact of applying the proposed block. */
 export interface PreviewResponse {
-  deltas: PositionDelta[];
+  diffs: PositionDiff[];
   total_bankroll_usage_before: number;
   total_bankroll_usage_after: number;
   notes: string[];
@@ -872,4 +929,73 @@ export interface LlmFailureLogRequest {
   conversation_turn_id?: string | null;
   llm_call_id?: number | null;
   metadata?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Correlations — Stage H exposure → position translation
+// ---------------------------------------------------------------------------
+
+/** One upper-triangle correlation entry. ``a < b`` by convention; the
+ *  server canonicalises on write so clients may emit in any order. */
+export interface SymbolCorrelationEntry {
+  a: string;
+  b: string;
+  rho: number;
+}
+
+export interface ExpiryCorrelationEntry {
+  a: string;
+  b: string;
+  rho: number;
+}
+
+/** GET /api/correlations/symbols — both slots in one envelope.
+ *  ``draft === null`` means no draft is live (Confirm / Discard disabled). */
+export interface SymbolCorrelationListResponse {
+  committed: SymbolCorrelationEntry[];
+  draft: SymbolCorrelationEntry[] | null;
+}
+
+export interface ExpiryCorrelationListResponse {
+  committed: ExpiryCorrelationEntry[];
+  draft: ExpiryCorrelationEntry[] | null;
+}
+
+export interface SetSymbolCorrelationsRequest {
+  entries: SymbolCorrelationEntry[];
+}
+
+export interface SetExpiryCorrelationsRequest {
+  entries: ExpiryCorrelationEntry[];
+}
+
+/** POST /api/correlations/expiries/apply-method — run a named calculator.
+ *  ``expiries`` is the client-known universe (lex-sorted, canonical ISO or
+ *  DDMMMYY). Server canonicalises + de-dupes before running the calculator. */
+export interface ApplyExpiryCorrelationMethodRequest {
+  method_name: string;
+  params: Record<string, number>;
+  expiries: string[];
+}
+
+/** One tunable parameter on a calculator — min/max/default drive the UI slider. */
+export interface ExpiryCorrelationMethodParam {
+  name: string;
+  label: string;
+  min: number;
+  max: number;
+  default: number;
+}
+
+/** Metadata for one calculator. Rendered in the UI picker. */
+export interface ExpiryCorrelationMethodSchema {
+  name: string;
+  title: string;
+  description: string;
+  params: ExpiryCorrelationMethodParam[];
+}
+
+/** GET /api/correlations/expiries/methods — the whole calculator library. */
+export interface ExpiryCorrelationMethodsResponse {
+  methods: ExpiryCorrelationMethodSchema[];
 }

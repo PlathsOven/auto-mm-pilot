@@ -137,6 +137,10 @@ export const CHAT_HISTORY_MAX = 50;
 export const VIEW_MODE_META: Record<ViewMode, ViewModeMeta> = {
   position: { label: "Smoothed Desired", unit: "$vega", decimals: 2, signed: true },
   rawPosition: { label: "Instant Desired", unit: "$vega", decimals: 2, signed: true },
+  // Stage H: pre-correlation Kelly output. Equal to position when both
+  // correlation matrices are identity.
+  exposure: { label: "Smoothed Exposure", unit: "$vega", decimals: 2, signed: true },
+  rawExposure: { label: "Instant Exposure", unit: "$vega", decimals: 2, signed: true },
   edge: { label: "Instant Edge", unit: "vp", decimals: 2, signed: true },
   smoothedEdge: { label: "Smoothed Edge", unit: "vp", decimals: 2, signed: true },
   variance: { label: "Instant Variance", unit: "vp", decimals: 2, signed: false },
@@ -159,7 +163,8 @@ export interface MetricMeta {
 }
 
 export const METRIC_META: Record<Metric, MetricMeta> = {
-  desired: { label: "Desired", unit: "$vega", decimals: 2, signed: true },
+  desired: { label: "Desired (position)", unit: "$vega", decimals: 2, signed: true },
+  exposure: { label: "Exposure (pre-correlation)", unit: "$vega", decimals: 2, signed: true },
   edge: { label: "Edge", unit: "vp", decimals: 2, signed: true },
   variance: { label: "Variance", unit: "vp", decimals: 2, signed: false },
   fair: { label: "Fair", unit: "vp", decimals: 2, signed: false },
@@ -167,9 +172,11 @@ export const METRIC_META: Record<Metric, MetricMeta> = {
   marketSource: { label: "Market (Source)", unit: "vp", decimals: 2, signed: false },
 };
 
-/** Metric order in the Overview dropdown. */
+/** Metric order in the Overview dropdown. Exposure sits next to Desired
+ *  since they're the two ends of the Stage H translation. */
 export const METRICS: readonly Metric[] = [
   "desired",
+  "exposure",
   "edge",
   "variance",
   "fair",

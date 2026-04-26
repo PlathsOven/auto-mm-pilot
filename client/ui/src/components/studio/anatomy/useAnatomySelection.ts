@@ -40,6 +40,7 @@ export interface AnatomySelectionState {
   closePanel: () => void;
   openStream: (name: string) => void;
   openTransform: (stepKey: StepKey) => void;
+  openCorrelations: () => void;
 }
 
 /**
@@ -77,6 +78,10 @@ export function useAnatomySelection(): AnatomySelectionState {
     (stepKey: StepKey) => setSelection({ kind: "transform", stepKey }),
     [],
   );
+  const openCorrelations = useCallback(
+    () => setSelection({ kind: "correlations" }),
+    [],
+  );
 
-  return { selection, streamPrefill, closePanel, openStream, openTransform };
+  return { selection, streamPrefill, closePanel, openStream, openTransform, openCorrelations };
 }

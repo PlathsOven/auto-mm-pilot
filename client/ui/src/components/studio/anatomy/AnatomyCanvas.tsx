@@ -22,9 +22,11 @@ import { StreamNode, type StreamNodeData } from "./nodes/StreamNode";
 import { AddStreamNode } from "./nodes/AddStreamNode";
 import { ConnectorNode } from "./nodes/ConnectorNode";
 import { TransformNode } from "./nodes/TransformNode";
+import { CorrelationsNode } from "./nodes/CorrelationsNode";
 import { OutputNode } from "./nodes/OutputNode";
 import { LaneBandNode } from "./nodes/LaneBandNode";
 import { NodeDetailPanel } from "./NodeDetailPanel";
+import { AnatomyNodeList } from "./AnatomyNodeList";
 import { PIPELINE_ORDER, type StepKey } from "./anatomyGraph";
 import { buildAnatomyGraph } from "./buildAnatomyGraph";
 import { useAnatomySelection } from "./useAnatomySelection";
@@ -35,6 +37,7 @@ const NODE_TYPES: NodeTypes = {
   addStream: AddStreamNode,
   connector: ConnectorNode,
   transform: TransformNode,
+  correlations: CorrelationsNode,
   output: OutputNode,
   laneBand: LaneBandNode,
 };
@@ -84,6 +87,7 @@ function AnatomyCanvasInner() {
     closePanel,
     openStream,
     openTransform,
+    openCorrelations,
   } = useAnatomySelection();
 
   const { savingKey, saveError, onSelectTransform, onParamChange } = useTransformEditors();
@@ -124,6 +128,32 @@ function AnatomyCanvasInner() {
     },
     [closePanel, fitNodeIntoView],
   );
+
+  // Jump-list handlers — pan/zoom to the node + open its inspector. Mirrors
+  // the node-click gesture so the list behaves identically to clicking the
+  // node directly. Output jumps pan only (no mode switch) so the trader
+  // stays on Anatomy while scanning the list.
+  const jumpStream = useCallback(
+    (name: string) => {
+      fitNodeIntoView(`stream-${name}`);
+      openStream(name);
+    },
+    [fitNodeIntoView, openStream],
+  );
+  const jumpTransform = useCallback(
+    (stepKey: StepKey) => {
+      fitNodeIntoView(stepKey);
+      openTransform(stepKey);
+    },
+    [fitNodeIntoView, openTransform],
+  );
+  const jumpCorrelations = useCallback(() => {
+    fitNodeIntoView("correlations");
+    openCorrelations();
+  }, [fitNodeIntoView, openCorrelations]);
+  const jumpOutput = useCallback(() => {
+    fitNodeIntoView("output");
+  }, [fitNodeIntoView]);
 
   // Is the system "live"? Use the WS payload as the signal — when positions
   // are flowing, the DAG edges animate.
@@ -202,6 +232,13 @@ function AnatomyCanvasInner() {
         closePanel();
         return;
       }
+      if (
+        selection.kind === "correlations"
+        && node.type === "correlations"
+      ) {
+        closePanel();
+        return;
+      }
 
       // Pan/zoom to the clicked node so it ends up centred regardless of
       // which slice of the DAG was previously visible.
@@ -221,11 +258,13 @@ function AnatomyCanvasInner() {
         openStream("new");
       } else if (node.type === "transform") {
         openTransform(node.id as StepKey);
+      } else if (node.type === "correlations") {
+        openCorrelations();
       } else if (node.type === "output") {
         setMode("workbench");
       }
     },
-    [fitNodeIntoView, setMode, selection, closePanel, openTransform, openStream],
+    [fitNodeIntoView, setMode, selection, closePanel, openTransform, openStream, openCorrelations],
   );
 
   const onPaneClick = useCallback(() => {
@@ -295,7 +334,13 @@ function AnatomyCanvasInner() {
 
   if (!steps) return null;
 
-  const allPresent = PIPELINE_ORDER.every((k) => steps[k]);
+  // "correlations" is a pseudo-step — rendered as its own node type
+  // (CorrelationsNode) without a server-side TransformStep entry, so
+  // exclude it from the presence gate. Every other pipeline step must
+  // be in the server catalog before the canvas renders.
+  const allPresent = PIPELINE_ORDER
+    .filter((k) => k !== "correlations")
+    .every((k) => steps[k]);
   if (!allPresent) return null;
 
   const showDetailPanel = selection.kind !== "none";
@@ -342,6 +387,14 @@ function AnatomyCanvasInner() {
               maskColor="rgba(15,23,42,0.18)"
             />
           </ReactFlow>
+          <AnatomyNodeList
+            streams={streams}
+            selection={selection}
+            onJumpStream={jumpStream}
+            onJumpTransform={jumpTransform}
+            onJumpCorrelations={jumpCorrelations}
+            onJumpOutput={jumpOutput}
+          />
         </div>
       </div>
 

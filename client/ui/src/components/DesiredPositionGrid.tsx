@@ -253,6 +253,26 @@ export function DesiredPositionGrid({ viewMode: controlledViewMode, onViewModeCh
                                 {meta.signed && pos.desiredPos > 0 ? "+" : ""}{pos.desiredPos.toFixed(meta.decimals)}
                               </span>
                             )}
+                            {/* Stage H draft annotation — surfaces the
+                                post-draft position alongside the committed
+                                cell. Position view modes only; Exposure is
+                                pre-correlation and unaffected by drafts. */}
+                            {(viewMode === "position" || viewMode === "rawPosition")
+                              && (() => {
+                                const hyp = viewMode === "position"
+                                  ? pos.smoothedDesiredPositionHypothetical
+                                  : pos.rawDesiredPositionHypothetical;
+                                if (hyp === null || hyp === undefined) return null;
+                                return (
+                                  <span
+                                    className="ml-1 rounded bg-amber-400/15 px-1 text-[8px] font-mono text-amber-800"
+                                    title="Position under the pending correlation draft."
+                                  >
+                                    draft: {hyp >= 0 && meta.signed ? "+" : ""}
+                                    {hyp.toFixed(meta.decimals)}
+                                  </span>
+                                );
+                              })()}
                           </>
                         )}
                         {hasOverride && !isEditing && (

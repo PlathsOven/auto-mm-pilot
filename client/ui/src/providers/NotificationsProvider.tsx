@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import type {
+  CorrelationSingularAlert,
   MarketValueMismatchAlert,
   SilentStreamAlert,
   UnregisteredPushAttempt,
@@ -48,6 +49,7 @@ interface NotificationsState {
   unregistered: UnregisteredPushAttempt[];
   silentStreams: SilentStreamAlert[];
   marketValueMismatches: MarketValueMismatchAlert[];
+  correlationAlerts: CorrelationSingularAlert[];
   openPanel: () => void;
   closePanel: () => void;
   togglePanel: () => void;
@@ -96,9 +98,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     () => payload?.marketValueMismatches ?? [],
     [payload],
   );
+  // Stage H singular-matrix alerts ride on every tick — the store is
+  // cleared the moment the next rerun succeeds, so the WS payload is the
+  // authoritative state. No hydration needed.
+  const correlationAlerts = useMemo<CorrelationSingularAlert[]>(
+    () => payload?.correlationAlerts ?? [],
+    [payload],
+  );
 
   const count =
-    unregistered.length + silentStreams.length + marketValueMismatches.length;
+    unregistered.length
+    + silentStreams.length
+    + marketValueMismatches.length
+    + correlationAlerts.length;
 
   const openPanel = useCallback(() => setOpen(true), []);
   const closePanel = useCallback(() => setOpen(false), []);
@@ -133,6 +145,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       unregistered,
       silentStreams,
       marketValueMismatches,
+      correlationAlerts,
       openPanel,
       closePanel,
       togglePanel,
@@ -145,6 +158,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       unregistered,
       silentStreams,
       marketValueMismatches,
+      correlationAlerts,
       openPanel,
       closePanel,
       togglePanel,

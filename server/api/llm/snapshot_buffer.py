@@ -6,8 +6,8 @@ investigation LLM can receive condensed time-series context alongside the
 current snapshot.
 
 The buffer provides:
-- Per-stream delta extraction (how each stream's contribution changed)
-- Aggregated delta extraction (how edge, variance, and position changed)
+- Per-stream change extraction (how each stream's contribution changed)
+- Aggregated change extraction (how edge, variance, and position changed)
 - A compact prompt-ready formatter that produces markdown tables
 
 All lookback intervals and snapshot counts are configurable via
@@ -70,7 +70,7 @@ class SnapshotRingBuffer:
 
     Call :meth:`push` every time a new pipeline snapshot is produced.
     Call :meth:`build_history_context` to get a prompt-ready string of
-    condensed deltas between sampled keyframes.
+    condensed changes between sampled keyframes.
     """
 
     def __init__(self, config: SnapshotBufferConfig | None = None) -> None:
@@ -93,13 +93,13 @@ class SnapshotRingBuffer:
     def build_history_context(self, now: datetime) -> str | None:
         """Build a prompt-ready history section from the buffer.
 
-        Returns ``None`` if the buffer has fewer than 2 snapshots (no delta
+        Returns ``None`` if the buffer has fewer than 2 snapshots (no diff
         possible).
 
         The output contains two tables:
-        1. **Per-stream deltas** — how each stream's fair-value and
+        1. **Per-stream changes** — how each stream's fair-value and
            market-implied contributions changed between keyframes.
-        2. **Aggregated deltas** — how overall edge, variance, and desired
+        2. **Aggregated changes** — how overall edge, variance, and desired
            position changed between keyframes.
         """
         if len(self._buf) < 2:

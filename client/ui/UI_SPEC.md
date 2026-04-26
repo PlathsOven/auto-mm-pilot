@@ -85,8 +85,8 @@ The UI is a fixed-height, single-page application (SPA) divided into four primar
 * **Header:** "Daily Trading Wrap" with generation timestamp.
 * **Layout:** Two-column layout within the zone.
 * **Left column:**
-    * **Largest Position Changes** — top position deltas with driver explanations using investigation.py market-native language.
-    * **Largest Desired Position Changes** — top desired position deltas with driver explanations.
+    * **Largest Position Changes** — top position diffs with driver explanations using investigation.py market-native language.
+    * **Largest Desired Position Changes** — top desired position diffs with driver explanations.
     * **Current Risks** — amber-accented risk items with specific exposure details.
 * **Right column:**
     * **Best Case Scenarios** — blue-accented scenarios with trigger conditions describing data feed changes that would move fairs in favorable direction.

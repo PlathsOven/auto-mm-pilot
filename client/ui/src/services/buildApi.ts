@@ -14,6 +14,7 @@ import type {
   BlockCommitRequest,
   BlockCommitResponse,
   BlockPreviewRequest,
+  BuildStageMeta,
   LlmFailureLogRequest,
   PreviewResponse,
   ProposedBlockPayload,
@@ -27,10 +28,10 @@ export type BuildStageName = "router" | "intent" | "synthesis" | "critique";
 export interface BuildConverseCallbacks {
   /** Called for every natural-language chunk (clarifying Q, fallthrough, or final summary). */
   onDelta: (text: string) => void;
-  /** Called once per completed stage with the stage's structured output. */
-  onStageOutput?: (stage: BuildStageName, output: unknown) => void;
+  /** Called once per completed stage with the stage's structured output + debug metadata. */
+  onStageOutput?: (stage: BuildStageName, output: unknown, meta: BuildStageMeta) => void;
   /** Called when Stage 3 produces a fully parameterised block proposal. */
-  onProposal: (payload: ProposedBlockPayload) => void;
+  onProposal: (payload: ProposedBlockPayload, meta: BuildStageMeta) => void;
   /** Called with the conversation_turn_id as soon as it's known —
    *  currently emitted alongside the Stage 1 (router) event so the
    *  client can reference it in later failure signals
@@ -115,6 +116,17 @@ export async function fetchStreamIntent(
   }
 }
 
+function extractMeta(ev: Record<string, unknown>): BuildStageMeta {
+  const meta: BuildStageMeta = {};
+  if (typeof ev.elapsed_ms === "number") meta.elapsed_ms = ev.elapsed_ms;
+  if (typeof ev.model_used === "string" || ev.model_used === null) {
+    meta.model_used = ev.model_used as string | null;
+  }
+  if (typeof ev.tokens_in === "number") meta.tokens_in = ev.tokens_in;
+  if (typeof ev.tokens_out === "number") meta.tokens_out = ev.tokens_out;
+  return meta;
+}
+
 /** Fire a Build-mode conversation at /api/build/converse and dispatch stage events. */
 export function streamBuildConverse(
   req: BuildConverseRequest,
@@ -139,12 +151,13 @@ export function streamBuildConverse(
         callbacks.onError(ev.error);
         return;
       }
+      const meta = extractMeta(ev);
       if (isProposalEvent(ev)) {
-        callbacks.onProposal(ev.payload);
+        callbacks.onProposal(ev.payload, meta);
         return;
       }
       if (isStageEvent(ev)) {
-        callbacks.onStageOutput?.(ev.stage, ev.output);
+        callbacks.onStageOutput?.(ev.stage, ev.output, meta);
       }
     },
     onDone: callbacks.onDone,

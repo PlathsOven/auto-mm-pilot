@@ -6,11 +6,27 @@ Format per entry: **Rule.** Then `Why:` (what went wrong, so edge cases can be j
 
 ---
 
+## Display format ≠ identity key — send both on the wire
+
+**Why:** 2026-04-24 — the expiry-correlation apply-draft flow "worked" (draft wrote to the store, WS tick rerendered positions) but every cell stayed unchanged. Root cause: `DesiredPosition.expiry` on the wire is DDMMMYY for display (`ws_serializers.format_expiry`), which **discards time-of-day**. The client's correlation UI used `p.expiry` as the correlation axis identity and sent DDMMMYY to `POST /api/correlations/expiries/apply-method`. The server canonicalised those labels to **midnight ISO** (`"2026-03-27T00:00:00"`) via `canonical_expiry_key("27MAR26")`. But the pipeline's actual expiry column is **08:00 UTC** (crypto options convention). Stage H's `materialise_matrix(entries, labels)` call then found zero key matches between midnight-ISO entries and 08:00-ISO labels, so `C_e_draft` silently materialised to the identity. `C_e_draft⁻¹·E = E` — the draft solve produced the same positions as the committed solve, and the editor's Σ|Δ| summary read "no visible position change." The symptom was identical to a dead feature; only a diagnostic log exposing `sample_draft_key` vs `sample_expiry_label` side-by-side made the 00:00 vs 08:00 mismatch visible.
+
+**How to apply:** When a field does double duty on the wire (trader reads it + client code joins on it), split it: one field optimised for display (`expiry: "27MAR26"`), one carrying the canonical identity key (`expiry_iso: "2026-03-27T08:00:00"`). The identity field must round-trip through the same canonicaliser every producer and every consumer uses — no lossy reformatting in between. If you see a "display format" string being used as a map key downstream, that's the bug. DDMMMYY is a display format; ISO (with time-of-day) is the identity. Stage H's key-miss is a *silent* degeneration — the solve produces plausible-looking output (the committed solve, repeated), so no error fires. Add a WARNING-level log whenever a lookup boundary materialises to the identity by default (e.g. `materialise_matrix`) so the next instance of this bug class surfaces on first inspection. Related to but more specific than the earlier "Canonicalise identity keys at a single boundary" lesson — that one covers feeder/store mismatches; this one covers the *display/identity* split at the wire layer.
+
+---
+
 ## Memoize hook return values that callers put in useEffect deps
 
 **Why:** 2026-04-24 — the BlockDrawer's applies-to chips appeared to be un-clickable. Root cause: `useBlockDraftSubmit` returned `clearError: () => setError(null)` as a fresh inline arrow every render. The consuming `BlockDrawer` listed `clearError` in the dep array of its draft-reset useEffect, so the effect ran on *every* render — any successful `setDraft` call (from clicking a chip, typing in a field) immediately re-rendered, which re-ran the effect, which called `setDraft({ ...EMPTY_DRAFT, ... })` and wiped the just-applied edit. Typing-based fields sometimes appeared to work because React batching could make the flash brief enough to miss; click-based state (the applies-to chips) simply looked dead. Sibling `submit` was already `useCallback`-memoized, which is why *it* didn't break; the bug was that `clearError` had been skipped.
 
 **How to apply:** Any value returned from a custom hook that a caller is likely to put in a `useEffect` dep array must be reference-stable. Setters from `useState` already are. Arrow-wrappers around setters (`clearError`, `toggleX`, `resetY`) must be wrapped in `useCallback` with correct deps. If a hook returns multiple callables, memoize them individually rather than recreating the wrapper object — the object itself can change reference each render without breaking callers as long as the individual fields are stable. When debugging a React component where user input seems to vanish, audit every `useEffect` dep for unstable references *first* — it's the single most common cause.
+
+---
+
+## Extending an enum / literal union isn't free — grep every iteration site
+
+**Why:** 2026-04-24 — Stage H's M6 appended `"correlations"` to `PIPELINE_ORDER` in `anatomyGraph.ts` so the new node would slot into the DAG. Typecheck + build passed green. Anatomy came up blank at runtime. Root cause: `AnatomyCanvas.tsx:310` had a presence gate `PIPELINE_ORDER.every((k) => steps[k])` — since `steps` comes from the server's transform catalog and `correlations` is a pseudo-step without a server-registered transform, the gate failed and the canvas returned `null`. Typecheck was no help — `steps: Record<string, TransformStep>` accepts any string key, so `steps["correlations"]` is `TransformStep | undefined`, and `every(...steps[k])` is valid TS either way.
+
+**How to apply:** When adding an element to an enum / literal union / ordered-keys array that flows into a `.switch`, `.reduce`, `.every`, `.filter`, or record lookup somewhere downstream, grep for every iteration site and confirm the new element is intentionally handled. Typecheck catches `switch` exhaustiveness but not `.every(steps[k])`-style truthiness gates or `steps[k] ?? fallback` short-circuits. The gate sites to check for any ordered-pipeline-keys extension: `buildAnatomyGraph`, `AnatomyCanvas` pre-render gates, `TransformsProvider` hydration, and any docs / stack tables that enumerate the pipeline steps.
 
 ---
 

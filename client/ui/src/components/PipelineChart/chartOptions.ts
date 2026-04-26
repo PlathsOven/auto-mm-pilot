@@ -95,6 +95,23 @@ function resolveMetricSpec(
           { label: "Smoothed Desired", values: agg.smoothedDesiredPosition, color: SMOOTHED_COLOR, stepRender: false },
         ],
       };
+    case "exposure":
+      // Stage H exposure timeseries isn't on the wire yet — the Pipeline
+      // endpoint aggregates position (post-correlation) only. Fall back to
+      // the position series so the dropdown stays exhaustive; the two
+      // coincide in the identity-matrix default state. A follow-up can
+      // emit a separate ``rawDesiredExposure`` / ``smoothedDesiredExposure``
+      // aggregated series in pipeline_series.py when correlations drift
+      // from identity.
+      return {
+        yAxisName: "Exposure ($)",
+        yAxisFormatter: positionLabel,
+        tooltipFormatter: sci,
+        lines: [
+          { label: "Instant Exposure", values: agg.rawDesiredPosition, color: INSTANT_COLOR, stepRender: false },
+          { label: "Smoothed Exposure", values: agg.smoothedDesiredPosition, color: SMOOTHED_COLOR, stepRender: false },
+        ],
+      };
     case "edge":
       return {
         yAxisName: "Edge (vp)",

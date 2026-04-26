@@ -47,15 +47,37 @@ class DesiredPosition(_WireModel):
     inverse of ``total_vol ** 2 → aggregate_var`` — sum the per-grid-cell
     variance-unit value from the current tick to expiry, divide by T in
     years, sign-preserving sqrt. That's the number an options trader reads.
+
+    Stage H (``exposure_to_position``) splits the old ``desired_pos`` /
+    ``raw_desired_pos`` into an exposure (pre-correlation) and a position
+    (post-correlation). The ``*_exposure`` fields are always emitted — they
+    equal the position fields when both matrices are identity. The
+    ``*_hypothetical`` fields are populated only when a draft correlation
+    matrix is live; otherwise they're ``None``.
     """
     symbol: str
     expiry: str
+    # Canonical ISO expiry key (full datetime with time-of-day) — used as
+    # the correlation-matrix identity. ``expiry`` is DDMMMYY for display;
+    # DDMMMYY discards time-of-day, which misaligns with the pipeline's
+    # actual expiry column (e.g. crypto options typically expire at 08:00
+    # UTC, not midnight). Keep them separate: ``expiry`` for eyes,
+    # ``expiry_iso`` for joins + correlation lookups.
+    expiry_iso: str
     edge: float
     smoothed_edge: float
     variance: float
     smoothed_var: float
     desired_pos: float
     raw_desired_pos: float
+    # Defaults are M1 placeholders — the serializer (M4) emits real
+    # values once the pipeline's Stage H lands (M3). Both fields are
+    # always emitted when the full pipeline is wired; they equal the
+    # position fields when both correlation matrices are identity.
+    raw_desired_exposure: float = 0.0
+    smoothed_desired_exposure: float = 0.0
+    raw_desired_position_hypothetical: float | None = None
+    smoothed_desired_position_hypothetical: float | None = None
     current_pos: float
     total_fair: float
     smoothed_total_fair: float
@@ -122,6 +144,20 @@ class MarketValueMismatchAlert(_WireModel):
     aggregate_vol: float  # user-set marketVol, 0 if unset
     implied_vol: float  # totalMarketFairVol from the pipeline
     diff: float  # implied - aggregate
+
+
+class CorrelationSingularAlert(_WireModel):
+    """Per-matrix alert emitted when the pipeline caught a singular C.
+
+    Raised by Stage H's ``check_singular`` call; persisted per-user so
+    the next WS tick carries the alert into the Notifications Center.
+    ``matrix_kind`` is ``"symbol"`` or ``"expiry"``. ``det`` and
+    ``condition_number`` are reported so the UI can show the trader
+    *why* their matrix is degenerate (e.g. a perfect ρ=1 pair).
+    """
+    matrix_kind: Literal["symbol", "expiry"]
+    det: float
+    condition_number: float
 
 
 class SilentStreamAlert(_WireModel):
@@ -194,6 +230,7 @@ class ServerPayload(_WireModel):
     unregistered_pushes: list[UnregisteredPushAttempt] = Field(default_factory=list)
     silent_streams: list[SilentStreamAlert] = Field(default_factory=list)
     market_value_mismatches: list[MarketValueMismatchAlert] = Field(default_factory=list)
+    correlation_alerts: list[CorrelationSingularAlert] = Field(default_factory=list)
     seq: int = 0
     prev_seq: int = 0
 
