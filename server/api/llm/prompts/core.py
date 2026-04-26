@@ -295,3 +295,25 @@ def extract_risk_dims(
     symbols = sorted({d["symbol"] for d in risk_dims if "symbol" in d})
     expiries = sorted({d["expiry"] for d in risk_dims if "expiry" in d})
     return symbols, expiries
+
+
+def current_time_block() -> str:
+    """Return a ``## CURRENT TIME`` prompt section anchored to now (UTC).
+
+    Models have no live clock. Injecting the wall-clock time lets Stage 2 / 3
+    reason about "tomorrow at 3pm ET" concretely instead of defaulting to
+    a training-cutoff date.
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    return (
+        "\n## CURRENT TIME\n"
+        f"- UTC now: `{now.strftime('%Y-%m-%d %H:%M:%S')}Z`\n"
+        f"- ISO 8601: `{now.isoformat(timespec='seconds').replace('+00:00', 'Z')}`\n"
+        f"- Weekday: `{now.strftime('%A')}`\n"
+        "\n"
+        "Use this as the anchor for any relative time the trader mentions "
+        "(tomorrow, next Friday, in two hours). Never invent dates from "
+        "training data — if the trader is ambiguous, pick the nearest "
+        "future interpretation.\n"
+    )

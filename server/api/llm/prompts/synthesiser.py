@@ -29,6 +29,8 @@ from server.api.llm.prompts.core import (
     PARAMETER_MAPPING,
     SHARED_CORE,
     UNIT_CONVERSION_REFERENCE,
+    current_time_block,
+    extract_risk_dims,
 )
 
 
@@ -213,17 +215,31 @@ do not carry a snapshot at creation — the server will emit \
 kind.
 - Framework invariants are enforced by code. If you pick \
 ``decay_end_size_mult != 0``, you must also pick ``annualized=True``. \
-Violating this raises a validation error.\
+Violating this raises a validation error.
+- ``symbols`` and ``expiries`` MUST come from the ENGINE STATE block \
+below — never emit placeholder strings like ``"<UNKNOWN>"``, ``"*"``, \
+``"TBD"``, or ``"ALL"``. If the intent does not name specific \
+symbols/expiries (e.g. a HeadlineIntent about BTC vol generically), \
+default to every active symbol and expiry matching the intent's \
+``market_variable_affected``. A BTC headline fans out across every BTC \
+expiry; a vol headline with no symbol restriction fans across every \
+active symbol × expiry.
+- ``start_timestamp`` must be an absolute ISO 8601 string anchored to \
+the CURRENT TIME block. Never use placeholder dates \
+(``"2024-01-01..."``, ``"TBD"``, ``"tomorrow"``).\
 """
 
 
 def build_synthesiser_prompt(
     intent_output: dict[str, Any],
+    engine_state: dict[str, Any],
     user_context_section: str = "",
 ) -> str:
     """Assemble the Stage 3 synthesiser system prompt.
 
     ``intent_output`` is the Stage 2 ``IntentOutput`` serialised to dict.
+    ``engine_state`` provides the active symbols + expiries so the LLM
+    can fan out headline-style intents that don't name specific dims.
     The prompt includes shared framework sections plus every preset's
     ``when_to_use`` and ``framework_reasoning`` so the LLM can match on
     the trader's situation without round-tripping to the registry.
@@ -231,9 +247,15 @@ def build_synthesiser_prompt(
     preference block — empty string when the user has no entries.
     """
     intent_json = json.dumps(intent_output, indent=2, default=str)
+    symbols, expiries = extract_risk_dims(engine_state)
+    dims_block = json.dumps(
+        {"available_symbols": symbols, "available_expiries": expiries},
+        indent=2, default=str,
+    )
     return (
         f"{SHARED_CORE}\n"
         f"{user_context_section}\n"
+        f"{current_time_block()}"
         f"{FRAMEWORK_DETAIL}\n"
         f"{PARAMETER_MAPPING}\n"
         f"{BLOCK_DECISION_FLOW}\n"
@@ -241,6 +263,8 @@ def build_synthesiser_prompt(
         f"{BASE_VS_EVENT_RULES}\n"
         f"{serialize_presets_for_prompt()}\n"
         f"{_SYNTHESISER_EXT}\n\n"
+        "## ENGINE STATE (active risk dimensions)\n"
+        f"```json\n{dims_block}\n```\n\n"
         "## STAGE 2 INTENT\n"
         f"```json\n{intent_json}\n```\n"
     )

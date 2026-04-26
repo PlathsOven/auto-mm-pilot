@@ -19,6 +19,7 @@ from server.api.llm.prompts.core import (
     BASE_VS_EVENT_RULES,
     SHARED_CORE,
     UNIT_CONVERSION_REFERENCE,
+    current_time_block,
     extract_risk_dims,
 )
 
@@ -51,8 +52,18 @@ markdown, no code fences):
   "clarifying_question": <string or null>
 }
 
-**Invariant:** exactly one of ``structured`` / ``raw`` / \
-``clarifying_question`` is non-null. The other two are null.
+**HARD INVARIANT — mutual exclusion:** exactly one of ``structured`` / \
+``raw`` / ``clarifying_question`` is non-null; the other two are null. \
+No exceptions. Setting two or more produces a validation error and the \
+turn fails.
+
+- If you extracted enough information to fill a structured schema, \
+EMIT STRUCTURED and set ``clarifying_question`` to null. The trader can \
+refine in a follow-up turn.
+- Emit ``clarifying_question`` ONLY when neither structured nor raw \
+is possible because a REQUIRED field is genuinely missing.
+- Never emit ``clarifying_question`` "just to be safe" alongside a \
+structured intent.
 
 ## STRUCTURED INTENT VARIANTS
 
@@ -99,9 +110,14 @@ block and is the desk's shared-language primitive.
   "event_type": "<classification, e.g. 'macro_release'>",
   "market_variable_affected": "<e.g. 'BTC vol', 'cross-asset correlation'>",
   "direction": "<bullish_vol|bearish_vol|ambiguous>",
-  "magnitude_language": "<the language used, e.g. 'small surprise'>",
-  "probable_timeframe": "<e.g. '30 minutes', 'overnight'>"
+  "magnitude_language": "<the language used, e.g. 'small surprise' | null>",
+  "probable_timeframe": "<e.g. '30 minutes', 'overnight' | null>"
 }
+
+``magnitude_language`` and ``probable_timeframe`` are OPTIONAL — emit \
+``null`` when the input gives no magnitude or timeframe cue. Never \
+invent a filler like ``"unspecified"``. ``direction`` defaults to \
+``"ambiguous"`` when the input is directionally unclear.
 
 ## FALLBACK — RawIntent
 
@@ -182,6 +198,7 @@ def build_intent_prompt(
     return (
         f"{SHARED_CORE}\n"
         f"{user_context_section}\n"
+        f"{current_time_block()}"
         f"{UNIT_CONVERSION_REFERENCE}\n"
         f"{BASE_VS_EVENT_RULES}\n"
         f"{_INTENT_EXTRACTOR_EXT}\n\n"

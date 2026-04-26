@@ -107,14 +107,20 @@ class HeadlineIntent(BaseModel):
     Full flow deferred (spec §2). Reserved type so the router can route
     headline-like inputs back to the trader with "what do you think this
     means for vol?" before extracting a DiscretionaryViewIntent.
+
+    ``magnitude_language`` and ``probable_timeframe`` are optional because
+    bare headlines (e.g. "BTC conference tomorrow at 3pm ET") often carry
+    no magnitude or timeframe cue — the LLM would otherwise have to hedge
+    with a filler string or hard-fail validation. ``direction`` defaults
+    to ``"ambiguous"`` for the same reason.
     """
     kind: Literal["headline"] = "headline"
     original_phrasing: str
     event_type: str
     market_variable_affected: str
-    direction: Literal["bullish_vol", "bearish_vol", "ambiguous"]
-    magnitude_language: str
-    probable_timeframe: str
+    direction: Literal["bullish_vol", "bearish_vol", "ambiguous"] = "ambiguous"
+    magnitude_language: str | None = None
+    probable_timeframe: str | None = None
 
 
 StructuredIntent = Annotated[

@@ -57,8 +57,16 @@ def get_tool_call(resp: dict[str, Any]) -> tuple[str, dict[str, Any]]:
 def parse_json_content(resp: dict[str, Any]) -> dict[str, Any]:
     """Extract ``message.content``, strip fences, parse as JSON.
 
-    Raises ``json.JSONDecodeError`` on parse failure — callers wrap as
-    their own stage error.
+    Tolerates trailing prose after the JSON body — some models leak
+    explanations despite ``response_format=json_object``. Uses
+    ``raw_decode`` to take the first valid JSON object and ignore the
+    tail. Raises ``json.JSONDecodeError`` only if no valid JSON prefix
+    exists; callers wrap as their own stage error.
     """
-    raw = get_content(resp)
-    return json.loads(strip_markdown_fences(raw))
+    cleaned = strip_markdown_fences(get_content(resp))
+    obj, _end = json.JSONDecoder().raw_decode(cleaned)
+    if not isinstance(obj, dict):
+        raise json.JSONDecodeError(
+            f"expected JSON object, got {type(obj).__name__}", cleaned, 0,
+        )
+    return obj
