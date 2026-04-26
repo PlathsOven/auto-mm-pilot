@@ -13,26 +13,14 @@ import {
   PIPELINE_EDGES,
   PIPELINE_NARRATIVE,
   PIPELINE_ORDER,
+  STEP_LABELS,
   STEP_NODE_POSITIONS,
   STREAM_COLUMN_X,
   STREAM_EDGE_LABEL,
   STREAM_ROW_HEIGHT,
   TRACK_COLORS,
-  type StepKey,
   type TrackKey,
 } from "./anatomyGraph";
-
-const STEP_LABELS: Record<StepKey, string> = {
-  unit_conversion: "Unit Conversion",
-  temporal_fair_value: "Temporal Distribution",
-  risk_space_aggregation: "Risk-Space Aggregation",
-  market_value_inference: "Market Value Inference",
-  aggregation: "Space Aggregation",
-  calc_to_target: "Calc → Target",
-  smoothing: "Smoothing",
-  position_sizing: "Position Sizing",
-  correlations: "Correlations",
-};
 
 const STREAM_EDGE_STROKE = "rgba(129,140,248,0.5)";
 const PIPELINE_EDGE_STROKE_FALLBACK = "rgba(129,140,248,0.6)";

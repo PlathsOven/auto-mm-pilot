@@ -57,6 +57,20 @@ export const PIPELINE_NARRATIVE: Record<StepKey, string> = {
   correlations: "Back out position from exposure: P = Cₛ⁻¹·E·Cₑ⁻¹.",
 };
 
+/** Display label for each pipeline step — used on the node card and the
+ *  jump-list overlay. */
+export const STEP_LABELS: Record<StepKey, string> = {
+  unit_conversion: "Unit Conversion",
+  temporal_fair_value: "Temporal Distribution",
+  risk_space_aggregation: "Risk-Space Aggregation",
+  market_value_inference: "Market Value Inference",
+  aggregation: "Space Aggregation",
+  calc_to_target: "Calc → Target",
+  smoothing: "Smoothing",
+  position_sizing: "Position Sizing",
+  correlations: "Correlations",
+};
+
 // ---------------------------------------------------------------------------
 // Coordinates
 // ---------------------------------------------------------------------------
