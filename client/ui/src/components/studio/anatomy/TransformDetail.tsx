@@ -1,7 +1,10 @@
+import { useState } from "react";
 import type { TransformParam, TransformStep } from "../../../types";
 import type { StepKey } from "./anatomyGraph";
 import { PIPELINE_NARRATIVE } from "./anatomyGraph";
 import { CommittableNumber, CommittableText } from "../sections/Field";
+import { useTransforms } from "../../../providers/TransformsProvider";
+import { updateBankroll } from "../../../services/streamApi";
 
 interface TransformDetailProps {
   stepKey: StepKey;
@@ -47,6 +50,10 @@ export function TransformDetail({
       <p className="mb-3 text-[10px] italic text-mm-text-dim">
         {PIPELINE_NARRATIVE[stepKey]}
       </p>
+
+      {(stepKey === "position_sizing" || stepKey === "bankroll_scaling") && (
+        <BankrollEditor />
+      )}
 
       <label className="mb-3 flex flex-col gap-1">
         <span className="text-[10px] font-medium text-mm-text-dim">Implementation</span>
@@ -180,5 +187,57 @@ function ParamInput({
         onChange={(next) => onChange(param.name, next)}
       />
     </label>
+  );
+}
+
+/** Inline read/edit field for the configured bankroll scalar.
+ *
+ *  Surfaced inside the Position Sizing detail panel so the trader can adjust
+ *  the constant without leaving the position-sizing context. Writes route
+ *  through the same `PATCH /api/config/bankroll` endpoint used by the
+ *  StatusBar BankrollControl, then trigger a TransformsProvider refresh so
+ *  the new value is reflected everywhere it's read from. */
+function BankrollEditor() {
+  const { bankroll, refresh } = useTransforms();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onCommit = async (next: number) => {
+    if (!Number.isFinite(next) || next <= 0) {
+      setError("Bankroll must be a positive number");
+      return;
+    }
+    if (next === bankroll) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await updateBankroll(next);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const value = Number.isFinite(bankroll) ? bankroll : 0;
+
+  return (
+    <div className="mb-3 flex flex-col gap-1 rounded-md border border-mm-accent/20 bg-mm-accent/[0.04] p-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-medium text-mm-text-dim">Bankroll (B)</span>
+        {saving && <span className="text-[9px] text-mm-text-dim">saving…</span>}
+      </div>
+      <CommittableNumber
+        value={value}
+        min={0}
+        step="any"
+        onChange={onCommit}
+      />
+      <span className="text-[9px] text-mm-text-dim">
+        Configured constant — shared across the DAG.
+      </span>
+      {error && <span className="text-[9px] text-mm-error">{error}</span>}
+    </div>
   );
 }

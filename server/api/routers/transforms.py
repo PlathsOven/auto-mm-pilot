@@ -40,6 +40,7 @@ _STEP_LABELS = {
     "risk_space_aggregation": "Risk-Space Aggregation",
     "aggregation": "Space Aggregation",
     "calc_to_target": "Calc → Target Map",
+    "bankroll_scaling": "Bankroll Scaling",
     "position_sizing": "Position Sizing",
     "smoothing": "Position Smoothing",
     "market_value_inference": "Market Value Inference",

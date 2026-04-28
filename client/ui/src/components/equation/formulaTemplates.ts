@@ -65,8 +65,9 @@ function fmtPos(v: number): string {
 // Renderers per symbolic shape
 // ---------------------------------------------------------------------------
 
-const KELLY_SHAPE = /E\s*[·*]\s*B\s*\/\s*V(?!\s*\))/;
-const POWER_UTILITY_SHAPE = /E\s*[·*]\s*B\s*\/\s*\(\s*γ\s*[·*]\s*V\s*\)/;
+// `B(?:\(t\))?` matches both `B` (legacy) and `B(t)` (post bankroll_scaling).
+const KELLY_SHAPE = /E\s*[·*]\s*B(?:\(t\))?\s*\/\s*V(?!\s*\))/;
+const POWER_UTILITY_SHAPE = /E\s*[·*]\s*B(?:\(t\))?\s*\/\s*\(\s*γ\s*[·*]\s*V\s*\)/;
 
 function numericForm(symbolic: string, ctx: FormulaContext): string {
   const { edge, bankroll, variance, params, position } = ctx;

@@ -38,6 +38,7 @@ export const PIPELINE_ORDER = [
   "aggregation",
   "calc_to_target",
   "smoothing",
+  "bankroll_scaling",
   "position_sizing",
   "correlations",
 ] as const;
@@ -53,7 +54,8 @@ export const PIPELINE_NARRATIVE: Record<StepKey, string> = {
   aggregation: "Sum spaces per (dim, t).",
   calc_to_target: "Calc → target. edge = fair − market.",
   smoothing: "EWM-smooth edge and var.",
-  position_sizing: "pos = edge · bankroll / var.",
+  bankroll_scaling: "B(t) = B · √(TTE_days / TTE_ref).",
+  position_sizing: "pos = edge · B(t) / var.",
   correlations: "Back out position from exposure: P = Cₛ⁻¹·E·Cₑ⁻¹.",
 };
 
@@ -67,6 +69,7 @@ export const STEP_LABELS: Record<StepKey, string> = {
   aggregation: "Space Aggregation",
   calc_to_target: "Calc → Target",
   smoothing: "Smoothing",
+  bankroll_scaling: "Bankroll Scaling",
   position_sizing: "Position Sizing",
   correlations: "Correlations",
 };
@@ -91,6 +94,10 @@ const X = {
   aggregation: 2560,
   calc_to_target: 3200,
   smoothing: 3840,
+  // bankroll_scaling sits on a sub-line between smoothing and
+  // position_sizing — angled edge into position_sizing reads as a side
+  // input, the same pattern as MVI off the main horizontal line.
+  bankroll_scaling: 4160,
   position_sizing: 4480,
   correlations: 5120,
   output: 5760,
@@ -101,6 +108,10 @@ const Y_MAIN = 240;
 // aggregation detour labels live in their own vertical band, ~300 px
 // clear of the main-line labels at y ≈ Y_MAIN + 35..75% of card.
 const Y_MVI = 640;
+// Y_BANKROLL parallels Y_MVI on the right half of the canvas — a sub-line
+// reserved for side-input transforms (bankroll today; future
+// auxiliaries could live here too).
+const Y_BANKROLL = 640;
 
 export const STEP_NODE_POSITIONS: Partial<Record<StepKey, { x: number; y: number }>> = {
   unit_conversion: { x: X.unit_conversion, y: Y_MAIN },
@@ -110,6 +121,7 @@ export const STEP_NODE_POSITIONS: Partial<Record<StepKey, { x: number; y: number
   aggregation: { x: X.aggregation, y: Y_MAIN },
   calc_to_target: { x: X.calc_to_target, y: Y_MAIN },
   smoothing: { x: X.smoothing, y: Y_MAIN },
+  bankroll_scaling: { x: X.bankroll_scaling, y: Y_BANKROLL },
   position_sizing: { x: X.position_sizing, y: Y_MAIN },
   correlations: { x: X.correlations, y: Y_MAIN },
 };
@@ -127,17 +139,20 @@ export const CONNECTOR_OFFSET = 220;
 // Tracks (fair / var / market / edge)
 // ---------------------------------------------------------------------------
 
-export type TrackKey = "fair" | "var" | "market" | "edge";
+export type TrackKey = "fair" | "var" | "market" | "edge" | "bankroll";
 
 /** Vertical position (percentage of node height) for each track's
  *  handle. fair / var / market are parallel before calc_to_target;
  *  `edge` sits between fair and var post-CTT so the 3 → 2 taper
- *  signals the fair + market → edge merge. */
+ *  signals the fair + market → edge merge. `bankroll` is a side input
+ *  to position_sizing only — placed below var so it lands on a clear
+ *  band of the position_sizing card. */
 export const TRACK_TOP_PCT: Record<TrackKey, number> = {
   fair: 35,
   var: 55,
   market: 75,
   edge: 40,
+  bankroll: 80,
 };
 
 /** Colour each track gets on its edge stroke + handle dots. */
@@ -146,6 +161,7 @@ export const TRACK_COLORS: Record<TrackKey, string> = {
   var: "rgba(251,146,60,0.75)",     // orange-400
   market: "rgba(16,185,129,0.75)",  // emerald-500
   edge: "rgba(139,92,246,0.85)",    // violet-500
+  bankroll: "rgba(217,119,6,0.85)", // amber-600
 };
 
 export interface NodeTrackSpec {
@@ -179,7 +195,11 @@ export const NODE_TRACKS: Partial<Record<StepKey, NodeTrackSpec>> = {
     out: ["edge", "var"],
   },
   smoothing: { in: ["edge", "var"], out: ["edge", "var"] },
-  position_sizing: { in: ["edge", "var"], out: [] },
+  // bankroll_scaling is a side-input transform: no upstream pipeline
+  // edge feeds it (the bankroll constant comes off engine state), and
+  // its single named output rejoins the main line at position_sizing.
+  bankroll_scaling: { in: [], out: ["bankroll"] },
+  position_sizing: { in: ["edge", "var", "bankroll"], out: [] },
   // correlations collapses position_sizing's merged output into a single
   // track on both sides — the exposure → position translation is purely
   // positional (not edge / var / market).
@@ -308,6 +328,10 @@ export const PIPELINE_EDGES: AnatomyEdgeDef[] = [
   // smoothing → position_sizing
   { id: "e-smooth-ps-edge", source: "smoothing", target: "position_sizing", sourceHandle: "edge", targetHandle: "edge", label: "smoothed_edge(t)" },
   { id: "e-smooth-ps-var", source: "smoothing", target: "position_sizing", sourceHandle: "var", targetHandle: "var", label: "smoothed_var(t)" },
+
+  // bankroll_scaling → position_sizing — per-row scaled bankroll fed in
+  // as a third side input alongside edge + var.
+  { id: "e-bs-ps-bankroll", source: "bankroll_scaling", target: "position_sizing", sourceHandle: "bankroll", targetHandle: "bankroll", label: "scaled_bankroll(t)" },
 
   // position_sizing → correlations — edge + var merged into exposure.
   { id: "e-ps-corr", source: "position_sizing", target: "correlations", label: "exposure(t)" },

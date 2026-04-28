@@ -25,6 +25,7 @@ from server.core.transforms.registry import (
 # registry.  Deleting any of these would silently drop its transforms.
 from server.core.transforms import (  # noqa: F401
     aggregation,
+    bankroll_scaling,
     calc_to_target,
     decay,
     exposure_to_position,
