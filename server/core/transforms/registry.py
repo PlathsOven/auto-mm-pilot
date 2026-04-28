@@ -272,8 +272,12 @@ _define_step("aggregation",
              contract_doc="(space_df, risk_dimension_cols, **params) -> pl.DataFrame",
              infrastructure_params=["space_df", "risk_dimension_cols"])
 
+_define_step("bankroll_scaling",
+             contract_doc="(bankroll: pl.Expr, tte_years: pl.Expr, **params) -> pl.Expr",
+             infrastructure_params=["bankroll", "tte_years"])
+
 _define_step("position_sizing",
-             contract_doc="(edge: pl.Expr, var: pl.Expr, bankroll: float, **params) -> pl.Expr",
+             contract_doc="(edge: pl.Expr, var: pl.Expr, bankroll: pl.Expr, **params) -> pl.Expr",
              infrastructure_params=["edge", "var", "bankroll"])
 
 _define_step("smoothing",

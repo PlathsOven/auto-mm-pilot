@@ -76,6 +76,8 @@ class TransformConfigRequest(BaseModel):
     aggregation_params: dict[str, Any] | None = None
     calc_to_target: str | None = None
     calc_to_target_params: dict[str, Any] | None = None
+    bankroll_scaling: str | None = None
+    bankroll_scaling_params: dict[str, Any] | None = None
     position_sizing: str | None = None
     position_sizing_params: dict[str, Any] | None = None
     smoothing: str | None = None

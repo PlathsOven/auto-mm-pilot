@@ -409,6 +409,7 @@ def run_pipeline(
     agg_fn = get_step("aggregation").get_selected()
     ctt_fn = get_step("calc_to_target").get_selected()
     smooth_fn = get_step("smoothing").get_selected()
+    scale_fn = get_step("bankroll_scaling").get_selected()
     pos_fn = get_step("position_sizing").get_selected()
     etp_fn = get_step("exposure_to_position").get_selected()
 
@@ -419,6 +420,7 @@ def run_pipeline(
     agg_params = get_step("aggregation").get_param_values()
     ctt_params = get_step("calc_to_target").get_param_values()
     smooth_params = get_step("smoothing").get_param_values()
+    scale_params = get_step("bankroll_scaling").get_param_values()
     pos_params = get_step("position_sizing").get_param_values()
 
     agg_mv = aggregate_market_values or {}
@@ -489,13 +491,21 @@ def run_pipeline(
         dim_target_df, risk_dimension_cols, **smooth_params,
     )
 
+    # Stage F.5: bankroll scaling — shape the configured scalar into a
+    # per-row column based on each row's TTE before it enters Kelly.
+    smoothed_df = smoothed_df.with_columns(
+        scale_fn.fn(pl.lit(bankroll), tte_expr, **scale_params)
+            .alias("scaled_bankroll"),
+    )
+    bankroll_col = pl.col("scaled_bankroll")
+
     # Stage G: position sizing (Kelly by default).
     desired_pos_df = smoothed_df.with_columns(
         pl.when(pl.col("var").abs() < VAR_FLOOR).then(0.0)
-        .otherwise(pos_fn.fn(pl.col("edge"), pl.col("var"), bankroll, **pos_params))
+        .otherwise(pos_fn.fn(pl.col("edge"), pl.col("var"), bankroll_col, **pos_params))
         .alias("raw_desired_position"),
         pl.when(pl.col("smoothed_var").abs() < VAR_FLOOR).then(0.0)
-        .otherwise(pos_fn.fn(pl.col("smoothed_edge"), pl.col("smoothed_var"), bankroll, **pos_params))
+        .otherwise(pos_fn.fn(pl.col("smoothed_edge"), pl.col("smoothed_var"), bankroll_col, **pos_params))
         .alias("smoothed_desired_position"),
     )
 

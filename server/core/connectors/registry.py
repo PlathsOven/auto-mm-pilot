@@ -9,10 +9,14 @@ tuple below.
 from __future__ import annotations
 
 from server.core.connectors.base import Connector
+from server.core.connectors.event_aware_rv import EVENT_AWARE_RV_CONNECTOR
 from server.core.connectors.realized_vol import REALIZED_VOL_CONNECTOR
 
 
-_REGISTERED: tuple[Connector, ...] = (REALIZED_VOL_CONNECTOR,)
+_REGISTERED: tuple[Connector, ...] = (
+    REALIZED_VOL_CONNECTOR,
+    EVENT_AWARE_RV_CONNECTOR,
+)
 
 CONNECTOR_REGISTRY: dict[str, Connector] = {c.name: c for c in _REGISTERED}
 
